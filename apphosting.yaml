@@ -14,10 +14,9 @@ runConfig:
   memoryMiB: 512
 
 env:
-  # URL technique App Hosting tant que le DNS n'a pas basculé ; passer à
-  # https://monvrai.fr le jour J (liens des e-mails, retour Stripe, métadonnées).
+  # Domaine public (liens des e-mails, retour Stripe, métadonnées). DNS basculé le 2026-09-08.
   - variable: NEXT_PUBLIC_SITE_URL
-    value: https://mon-vrai--mon-vrai.europe-west4.hosted.app
+    value: https://monvrai.fr
     availability: [BUILD, RUNTIME]
 
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
