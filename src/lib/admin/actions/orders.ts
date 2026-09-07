@@ -6,7 +6,7 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { getOrder, setTracking, transitionOrder } from "@/lib/db/orders";
+import { addOrderNote, getOrder, setTracking, transitionOrder } from "@/lib/db/orders";
 import { OrderStatus } from "@/lib/domain/types";
 import { sendShippingNotice } from "@/lib/email/send";
 import { issueInvoice } from "@/lib/invoice/issue";
@@ -78,4 +78,16 @@ export async function issueInvoiceAction(formData: FormData): Promise<AdminResul
   } catch (e) {
     return failed((e as Error).message);
   }
+}
+
+const Note = z.object({ id: z.string().min(1), note: z.string().trim().min(1, "La note est vide").max(500) });
+
+/** Note interne dans l'historique, sans changer le statut. */
+export async function addOrderNoteAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const parsed = parseForm(Note, formData);
+  if (!parsed.ok) return failed(parsed.error, parsed.issues);
+  await addOrderNote(parsed.data.id, parsed.data.note, user.email);
+  revalidatePath("/admin/commandes");
+  return saved("Note ajoutée.");
 }

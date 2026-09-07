@@ -22,9 +22,16 @@ type Props = {
   secondary?: ReactNode;
   /** Demande une confirmation avant d'envoyer (suppressions). */
   confirm?: string;
+  /** Ton du bouton principal (« secondary » = pilule blanche, pour les cartes sombres). */
+  submitTone?: "primary" | "secondary" | "danger" | "outline" | "ghost";
+  /** Sans pied de formulaire : le bouton d'envoi est ailleurs (en-tête), relié par `id`. */
+  hideFooter?: boolean;
+  id?: string;
+  /** Texte d'aide à gauche du bouton. */
+  footerNote?: ReactNode;
 };
 
-export function ActionForm({ action, children, submitLabel = "Enregistrer", className = "", secondary, confirm }: Props) {
+export function ActionForm({ action, children, submitLabel = "Enregistrer", className = "", secondary, confirm, submitTone = "primary", hideFooter = false, id, footerNote }: Props) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AdminResult | null, FormData>(async (_prev, fd) => action(fd), null);
 
@@ -37,6 +44,7 @@ export function ActionForm({ action, children, submitLabel = "Enregistrer", clas
 
   return (
     <form
+      id={id}
       action={formAction}
       className={`flex flex-col gap-5 ${className}`}
       onSubmit={(e) => {
@@ -46,10 +54,17 @@ export function ActionForm({ action, children, submitLabel = "Enregistrer", clas
       {state && !state.ok && <Notice tone="error">{state.error}</Notice>}
       {state?.ok && state.message && <Notice tone="ok">{state.message}</Notice>}
       <IssuesContext.Provider value={issues}>{children}</IssuesContext.Provider>
-      <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
-        <Button disabled={pending}>{pending ? "…" : submitLabel}</Button>
-        {secondary}
-      </div>
+      {!hideFooter && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {footerNote ? <span className="text-xs text-subtle">{footerNote}</span> : <span />}
+          <div className="flex flex-wrap items-center gap-2">
+            {secondary}
+            <Button tone={submitTone} disabled={pending}>
+              {pending ? "…" : submitLabel}
+            </Button>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

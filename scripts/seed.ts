@@ -10,6 +10,7 @@
  * mégarde. `--force` lève cette protection, en connaissance de cause.
  */
 
+import { DEFAULT_SHIPPING_RATES } from "@/lib/domain/types";
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import path from "node:path";
 import { adminAuth } from "@/lib/firebase/admin";
@@ -159,7 +160,8 @@ async function main() {
     },
     contact: { email: "contact@monvrai.fr", addressLines: ["19, Les Guindreaux", "France"] },
     socials: {},
-    shipping: { freeThreshold: 3000, preorderShipFrom: SHIP_FROM, countries: ["FR", "BE", "LU"] },
+    shipping: { freeThreshold: 3000, preorderShipFrom: SHIP_FROM, countries: ["FR", "BE", "LU"], rates: DEFAULT_SHIPPING_RATES },
+    inventory: { lowThreshold: 20 },
     payments: { mode: "live" },
     legal: {
       footerLine: "",
@@ -314,12 +316,12 @@ async function main() {
       heading: "Avant d'écrire, la réponse est peut-être ici",
       note: "Questions fréquentes",
       items: [
-        { q: "Quand ma précommande sera-t-elle expédiée ?", a: "Les premières expéditions sont prévues à partir du 25 décembre 2026, sous réserve de la réception du stock." },
-        { q: "Si je commande plusieurs livres, seront-ils envoyés ensemble ?", a: "Oui. Les imagiers d'une même commande sont regroupés et expédiés dans un seul colis." },
-        { q: "Où livrez-vous ?", a: "En France, en Belgique et au Luxembourg — Mondial Relay, Colissimo ou Chronopost selon la destination." },
-        { q: "Puis-je retourner ma commande ?", a: "Vous disposez de 14 jours à compter de la réception pour exercer votre droit de rétractation." },
-        { q: "Que faire si mon livre arrive abîmé ?", a: "Envoyez-nous des photos du livre et de son emballage dès réception ; nous vous proposons une solution adaptée." },
-        { q: "Est-il adapté aux professionnels de la petite enfance ?", a: "Oui — à la maison comme en crèche ou chez une assistante maternelle." },
+        { q: "Quand ma précommande sera-t-elle expédiée ?", a: "Les premières expéditions sont prévues à partir du 25 décembre 2026, sous réserve de la réception du stock.", cat: "Précommande", hidden: false },
+        { q: "Si je commande plusieurs livres, seront-ils envoyés ensemble ?", a: "Oui. Les imagiers d'une même commande sont regroupés et expédiés dans un seul colis.", cat: "Livraison", hidden: false },
+        { q: "Où livrez-vous ?", a: "En France, en Belgique et au Luxembourg — Mondial Relay, Colissimo ou Chronopost selon la destination.", cat: "Livraison", hidden: false },
+        { q: "Puis-je retourner ma commande ?", a: "Vous disposez de 14 jours à compter de la réception pour exercer votre droit de rétractation.", cat: "Retours", hidden: false },
+        { q: "Que faire si mon livre arrive abîmé ?", a: "Envoyez-nous des photos du livre et de son emballage dès réception ; nous vous proposons une solution adaptée.", cat: "Retours", hidden: false },
+        { q: "Est-il adapté aux professionnels de la petite enfance ?", a: "Oui — à la maison comme en crèche ou chez une assistante maternelle.", cat: "Les livres", hidden: false },
       ],
     },
   });

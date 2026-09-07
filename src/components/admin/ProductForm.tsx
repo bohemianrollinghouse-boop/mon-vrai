@@ -1,113 +1,103 @@
 import { ActionForm } from "@/components/admin/ActionForm";
 import { ImageList } from "@/components/admin/ImageList";
+import { ItemsEditor } from "@/components/admin/ItemsEditor";
 import { RichEditor } from "@/components/admin/RichEditor";
-import { ButtonLink, Card, Checkbox, Field, Input, Select, Textarea } from "@/components/admin/ui";
+import { Button, ButtonLink, Card, Field, Input, PageHeader, Segmented, Select, Switch, Textarea } from "@/components/admin/ui";
 import { deleteProductAction, saveProductAction } from "@/lib/admin/actions/products";
 import type { Product } from "@/lib/domain/types";
 
 /*
- * Formulaire produit, partagé entre création et modification. Composant serveur : il
- * ne fait que disposer les champs ; ActionForm, ImageList et RichEditor portent le peu
- * d'interactivité nécessaire.
+ * Fiche produit, d'après la maquette : en-tête avec « Aperçu » et « Enregistrer »,
+ * colonne principale (titre, description, contenu du livre, SEO), colonne latérale
+ * (statut, précommande, pastille, photos, prix & stock). Composant serveur : il ne fait
+ * que disposer les champs ; ActionForm, ImageList, ItemsEditor et RichEditor portent
+ * le peu d'interactivité nécessaire.
  */
 export function ProductForm({ product }: { product: Product | null }) {
   const p = product;
+  const euros = (c?: number) => (c === undefined ? "" : (c / 100).toFixed(2).replace(".", ","));
+  const formId = "product-form";
+
   return (
-    <ActionForm
-      action={saveProductAction}
-      submitLabel={p ? "Enregistrer" : "Créer le produit"}
-      secondary={
-        <>
-          <ButtonLink href="/admin/produits" tone="ghost">
-            Retour à la liste
-          </ButtonLink>
-          {p && (
-            <ButtonLink href={`/livres/${p.slug}`} tone="ghost" target="_blank">
-              Voir sur le site ↗
-            </ButtonLink>
-          )}
-        </>
-      }
-    >
-      <>
+    <>
+      <PageHeader
+        back={{ href: "/admin/produits", label: "Produits" }}
+        title={p ? p.title : "Nouveau produit"}
+        subtitle={p ? `Modifié le ${new Date(p.updatedAt).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}` : "Créé en brouillon tant que vous ne le mettez pas en ligne."}
+        actions={
+          <>
+            {p && (
+              <ButtonLink href={`/livres/${p.slug}`} target="_blank" tone="secondary">
+                Aperçu ↗
+              </ButtonLink>
+            )}
+            <Button form={formId} tone="primary">
+              {p ? "Enregistrer" : "Créer le produit"}
+            </Button>
+          </>
+        }
+      />
+
+      <ActionForm id={formId} action={saveProductAction} hideFooter>
         <input type="hidden" name="originalSlug" value={p?.slug ?? ""} />
-        <div className="grid grid-cols-[2fr_1fr] gap-6 max-[899px]:grid-cols-1">
-          <div className="flex flex-col gap-6">
-            <Card title="Livre">
-              <div className="flex flex-col gap-4">
-                <Field label="Titre" name="title">
-                  <Input name="title" defaultValue={p?.title ?? ""} required maxLength={120} />
+        <div className="grid grid-cols-[1.6fr_1fr] items-start gap-3 max-[1099px]:grid-cols-1">
+          <div className="flex flex-col gap-3">
+            <Card>
+              <Field label="Titre" name="title">
+                <Input name="title" defaultValue={p?.title ?? ""} required maxLength={120} className="!text-[0.9375rem] !font-bold" />
+              </Field>
+              <div className="grid grid-cols-2 gap-3 max-[749px]:grid-cols-1">
+                <Field label="Surtitre" hint="Ex. « 6–18 mois »." name="ageLabel">
+                  <Input name="ageLabel" defaultValue={p?.ageLabel ?? "6–18 mois"} />
                 </Field>
-                <div className="grid grid-cols-2 gap-4 max-[749px]:grid-cols-1">
-                  <Field label="Surtitre" hint="Ex. « 6–18 mois »." name="ageLabel">
-                    <Input name="ageLabel" defaultValue={p?.ageLabel ?? "6–18 mois"} />
-                  </Field>
-                  <Field label="Adresse (slug)" hint="Vide = généré depuis le titre." name="slug">
-                    <Input name="slug" defaultValue={p?.slug ?? ""} placeholder="le-visage" />
-                  </Field>
-                </div>
-                <Field label="Accroche" hint="Une phrase sous le titre." name="subtitle">
-                  <Input name="subtitle" defaultValue={p?.subtitle ?? ""} maxLength={200} />
-                </Field>
-                <Field label="Contenu du livre" hint="Un objet par ligne (ou séparés par des virgules). Affiché sur les cartes : « la pomme, la clémentine et le kiwi »." name="items">
-                  <Textarea name="items" defaultValue={p?.items.join("\n") ?? ""} rows={4} />
+                <Field label="Adresse (slug)" hint="Vide = généré depuis le titre." name="slug">
+                  <Input name="slug" defaultValue={p?.slug ?? ""} placeholder="le-visage" />
                 </Field>
               </div>
+              <Field label="Sous-titre (une phrase)" name="subtitle">
+                <Input name="subtitle" defaultValue={p?.subtitle ?? ""} maxLength={200} className="!font-medium" />
+              </Field>
             </Card>
 
-            <Card title="Description">
+            <Card title={<span className="text-[0.8125rem]">Description</span>} aside={<span className="text-[0.6875rem] font-semibold text-subtle">Éditeur visuel · s'affiche sur la page produit</span>} className="!gap-3">
               <RichEditor name="descriptionHtml" initialHtml={p?.descriptionHtml ?? ""} htmlOnly />
             </Card>
 
-            <Card title="Images">
-              <ImageList initial={p?.images ?? []} />
+            <Card title={<span className="text-[0.8125rem]">Contenu du livre</span>} aside={<span className="text-[0.6875rem] font-semibold text-subtle">Affiché sur les cartes : « la pomme, la clémentine et le kiwi »</span>}>
+              <ItemsEditor initial={p?.items ?? []} />
+            </Card>
+
+            <Card title={<span className="text-[0.8125rem]">Référencement (SEO)</span>}>
+              <Field label="Titre de page" hint="Vide = titre du livre." name="seoTitle">
+                <Input name="seoTitle" defaultValue={p?.seo.title ?? ""} maxLength={70} placeholder={p ? `${p.title} — imagier 6–18 mois` : ""} className="!font-medium" />
+              </Field>
+              <Field label="Description" hint="Vide = sous-titre." name="seoDescription">
+                <Textarea name="seoDescription" defaultValue={p?.seo.description ?? ""} maxLength={200} rows={2} className="!font-medium" />
+              </Field>
+              <div className="flex flex-col gap-1.5 text-[0.8125rem] font-bold">
+                <span className="text-xs font-semibold text-subtle">URL</span>
+                <span className="rounded-[14px] bg-paper px-4 py-3.5 text-sm font-medium text-muted">
+                  monvrai.fr/livres/<span className="font-bold text-ink">{p?.slug ?? "…"}</span>
+                </span>
+              </div>
             </Card>
           </div>
 
-          <div className="flex flex-col gap-6">
-            <Card title="Publication">
-              <div className="flex flex-col gap-4">
-                <Field label="Statut">
-                  <Select name="status" defaultValue={p?.status ?? "draft"}>
-                    <option value="draft">Brouillon</option>
-                    <option value="published">Publié</option>
-                  </Select>
-                </Field>
-                <Field label="Ordre dans le catalogue" hint="0 en premier." name="position">
-                  <Input name="position" type="number" defaultValue={p?.position ?? 0} />
-                </Field>
-              </div>
-            </Card>
-
-            <Card title="Prix et stock">
-              <div className="flex flex-col gap-4">
-                <Field label="Prix (€)" name="price">
-                  <Input name="price" inputMode="decimal" defaultValue={p ? (p.price / 100).toFixed(2).replace(".", ",") : "10,00"} required />
-                </Field>
-                <Field label="Prix barré (€)" hint="Vide si aucun." name="compareAtPrice">
-                  <Input name="compareAtPrice" inputMode="decimal" defaultValue={p?.compareAtPrice ? (p.compareAtPrice / 100).toFixed(2).replace(".", ",") : ""} />
-                </Field>
-                <Checkbox name="stockTracked" label="Suivre le stock" defaultChecked={p ? p.stock !== null : false} />
-                <Field label="Quantité en stock" hint="Ignorée si le stock n'est pas suivi." name="stock">
-                  <Input name="stock" type="number" min={0} defaultValue={p?.stock ?? 0} />
-                </Field>
-                <Field label="ISBN" name="isbn">
-                  <Input name="isbn" defaultValue={p?.isbn ?? ""} />
-                </Field>
-              </div>
-            </Card>
-
-            <Card title="Précommande">
-              <div className="flex flex-col gap-4">
-                <Checkbox name="preorderEnabled" label="En précommande" defaultChecked={p?.preorder.enabled ?? false} />
-                <Field label="Expédition à partir du" name="preorderShipFrom">
-                  <Input name="preorderShipFrom" type="date" defaultValue={p?.preorder.shipFrom ?? ""} />
-                </Field>
-              </div>
-            </Card>
-
-            <Card title="Présentation">
-              <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3">
+            <Card title={<span className="text-[0.8125rem]">Statut</span>}>
+              <Segmented
+                name="status"
+                defaultValue={p?.status ?? "draft"}
+                options={[
+                  { value: "published", label: "En ligne" },
+                  { value: "draft", label: "Brouillon" },
+                ]}
+              />
+              <Switch name="preorderEnabled" label="Précommande" defaultChecked={p?.preorder.enabled ?? false} />
+              <Field label="Expédition à partir du" hint="Vide = date des réglages." name="preorderShipFrom">
+                <Input name="preorderShipFrom" type="date" defaultValue={p?.preorder.shipFrom ?? ""} />
+              </Field>
+              <div className="grid grid-cols-2 gap-3">
                 <Field label="Pastille">
                   <Select name="badge" defaultValue={p?.badge ?? "none"}>
                     <option value="none">Aucune</option>
@@ -115,7 +105,7 @@ export function ProductForm({ product }: { product: Product | null }) {
                     <option value="reissue">Nouvelle édition</option>
                   </Select>
                 </Field>
-                <Field label="Teinte de la vignette">
+                <Field label="Teinte" hint="Fond des vignettes.">
                   <Select name="tint" defaultValue={p?.tint ?? "green"}>
                     <option value="green">Vert</option>
                     <option value="blue">Bleu</option>
@@ -124,31 +114,44 @@ export function ProductForm({ product }: { product: Product | null }) {
                   </Select>
                 </Field>
               </div>
+              <Field label="Ordre dans le catalogue" hint="0 en premier." name="position">
+                <Input name="position" type="number" defaultValue={p?.position ?? 0} />
+              </Field>
             </Card>
 
-            <Card title="SEO">
-              <div className="flex flex-col gap-4">
-                <Field label="Titre" hint="Vide = titre du livre." name="seoTitle">
-                  <Input name="seoTitle" defaultValue={p?.seo.title ?? ""} maxLength={70} />
+            <Card title={<span className="text-[0.8125rem]">Photos</span>}>
+              <ImageList initial={p?.images ?? []} tint={p?.tint ?? "sand"} />
+            </Card>
+
+            <Card title={<span className="text-[0.8125rem]">Prix &amp; stock</span>}>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Prix TTC (€)" name="price">
+                  <Input name="price" inputMode="decimal" defaultValue={p ? euros(p.price) : "10,00"} required className="!text-[0.9375rem] !font-bold" />
                 </Field>
-                <Field label="Description" hint="Vide = accroche." name="seoDescription">
-                  <Textarea name="seoDescription" defaultValue={p?.seo.description ?? ""} maxLength={200} rows={3} />
+                <Field label="Prix barré (€)" hint="Optionnel." name="compareAtPrice">
+                  <Input name="compareAtPrice" inputMode="decimal" defaultValue={euros(p?.compareAtPrice)} placeholder="—" />
                 </Field>
               </div>
+              <Switch name="stockTracked" label="Suivre le stock" hint="Décoché : vente illimitée." defaultChecked={p ? p.stock !== null : false} />
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Stock" name="stock">
+                  <Input name="stock" type="number" min={0} defaultValue={p?.stock ?? 0} className="!text-[0.9375rem] !font-bold" />
+                </Field>
+                <Field label="ISBN" name="isbn">
+                  <Input name="isbn" defaultValue={p?.isbn ?? ""} />
+                </Field>
+              </div>
+              <span className="text-[0.6875rem] leading-relaxed text-subtle">Le stock est décrémenté au paiement. Le seuil « stock bas » se règle dans Paramètres.</span>
             </Card>
           </div>
         </div>
-      </>
-    </ActionForm>
+      </ActionForm>
+
+      {p && (
+        <ActionForm action={deleteProductAction} submitLabel="Supprimer ce produit" submitTone="ghost" confirm={`Supprimer « ${p.title} » ? Cette action est irréversible.`} className="items-start px-2 [&_button]:!px-0 [&_button]:text-xs [&_button]:!font-semibold [&_button]:text-accent" footerNote="Les commandes passées gardent leur copie du titre et du prix.">
+          <input type="hidden" name="slug" value={p.slug} />
+        </ActionForm>
+      )}
+    </>
   );
 }
-
-export function DeleteProductForm({ slug, title }: { slug: string; title: string }) {
-  return (
-    <ActionForm action={deleteProductAction} submitLabel="Supprimer définitivement" confirm={`Supprimer « ${title} » ? Cette action est irréversible.`}>
-      <input type="hidden" name="slug" value={slug} />
-      <p className="text-sm text-muted">Les commandes passées gardent leur copie du titre et du prix : elles ne sont pas affectées.</p>
-    </ActionForm>
-  );
-}
-

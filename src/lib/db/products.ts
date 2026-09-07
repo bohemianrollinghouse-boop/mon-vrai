@@ -72,3 +72,14 @@ function normalize(s: string): string {
 function stripHtml(s: string): string {
   return s.replace(/<[^>]+>/g, " ");
 }
+
+/** Ajuste le stock d'un titre suivi de ±n, sans passer sous zéro. Renvoie le nouveau stock. */
+export async function adjustStock(slug: string, delta: number): Promise<number | null> {
+  const ref = col("products").doc(slug);
+  const product = parseDoc(Product, await ref.get());
+  if (!product) throw new Error(`Produit ${slug} introuvable`);
+  if (product.stock === null) return null;
+  const next = Math.max(0, product.stock + delta);
+  await ref.update({ stock: next, updatedAt: now() });
+  return next;
+}

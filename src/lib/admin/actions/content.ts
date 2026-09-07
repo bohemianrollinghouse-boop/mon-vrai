@@ -6,7 +6,7 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { saveCatalogueContent, saveContactContent, saveHomeContent, saveStoryContent } from "@/lib/db/content";
+import { saveCatalogueContent, saveContactContent, saveHomeContent, saveStoryContent, getContactContent } from "@/lib/db/content";
 import { CatalogueContent, ContactContent, HomeContent, StoryContent, type ImageRef } from "@/lib/domain/types";
 
 /*
@@ -81,7 +81,6 @@ const ContactInput = ContactContent.omit({ updatedAt: true, subjects: true, faq:
   faq: z.object({
     heading: z.string().max(120).default(""),
     note: z.string().max(60).default(""),
-    items: z.array(z.object({ q: z.string().max(200).default(""), a: z.string().max(800).default("") })).default([]),
   }),
 });
 
@@ -90,11 +89,12 @@ export async function saveContactAction(formData: FormData): Promise<AdminResult
   const parsed = parseForm(ContactInput, formData);
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
+  const current = await getContactContent();
   const result = ContactContent.omit({ updatedAt: true }).safeParse({
     ...d,
     subjects: d.subjectsText.split(/\r?\n/).map((s) => s.trim()).filter(Boolean),
-    // Une question vide est une ligne laissée en blanc dans le formulaire : on l'ignore.
-    faq: { ...d.faq, items: d.faq.items.filter((i) => i.q.trim() && i.a.trim()) },
+    // Les questions elles-mêmes sont gérées dans /admin/faq : on les conserve telles quelles.
+    faq: { ...d.faq, items: current?.faq.items ?? [] },
   });
   if (!result.success) return failed(result.error.issues[0]?.message ?? "Contenu invalide");
   await saveContactContent(result.data);

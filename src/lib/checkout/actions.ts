@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { loadCart } from "@/lib/cart/read";
 import { getSettings } from "@/lib/db/settings";
 import { getStripe } from "@/lib/stripe/client";
+import type { ShippingRate } from "@/lib/domain/types";
 
 /*
  * Passage à la caisse. On ne calcule rien ici que Stripe ne recalcule : les lignes
@@ -50,17 +51,9 @@ export async function startCheckout(): Promise<CheckoutResult> {
       },
     })),
     shipping_address_collection: { allowed_countries: settings.shipping.countries as ["FR"] },
-    // Un seul tarif de port pour l'instant ; Stripe l'affiche et l'encaisse.
-    shipping_options: [
-      {
-        shipping_rate_data: {
-          type: "fixed_amount",
-          display_name: freeShipping ? "Livraison offerte" : "Livraison",
-          fixed_amount: { currency: "eur", amount: freeShipping ? 0 : 490 },
-          delivery_estimate: undefined,
-        },
-      },
-    ],
+    // Les modes de livraison viennent des réglages ; Stripe les affiche et les encaisse.
+    // Un mode « offert dès X € » passe à 0 quand le panier atteint le seuil.
+    shipping_options: shippingOptions(settings.shipping.rates, freeShipping),
     allow_promotion_codes: true,
     discounts: view.cart.promoCode ? undefined : undefined,
     phone_number_collection: { enabled: true },
@@ -71,4 +64,20 @@ export async function startCheckout(): Promise<CheckoutResult> {
 
   if (!session.url) return { ok: false, error: "Stripe n'a pas renvoyé de page de paiement." };
   redirect(session.url);
+}
+
+function shippingOptions(rates: ShippingRate[], freeShipping: boolean) {
+  const enabled = rates.filter((r) => r.enabled);
+  const list = enabled.length ? enabled : [{ id: "standard", name: "Livraison", description: "", price: 490, freeAboveThreshold: true, enabled: true }];
+  return list.map((r) => {
+    const free = freeShipping && r.freeAboveThreshold;
+    return {
+      shipping_rate_data: {
+        type: "fixed_amount" as const,
+        display_name: free ? `${r.name} — offerte` : r.name,
+        fixed_amount: { currency: "eur", amount: free ? 0 : r.price },
+        metadata: { rateId: r.id },
+      },
+    };
+  });
 }

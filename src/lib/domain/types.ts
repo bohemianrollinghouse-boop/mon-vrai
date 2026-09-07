@@ -163,6 +163,23 @@ export type FooterMenu = z.infer<typeof FooterMenu>;
 
 /* ---------- Réglages du site ---------- */
 
+export const ShippingRate = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1).max(60),
+  description: z.string().max(80).default(""),
+  price: Cents,
+  /** Offert quand le panier atteint le seuil de livraison offerte. */
+  freeAboveThreshold: z.boolean().default(false),
+  enabled: z.boolean().default(true),
+});
+export type ShippingRate = z.infer<typeof ShippingRate>;
+
+export const DEFAULT_SHIPPING_RATES: ShippingRate[] = [
+  { id: "mondial-relay", name: "Mondial Relay — point relais", description: "3 à 5 jours", price: 390, freeAboveThreshold: true, enabled: true },
+  { id: "colissimo", name: "Colissimo — domicile", description: "2 à 3 jours", price: 590, freeAboveThreshold: false, enabled: true },
+  { id: "chronopost", name: "Chronopost — express", description: "J+1", price: 990, freeAboveThreshold: false, enabled: true },
+];
+
 export const SiteSettings = z.object({
   shopName: z.string().min(1).default("Mon Vrai"),
   tagline: z.string().default(""),
@@ -193,8 +210,16 @@ export const SiteSettings = z.object({
       /** Date d'expédition par défaut des précommandes, ISO. */
       preorderShipFrom: z.string().optional(),
       countries: z.array(z.string()).default(["FR", "BE", "LU"]),
+      /** Modes de livraison proposés à la caisse (Stripe les affiche et les encaisse). */
+      rates: z.array(ShippingRate).default(DEFAULT_SHIPPING_RATES),
     })
-    .default({ freeThreshold: 3000, countries: ["FR", "BE", "LU"] }),
+    .default({ freeThreshold: 3000, countries: ["FR", "BE", "LU"], rates: DEFAULT_SHIPPING_RATES }),
+  inventory: z
+    .object({
+      /** En dessous de ce nombre d'exemplaires, un titre est signalé « stock bas ». */
+      lowThreshold: z.number().int().min(0).default(20),
+    })
+    .default({ lowThreshold: 20 }),
   payments: z
     .object({
       /** « test » : clés Stripe de test, commandes marquées, pas de facture. */
@@ -456,7 +481,19 @@ export const ContactContent = z.object({
     .object({
       heading: z.string().max(120).default(""),
       note: z.string().max(60).default("Questions fréquentes"),
-      items: z.array(z.object({ q: z.string().max(200), a: z.string().max(800) })).max(12).default([]),
+      items: z
+        .array(
+          z.object({
+            q: z.string().max(200),
+            a: z.string().max(800),
+            /** Rubrique libre (Précommande, Livraison, Retours, Les livres…). */
+            cat: z.string().max(40).default(""),
+            /** Masquée : conservée dans l'admin, absente du site. */
+            hidden: z.boolean().default(false),
+          }),
+        )
+        .max(30)
+        .default([]),
     })
     .default({ heading: "", note: "Questions fréquentes", items: [] }),
   updatedAt: z.number(),

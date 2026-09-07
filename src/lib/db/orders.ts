@@ -32,6 +32,19 @@ export async function listOrders(opts: { status?: OrderStatus; limit?: number } 
   return parseQuery(Order, q);
 }
 
+export async function listOrdersForEmail(email: string): Promise<Order[]> {
+  return parseQuery(Order, orders().where("email", "==", email).orderBy("createdAt", "desc"));
+}
+
+/** Ajoute une note interne au journal, sans changer le statut. */
+export async function addOrderNote(id: string, note: string, by: string): Promise<void> {
+  const ref = orders().doc(id);
+  const order = parseDoc(Order, await ref.get());
+  if (!order) throw new Error(`Commande ${id} introuvable`);
+  const at = now();
+  await ref.update({ timeline: [...order.timeline, { at, status: order.status, note, by }], updatedAt: at });
+}
+
 export async function listOrdersForCustomer(uid: string): Promise<Order[]> {
   return parseQuery(Order, orders().where("customerUid", "==", uid).orderBy("createdAt", "desc"));
 }

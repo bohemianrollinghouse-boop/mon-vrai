@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
-import { Announcement } from "@/components/site/Announcement";
-import { Footer } from "@/components/site/Footer";
-import { Header } from "@/components/site/Header";
 import { getSettings } from "@/lib/db/settings";
 import "./globals.css";
 
 /*
- * Layout racine : la police de la maquette, puis bandeau, en-tête, page, pied de page.
- * Les métadonnées par défaut viennent des réglages ; chaque page peut les préciser.
+ * Layout racine : la police et les métadonnées par défaut, rien d'autre. Le site
+ * public ajoute son bandeau, son en-tête et son pied de page dans `(site)/layout.tsx` ;
+ * l'administration a sa propre coquille dans `admin/layout.tsx` — deux univers qui ne
+ * partagent que la police et les jetons.
  */
 
 const montserrat = Montserrat({
@@ -32,14 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="fr" className={`${montserrat.variable} h-full`}>
-      <body className="flex min-h-full flex-col">
-        <Announcement />
-        <Header />
-        <main id="contenu" className="flex-1">
-          {children}
-        </main>
-        <Footer />
-      </body>
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }

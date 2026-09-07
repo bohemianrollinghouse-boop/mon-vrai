@@ -38,7 +38,7 @@ export function RichEditor({ name, initialHtml = "", initialJson, htmlOnly = fal
     ],
     content: initialJson && typeof initialJson === "object" ? (initialJson as object) : initialHtml,
     editorProps: {
-      attributes: { class: "prose-mv max-w-none min-h-[16rem] rounded-xl border border-line bg-white px-5 py-4 text-sm outline-none focus:border-ink" },
+      attributes: { class: "prose-mv max-w-none min-h-[14rem] rounded-b-[14px] bg-paper px-[1.375rem] py-5 text-[0.9375rem] leading-[1.65] text-[#333] outline-none" },
     },
     onUpdate: ({ editor }) => {
       setHtml(editor.getHTML());
@@ -52,7 +52,7 @@ export function RichEditor({ name, initialHtml = "", initialJson, htmlOnly = fal
       title={title}
       onMouseDown={(e) => e.preventDefault()}
       onClick={run}
-      className={`rounded-lg px-2.5 py-1.5 text-xs font-bold ${active ? "bg-ink text-white" : "bg-paper hover:bg-line"}`}
+      className={`flex h-[34px] min-w-[34px] items-center justify-center rounded-[10px] px-2.5 text-[0.8125rem] font-bold ${active ? "bg-ink text-white" : "bg-white hover:opacity-70"}`}
     >
       {label}
     </button>
@@ -74,7 +74,7 @@ export function RichEditor({ name, initialHtml = "", initialJson, htmlOnly = fal
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col">
       {htmlOnly ? (
         <input type="hidden" name={name} value={html} readOnly />
       ) : (
@@ -84,21 +84,21 @@ export function RichEditor({ name, initialHtml = "", initialJson, htmlOnly = fal
         </>
       )}
       {editor && (
-        <div className="flex flex-wrap gap-1" role="toolbar" aria-label="Mise en forme">
+        <div className="flex flex-wrap gap-1 rounded-t-[14px] bg-paper p-2" role="toolbar" aria-label="Mise en forme">
           {btn("H2", editor.isActive("heading", { level: 2 }), () => editor.chain().focus().toggleHeading({ level: 2 }).run(), "Titre")}
           {btn("H3", editor.isActive("heading", { level: 3 }), () => editor.chain().focus().toggleHeading({ level: 3 }).run(), "Sous-titre")}
           {btn("¶", editor.isActive("paragraph"), () => editor.chain().focus().setParagraph().run(), "Paragraphe")}
-          <span className="w-2" />
+          <span className="w-1.5" />
           {btn("G", editor.isActive("bold"), () => editor.chain().focus().toggleBold().run(), "Gras")}
           {btn("I", editor.isActive("italic"), () => editor.chain().focus().toggleItalic().run(), "Italique")}
-          <span className="w-2" />
+          <span className="w-1.5" />
           {btn("• Liste", editor.isActive("bulletList"), () => editor.chain().focus().toggleBulletList().run())}
           {btn("1. Liste", editor.isActive("orderedList"), () => editor.chain().focus().toggleOrderedList().run())}
           {btn("Citation", editor.isActive("blockquote"), () => editor.chain().focus().toggleBlockquote().run())}
-          <span className="w-2" />
+          <span className="w-1.5" />
           {btn("Lien", editor.isActive("link"), setLink)}
           {btn("Image", false, addImage)}
-          <span className="w-2" />
+          <span className="w-1.5" />
           {btn("Annuler", false, () => editor.chain().focus().undo().run())}
           {btn("Rétablir", false, () => editor.chain().focus().redo().run())}
         </div>

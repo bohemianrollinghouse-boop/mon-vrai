@@ -74,14 +74,14 @@ export default async function ContactPage() {
         </div>
       </section>
 
-      {content.faq.items.length > 0 && (
+      {content.faq.items.some((f) => !f.hidden) && (
         <section id="faq" className="site-wrap flex flex-col gap-7 pt-[4.5rem]">
           <div className="flex flex-wrap items-baseline justify-between gap-6">
             <h2 className="display-2">{content.faq.heading}</h2>
             {content.faq.note && <span className="text-[0.8125rem] font-semibold text-subtle">{content.faq.note}</span>}
           </div>
           <div className="grid grid-cols-2 gap-4 max-[899px]:grid-cols-1">
-            {content.faq.items.map((f) => (
+            {content.faq.items.filter((f) => !f.hidden).map((f) => (
               <div key={f.q} className="flex flex-col gap-2.5 rounded-card bg-white p-7">
                 <span className="font-bold leading-snug">{f.q}</span>
                 <span className="text-sm leading-relaxed text-[#555]">{f.a}</span>

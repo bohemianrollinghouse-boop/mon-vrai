@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { Card, Checkbox, Field, Input, PageHeader, Select, Textarea } from "@/components/admin/ui";
 import { saveCatalogueAction, saveContactAction, saveHomeAction, saveStoryAction } from "@/lib/admin/actions/content";
@@ -251,14 +252,9 @@ export default async function ContentsPage({ searchParams }: PageProps<"/admin/c
                   <Field label="Titre de la section"><Input name="faq.heading" defaultValue={contact.faq.heading} /></Field>
                   <Field label="Mention à droite"><Input name="faq.note" defaultValue={contact.faq.note} /></Field>
                 </div>
-                <div className="grid grid-cols-2 gap-4 max-[899px]:grid-cols-1">
-                  {Array.from({ length: Math.max(8, contact.faq.items.length + 2) }, (_, i) => contact.faq.items[i] ?? { q: "", a: "" }).map((f, i) => (
-                    <div key={i} className="flex flex-col gap-2 rounded-xl bg-paper p-4">
-                      <Field label={`Question ${i + 1}`}><Input name={`faq.items[${i}].q`} defaultValue={f.q} placeholder="Laisser vide pour ignorer" /></Field>
-                      <Field label="Réponse"><Textarea name={`faq.items[${i}].a`} defaultValue={f.a} rows={3} /></Field>
-                    </div>
-                  ))}
-                </div>
+                <p className="text-[0.8125rem] text-muted">
+                  Les questions et réponses se gèrent dans <Link href="/admin/faq" className="font-bold underline">FAQ</Link> ({contact.faq.items.length} question{contact.faq.items.length > 1 ? "s" : ""}).
+                </p>
               </div>
             </Card>
           </>

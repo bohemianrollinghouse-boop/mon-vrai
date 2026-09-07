@@ -16,6 +16,10 @@
   --color-faint: #999999;
   --color-line: #eeeeee;
   --color-line-warm: #e8e2d8;
+  /* Admin : bord de la barre latérale, séparateurs de lignes */
+  --color-line-sand: #eee9e1;
+  --color-line-soft: #f1ede6;
+  --color-ink-soft: #1d1d1d;
 
   /* Teintes des cartes, chacune avec son encre secondaire */
   --color-tint-green: #dce5d6;

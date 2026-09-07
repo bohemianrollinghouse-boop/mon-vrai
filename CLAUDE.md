@@ -49,11 +49,26 @@ pdf-lib, dépôt privé dans `invoices/<année>/`). Appelée par le webhook Stri
 l'action admin, et à la volée par `/api/factures/[id]` (acheteur ou admin seulement).
 Un PDF déjà déposé n'est jamais régénéré : c'est un document comptable figé.
 
-## Formulaires admin
+## Administration
+
+Coquille autonome (`src/app/admin/layout.tsx`, maquette « Mon Vrai - Admin ») : barre
+latérale 240 px avec badges, contenu sur fond crème, **aucun élément du site public**.
+Le site public vit dans le groupe `src/app/(site)/` avec son propre layout ; la racine
+ne porte que la police et les métadonnées. Primitives dans `components/admin/ui.tsx`
+(`GridTable`, `Tile`, `FilterPills`, `Switch`, `Segmented`, `Thumb`…). Vocabulaire des
+commandes côté admin : `lib/admin/order-ui.ts` (« À expédier » = payée). Chiffres
+partagés (badges, tableau de bord) : `lib/admin/counts.ts`.
 
 `ActionForm` (client) publie les erreurs par champ dans `IssuesContext` ; un
 `<Field name="chemin.du.champ">` les affiche. Ne pas passer de fonction en enfant
-depuis une page serveur : elle ne traverse pas la frontière serveur → client.
+depuis une page serveur, ni imbriquer deux `ActionForm` (deux `<form>`). Un bouton
+d'en-tête soumet un formulaire via `form="id"` + `hideFooter`. Dans une liste, une case
+à cocher se poste en `"true"/"false"` (champ caché + case) : `parseForm` ignore les
+booléens à crochets.
+
+FAQ : les questions vivent dans `content/contact.faq.items` (rubrique, masquée) et se
+gèrent dans `/admin/faq`. Tarifs de livraison : `settings.shipping.rates`, proposés à
+la caisse Stripe. Stock : décrémenté au paiement ; « réservé » = payé non expédié.
 
 ## Ports locaux
 
