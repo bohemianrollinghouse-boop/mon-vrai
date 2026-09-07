@@ -1,0 +1,21 @@
+rules_version = '2';
+
+// Les médias publiés (photos produits, images de pages) sont lisibles par tous.
+// L'envoi passe par le serveur, qui contrôle le type et la taille : pas d'écriture cliente.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /media/{allPaths=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Factures : privées, servies par le serveur après vérification du propriétaire.
+    match /invoices/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

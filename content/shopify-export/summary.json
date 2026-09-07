@@ -1,0 +1,109 @@
+{
+  "shop": {
+    "name": "Mon Vrai",
+    "email": "contact@monvrai.fr",
+    "address": "19, Les Guindreaux, France",
+    "domain": "monvrai.fr"
+  },
+  "products": [
+    {
+      "handle": "6-18-mois-les-vetements",
+      "title": "6-18 mois : Les Vêtements",
+      "price": "10.00",
+      "sku": "9782488656030",
+      "tags": [
+        "precommande"
+      ],
+      "images": 2,
+      "body_len": 1125
+    },
+    {
+      "handle": "6-18-mois-les-objets-du-quotidien",
+      "title": "6-18 mois : Les objets du quotidien",
+      "price": "10.00",
+      "sku": "9782488656047",
+      "tags": [
+        "precommande"
+      ],
+      "images": 3,
+      "body_len": 1159
+    },
+    {
+      "handle": "6-18-mois-les-animaux-de-la-ferme",
+      "title": "6-18 mois : Les Animaux de la ferme",
+      "price": "10.00",
+      "sku": "9782488656061",
+      "tags": [
+        "precommande"
+      ],
+      "images": 1,
+      "body_len": 1138
+    },
+    {
+      "handle": "6-18-mois-les-animaux-de-compagnie",
+      "title": "6-18 mois : Les Animaux de compagnie",
+      "price": "10.00",
+      "sku": "9782488656023",
+      "tags": [
+        "precommande"
+      ],
+      "images": 4,
+      "body_len": 1154
+    },
+    {
+      "handle": "6-18-mois-le-visage",
+      "title": "6-18 mois : Le Visage",
+      "price": "10.00",
+      "sku": "9782488656054",
+      "tags": [
+        "precommande"
+      ],
+      "images": 1,
+      "body_len": 1145
+    },
+    {
+      "handle": "6-18-mois-les-animaux-de-la-foret",
+      "title": "6-18 mois : Les Animaux de la forêt",
+      "price": "10.00",
+      "sku": "9782488656085",
+      "tags": [
+        "precommande"
+      ],
+      "images": 1,
+      "body_len": 1146
+    },
+    {
+      "handle": "6-18-mois-les-vehicules",
+      "title": "6-18 mois : Les Véhicules",
+      "price": "10.00",
+      "sku": "9782488656078",
+      "tags": [
+        "precommande"
+      ],
+      "images": 2,
+      "body_len": 1137
+    },
+    {
+      "handle": "6-18-mois-les-fruits-copie",
+      "title": "6-18 mois : Les Légumes",
+      "price": "10.00",
+      "sku": null,
+      "tags": [
+        "precommande"
+      ],
+      "images": 2,
+      "body_len": 919
+    },
+    {
+      "handle": "asset-pack-91706523650-example-product-3",
+      "title": "6-18 mois : Les fruits",
+      "price": "10.00",
+      "sku": null,
+      "tags": [
+        "precommande"
+      ],
+      "images": 4,
+      "body_len": 925
+    }
+  ]
+}

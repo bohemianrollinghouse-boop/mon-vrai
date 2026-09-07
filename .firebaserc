@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "mon-vrai-dev",
+    "dev": "mon-vrai-dev",
+    "prod": "mon-vrai"
+  }
+}

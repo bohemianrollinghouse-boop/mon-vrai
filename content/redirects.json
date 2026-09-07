@@ -1,0 +1,94 @@
+[
+  {
+    "source": "/products/6-18-mois-les-vetements",
+    "destination": "/livres/les-vetements"
+  },
+  {
+    "source": "/products/6-18-mois-les-objets-du-quotidien",
+    "destination": "/livres/les-objets-du-quotidien"
+  },
+  {
+    "source": "/products/6-18-mois-les-animaux-de-la-ferme",
+    "destination": "/livres/les-animaux-de-la-ferme"
+  },
+  {
+    "source": "/products/6-18-mois-les-animaux-de-compagnie",
+    "destination": "/livres/les-animaux-de-compagnie"
+  },
+  {
+    "source": "/products/6-18-mois-le-visage",
+    "destination": "/livres/le-visage"
+  },
+  {
+    "source": "/products/6-18-mois-les-animaux-de-la-foret",
+    "destination": "/livres/les-animaux-de-la-foret"
+  },
+  {
+    "source": "/products/6-18-mois-les-vehicules",
+    "destination": "/livres/les-vehicules"
+  },
+  {
+    "source": "/products/6-18-mois-les-fruits-copie",
+    "destination": "/livres/les-legumes"
+  },
+  {
+    "source": "/products/asset-pack-91706523650-example-product-3",
+    "destination": "/livres/les-fruits"
+  },
+  {
+    "source": "/policies/privacy-policy",
+    "destination": "/informations/privacy-policy"
+  },
+  {
+    "source": "/policies/refund-policy",
+    "destination": "/informations/refund-policy"
+  },
+  {
+    "source": "/policies/terms-of-service",
+    "destination": "/informations/terms-of-service"
+  },
+  {
+    "source": "/policies/shipping-policy",
+    "destination": "/informations/shipping-policy"
+  },
+  {
+    "source": "/policies/legal-notice",
+    "destination": "/informations/legal-notice"
+  },
+  {
+    "source": "/policies/contact-information",
+    "destination": "/informations/contact-information"
+  },
+  {
+    "source": "/policies/terms-of-sale",
+    "destination": "/informations/terms-of-sale"
+  },
+  {
+    "source": "/collections/:path*",
+    "destination": "/catalogue"
+  },
+  {
+    "source": "/products",
+    "destination": "/catalogue"
+  },
+  {
+    "source": "/search",
+    "destination": "/recherche"
+  },
+  {
+    "source": "/cart",
+    "destination": "/panier"
+  },
+  {
+    "source": "/account/:path*",
+    "destination": "/compte"
+  },
+  {
+    "source": "/pages/contact",
+    "destination": "/contact"
+  },
+  {
+    "source": "/policies",
+    "destination": "/informations"
+  }
+]

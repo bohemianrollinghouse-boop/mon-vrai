@@ -1,0 +1,88 @@
+import Image from "next/image";
+import Link from "next/link";
+import { formatEuroShort } from "@/lib/domain/money";
+import { productPath } from "@/lib/domain/system-pages";
+import type { Product } from "@/lib/domain/types";
+import { TINT_BG } from "./ui";
+
+/*
+ * Carte produit de la maquette, en deux densités :
+ *  - « compact » (accueil) : vignette sur fond blanc, nom, bouton avec le prix ;
+ *  - « detailed » (catalogue, recherche) : vignette teintée, liste du contenu, prix et
+ *    bouton séparés.
+ */
+
+const BADGE_LABEL: Record<Product["badge"], string | null> = {
+  none: null,
+  new: "Nouveauté",
+  reissue: "Nouvelle édition",
+};
+
+export function ctaLabel(product: Product): string {
+  if (product.stock !== null && product.stock <= 0 && !product.preorder.enabled) return "Épuisé";
+  return product.preorder.enabled ? "Précommander" : "Ajouter au panier";
+}
+
+export function ProductCard({ product, variant = "detailed" }: { product: Product; variant?: "compact" | "detailed" }) {
+  const image = product.images[0];
+  const badge = BADGE_LABEL[product.badge];
+  const detailed = variant === "detailed";
+
+  return (
+    <Link
+      href={productPath(product.slug)}
+      className={`flex flex-col rounded-card bg-white transition-transform hover:-translate-y-[3px] ${detailed ? "gap-[1.125rem] p-6" : "gap-4 p-5"}`}
+    >
+      <div
+        className={`relative flex aspect-square min-h-0 items-center justify-center ${
+          detailed ? `rounded-thumb ${TINT_BG[product.tint]}` : ""
+        }`}
+      >
+        {image && (
+          <Image
+            src={image.url}
+            alt={image.alt || product.title}
+            width={image.width ?? 600}
+            height={image.height ?? 800}
+            sizes="(min-width: 990px) 25vw, (min-width: 750px) 45vw, 80vw"
+            className={`h-auto w-auto rounded-lg shadow-card ${detailed ? "max-h-[78%] max-w-[78%]" : "max-h-[90%] max-w-[90%]"}`}
+          />
+        )}
+        {badge && (
+          <span
+            className={`absolute rounded-pill px-2.5 py-1.5 text-[0.6875rem] font-bold ${
+              detailed ? "top-3.5 left-3.5 bg-white" : "top-0 left-0 bg-tint-green"
+            }`}
+          >
+            {badge}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-subtle">{product.ageLabel}</span>
+        <span className={`font-bold ${detailed ? "text-lg tracking-[-0.01em]" : "text-[0.9375rem]"}`}>{product.title}</span>
+        {detailed && product.items.length > 0 && (
+          <span className="text-[0.8125rem] leading-relaxed text-muted">{joinItems(product.items)}</span>
+        )}
+      </div>
+
+      {detailed ? (
+        <div className="mt-auto flex items-center justify-between gap-4">
+          <span className="font-extrabold">{formatEuroShort(product.price)}</span>
+          <span className="rounded-pill bg-ink px-[1.125rem] py-3 text-xs font-bold text-white">{ctaLabel(product)}</span>
+        </div>
+      ) : (
+        <span className="w-fit rounded-pill bg-ink px-4 py-2.5 text-xs font-bold text-white">
+          {ctaLabel(product)} · {formatEuroShort(product.price)}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+/** « la pomme, la clémentine, … et le kiwi » — la liste redevient une phrase. */
+export function joinItems(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} et ${items[items.length - 1]}`;
+}

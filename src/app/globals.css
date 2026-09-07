@@ -1,26 +1,205 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Jetons de la maquette « Mon Vrai - Propositions » (direction Tendre, 2a).
+ * Une seule source de vérité : les composants n'écrivent jamais une couleur en dur.
+ */
+@theme {
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+
+  /* Encre et fonds */
+  --color-ink: #111111;
+  --color-paper: #fbf8f3;
+  --color-canvas: #e9e6e0;
+  --color-muted: #666666;
+  --color-subtle: #888888;
+  --color-faint: #999999;
+  --color-line: #eeeeee;
+  --color-line-warm: #e8e2d8;
+
+  /* Teintes des cartes, chacune avec son encre secondaire */
+  --color-tint-green: #dce5d6;
+  --color-tint-green-ink: #3a4438;
+  --color-tint-blue: #e3e8f0;
+  --color-tint-blue-ink: #3a4250;
+  --color-tint-pink: #f0e0e8;
+  --color-tint-pink-ink: #5a3a4a;
+  --color-tint-sand: #f3e9dc;
+  --color-tint-sand-ink: #5a4a38;
+
+  /* Accent (astérisque, erreurs) */
+  --color-accent: #d94e93;
+  --color-danger: #8a1f1f;
+  --color-danger-bg: #f7dcdc;
+
+  /* Arrondis : 16 vignettes, 24 cartes, 32 panneaux, pilule */
+  --radius-thumb: 16px;
+  --radius-card: 24px;
+  --radius-panel: 32px;
+  --radius-pill: 999px;
+
+  /* Gabarit : 1200 px de contenu + 48 px de marge */
+  --spacing-gutter: 48px;
+  --container-site: 1296px;
+
+  --shadow-card: 0 14px 30px rgb(0 0 0 / 0.14);
+  --shadow-soft: 0 10px 30px rgb(0 0 0 / 0.06);
+  --shadow-float: 0 20px 60px rgb(0 0 0 / 0.12);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@layer base {
+  html {
+    color: var(--color-ink);
+    background: var(--color-paper);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-wrap: pretty;
+  }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  body {
+    margin: 0;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
+
+  /* Un contrôle natif hérite de la police du site, pas de celle de l'OS. */
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility site-wrap {
+  max-width: var(--container-site);
+  margin-inline: auto;
+  padding-inline: var(--spacing-gutter);
+  box-sizing: border-box;
+
+  @media (max-width: 749px) {
+    padding-inline: 20px;
+  }
+}
+
+/* Titres de la maquette : graisse 800, interlettrage serré. */
+@utility display-1 {
+  font-size: clamp(2rem, 5vw, 3.75rem);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+@utility display-2 {
+  font-size: clamp(1.5rem, 3.2vw, 2.125rem);
+  line-height: 1.12;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+@utility eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Masqué visuellement, présent pour les lecteurs d'écran. */
+@utility sr-only-keep {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Contenu issu du WYSIWYG et des politiques : balises brutes, sans classes. */
+@utility prose-mv {
+  max-width: 42rem;
+
+  & h1 {
+    font-size: clamp(1.875rem, 4vw, 2.75rem);
+    line-height: 1.04;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0 0 1.5rem;
+  }
+  & h2 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    margin: 2.25rem 0 0.75rem;
+  }
+  & h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 1.75rem 0 0.5rem;
+  }
+  & p,
+  & li {
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    color: #444;
+  }
+  & p {
+    margin: 0 0 1rem;
+  }
+  & ul,
+  & ol {
+    margin: 0 0 1rem;
+    padding-inline-start: 1.25rem;
+  }
+  & ul {
+    list-style: disc;
+  }
+  & ol {
+    list-style: decimal;
+  }
+  & li {
+    margin-block-end: 0.375rem;
+  }
+  & a {
+    color: var(--color-ink);
+    text-decoration: underline;
+  }
+  & strong {
+    color: var(--color-ink);
+  }
+  & img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-thumb);
+  }
+  & table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    display: block;
+    overflow-x: auto;
+  }
+  & td,
+  & th {
+    border: 1px solid var(--color-line);
+    padding: 0.625rem 0.75rem;
+    text-align: start;
+  }
+  & blockquote {
+    margin: 1rem 0;
+    padding-inline-start: 1rem;
+    border-inline-start: 3px solid var(--color-tint-green);
+    color: var(--color-muted);
+  }
 }
