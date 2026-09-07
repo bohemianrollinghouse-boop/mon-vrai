@@ -45,6 +45,23 @@ export function Select(props: ComponentProps<"select">) {
   return <select {...props} className={`${input} cursor-pointer ${props.className ?? ""}`} />;
 }
 
+/** Interrupteur oui/non : une case à cocher stylée, donc soumise comme telle (« on » ou absente). */
+export function Switch({ label, hint, ...props }: ComponentProps<"input"> & { label: string; hint?: string }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input type="checkbox" {...props} className="peer sr-only" />
+      <span
+        aria-hidden="true"
+        className="relative mt-0.5 h-6 w-11 shrink-0 rounded-pill bg-line transition-colors peer-checked:bg-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:after:translate-x-5"
+      />
+      <span className="flex flex-col gap-0.5">
+        <span className="text-[0.8125rem] font-bold">{label}</span>
+        {hint && <span className="text-xs text-subtle">{hint}</span>}
+      </span>
+    </label>
+  );
+}
+
 export function Checkbox({ label, ...props }: ComponentProps<"input"> & { label: string }) {
   return (
     <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold">

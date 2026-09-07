@@ -19,7 +19,9 @@ export default async function AdminHome() {
   const preparing = orders.filter((o) => o.status === "preparing").length;
   const unread = messages.filter((m) => !m.read).length;
   const lowStock = products.filter((p) => p.stock !== null && p.stock <= 3 && p.status === "published");
-  const revenue = orders.filter((o) => !["cancelled", "refunded", "pending_payment"].includes(o.status)).reduce((s, o) => s + o.totals.total, 0);
+  const revenue = orders
+    .filter((o) => o.livemode && !["cancelled", "refunded", "pending_payment"].includes(o.status))
+    .reduce((s, o) => s + o.totals.total, 0);
 
   return (
     <>

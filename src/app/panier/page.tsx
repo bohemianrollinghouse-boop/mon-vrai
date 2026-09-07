@@ -143,6 +143,11 @@ export default async function CartPage() {
                   Taxes incluses. Livraison calculée à l'étape suivante selon la destination et le transporteur.
                 </span>
                 <CheckoutButton label="Passer la commande" />
+                {settings.payments.mode === "test" && (
+                  <span className="rounded-[14px] bg-tint-sand px-4 py-3 text-center text-xs font-bold text-tint-sand-ink">
+                    Paiement en mode test — aucun débit réel. Carte de test : 4242 4242 4242 4242.
+                  </span>
+                )}
                 <div className="flex flex-wrap justify-center gap-2">
                   {["Apple Pay", "PayPal", "CB"].map((p) => (
                     <span key={p} className="rounded-pill bg-paper px-3 py-2 text-[0.6875rem] font-bold">

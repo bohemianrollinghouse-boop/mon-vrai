@@ -15,7 +15,8 @@ import { SiteSettings } from "@/lib/domain/types";
  * et le seuil de livraison en euros : les deux sont convertis ici, jamais dans la vue.
  */
 
-const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true, socials: true, legal: true }).extend({
+const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true, socials: true, legal: true, payments: true }).extend({
+  payments: z.object({ testMode: z.boolean().default(false) }),
   legal: z.object({
     footerLine: z.string().trim().default(""),
     sellerName: z.string().trim().default(""),
@@ -44,7 +45,7 @@ const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true
 export async function saveSettingsAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const parsed = parseForm(Input, formData, {
-    booleans: ["announcement.enabled"],
+    booleans: ["announcement.enabled", "payments.testMode"],
     numbers: ["shipping.freeThresholdEuros"],
   });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
@@ -64,6 +65,7 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
       tiktok: d.socials.tiktok || undefined,
       facebook: d.socials.facebook || undefined,
     },
+    payments: { mode: d.payments.testMode ? "test" : "live" },
     legal: {
       ...d.legal,
       sellerAddressLines: d.legal.sellerAddress.split("\n").map((l) => l.trim()).filter(Boolean),
@@ -78,7 +80,8 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
   if (!next.success) return failed(next.error.issues[0]?.message ?? "Réglages invalides");
 
   await saveSettings(next.data);
-  await audit(user.email, "settings.save", "settings/site");
+  const modeChanged = current.payments.mode !== next.data.payments.mode;
+  await audit(user.email, "settings.save", "settings/site", modeChanged ? `paiements → ${next.data.payments.mode}` : undefined);
   revalidatePath("/", "layout");
   return saved("Réglages enregistrés.");
 }

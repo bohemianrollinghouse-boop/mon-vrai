@@ -39,6 +39,13 @@ env:
   - variable: STRIPE_WEBHOOK_SECRET
     secret: STRIPE_WEBHOOK_SECRET
 
+  # Clés du mode TEST Stripe : utilisées quand l'admin bascule « Paiements en mode test ».
+  - variable: STRIPE_SECRET_KEY_TEST
+    secret: STRIPE_SECRET_KEY_TEST
+
+  - variable: STRIPE_WEBHOOK_SECRET_TEST
+    secret: STRIPE_WEBHOOK_SECRET_TEST
+
   - variable: RESEND_API_KEY
     secret: RESEND_API_KEY
 

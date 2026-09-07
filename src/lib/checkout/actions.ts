@@ -19,12 +19,13 @@ export async function startCheckout(): Promise<CheckoutResult> {
   const view = await loadCart();
   if (!view.id || view.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
 
-  const stripe = getStripe();
+  const [settings, user] = await Promise.all([getSettings(), getSessionUser()]);
+  const mode = settings.payments.mode;
+  const stripe = getStripe(mode);
   if (!stripe) {
-    return { ok: false, error: "Le paiement n'est pas encore activé sur ce site. Les clés Stripe manquent." };
+    return { ok: false, error: `Le paiement n'est pas encore activé sur ce site. Les clés Stripe (${mode}) manquent.` };
   }
 
-  const [settings, user] = await Promise.all([getSettings(), getSessionUser()]);
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const freeShipping = view.shipping.enabled && view.shipping.reached;
 
@@ -34,7 +35,7 @@ export async function startCheckout(): Promise<CheckoutResult> {
     currency: "eur",
     customer_email: user?.email || undefined,
     client_reference_id: view.id,
-    metadata: { cartId: view.id, customerUid: user?.uid ?? "" },
+    metadata: { cartId: view.id, customerUid: user?.uid ?? "", mode },
     line_items: view.lines.map((l) => ({
       quantity: l.qty,
       price_data: {

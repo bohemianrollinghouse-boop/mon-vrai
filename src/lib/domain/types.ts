@@ -195,6 +195,12 @@ export const SiteSettings = z.object({
       countries: z.array(z.string()).default(["FR", "BE", "LU"]),
     })
     .default({ freeThreshold: 3000, countries: ["FR", "BE", "LU"] }),
+  payments: z
+    .object({
+      /** « test » : clés Stripe de test, commandes marquées, pas de facture. */
+      mode: z.enum(["live", "test"]).default("live"),
+    })
+    .default({ mode: "live" }),
   legal: z
     .object({
       footerLine: z.string().default(""),
@@ -302,6 +308,8 @@ export const Order = z.object({
   email: z.email(),
   shippingAddress: Address,
   billingAddress: Address.optional(),
+  /** false : payée avec les clés Stripe de test. Jamais facturée, exclue du chiffre d'affaires. */
+  livemode: z.boolean().default(true),
   stripe: z
     .object({
       checkoutSessionId: z.string().optional(),

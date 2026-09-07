@@ -160,6 +160,7 @@ async function main() {
     contact: { email: "contact@monvrai.fr", addressLines: ["19, Les Guindreaux", "France"] },
     socials: {},
     shipping: { freeThreshold: 3000, preorderShipFrom: SHIP_FROM, countries: ["FR", "BE", "LU"] },
+    payments: { mode: "live" },
     legal: {
       footerLine: "",
       sellerName: "",

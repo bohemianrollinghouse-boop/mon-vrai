@@ -44,6 +44,7 @@ export type PaidOrderInput = {
   shippingAddress: Address;
   billingAddress?: Address;
   stripe: { checkoutSessionId: string; paymentIntentId?: string; customerId?: string };
+  livemode?: boolean;
 };
 
 /**
@@ -100,6 +101,7 @@ export async function createPaidOrder(input: PaidOrderInput): Promise<Order> {
       email: input.email,
       shippingAddress: input.shippingAddress,
       billingAddress: input.billingAddress,
+      livemode: input.livemode ?? true,
       stripe: input.stripe,
       timeline: [
         { at: createdAt, status: "paid", note: notes.length ? notes.join(" · ") : undefined, by: "stripe" },
@@ -159,6 +161,7 @@ export async function assignInvoiceNumber(id: string): Promise<Order> {
     if (order.status === "pending_payment" || order.status === "cancelled") {
       throw new Error(`Pas de facture pour une commande ${order.status}`);
     }
+    if (!order.livemode) throw new Error("Pas de facture pour une commande de test");
 
     const counterRef = counters().doc("invoices");
     const seq = (((await tx.get(counterRef)).data()?.seq as number | undefined) ?? 0) + 1;

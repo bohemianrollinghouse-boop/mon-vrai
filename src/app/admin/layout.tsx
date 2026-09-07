@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth/session";
 import { signOut } from "@/lib/auth/actions";
+import { getSettings } from "@/lib/db/settings";
 
 /*
  * Layout de l'administration. requireAdmin() redirige tout visiteur sans rôle admin :
@@ -25,10 +26,18 @@ const NAV: { href: string; label: string }[] = [
 
 export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
   const user = await requireAdmin();
-  const pathname = (await headers()).get("x-pathname") ?? "/admin";
+  const [pathname, settings] = await Promise.all([headers().then((h) => h.get("x-pathname") ?? "/admin"), getSettings()]);
 
   return (
     <div className="site-wrap grid min-h-[70vh] grid-cols-[220px_1fr] gap-8 py-8 max-[899px]:grid-cols-1">
+      {settings.payments.mode === "test" && (
+        <div className="col-span-full flex flex-wrap items-center justify-between gap-3 rounded-card bg-tint-sand px-5 py-3 text-sm font-semibold text-tint-sand-ink">
+          <span>Paiements en <strong>mode test</strong> : les cartes réelles sont refusées, les commandes sont marquées « Test » et ne sont pas facturées.</span>
+          <Link href="/admin/reglages#paiements" className="underline">
+            Changer
+          </Link>
+        </div>
+      )}
       <aside className="flex flex-col gap-6">
         <div className="flex flex-col gap-0.5">
           <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-subtle">Administration</span>

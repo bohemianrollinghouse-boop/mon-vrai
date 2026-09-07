@@ -167,6 +167,8 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                   Ouvrir le PDF
                 </a>
               </div>
+            ) : !order.livemode ? (
+              <p className="text-sm text-muted">Commande de test (clés Stripe de test) : pas de facture, pour garder la numérotation propre.</p>
             ) : order.status === "pending_payment" || order.status === "cancelled" ? (
               <p className="text-sm text-muted">Pas de facture pour une commande non payée.</p>
             ) : (

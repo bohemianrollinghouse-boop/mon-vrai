@@ -2,21 +2,36 @@ import "server-only";
 import Stripe from "stripe";
 
 /*
- * Client Stripe côté serveur. Sans clé, on renvoie null plutôt que de planter : le
- * site fonctionne (catalogue, panier, admin) et seul le paiement est indisponible,
- * avec un message clair. C'est l'état normal du projet tant que le compte Stripe
- * n'existe pas.
+ * Client Stripe côté serveur, en deux exemplaires : les clés « live » encaissent, les
+ * clés « test » simulent. Le mode courant est un réglage de la boutique (Réglages →
+ * Paiements) ; il se lit via getPaymentMode() dans stripe/mode.ts, jamais ici, pour
+ * que ce module reste sans dépendance à la base.
+ *
+ * Sans clé pour le mode demandé, on renvoie null plutôt que de planter : le site
+ * fonctionne (catalogue, panier, admin) et seul le paiement est indisponible, avec
+ * un message clair.
  */
 
-let instance: Stripe | null | undefined;
+export type PaymentMode = "live" | "test";
 
-export function getStripe(): Stripe | null {
-  if (instance !== undefined) return instance;
-  const key = process.env.STRIPE_SECRET_KEY;
-  instance = key ? new Stripe(key, { typescript: true }) : null;
-  return instance;
+const instances = new Map<PaymentMode, Stripe | null>();
+
+export function secretKey(mode: PaymentMode): string | undefined {
+  return mode === "test" ? process.env.STRIPE_SECRET_KEY_TEST : process.env.STRIPE_SECRET_KEY;
 }
 
-export function stripeConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY);
+export function webhookSecret(mode: PaymentMode): string | undefined {
+  return mode === "test" ? process.env.STRIPE_WEBHOOK_SECRET_TEST : process.env.STRIPE_WEBHOOK_SECRET;
+}
+
+export function getStripe(mode: PaymentMode = "live"): Stripe | null {
+  if (!instances.has(mode)) {
+    const key = secretKey(mode);
+    instances.set(mode, key ? new Stripe(key, { typescript: true }) : null);
+  }
+  return instances.get(mode) ?? null;
+}
+
+export function stripeConfigured(mode: PaymentMode = "live"): boolean {
+  return Boolean(secretKey(mode));
 }

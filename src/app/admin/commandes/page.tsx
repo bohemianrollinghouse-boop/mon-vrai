@@ -57,7 +57,10 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/com
               <td>{o.lines.reduce((n, l) => n + l.qty, 0)}</td>
               <td className="font-bold">{formatEuro(o.totals.total)}</td>
               <td>
-                <Pill tone={TONE[o.status]}>{ORDER_STATUS_LABELS[o.status]}</Pill>
+                <div className="flex flex-wrap gap-1.5">
+                  <Pill tone={TONE[o.status]}>{ORDER_STATUS_LABELS[o.status]}</Pill>
+                  {!o.livemode && <Pill tone="warn">Test</Pill>}
+                </div>
               </td>
               <td className="text-subtle">{o.invoice?.number ?? "—"}</td>
             </tr>

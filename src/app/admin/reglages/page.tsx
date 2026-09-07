@@ -1,5 +1,5 @@
 import { ActionForm } from "@/components/admin/ActionForm";
-import { Card, Checkbox, Field, Input, PageHeader, Textarea } from "@/components/admin/ui";
+import { Card, Checkbox, Field, Input, PageHeader, Pill, Switch, Textarea } from "@/components/admin/ui";
 import { saveSettingsAction } from "@/lib/admin/actions/settings";
 import { getSettings } from "@/lib/db/settings";
 
@@ -81,6 +81,22 @@ export default async function SettingsPage() {
             </div>
           </Card>
 
+          <div id="paiements">
+            <Card title="Paiements">
+              <div className="flex flex-col gap-4">
+                <Switch
+                  name="payments.testMode"
+                  label="Paiements en mode test"
+                  hint="Utilise les clés Stripe de test : payez avec la carte 4242 4242 4242 4242 (n'importe quelle date future et n'importe quel CVC). Les commandes sont marquées « Test », exclues du chiffre d'affaires et sans facture. Décochez pour encaisser réellement."
+                  defaultChecked={s.payments.mode === "test"}
+                />
+                <div className="flex items-center gap-2 text-xs text-subtle">
+                  Mode actuel :
+                  {s.payments.mode === "test" ? <Pill tone="warn">Test</Pill> : <Pill tone="ok">Production (paiements réels)</Pill>}
+                </div>
+              </div>
+            </Card>
+          </div>
           <Card title="Bas de page">
             <Field label="Ligne légale" hint="Affichée à droite du copyright ; vide pour rien." name="legal.footerLine">
               <Input name="legal.footerLine" defaultValue={s.legal.footerLine} />
