@@ -178,6 +178,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
   const [form, setForm] = useState<Prefill>(prefill);
   const [shippingUpdates, setShippingUpdates] = useState(true);
   const [billingSame, setBillingSame] = useState(true);
+  const [billingAddr, setBillingAddr] = useState<Prefill>(prefill);
   const [relay, setRelay] = useState<Relay | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -205,8 +206,18 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
 
   async function confirm(clientSecret: string, intentId: string, expressEvent?: StripeExpressCheckoutElementConfirmEvent) {
     if (!stripe || !elements) return;
-    const billing = billingSame && !expressEvent ? { name: `${form.firstName} ${form.lastName}`.trim(), email: form.email, phone: form.phone || undefined, // Stripe exige chaque champ d'adresse dès qu'on lui dit de ne pas le collecter : state vide, line2 vide.
-        address: { line1: form.line1, line2: form.line2 || "", postal_code: form.postalCode, city: form.city, state: "", country: form.country } } : undefined;
+    // Le paiement express (portefeuille) fournit lui-même la facturation ; sinon on la
+    // fournit intégralement, depuis la livraison ou l'adresse de facturation distincte.
+    // Stripe exige chaque champ d'adresse dès qu'on lui dit de ne pas le collecter (state/line2 vides possibles).
+    const src = billingSame ? form : billingAddr;
+    const billing = expressEvent
+      ? undefined
+      : {
+          name: `${src.firstName} ${src.lastName}`.trim(),
+          email: form.email,
+          phone: (billingSame ? form.phone : billingAddr.phone) || form.phone || undefined,
+          address: { line1: src.line1, line2: src.line2 || "", postal_code: src.postalCode, city: src.city, state: "", country: src.country },
+        };
     const result = await stripe.confirmPayment({
       elements,
       clientSecret,
@@ -387,7 +398,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
           <span>
             Téléphone <span className="font-medium text-faint">(pour le transporteur)</span>
           </span>
-          <input type="tel" autoComplete="tel" placeholder="06 …" value={form.phone} onChange={set("phone")} className={field} />
+          <input type="tel" required autoComplete="tel" placeholder="06 …" value={form.phone} onChange={set("phone")} className={field} />
         </label>
 
         <div className="mt-1.5 flex flex-col gap-2.5" role="radiogroup" aria-label="Mode de livraison">
@@ -431,7 +442,8 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
         <PaymentElement
           options={{
             layout: { type: "tabs", defaultCollapsed: false },
-            fields: { billingDetails: { name: billingSame ? "never" : "auto", email: "never", phone: "never", address: billingSame ? "never" : "auto" } },
+            // On collecte nous-mêmes la facturation (identique à la livraison ou saisie ci-dessous).
+            fields: { billingDetails: { name: "never", email: "never", phone: "never", address: "never" } },
             // Apple/Google Pay vivent dans le paiement express au-dessus ; Link n'a pas sa place ici.
             wallets: { applePay: "never", googlePay: "never", link: "never" },
             terms: { card: "never" },
@@ -439,6 +451,52 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
           onReady={() => setPaymentReady(true)}
         />
         <Check checked={billingSame} onChange={setBillingSame} label="Adresse de facturation identique à l'adresse de livraison" />
+        {!billingSame && (
+          <div className="flex flex-col gap-[1.125rem] border-t border-line pt-[1.125rem]">
+            <span className="text-[0.9375rem] font-bold">Adresse de facturation</span>
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Pays de facturation">
+              {quote.countries.map((c) => (
+                <button key={c} type="button" role="radio" aria-checked={billingAddr.country === c} onClick={() => setBillingAddr({ ...billingAddr, country: c })} className={`rounded-pill px-4 py-2.5 text-[0.8125rem] ${billingAddr.country === c ? "bg-ink font-bold text-white" : "bg-paper font-semibold hover:opacity-70"}`}>
+                  {countryName(c)}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-4 max-[599px]:grid-cols-1">
+              <label className={labelCls}>
+                <span>Prénom</span>
+                <input required autoComplete="off" value={billingAddr.firstName} onChange={(e) => setBillingAddr({ ...billingAddr, firstName: e.target.value })} className={field} />
+              </label>
+              <label className={labelCls}>
+                <span>Nom</span>
+                <input required autoComplete="off" value={billingAddr.lastName} onChange={(e) => setBillingAddr({ ...billingAddr, lastName: e.target.value })} className={field} />
+              </label>
+            </div>
+            <AddressAutocomplete
+              value={billingAddr.line1}
+              country={billingAddr.country}
+              fieldClassName={field}
+              labelClassName={labelCls}
+              onInput={(v) => setBillingAddr((b) => ({ ...b, line1: v }))}
+              onPick={(a) => setBillingAddr((b) => ({ ...b, line1: a.line1, postalCode: a.postalCode, city: a.city }))}
+            />
+            <label className={labelCls}>
+              <span>
+                Complément <span className="font-medium text-faint">(bâtiment, étage…)</span>
+              </span>
+              <input autoComplete="off" value={billingAddr.line2} onChange={(e) => setBillingAddr({ ...billingAddr, line2: e.target.value })} className={field} />
+            </label>
+            <div className="grid grid-cols-[1fr_2fr] gap-4 max-[599px]:grid-cols-1">
+              <label className={labelCls}>
+                <span>Code postal</span>
+                <input required autoComplete="off" value={billingAddr.postalCode} onChange={(e) => setBillingAddr({ ...billingAddr, postalCode: e.target.value })} className={field} />
+              </label>
+              <label className={labelCls}>
+                <span>Ville</span>
+                <input required autoComplete="off" value={billingAddr.city} onChange={(e) => setBillingAddr({ ...billingAddr, city: e.target.value })} className={field} />
+              </label>
+            </div>
+          </div>
+        )}
       </Card>
 
       {error && (

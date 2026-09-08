@@ -22,7 +22,7 @@ const AddressInput = z.object({
   postalCode: z.string().trim().min(4, "Code postal requis").max(10),
   city: z.string().trim().min(1, "Ville requise").max(80),
   country: z.string().length(2),
-  phone: z.string().trim().max(30).default(""),
+  phone: z.string().trim().min(1, "Téléphone requis").max(30),
 });
 
 const RelayInput = z.object({
