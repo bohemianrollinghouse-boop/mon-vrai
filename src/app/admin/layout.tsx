@@ -78,7 +78,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         {snap.settings.payments.mode === "test" && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-tint-sand px-5 py-3 text-[0.8125rem] font-semibold text-tint-sand-ink">
             <span>
-              Paiements en <strong>mode test</strong> : cartes réelles refusées, commandes marquées « Test », pas de facture.
+              Paiements en <strong>mode test</strong> : cartes réelles refusées, commandes marquées « Test » (factures F-TEST, hors chiffre d'affaires).
             </span>
             <Link href="/admin/reglages#paiements" className="underline">
               Changer

@@ -196,15 +196,16 @@ export async function assignInvoiceNumber(id: string): Promise<Order> {
     if (order.status === "pending_payment" || order.status === "cancelled") {
       throw new Error(`Pas de facture pour une commande ${order.status}`);
     }
-    if (!order.livemode) throw new Error("Pas de facture pour une commande de test");
-
-    const counterRef = counters().doc("invoices");
+    // Les commandes de test ont leur propre compteur et un préfixe F-TEST- : la
+    // séquence légale (sans trou) n'est jamais entamée par un essai.
+    const test = !order.livemode;
+    const counterRef = counters().doc(test ? "invoices_test" : "invoices");
     const seq = (((await tx.get(counterRef)).data()?.seq as number | undefined) ?? 0) + 1;
     const issuedAt = now();
 
     const updated = Order.parse({
       ...order,
-      invoice: { number: formatInvoiceNumber(seq, issuedAt), issuedAt },
+      invoice: { number: formatInvoiceNumber(seq, issuedAt, test), issuedAt },
       updatedAt: issuedAt,
     });
     tx.set(counterRef, { seq }, { merge: true });

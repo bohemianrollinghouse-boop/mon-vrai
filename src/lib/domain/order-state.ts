@@ -56,7 +56,7 @@ export function formatOrderNumber(seq: number, createdAt: number): string {
  * française — d'où un compteur distinct du numéro de commande, car toutes les
  * commandes ne donnent pas lieu à facture (annulées avant paiement).
  */
-export function formatInvoiceNumber(seq: number, issuedAt: number): string {
+export function formatInvoiceNumber(seq: number, issuedAt: number, test = false): string {
   const year = new Date(issuedAt).getUTCFullYear();
-  return `F-${year}-${String(seq).padStart(5, "0")}`;
+  return `F-${test ? "TEST-" : ""}${year}-${String(seq).padStart(5, "0")}`;
 }

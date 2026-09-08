@@ -80,7 +80,7 @@ export default async function SettingsPage() {
                       Paiements en mode test {s.payments.mode === "test" ? <Pill tone="warn">actif</Pill> : <Pill tone="ok">production</Pill>}
                     </span>
                   }
-                  hint="Carte de test 4242 4242 4242 4242, n'importe quelle date future et CVC. Commandes marquées « Test », sans facture, hors chiffre d'affaires."
+                  hint="Carte de test 4242 4242 4242 4242, n'importe quelle date future et CVC. Commandes marquées « Test » (factures F-TEST séparées, hors chiffre d'affaires) ; l'étiquette Boxtal reste à créer à la main."
                   defaultChecked={s.payments.mode === "test"}
                 />
               </Card>

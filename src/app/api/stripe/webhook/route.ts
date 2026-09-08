@@ -67,19 +67,17 @@ async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId
   if (input.promoCodes?.length) await incrementPromoUses(input.promoCodes).catch(() => undefined);
 
   // La facture est émise au paiement ; si elle échoue ici, la route /api/factures la
-  // rattrape à la première consultation, avec le même compteur. Jamais pour une
-  // commande de test : la numérotation comptable doit rester propre.
-  const invoiced = order.livemode
-    ? await issueInvoice(order.id).catch((err) => {
-        console.warn("[stripe] facture non émise :", err);
-        return order;
-      })
-    : order;
+  // rattrape à la première consultation, avec le même compteur. Les commandes de test
+  // reçoivent une facture F-TEST- (compteur distinct : la séquence légale est préservée).
+  const invoiced = await issueInvoice(order.id).catch((err) => {
+    console.warn("[stripe] facture non émise :", err);
+    return order;
+  });
 
   await sendOrderConfirmation(invoiced).catch((err) => console.warn("[stripe] e-mail de confirmation non envoyé :", err));
-  // Facturation Tiime via Make : en dernier, sans jamais faire échouer le webhook, et
-  // jamais pour une commande de test — Tiime est la vraie comptabilité.
-  if (makeConfigured() && order.livemode) await sendOrderToMake(order.id, "stripe").catch((err) => console.warn("[stripe] envoi Make/Tiime :", err));
+  // Facturation Tiime via Make : en dernier, sans jamais faire échouer le webhook. Les
+  // commandes de test partent aussi (drapeau test dans le corps) pour un essai complet.
+  if (makeConfigured()) await sendOrderToMake(order.id, "stripe").catch((err) => console.warn("[stripe] envoi Make/Tiime :", err));
   return NextResponse.json({ received: true, order: order.number });
 }
 

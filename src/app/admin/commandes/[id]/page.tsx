@@ -328,12 +328,10 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                 <a href={`/api/factures/${order.id}`} target="_blank" className="underline">
                   {order.invoice.number}
                 </a>
-              ) : !order.livemode ? (
-                "Commande de test : pas de facture"
               ) : ["pending_payment", "cancelled"].includes(order.status) ? (
                 "Pas de facture pour une commande non payée"
               ) : (
-                <ActionForm action={issueInvoiceAction} submitLabel="Émettre la facture" submitTone="secondary" className="!gap-0 [&>div:last-child]:justify-start">
+                <ActionForm action={issueInvoiceAction} submitLabel={order.livemode ? "Émettre la facture" : "Émettre une facture de test"} submitTone="secondary" className="!gap-0 [&>div:last-child]:justify-start">
                   <input type="hidden" name="id" value={order.id} />
                 </ActionForm>
               )}
@@ -358,12 +356,11 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
               ) : (
                 <p className="text-xs text-subtle">Pas encore facturée dans Tiime.</p>
               )}
-              {!order.livemode && <p className="text-xs font-semibold text-tint-sand-ink">Commande de test : non envoyée automatiquement à Tiime.</p>}
               <ActionForm
                 action={sendToMakeAction}
                 submitLabel={order.tiime?.invoiceId ? "Refacturer dans Tiime" : "Facturer dans Tiime"}
                 submitTone="secondary"
-                confirm={order.tiime?.invoiceId ? "Une facture Tiime existe déjà pour cette commande : en créer une seconde ?" : !order.livemode ? "Commande de test : créer quand même un client et une facture dans Tiime ?" : undefined}
+                confirm={order.tiime?.invoiceId ? "Une facture Tiime existe déjà pour cette commande : en créer une seconde ?" : undefined}
                 className="!gap-0 [&>div:last-child]:justify-start"
               >
                 <input type="hidden" name="id" value={order.id} />
