@@ -358,7 +358,14 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
               ) : (
                 <p className="text-xs text-subtle">Pas encore facturée dans Tiime.</p>
               )}
-              <ActionForm action={sendToMakeAction} submitLabel={order.tiime?.invoiceId ? "Refacturer dans Tiime" : "Facturer dans Tiime"} submitTone="secondary" confirm={order.tiime?.invoiceId ? "Une facture Tiime existe déjà pour cette commande : en créer une seconde ?" : undefined} className="!gap-0 [&>div:last-child]:justify-start">
+              {!order.livemode && <p className="text-xs font-semibold text-tint-sand-ink">Commande de test : non envoyée automatiquement à Tiime.</p>}
+              <ActionForm
+                action={sendToMakeAction}
+                submitLabel={order.tiime?.invoiceId ? "Refacturer dans Tiime" : "Facturer dans Tiime"}
+                submitTone="secondary"
+                confirm={order.tiime?.invoiceId ? "Une facture Tiime existe déjà pour cette commande : en créer une seconde ?" : !order.livemode ? "Commande de test : créer quand même un client et une facture dans Tiime ?" : undefined}
+                className="!gap-0 [&>div:last-child]:justify-start"
+              >
                 <input type="hidden" name="id" value={order.id} />
               </ActionForm>
             </Card>

@@ -75,8 +75,9 @@ async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId
     : order;
 
   await sendOrderConfirmation(invoiced).catch((err) => console.warn("[stripe] e-mail de confirmation non envoyé :", err));
-  // Facturation Tiime via Make : en dernier, et sans jamais faire échouer le webhook.
-  if (makeConfigured()) await sendOrderToMake(order.id, "stripe").catch((err) => console.warn("[stripe] envoi Make/Tiime :", err));
+  // Facturation Tiime via Make : en dernier, sans jamais faire échouer le webhook, et
+  // jamais pour une commande de test — Tiime est la vraie comptabilité.
+  if (makeConfigured() && order.livemode) await sendOrderToMake(order.id, "stripe").catch((err) => console.warn("[stripe] envoi Make/Tiime :", err));
   return NextResponse.json({ received: true, order: order.number });
 }
 

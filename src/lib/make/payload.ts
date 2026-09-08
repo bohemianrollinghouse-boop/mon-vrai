@@ -5,6 +5,8 @@ import type { Customer, Order } from "@/lib/domain/types";
  * fixé par Steve : montants en euros (nombres), prix unitaires HT — en franchise de
  * TVA, HT = prix de vente. `tiime_client_id` n'est présent que s'il est déjà connu.
  * La livraison et la remise deviennent des lignes pour que la somme égale le total.
+ * Les commandes de test ne partent jamais automatiquement (voir le webhook Stripe) ;
+ * si l'admin force l'envoi, le drapeau `test` le signale au scénario.
  */
 
 export type TiimePayload = {
