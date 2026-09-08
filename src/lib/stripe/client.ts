@@ -54,8 +54,10 @@ export async function paypalAvailable(mode: PaymentMode): Promise<boolean> {
   const stripe = getStripe(mode);
   if (!stripe) return false;
   try {
-    const account = await stripe.accounts.retrieve();
-    const active = account.capabilities?.paypal_payments === "active";
+    const account = await stripe.accounts.retrieveCurrent();
+    // paypal_payments n'est pas dans les types Stripe (en retard sur l'API) : lecture souple.
+    const caps = account.capabilities as Record<string, string> | undefined;
+    const active = caps?.paypal_payments === "active";
     paypalCache.set(mode, { active, at: Date.now() });
     return active;
   } catch (err) {
