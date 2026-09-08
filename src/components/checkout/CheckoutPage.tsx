@@ -169,7 +169,8 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
 
   async function confirm(clientSecret: string, intentId: string, expressEvent?: StripeExpressCheckoutElementConfirmEvent) {
     if (!stripe || !elements) return;
-    const billing = billingSame && !expressEvent ? { name: `${form.firstName} ${form.lastName}`.trim(), email: form.email, phone: form.phone || undefined, address: { line1: form.line1, line2: form.line2 || undefined, postal_code: form.postalCode, city: form.city, country: form.country } } : undefined;
+    const billing = billingSame && !expressEvent ? { name: `${form.firstName} ${form.lastName}`.trim(), email: form.email, phone: form.phone || undefined, // Stripe exige chaque champ d'adresse dès qu'on lui dit de ne pas le collecter : state vide, line2 vide.
+        address: { line1: form.line1, line2: form.line2 || "", postal_code: form.postalCode, city: form.city, state: "", country: form.country } } : undefined;
     const result = await stripe.confirmPayment({
       elements,
       clientSecret,
