@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Elements, ExpressCheckoutElement, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { loadStripe, type Appearance, type StripeExpressCheckoutElementConfirmEvent, type StripeExpressCheckoutElementShippingAddressChangeEvent, type StripeExpressCheckoutElementShippingRateChangeEvent } from "@stripe/stripe-js";
 import { PromoForm } from "@/components/site/CartLineControls";
+import { RelayPicker, type Relay } from "@/components/checkout/RelayPicker";
 import { TINT_BG } from "@/components/site/ui";
 import { createPaymentIntentAction, type CheckoutInput } from "@/lib/checkout/actions";
 import type { Quote } from "@/lib/checkout/quote";
@@ -23,6 +24,7 @@ type Prefill = { email: string; firstName: string; lastName: string; line1: stri
 
 type Props = {
   publishableKey: string | null;
+  mapToken: string | null;
   testMode: boolean;
   quote: Quote;
   siteUrl: string;
@@ -138,13 +140,15 @@ export function CheckoutPage(props: Props) {
 
 type FormProps = Props & { rateId: string; setRateId: (id: string) => void; total: number; onStep: (s: "livraison" | "paiement") => void };
 
-function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total, onStep }: FormProps) {
+function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total, onStep, mapToken }: FormProps) {
+  const selectedOption = quote.shippingOptions.find((o) => o.id === rateId);
   const stripe = useStripe();
   const elements = useElements();
   const router = useRouter();
   const [form, setForm] = useState<Prefill>(prefill);
   const [shippingUpdates, setShippingUpdates] = useState(true);
   const [billingSame, setBillingSame] = useState(true);
+  const [relay, setRelay] = useState<Relay | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [paymentReady, setPaymentReady] = useState(false);
@@ -163,6 +167,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
     rateId,
     billingSame,
     address: { firstName: form.firstName, lastName: form.lastName, line1: form.line1, line2: form.line2, postalCode: form.postalCode, city: form.city, country: form.country, phone: form.phone },
+    relay: selectedOption?.relay ? relay : null,
   });
 
   const returnUrl = `${siteUrl}/commande/merci`;
@@ -193,6 +198,10 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
     e.preventDefault();
     if (!stripe || !elements) return;
     setError(null);
+    if (selectedOption?.relay && !relay) {
+      setError("Choisissez votre point relais sur la carte avant de payer.");
+      return;
+    }
     setPending(true);
     try {
       const { error: submitError } = await elements.submit();
@@ -214,7 +223,8 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
   }
 
   // Paiement express : Apple Pay / Google Pay / PayPal collectent adresse et livraison eux-mêmes.
-  const expressRates = quote.shippingOptions.map((o) => ({ id: o.id, displayName: o.name, amount: o.price, deliveryEstimate: o.description || undefined }));
+  // Apple/Google Pay ne savent pas choisir un point relais : seules les livraisons à domicile.
+  const expressRates = quote.shippingOptions.filter((o) => !o.relay).map((o) => ({ id: o.id, displayName: o.name, amount: o.price, deliveryEstimate: o.description || undefined }));
 
   function onExpressShippingAddress(e: StripeExpressCheckoutElementShippingAddressChangeEvent) {
     if (!quote.countries.includes(e.address.country)) return e.reject();
@@ -353,7 +363,10 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
               type="button"
               role="radio"
               aria-checked={rateId === o.id}
-              onClick={() => setRateId(o.id)}
+              onClick={() => {
+                setRateId(o.id);
+                if (!o.relay || o.networks.join() !== selectedOption?.networks.join()) setRelay(null);
+              }}
               className={`grid grid-cols-[auto_1fr_auto] items-center gap-3.5 rounded-2xl border-[1.5px] bg-paper px-[1.125rem] py-4 text-left ${rateId === o.id ? "border-ink" : "border-transparent hover:border-line-warm"}`}
             >
               <span className="flex h-5 w-5 items-center justify-center rounded-pill border-2 border-ink">
@@ -366,7 +379,14 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
               <span className="text-sm font-extrabold">{o.price === 0 ? "Offerte" : formatEuro(o.price)}</span>
             </button>
           ))}
+          <span className="flex items-center gap-1.5 text-[0.6875rem] font-semibold text-faint">
+            <span className="h-1.5 w-1.5 rounded-pill bg-tint-green-ink" aria-hidden="true" />
+            Étiquettes et suivi fournis par Boxtal
+          </span>
         </div>
+        {selectedOption?.relay && (
+          <RelayPicker token={mapToken} networks={selectedOption.networks} address={{ country: form.country, postalCode: form.postalCode, city: form.city, street: form.line1 }} selected={relay} onSelect={setRelay} />
+        )}
       </Card>
 
       <Card onFocusCapture={() => onStep("paiement")}>
@@ -454,7 +474,7 @@ function Summary({ quote, shipping, total, preorderShipFrom, contactEmail, vatNo
               <span>−{formatEuro(quote.discount.amount)}</span>
             </div>
           )}
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-3">
             <span className="text-muted">Livraison · {shipping?.name ?? "—"}</span>
             <span>{shipping ? (shipping.price === 0 ? "Offerte" : formatEuro(shipping.price)) : "—"}</span>
           </div>

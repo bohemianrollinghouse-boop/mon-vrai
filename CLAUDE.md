@@ -53,6 +53,18 @@ Clés publiables par mode : `STRIPE_PUBLISHABLE_KEY(_TEST)` (pas de `NEXT_PUBLIC
 page les passe au client selon le mode choisi dans l'admin). Codes promo = promotion
 codes Stripe. Seule la carte est proposée (Apple/Google Pay via le paiement express).
 
+## Boxtal (expéditions)
+
+`lib/boxtal/client.ts` (API v3, auth Basic, deux paires de clés : API et composant
+carte), `lib/boxtal/request.ts` (construction pure de la demande, testée),
+`lib/boxtal/shipment.ts` (création d'étiquette, synchro documents/suivi, avancement du
+statut). Boxtal v3 **ne cote pas** : le prix client vient de `settings.shipping.rates`,
+l'offre Boxtal du tarif (`boxtalOfferCode`) sert à créer l'étiquette ; une offre relais
+affiche la carte (`components/checkout/RelayPicker.tsx`, jeton via `getMapToken`).
+Webhooks : `/api/boxtal/webhook` (HMAC `x-bxt-signature`), souscriptions déclarées par
+`pnpm boxtal:subscribe`. L'étiquette est copiée dans le bucket (`labels/`), servie par
+`/api/etiquettes/[id]` (admin). Le suivi fait passer la commande en expédiée / livrée.
+
 ## Factures
 
 `src/lib/invoice/issue.ts` émet la facture (numéro séquentiel via transaction, PDF

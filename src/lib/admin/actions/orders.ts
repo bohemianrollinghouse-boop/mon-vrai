@@ -10,6 +10,7 @@ import { addOrderNote, getOrder, setTracking, transitionOrder } from "@/lib/db/o
 import { OrderStatus } from "@/lib/domain/types";
 import { sendShippingNotice } from "@/lib/email/send";
 import { issueInvoice } from "@/lib/invoice/issue";
+import { createLabelForOrder, syncBoxtal } from "@/lib/boxtal/shipment";
 
 /*
  * Commandes. Trois gestes : changer le statut (en respectant la machine à états),
@@ -90,4 +91,33 @@ export async function addOrderNoteAction(formData: FormData): Promise<AdminResul
   await addOrderNote(parsed.data.id, parsed.data.note, user.email);
   revalidatePath("/admin/commandes");
   return saved("Note ajoutée.");
+}
+
+/** Crée l'expédition chez Boxtal (étiquette, suivi) et passe la commande en préparation. */
+export async function createBoxtalLabelAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return failed("Commande inconnue");
+  try {
+    const order = await createLabelForOrder(id, user.email);
+    await audit(user.email, "order.boxtal.create", `orders/${id}`, order.boxtal?.orderId);
+    revalidatePath("/admin/commandes");
+    return saved(order.boxtal?.labelPath ? "Étiquette créée et prête à imprimer." : "Expédition enregistrée chez Boxtal ; l'étiquette arrive dans quelques instants.");
+  } catch (e) {
+    return failed((e as Error).message);
+  }
+}
+
+/** Relit l'état chez Boxtal (étiquette, suivi) sans attendre le webhook. */
+export async function syncBoxtalAction(formData: FormData): Promise<AdminResult> {
+  await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return failed("Commande inconnue");
+  try {
+    const order = await syncBoxtal(id);
+    revalidatePath("/admin/commandes");
+    return saved(order?.boxtal?.trackingNumber ? `Suivi : ${order.boxtal.trackingNumber}.` : order?.boxtal?.labelPath ? "Étiquette disponible." : "Rien de nouveau chez Boxtal pour l'instant.");
+  } catch (e) {
+    return failed((e as Error).message);
+  }
 }

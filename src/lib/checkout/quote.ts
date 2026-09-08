@@ -10,7 +10,7 @@ import type { ShippingRate, SiteSettings } from "@/lib/domain/types";
  * paiement l'affiche ; l'action qui crée le PaymentIntent le recalcule à l'identique.
  */
 
-export type ShippingOption = { id: string; name: string; description: string; price: number };
+export type ShippingOption = { id: string; name: string; description: string; price: number; relay: boolean; networks: string[]; offerCode: string };
 export type Discount = { code: string; amount: number; label: string };
 
 export type Quote = {
@@ -57,8 +57,8 @@ export async function buildQuote(mode: PaymentMode): Promise<{ quote: Quote; vie
 
 export function shippingOptions(rates: ShippingRate[], freeReached: boolean): ShippingOption[] {
   const enabled = rates.filter((r) => r.enabled);
-  const list = enabled.length ? enabled : [{ id: "standard", name: "Livraison", description: "", price: 490, freeAboveThreshold: true, enabled: true }];
-  return list.map((r) => ({ id: r.id, name: r.name, description: r.description, price: freeReached && r.freeAboveThreshold ? 0 : r.price }));
+  const list: ShippingRate[] = enabled.length ? enabled : [{ id: "standard", name: "Livraison", description: "", price: 490, freeAboveThreshold: true, enabled: true, boxtalOfferCode: "", relay: false, networks: [] }];
+  return list.map((r) => ({ id: r.id, name: r.name, description: r.description, price: freeReached && r.freeAboveThreshold ? 0 : r.price, relay: r.relay, networks: r.networks, offerCode: r.boxtalOfferCode }));
 }
 
 export function quoteTotal(quote: Pick<Quote, "subtotal" | "discount" | "shippingOptions">, rateId: string): { shipping: ShippingOption; total: number } {

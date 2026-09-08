@@ -7,6 +7,7 @@ import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { getSettings, saveSettings } from "@/lib/db/settings";
+import { findOffer } from "@/lib/boxtal/offers";
 import { parseEuroToCents } from "@/lib/domain/money";
 import { slugify } from "@/lib/domain/slug";
 import { SiteSettings } from "@/lib/domain/types";
@@ -53,9 +54,30 @@ const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true
           // Dans une liste, une case à cocher arrive en "true"/"false" (champ caché + case), pas en booléen.
           freeAboveThreshold: boolish,
           enabled: boolish,
+          boxtalOfferCode: z.string().trim().default(""),
         }),
       )
       .default([]),
+    parcel: z.object({
+      lengthCm: z.number().int().min(1).default(16),
+      widthCm: z.number().int().min(1).default(16),
+      heightCm: z.number().int().min(1).default(4),
+      unitWeightG: z.number().int().min(1).default(180),
+      baseWeightG: z.number().int().min(0).default(60),
+      contentCategoryId: z.string().trim().default("content:v1:10150"),
+      labelType: z.enum(["PDF_A4", "PDF_10x15"]).default("PDF_10x15"),
+    }),
+    sender: z.object({
+      firstName: z.string().trim().default(""),
+      lastName: z.string().trim().default(""),
+      company: z.string().trim().default(""),
+      street: z.string().trim().default(""),
+      postalCode: z.string().trim().default(""),
+      city: z.string().trim().default(""),
+      country: z.string().trim().default("FR"),
+      email: z.string().trim().default(""),
+      phone: z.string().trim().default(""),
+    }),
   }),
   inventory: z.object({ lowThreshold: z.number().int().min(0).default(20) }),
 });
@@ -64,7 +86,7 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
   const user = await assertAdmin();
   const parsed = parseForm(Input, formData, {
     booleans: ["announcement.enabled", "payments.testMode"],
-    numbers: ["shipping.freeThresholdEuros", "inventory.lowThreshold"],
+    numbers: ["shipping.freeThresholdEuros", "inventory.lowThreshold", "shipping.parcel.lengthCm", "shipping.parcel.widthCm", "shipping.parcel.heightCm", "shipping.parcel.unitWeightG", "shipping.parcel.baseWeightG"],
   });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
@@ -111,7 +133,13 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
           price: r.priceEuros ? parseEuroToCents(r.priceEuros) : 0,
           freeAboveThreshold: r.freeAboveThreshold,
           enabled: r.enabled,
+          boxtalOfferCode: r.boxtalOfferCode,
+          // Relais et réseaux découlent de l'offre Boxtal choisie.
+          relay: findOffer(r.boxtalOfferCode)?.relay ?? false,
+          networks: findOffer(r.boxtalOfferCode)?.networks ?? [],
         })),
+      parcel: d.shipping.parcel,
+      sender: { ...d.shipping.sender, country: d.shipping.sender.country.toUpperCase() || "FR" },
     },
     inventory: d.inventory,
     updatedAt: Date.now(),

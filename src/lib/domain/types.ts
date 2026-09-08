@@ -171,14 +171,51 @@ export const ShippingRate = z.object({
   /** Offert quand le panier atteint le seuil de livraison offerte. */
   freeAboveThreshold: z.boolean().default(false),
   enabled: z.boolean().default(true),
+  /** Offre Boxtal utilisée pour créer l'étiquette (ex. MONR-CpourToi). Vide : expédition manuelle. */
+  boxtalOfferCode: z.string().max(60).default(""),
+  /** Livraison en point relais : le client choisit un point sur la carte Boxtal. */
+  relay: z.boolean().default(false),
+  /** Réseaux de points relais à afficher sur la carte (ex. MONR_NETWORK). */
+  networks: z.array(z.string()).default([]),
 });
 export type ShippingRate = z.infer<typeof ShippingRate>;
 
 export const DEFAULT_SHIPPING_RATES: ShippingRate[] = [
-  { id: "mondial-relay", name: "Mondial Relay — point relais", description: "3 à 5 jours", price: 390, freeAboveThreshold: true, enabled: true },
-  { id: "colissimo", name: "Colissimo — domicile", description: "2 à 3 jours", price: 590, freeAboveThreshold: false, enabled: true },
-  { id: "chronopost", name: "Chronopost — express", description: "J+1", price: 990, freeAboveThreshold: false, enabled: true },
+  { id: "mondial-relay", name: "Mondial Relay — point relais", description: "3 à 5 jours", price: 390, freeAboveThreshold: true, enabled: true, boxtalOfferCode: "MONR-CpourToi", relay: true, networks: ["MONR_NETWORK"] },
+  { id: "colissimo", name: "Colissimo — domicile", description: "2 à 3 jours", price: 590, freeAboveThreshold: false, enabled: true, boxtalOfferCode: "POFR-ColissimoAccess", relay: false, networks: [] },
+  { id: "chronopost", name: "Chronopost — express", description: "J+1", price: 990, freeAboveThreshold: false, enabled: true, boxtalOfferCode: "CHRP-Chrono13", relay: false, networks: [] },
 ];
+
+/** Colis par défaut pour Boxtal : un carton de livres 14 × 14 cm. */
+export const ParcelDefaults = z.object({
+  lengthCm: z.number().int().min(1).default(16),
+  widthCm: z.number().int().min(1).default(16),
+  heightCm: z.number().int().min(1).default(4),
+  /** Poids d'un livre, en grammes. */
+  unitWeightG: z.number().int().min(1).default(180),
+  /** Emballage, en grammes. */
+  baseWeightG: z.number().int().min(0).default(60),
+  /** Catégorie de contenu Boxtal (GET /content-category) ; « Livres ». */
+  contentCategoryId: z.string().default("content:v1:10150"),
+  labelType: z.enum(["PDF_A4", "PDF_10x15"]).default("PDF_10x15"),
+});
+export type ParcelDefaults = z.infer<typeof ParcelDefaults>;
+export const DEFAULT_PARCEL: ParcelDefaults = { lengthCm: 16, widthCm: 16, heightCm: 4, unitWeightG: 180, baseWeightG: 60, contentCategoryId: "content:v1:10150", labelType: "PDF_10x15" };
+
+/** Expéditeur déclaré à Boxtal (adresse de collecte / d'expédition). */
+export const Sender = z.object({
+  firstName: z.string().default(""),
+  lastName: z.string().default(""),
+  company: z.string().default(""),
+  street: z.string().default(""),
+  postalCode: z.string().default(""),
+  city: z.string().default(""),
+  country: z.string().default("FR"),
+  email: z.string().default(""),
+  phone: z.string().default(""),
+});
+export type Sender = z.infer<typeof Sender>;
+export const EMPTY_SENDER: Sender = { firstName: "", lastName: "", company: "", street: "", postalCode: "", city: "", country: "FR", email: "", phone: "" };
 
 export const SiteSettings = z.object({
   shopName: z.string().min(1).default("Mon Vrai"),
@@ -212,8 +249,10 @@ export const SiteSettings = z.object({
       countries: z.array(z.string()).default(["FR", "BE", "LU"]),
       /** Modes de livraison proposés à la caisse (Stripe les affiche et les encaisse). */
       rates: z.array(ShippingRate).default(DEFAULT_SHIPPING_RATES),
+      parcel: ParcelDefaults.default(DEFAULT_PARCEL),
+      sender: Sender.default(EMPTY_SENDER),
     })
-    .default({ freeThreshold: 3000, countries: ["FR", "BE", "LU"], rates: DEFAULT_SHIPPING_RATES }),
+    .default({ freeThreshold: 3000, countries: ["FR", "BE", "LU"], rates: DEFAULT_SHIPPING_RATES, parcel: DEFAULT_PARCEL, sender: EMPTY_SENDER }),
   inventory: z
     .object({
       /** En dessous de ce nombre d'exemplaires, un titre est signalé « stock bas ». */
@@ -350,6 +389,39 @@ export const Order = z.object({
     })
     .optional(),
   tracking: z.object({ carrier: z.string(), number: z.string(), url: z.url().optional() }).optional(),
+  /** Mode de livraison choisi à la caisse, et point relais le cas échéant. */
+  delivery: z
+    .object({
+      rateId: z.string(),
+      rateName: z.string(),
+      offerCode: z.string().default(""),
+      relay: z
+        .object({
+          code: z.string(),
+          name: z.string(),
+          street: z.string().default(""),
+          postalCode: z.string().default(""),
+          city: z.string().default(""),
+          network: z.string().default(""),
+        })
+        .optional(),
+    })
+    .optional(),
+  /** Expédition créée chez Boxtal : référence, statut, étiquette, dernier suivi. */
+  boxtal: z
+    .object({
+      orderId: z.string(),
+      status: z.string().default("PENDING"),
+      createdAt: z.number(),
+      /** Étiquette archivée dans le bucket (l'URL Boxtal expire). */
+      labelPath: z.string().optional(),
+      trackingNumber: z.string().optional(),
+      trackingUrl: z.string().optional(),
+      trackingStatus: z.string().optional(),
+      trackingMessage: z.string().optional(),
+      updatedAt: z.number().optional(),
+    })
+    .optional(),
   /** Journal des transitions, pour comprendre a posteriori ce qui s'est passé. */
   timeline: z.array(
     z.object({

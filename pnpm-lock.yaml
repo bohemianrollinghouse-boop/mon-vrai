@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@boxtal/parcel-point-map':
+        specifier: ^0.0.9
+        version: 0.0.9
       '@stripe/react-stripe-js':
         specifier: ^6.9.0
         version: 6.9.0(@stripe/stripe-js@9.15.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -169,6 +172,9 @@ packages:
   '@babel/types@7.29.8':
     resolution: {integrity: sha512-Vj1jF3cPfxg7OAfoI7QnVKLoILlm2JF9pnVHrX8qx7AHMiYWT+NDAA7jChlNgRS4WTLc/fD1lXLmPixluj+3Gg==}
     engines: {node: '>=6.9.0'}
+
+  '@boxtal/parcel-point-map@0.0.9':
+    resolution: {integrity: sha512-lG1+3X+BGAiGn332wOiJz/ZzSNisZsGO7bQ5eyY14pKYp2TehMZHcscsX8zwMQxvw4sED+dbS3g7kWaU+/AEFA==}
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -3752,6 +3758,8 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
+
+  '@boxtal/parcel-point-map@0.0.9': {}
 
   '@emnapi/core@1.10.0':
     dependencies:

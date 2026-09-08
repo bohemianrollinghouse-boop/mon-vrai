@@ -24,12 +24,22 @@ const AddressInput = z.object({
   phone: z.string().trim().max(30).default(""),
 });
 
+const RelayInput = z.object({
+  code: z.string().min(1),
+  name: z.string().min(1).max(120),
+  street: z.string().max(120).default(""),
+  postalCode: z.string().max(10).default(""),
+  city: z.string().max(80).default(""),
+  network: z.string().max(40).default(""),
+});
+
 const Input = z.object({
   email: z.email("E-mail invalide"),
   shippingUpdates: z.boolean().default(true),
   rateId: z.string().min(1),
   billingSame: z.boolean().default(true),
   address: AddressInput,
+  relay: RelayInput.nullable().optional(),
 });
 export type CheckoutInput = z.input<typeof Input>;
 
@@ -53,6 +63,7 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
   if (!quote.cartId || quote.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
   const { shipping, total } = quoteTotal(quote, d.rateId);
   if (total < 50) return { ok: false, error: "Montant trop faible pour un paiement par carte." };
+  if (shipping.relay && !d.relay) return { ok: false, error: "Choisissez votre point relais sur la carte avant de payer.", field: "relay" };
 
   const user = await getSessionUser();
   const name = `${d.address.firstName} ${d.address.lastName}`.trim();
@@ -78,6 +89,8 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
       billingSame: d.billingSame ? "1" : "0",
       rateId: shipping.id,
       rateName: shipping.name,
+      offerCode: shipping.offerCode,
+      relay: shipping.relay && d.relay ? JSON.stringify(d.relay) : "",
       subtotal: String(quote.subtotal),
       shipping: String(shipping.price),
       discount: String(quote.discount?.amount ?? 0),

@@ -13,9 +13,11 @@
     "emulators": "firebase emulators:start --import=.emulator-data --export-on-exit",
     "seed": "NODE_OPTIONS=--conditions=react-server tsx --env-file=.env.local scripts/seed.ts",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
-    "make-admin": "NODE_OPTIONS=--conditions=react-server tsx --env-file=.env.local scripts/make-admin.ts"
+    "make-admin": "NODE_OPTIONS=--conditions=react-server tsx --env-file=.env.local scripts/make-admin.ts",
+    "boxtal:subscribe": "NODE_OPTIONS=--conditions=react-server tsx --env-file=.env.production.local scripts/boxtal-subscribe.ts https://monvrai.fr"
   },
   "dependencies": {
+    "@boxtal/parcel-point-map": "^0.0.9",
     "@stripe/react-stripe-js": "^6.9.0",
     "@stripe/stripe-js": "^9.15.0",
     "@tiptap/extension-image": "^3.31.3",

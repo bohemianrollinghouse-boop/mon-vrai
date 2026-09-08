@@ -10,7 +10,7 @@
  * mégarde. `--force` lève cette protection, en connaissance de cause.
  */
 
-import { DEFAULT_SHIPPING_RATES } from "@/lib/domain/types";
+import { DEFAULT_PARCEL, DEFAULT_SHIPPING_RATES, EMPTY_SENDER } from "@/lib/domain/types";
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import path from "node:path";
 import { adminAuth } from "@/lib/firebase/admin";
@@ -160,7 +160,14 @@ async function main() {
     },
     contact: { email: "contact@monvrai.fr", addressLines: ["19, Les Guindreaux", "France"] },
     socials: {},
-    shipping: { freeThreshold: 3000, preorderShipFrom: SHIP_FROM, countries: ["FR", "BE", "LU"], rates: DEFAULT_SHIPPING_RATES },
+    shipping: {
+      freeThreshold: 3000,
+      preorderShipFrom: SHIP_FROM,
+      countries: ["FR", "BE", "LU"],
+      rates: DEFAULT_SHIPPING_RATES,
+      parcel: DEFAULT_PARCEL,
+      sender: { ...EMPTY_SENDER, company: "Mon Vrai", street: "78 avenue des Champs-Élysées, Bureau 326", postalCode: "75008", city: "Paris", country: "FR", email: "contact@monvrai.fr" },
+    },
     inventory: { lowThreshold: 20 },
     payments: { mode: "live" },
     legal: {

@@ -71,6 +71,7 @@ export type PaidOrderInput = {
   billingAddress?: Address;
   stripe: { checkoutSessionId?: string; paymentIntentId?: string; customerId?: string };
   livemode?: boolean;
+  delivery?: Order["delivery"];
 };
 
 /**
@@ -129,6 +130,7 @@ export async function createPaidOrder(input: PaidOrderInput): Promise<Order> {
       shippingAddress: input.shippingAddress,
       billingAddress: input.billingAddress,
       livemode: input.livemode ?? true,
+      delivery: input.delivery,
       stripe: input.stripe,
       timeline: [
         { at: createdAt, status: "paid", note: notes.length ? notes.join(" · ") : undefined, by: "stripe" },
@@ -211,4 +213,14 @@ export async function setInvoiceFile(id: string, storagePath: string): Promise<v
 
 export async function setTracking(id: string, tracking: NonNullable<Order["tracking"]>): Promise<void> {
   await orders().doc(id).update({ tracking, updatedAt: now() });
+}
+
+export async function setBoxtal(id: string, boxtal: NonNullable<Order["boxtal"]>): Promise<void> {
+  await orders().doc(id).update({ boxtal, updatedAt: now() });
+}
+
+export async function findOrderByBoxtalId(boxtalOrderId: string): Promise<Order | null> {
+  const snap = await orders().where("boxtal.orderId", "==", boxtalOrderId).limit(1).get();
+  const doc = snap.docs[0];
+  return doc ? parseDoc(Order, doc) : null;
 }

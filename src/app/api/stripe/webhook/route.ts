@@ -113,7 +113,12 @@ async function orderInputFromIntent(stripe: Stripe, intent: Stripe.PaymentIntent
   if (customerUid && email) await ensureCustomer(customerUid, email, shippingAddress.name).catch(() => undefined);
 
   const n = (v: string | undefined) => Number(v ?? 0) || 0;
+  const relay = safeJson<{ code: string; name: string; street?: string; postalCode?: string; city?: string; network?: string } | null>(meta.relay, null);
+  const delivery = meta.rateId
+    ? { rateId: meta.rateId, rateName: meta.rateName ?? "", offerCode: meta.offerCode ?? "", relay: relay?.code ? { code: relay.code, name: relay.name, street: relay.street ?? "", postalCode: relay.postalCode ?? "", city: relay.city ?? "", network: relay.network ?? "" } : undefined }
+    : undefined;
   return {
+    delivery,
     lines,
     totals: { subtotal: n(meta.subtotal), shipping: n(meta.shipping), discount: n(meta.discount), tax: 0, total: intent.amount_received || intent.amount, currency: "eur" as const },
     email,

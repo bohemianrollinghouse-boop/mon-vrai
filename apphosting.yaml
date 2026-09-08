@@ -38,10 +38,10 @@ env:
   - variable: STRIPE_WEBHOOK_SECRET
     secret: STRIPE_WEBHOOK_SECRET
 
-  # Clés publiables Stripe (publiques). La clé live (pk_live_…) est à ajouter ici :
-  #   - variable: STRIPE_PUBLISHABLE_KEY
-  #     value: pk_live_…
-  # Sans elle, la page de paiement en mode production affiche « paiement non activé ».
+  # Clés publiables Stripe (publiques par nature).
+  - variable: STRIPE_PUBLISHABLE_KEY
+    value: pk_live_51QmyvXEg6em054QI4WRrbQDYrmAiO1lxACfOP1krePlscGztMFhjBqNLXjlwU2l7qtLL0lEsYmZQPu84sOOyKQYw00fkzkn7MH
+
   - variable: STRIPE_PUBLISHABLE_KEY_TEST
     value: pk_test_51QmyvXEg6em054QIHhvvnmWG3mtxsG10LRiFbRKupXcSwEu33hWnoAWxebSbvBWDb0De0OT2wJPOJBOxhfGcY87G00FVddjT9s
 
@@ -54,6 +54,22 @@ env:
 
   - variable: RESEND_API_KEY
     secret: RESEND_API_KEY
+
+  # Boxtal : expéditions (API v3), carte des points relais, signature des webhooks.
+  - variable: BOXTAL_ACCESS_KEY
+    secret: BOXTAL_ACCESS_KEY
+
+  - variable: BOXTAL_SECRET_KEY
+    secret: BOXTAL_SECRET_KEY
+
+  - variable: BOXTAL_MAP_ACCESS_KEY
+    secret: BOXTAL_MAP_ACCESS_KEY
+
+  - variable: BOXTAL_MAP_SECRET_KEY
+    secret: BOXTAL_MAP_SECRET_KEY
+
+  - variable: BOXTAL_WEBHOOK_SECRET
+    secret: BOXTAL_WEBHOOK_SECRET
 
   - variable: EMAIL_FROM
     value: "Mon Vrai <bonjour@monvrai.fr>"
