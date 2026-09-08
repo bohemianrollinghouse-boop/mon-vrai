@@ -254,7 +254,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
       <Card hidden={!hasExpress}>
         <CardHead title="Paiement express" aside="Adresse et livraison pré-remplies" />
         <ExpressCheckoutElement
-          onReady={(e) => setHasExpress(Boolean(e.availablePaymentMethods))}
+          onReady={(e) => setHasExpress(Object.values(e.availablePaymentMethods ?? {}).some(Boolean))}
           options={{
             buttonHeight: 52,
             buttonTheme: { applePay: "black", googlePay: "black", paypal: "black" },

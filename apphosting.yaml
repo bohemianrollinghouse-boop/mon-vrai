@@ -38,10 +38,10 @@ env:
   - variable: STRIPE_WEBHOOK_SECRET
     secret: STRIPE_WEBHOOK_SECRET
 
-  # Clés publiables Stripe (publiques). La clé live est à renseigner (pk_live_…).
-  - variable: STRIPE_PUBLISHABLE_KEY
-    value: ""
-
+  # Clés publiables Stripe (publiques). La clé live (pk_live_…) est à ajouter ici :
+  #   - variable: STRIPE_PUBLISHABLE_KEY
+  #     value: pk_live_…
+  # Sans elle, la page de paiement en mode production affiche « paiement non activé ».
   - variable: STRIPE_PUBLISHABLE_KEY_TEST
     value: pk_test_51QmyvXEg6em054QIHhvvnmWG3mtxsG10LRiFbRKupXcSwEu33hWnoAWxebSbvBWDb0De0OT2wJPOJBOxhfGcY87G00FVddjT9s
 
