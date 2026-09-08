@@ -8,6 +8,7 @@ import { Elements, ExpressCheckoutElement, PaymentElement, useElements, useStrip
 import { loadStripe, type Appearance, type StripeExpressCheckoutElementConfirmEvent, type StripeExpressCheckoutElementShippingAddressChangeEvent, type StripeExpressCheckoutElementShippingRateChangeEvent } from "@stripe/stripe-js";
 import { PromoForm } from "@/components/site/CartLineControls";
 import { RelayPicker, type Relay } from "@/components/checkout/RelayPicker";
+import { AddressAutocomplete } from "@/components/checkout/AddressAutocomplete";
 import { TINT_BG } from "@/components/site/ui";
 import { createPaymentIntentAction, type CheckoutInput } from "@/lib/checkout/actions";
 import type { Quote } from "@/lib/checkout/quote";
@@ -93,12 +94,28 @@ export function CheckoutPage(props: Props) {
           <Link href="/panier" className="rounded-pill px-[1.125rem] py-2.5 text-subtle hover:text-ink">
             Panier
           </Link>
-          <span className={`rounded-pill px-[1.125rem] py-2.5 ${step === "livraison" ? "bg-ink text-white" : "text-subtle"}`} aria-current={step === "livraison" ? "step" : undefined}>
+          <button
+            type="button"
+            onClick={() => {
+              setStep("livraison");
+              document.getElementById("etape-livraison")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className={`rounded-pill px-[1.125rem] py-2.5 transition-colors ${step === "livraison" ? "bg-ink text-white" : "text-subtle hover:text-ink"}`}
+            aria-current={step === "livraison" ? "step" : undefined}
+          >
             Livraison
-          </span>
-          <span className={`rounded-pill px-[1.125rem] py-2.5 ${step === "paiement" ? "bg-ink text-white" : "text-subtle"}`} aria-current={step === "paiement" ? "step" : undefined}>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setStep("paiement");
+              document.getElementById("etape-paiement")?.scrollIntoView({ behavior: "smooth", block: "start" });
+            }}
+            className={`rounded-pill px-[1.125rem] py-2.5 transition-colors ${step === "paiement" ? "bg-ink text-white" : "text-subtle hover:text-ink"}`}
+            aria-current={step === "paiement" ? "step" : undefined}
+          >
             Paiement
-          </span>
+          </button>
         </nav>
         <span className="flex items-center gap-2 text-[0.8125rem] font-semibold text-tint-green-ink">
           <span className="h-2 w-2 rounded-pill bg-tint-green-ink" aria-hidden="true" />
@@ -310,7 +327,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
         <Check checked={shippingUpdates} onChange={setShippingUpdates} label="Me tenir au courant de l'expédition par e-mail" />
       </Card>
 
-      <Card onFocusCapture={() => onStep("livraison")}>
+      <Card id="etape-livraison" onFocusCapture={() => onStep("livraison")}>
         <CardHead n={2} title="Livraison" />
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Pays">
           {quote.countries.map((c) => (
@@ -329,10 +346,14 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
             <input required autoComplete="family-name" value={form.lastName} onChange={set("lastName")} className={field} />
           </label>
         </div>
-        <label className={labelCls}>
-          <span>Adresse</span>
-          <input required autoComplete="address-line1" value={form.line1} onChange={set("line1")} className={field} />
-        </label>
+        <AddressAutocomplete
+          value={form.line1}
+          country={form.country}
+          fieldClassName={field}
+          labelClassName={labelCls}
+          onInput={(v) => setForm((f) => ({ ...f, line1: v }))}
+          onPick={(a) => setForm((f) => ({ ...f, line1: a.line1, postalCode: a.postalCode, city: a.city }))}
+        />
         <label className={labelCls}>
           <span>
             Complément <span className="font-medium text-faint">(bâtiment, étage…)</span>
@@ -390,7 +411,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
         )}
       </Card>
 
-      <Card onFocusCapture={() => onStep("paiement")}>
+      <Card id="etape-paiement" onFocusCapture={() => onStep("paiement")}>
         <div ref={paymentRef}>
           <CardHead n={3} title="Paiement" aside="Chiffré et sécurisé" />
         </div>
@@ -504,9 +525,9 @@ function Summary({ quote, shipping, total, preorderShipFrom, contactEmail, vatNo
 
 /* ---------- Petits blocs ---------- */
 
-function Card({ children, onFocusCapture, hidden = false }: { children: ReactNode; onFocusCapture?: () => void; hidden?: boolean }) {
+function Card({ children, onFocusCapture, hidden = false, id }: { children: ReactNode; onFocusCapture?: () => void; hidden?: boolean; id?: string }) {
   return (
-    <section onFocusCapture={onFocusCapture} hidden={hidden} className="flex flex-col gap-[1.125rem] rounded-card bg-white p-7 max-[599px]:p-5">
+    <section id={id} onFocusCapture={onFocusCapture} hidden={hidden} className="flex scroll-mt-24 flex-col gap-[1.125rem] rounded-card bg-white p-7 max-[599px]:p-5">
       {children}
     </section>
   );
