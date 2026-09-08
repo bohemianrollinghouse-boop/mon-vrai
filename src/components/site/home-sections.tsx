@@ -11,9 +11,9 @@ import { Eyebrow, PillLink, TINT_BG, TINT_INK } from "./ui";
 export function HomeHero({ hero }: { hero: HomeContent["hero"] }) {
   return (
     <section className="site-wrap pt-2">
-      <div className="relative flex h-[640px] items-end overflow-hidden rounded-panel max-[1099px]:h-auto max-[1099px]:min-h-[640px] max-[749px]:min-h-[30rem]">
+      <div className="relative flex h-[640px] items-end overflow-hidden rounded-panel bg-tint-sand max-[1099px]:h-auto max-[1099px]:min-h-[640px] max-[749px]:min-h-[30rem]">
         {hero.videoUrl ? (
-          <HeroVideo videoUrl={hero.videoUrl} posterUrl={hero.posterUrl || undefined} />
+          <HeroVideo videoUrl={hero.videoUrl} />
         ) : hero.posterUrl ? (
           <Image src={hero.posterUrl} alt="" fill sizes="(min-width: 1296px) 1200px, 100vw" className="object-cover" priority />
         ) : null}
