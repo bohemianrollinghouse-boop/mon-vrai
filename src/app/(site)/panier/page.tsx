@@ -66,9 +66,11 @@ export default async function CartPage() {
                 const img = l.product.images[0];
                 return (
                   <div key={l.product.slug} className="grid grid-cols-[120px_1fr_auto] items-center gap-6 rounded-card bg-white p-5 max-[599px]:grid-cols-[84px_1fr] max-[599px]:gap-4">
-                    <div className={`flex aspect-square min-h-0 items-center justify-center rounded-thumb ${TINT_BG[l.product.tint]}`}>
+                    <div className={`relative aspect-square min-h-0 rounded-thumb ${TINT_BG[l.product.tint]}`}>
                       {img && (
-                        <Image src={img.url} alt={img.alt || l.product.title} width={150} height={200} className="h-auto max-h-[62%] w-auto max-w-[62%] rounded-md shadow-card" />
+                        <div className="absolute inset-2.5 overflow-hidden rounded-[10px]">
+                          <Image src={img.url} alt={img.alt || l.product.title} fill sizes="120px" className="object-cover" />
+                        </div>
                       )}
                     </div>
                     <div className="flex flex-col gap-2">
@@ -100,8 +102,12 @@ export default async function CartPage() {
                       const img = p.images[0];
                       return (
                         <div key={p.slug} className="flex flex-col items-center gap-2.5 text-center">
-                          <Link href={productPath(p.slug)} className={`flex aspect-square w-full min-h-0 items-center justify-center rounded-thumb ${TINT_BG[p.tint]}`}>
-                            {img && <Image src={img.url} alt={img.alt || p.title} width={150} height={200} className="h-auto max-h-[62%] w-auto max-w-[62%] rounded-md shadow-card" />}
+                          <Link href={productPath(p.slug)} className={`relative block aspect-square w-full min-h-0 rounded-thumb ${TINT_BG[p.tint]}`}>
+                            {img && (
+                              <div className="absolute inset-2 overflow-hidden rounded-[10px]">
+                                <Image src={img.url} alt={img.alt || p.title} fill sizes="(min-width:990px) 150px, 45vw" className="object-cover" />
+                              </div>
+                            )}
                           </Link>
                           <span className="text-[0.8125rem] font-bold leading-snug">{p.title}</span>
                           <form action={addToCartForm} className="mt-auto w-full">
