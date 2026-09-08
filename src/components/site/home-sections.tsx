@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { Cta, HomeContent, ImageRef, Tint } from "@/lib/domain/types";
+import { HeroVideo } from "./HeroVideo";
 import { Eyebrow, PillLink, TINT_BG, TINT_INK } from "./ui";
 
 /*
@@ -12,22 +13,10 @@ export function HomeHero({ hero }: { hero: HomeContent["hero"] }) {
     <section className="site-wrap pt-2">
       <div className="relative flex h-[640px] items-end overflow-hidden rounded-panel max-[1099px]:h-auto max-[1099px]:min-h-[640px] max-[749px]:min-h-[30rem]">
         {hero.videoUrl ? (
-          <video
-            src={hero.videoUrl}
-            poster={hero.posterUrl || undefined}
-            autoPlay
-            muted
-            loop
-            playsInline
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover motion-reduce:hidden"
-          />
+          <HeroVideo videoUrl={hero.videoUrl} posterUrl={hero.posterUrl || undefined} />
         ) : hero.posterUrl ? (
-          <Image src={hero.posterUrl} alt="" fill sizes="100vw" className="object-cover" priority />
+          <Image src={hero.posterUrl} alt="" fill sizes="(min-width: 1296px) 1200px, 100vw" className="object-cover" priority />
         ) : null}
-        {hero.posterUrl && hero.videoUrl && (
-          <Image src={hero.posterUrl} alt="" fill sizes="100vw" className="hidden object-cover motion-reduce:block" priority />
-        )}
 
         {/* Dégradé du bas : le texte est calé en bas, c'est là qu'il faut du contraste. */}
         <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.55)_0%,rgb(0_0_0/0.05)_55%)]" />
