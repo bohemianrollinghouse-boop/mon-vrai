@@ -4,9 +4,9 @@ import Link from "next/link";
 import { PromoForm, QtyControls } from "@/components/site/CartLineControls";
 import { PillLink, TINT_BG } from "@/components/site/ui";
 import { addToCartForm } from "@/lib/cart/actions";
-import { loadCart } from "@/lib/cart/read";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
+import { buildQuote } from "@/lib/checkout/quote";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
 import { productPath, systemPath } from "@/lib/domain/system-pages";
 
@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
  * chiffres viennent de loadCart(), la même source que l'en-tête et le paiement.
  */
 export default async function CartPage() {
-  const [view, all, settings] = await Promise.all([loadCart(), listPublishedProducts(), getSettings()]);
+  const [{ quote, view }, all, settings] = await Promise.all([buildQuote("live"), listPublishedProducts(), getSettings()]);
+  const gifts = quote.lines.filter((l) => l.gift);
   const inCart = new Set(view.lines.map((l) => l.product.slug));
   const upsell = all.filter((p) => !inCart.has(p.slug)).slice(0, 4);
   const shipFrom = settings.shipping.preorderShipFrom ? formatDate(settings.shipping.preorderShipFrom) : null;
@@ -128,15 +129,31 @@ export default async function CartPage() {
                     </span>
                     <span>{formatEuro(view.subtotal)}</span>
                   </div>
+                  {quote.applied
+                    .filter((a) => a.amount > 0)
+                    .map((a) => (
+                      <div key={a.code} className="flex justify-between gap-4 text-tint-green-ink">
+                        <span>
+                          Code {a.code} · {a.label}
+                        </span>
+                        <span>−{formatEuro(a.amount)}</span>
+                      </div>
+                    ))}
+                  {gifts.map((g) => (
+                    <div key={g.slug} className="flex justify-between gap-4 text-tint-green-ink">
+                      <span>Offert · {g.title}</span>
+                      <span>0,00 €</span>
+                    </div>
+                  ))}
                   <div className="flex justify-between gap-4">
                     <span className="text-muted">Livraison</span>
-                    <span>{view.shipping.enabled && view.shipping.reached ? "Offerte" : "Calculée au paiement"}</span>
+                    <span className={quote.freeShipping ? "text-tint-green-ink" : ""}>{quote.freeShipping || (view.shipping.enabled && view.shipping.reached) ? "Offerte" : "Calculée au paiement"}</span>
                   </div>
-                  <PromoForm current={view.cart.promoCode} />
+                  <PromoForm applied={quote.applied.map((a) => ({ code: a.code, label: a.label, viaLink: a.viaLink }))} errors={quote.rejected} />
                 </div>
                 <div className="flex items-baseline justify-between gap-4 border-t border-line pt-4">
                   <span className="text-[0.9375rem] font-bold">Total</span>
-                  <span className="whitespace-nowrap text-[1.75rem] font-extrabold tracking-[-0.02em]">{formatEuro(view.subtotal)}</span>
+                  <span className="whitespace-nowrap text-[1.75rem] font-extrabold tracking-[-0.02em]">{formatEuro(Math.max(0, view.subtotal - quote.discount))}</span>
                 </div>
                 <span className="text-xs leading-relaxed text-subtle">
                   Taxes incluses. Livraison calculée à l'étape suivante selon la destination et le transporteur.

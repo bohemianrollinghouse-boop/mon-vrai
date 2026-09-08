@@ -80,7 +80,7 @@ export function CheckoutPage(props: Props) {
   const [rateId, setRateId] = useState(quote.shippingOptions[0]?.id ?? "");
   const [step, setStep] = useState<"livraison" | "paiement">("livraison");
   const shipping = quote.shippingOptions.find((o) => o.id === rateId) ?? quote.shippingOptions[0];
-  const total = Math.max(0, quote.subtotal - (quote.discount?.amount ?? 0)) + (shipping?.price ?? 0);
+  const total = Math.max(0, quote.subtotal - quote.discount) + (shipping?.price ?? 0);
 
   return (
     <div className="min-h-screen bg-paper">
@@ -451,14 +451,15 @@ function Summary({ quote, shipping, total, preorderShipFrom, contactEmail, vatNo
               </span>
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-sm font-bold">{l.title}</span>
-                <span className="text-xs text-subtle">{l.preorder ? "Précommande · " : ""}6–18 mois</span>
+                <span className="text-xs text-subtle">
+                  {l.gift ? "Offert · " : l.preorder ? "Précommande · " : ""}6–18 mois
+                </span>
               </span>
-              <span className="whitespace-nowrap text-sm font-extrabold">{formatEuro(l.total)}</span>
+              <span className={`whitespace-nowrap text-sm font-extrabold ${l.gift ? "text-tint-green-ink" : ""}`}>{l.gift ? "Offert" : formatEuro(l.total)}</span>
             </li>
           ))}
         </ul>
-        <PromoForm current={quote.discount?.code} />
-        {quote.promoError && <p className="text-xs font-semibold text-danger">{quote.promoError}</p>}
+        <PromoForm applied={quote.applied.map((a) => ({ code: a.code, label: a.label, viaLink: a.viaLink }))} errors={quote.rejected} />
         <div className="flex flex-col gap-2.5 border-t border-line pt-4 text-sm font-semibold">
           <div className="flex justify-between">
             <span className="text-muted">
@@ -466,17 +467,19 @@ function Summary({ quote, shipping, total, preorderShipFrom, contactEmail, vatNo
             </span>
             <span>{formatEuro(quote.subtotal)}</span>
           </div>
-          {quote.discount && (
-            <div className="flex justify-between text-tint-green-ink">
-              <span>
-                Code {quote.discount.code} · {quote.discount.label}
-              </span>
-              <span>−{formatEuro(quote.discount.amount)}</span>
-            </div>
-          )}
+          {quote.applied
+            .filter((a) => a.amount > 0)
+            .map((a) => (
+              <div key={a.code} className="flex justify-between text-tint-green-ink">
+                <span>
+                  Code {a.code} · {a.label}
+                </span>
+                <span>−{formatEuro(a.amount)}</span>
+              </div>
+            ))}
           <div className="flex justify-between gap-3">
             <span className="text-muted">Livraison · {shipping?.name ?? "—"}</span>
-            <span>{shipping ? (shipping.price === 0 ? "Offerte" : formatEuro(shipping.price)) : "—"}</span>
+            <span className={quote.freeShipping ? "text-tint-green-ink" : ""}>{shipping ? (shipping.price === 0 ? "Offerte" : formatEuro(shipping.price)) : "—"}</span>
           </div>
         </div>
         <div className="flex items-baseline justify-between border-t border-line pt-4">

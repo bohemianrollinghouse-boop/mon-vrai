@@ -59,7 +59,7 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
   if (!stripe) return { ok: false, error: `Le paiement n'est pas activé (clés Stripe ${mode} manquantes).` };
   if (!settings.shipping.countries.includes(d.address.country)) return { ok: false, error: "Nous ne livrons pas encore ce pays.", field: "address.country" };
 
-  const { quote } = await buildQuote(mode);
+  const { quote } = await buildQuote(mode, d.email);
   if (!quote.cartId || quote.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
   const { shipping, total } = quoteTotal(quote, d.rateId);
   if (total < 50) return { ok: false, error: "Montant trop faible pour un paiement par carte." };
@@ -93,10 +93,11 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
       relay: shipping.relay && d.relay ? JSON.stringify(d.relay) : "",
       subtotal: String(quote.subtotal),
       shipping: String(shipping.price),
-      discount: String(quote.discount?.amount ?? 0),
-      promoCode: quote.discount?.code ?? "",
-      // Lignes figées : slug, quantité, prix unitaire au moment du paiement.
-      cart: JSON.stringify(quote.lines.map((l) => ({ s: l.slug, q: l.qty, p: l.unitPrice }))),
+      discount: String(quote.discount),
+      promoCodes: JSON.stringify(quote.applied.map((a) => a.code)),
+      attribution: quote.attribution ? JSON.stringify(quote.attribution) : "",
+      // Lignes figées : slug, quantité, prix unitaire au moment du paiement, g = offert.
+      cart: JSON.stringify(quote.lines.map((l) => ({ s: l.slug, q: l.qty, p: l.unitPrice, ...(l.gift ? { g: 1 } : {}) }))),
     },
   });
 

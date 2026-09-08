@@ -23,7 +23,7 @@ export type CartView = {
 
 export async function loadCart(): Promise<CartView> {
   const id = await readCartId();
-  const cart: Cart = id ? await getCart(id) : { lines: [], updatedAt: 0 };
+  const cart: Cart = id ? await getCart(id) : { lines: [], promoCodes: [], updatedAt: 0 };
   const [products, settings] = await Promise.all([
     getProductsBySlugs(cart.lines.map((l) => l.productSlug)),
     getSettings(),

@@ -17,7 +17,7 @@ export function newCartId(): string {
 }
 
 export async function getCart(id: string): Promise<Cart> {
-  return (await parseDoc(Cart, await carts().doc(id).get())) ?? { lines: [], updatedAt: 0 };
+  return (await parseDoc(Cart, await carts().doc(id).get())) ?? { lines: [], promoCodes: [], updatedAt: 0 };
 }
 
 export async function saveCart(id: string, cart: Omit<Cart, "updatedAt">): Promise<Cart> {
@@ -28,4 +28,11 @@ export async function saveCart(id: string, cart: Omit<Cart, "updatedAt">): Promi
 
 export async function clearCart(id: string): Promise<void> {
   await carts().doc(id).delete();
+}
+
+/** Codes du panier, ancien champ compris. */
+export function cartCodes(cart: Cart): string[] {
+  const codes = [...cart.promoCodes];
+  if (cart.promoCode && !codes.includes(cart.promoCode.toUpperCase())) codes.push(cart.promoCode.toUpperCase());
+  return codes;
 }

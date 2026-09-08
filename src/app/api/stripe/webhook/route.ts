@@ -4,6 +4,7 @@ import { clearCart } from "@/lib/db/carts";
 import { addAddress, ensureCustomer } from "@/lib/db/customers";
 import { createPaidOrder, findOrderByCheckoutSession, findOrderByPaymentIntent, type PaidOrderInput } from "@/lib/db/orders";
 import { getProductsBySlugs } from "@/lib/db/products";
+import { incrementPromoUses } from "@/lib/db/promos";
 import type { Address, OrderLine } from "@/lib/domain/types";
 import { sendOrderConfirmation } from "@/lib/email/send";
 import { issueInvoice } from "@/lib/invoice/issue";
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
 async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId: string | undefined, input: PaidOrderInput) {
   if (cartId) await clearCart(cartId).catch(() => undefined);
   if (input.customerUid) await addAddress(input.customerUid, input.shippingAddress).catch(() => undefined);
+  if (input.promoCodes?.length) await incrementPromoUses(input.promoCodes).catch(() => undefined);
 
   // La facture est émise au paiement ; si elle échoue ici, la route /api/factures la
   // rattrape à la première consultation, avec le même compteur. Jamais pour une
@@ -84,11 +86,11 @@ async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId
 /** Commande depuis un PaymentIntent de la page /commande : tout est dans ses métadonnées. */
 async function orderInputFromIntent(stripe: Stripe, intent: Stripe.PaymentIntent): Promise<PaidOrderInput> {
   const meta = intent.metadata ?? {};
-  const snapshot = safeJson<{ s: string; q: number; p: number }[]>(meta.cart, []);
+  const snapshot = safeJson<{ s: string; q: number; p: number; g?: number }[]>(meta.cart, []);
   const products = await getProductsBySlugs(snapshot.map((l) => l.s));
   const lines: OrderLine[] = snapshot.map((l) => {
     const known = products.get(l.s);
-    return { productSlug: l.s, title: known?.title ?? l.s, qty: l.q, unitPrice: l.p, image: known?.images[0], preorder: known?.preorder.enabled ?? false };
+    return { productSlug: l.s, title: known?.title ?? l.s, qty: l.q, unitPrice: l.p, image: known?.images[0], preorder: known?.preorder.enabled ?? false, gift: l.g === 1 };
   });
 
   const ship = intent.shipping;
@@ -121,8 +123,12 @@ async function orderInputFromIntent(stripe: Stripe, intent: Stripe.PaymentIntent
   const delivery = meta.rateId
     ? { rateId: meta.rateId, rateName: meta.rateName ?? "", offerCode: meta.offerCode ?? "", relay: relay?.code ? { code: relay.code, name: relay.name, street: relay.street ?? "", postalCode: relay.postalCode ?? "", city: relay.city ?? "", network: relay.network ?? "" } : undefined }
     : undefined;
+  const promoCodes = safeJson<string[]>(meta.promoCodes, []);
+  const attribution = safeJson<{ influencerId: string; via: "code" | "link" } | null>(meta.attribution, null) ?? undefined;
   return {
     delivery,
+    promoCodes,
+    attribution,
     lines,
     totals: { subtotal: n(meta.subtotal), shipping: n(meta.shipping), discount: n(meta.discount), tax: 0, total: intent.amount_received || intent.amount, currency: "eur" as const },
     email,
@@ -176,6 +182,7 @@ async function orderInputFrom(stripe: Stripe, session: Stripe.Checkout.Session):
       unitPrice: li.price?.unit_amount ?? 0,
       image: known?.images[0],
       preorder: known?.preorder.enabled ?? false,
+      gift: false,
     };
   });
 

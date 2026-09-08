@@ -301,8 +301,10 @@ export const CartLine = z.object({
 });
 export const Cart = z.object({
   lines: z.array(CartLine).default([]),
-  /** Code promo saisi, appliqué au moment du paiement par Stripe. */
+  /** Ancien champ (un seul code) : lu pour compatibilité, plus écrit. */
   promoCode: z.string().max(40).optional(),
+  /** Codes promo appliqués (validés à l'ajout, revalidés au paiement). */
+  promoCodes: z.array(z.string().max(40)).default([]),
   updatedAt: z.number(),
 });
 export type CartLine = z.infer<typeof CartLine>;
@@ -354,6 +356,8 @@ export const OrderLine = z.object({
   unitPrice: Cents,
   image: ImageRef.optional(),
   preorder: z.boolean().default(false),
+  /** Article offert par un code promo (prix unitaire 0). */
+  gift: z.boolean().default(false),
 });
 
 export const Order = z.object({
@@ -409,6 +413,10 @@ export const Order = z.object({
         .optional(),
     })
     .optional(),
+  /** Codes promo appliqués à cette commande. */
+  promoCodes: z.array(z.string()).default([]),
+  /** Vente attribuée à un influenceur : par son code, ou par son lien (cookie 30 jours). */
+  attribution: z.object({ influencerId: z.string(), via: z.enum(["code", "link"]) }).optional(),
   /** Facturation Tiime (via Make) : identifiants renvoyés par le scénario. */
   tiime: z.object({ clientId: z.number().int().optional(), invoiceId: z.string().optional(), at: z.number() }).optional(),
   /** Expédition créée chez Boxtal : référence, statut, étiquette, dernier suivi. */
@@ -588,3 +596,63 @@ export const ContactMessage = z.object({
   read: z.boolean().default(false),
 });
 export type ContactMessage = z.infer<typeof ContactMessage>;
+
+/* ---------- Codes promo et influenceurs ---------- */
+
+export const PromoType = z.enum(["percent", "fixed", "free_shipping", "gift"]);
+export type PromoType = z.infer<typeof PromoType>;
+
+/** Un code promo maison. `code` est aussi l'identifiant du document (majuscules). */
+export const Promo = z.object({
+  code: z.string().min(2).max(24).regex(/^[A-Z0-9]+$/),
+  description: z.string().max(120).default(""),
+  type: PromoType,
+  /** Pourcentage (0–100) pour `percent`, centimes pour `fixed`, ignoré sinon. */
+  amount: z.number().int().min(0).default(0),
+  /** Panier minimum, en centimes ; 0 = aucun. */
+  minimum: Cents.default(0),
+  startAt: z.number(),
+  endAt: z.number().optional(),
+  /** Nombre total d'utilisations autorisées ; absent = illimité. */
+  limit: z.number().int().min(1).optional(),
+  perCustomer: z.number().int().min(1).default(1),
+  /** Codes avec lesquels celui-ci se cumule ; `__influ` = n'importe quel code influenceur. */
+  stackWith: z.array(z.string()).default([]),
+  /** Produits offerts (type `gift`), un exemplaire chacun. */
+  gifts: z.array(Slug).default([]),
+  active: z.boolean().default(true),
+  /** Code rattaché à un influenceur : géré depuis l'onglet Influenceurs. */
+  influencerId: z.string().optional(),
+  uses: z.number().int().min(0).default(0),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Promo = z.infer<typeof Promo>;
+
+export const Platform = z.enum(["Instagram", "TikTok", "YouTube", "Blog", "Autre"]);
+export type Platform = z.infer<typeof Platform>;
+
+export const Influencer = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(80),
+  handle: z.string().max(80).default(""),
+  platform: Platform.default("Instagram"),
+  /** Identifiant du lien de suivi : monvrai.fr/?ref=<slug>. */
+  slug: Slug,
+  /** Code promo de l'influenceur (document `promos/<code>`). */
+  code: z.string().min(2).max(24).regex(/^[A-Z0-9]+$/),
+  /** Remise offerte au client, en pourcentage. */
+  discount: z.number().int().min(0).max(100).default(10),
+  /** Commission de l'influenceur, en pourcentage du CA HT attribué. */
+  rate: z.number().int().min(0).max(100).default(10),
+  endAt: z.number().optional(),
+  active: z.boolean().default(true),
+  clicks: z.number().int().min(0).default(0),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Influencer = z.infer<typeof Influencer>;
+
+/** Compteur de clics par jour : document `refClicks/<influencerId>_<AAAA-MM-JJ>`. */
+export const RefClicks = z.object({ influencerId: z.string(), day: z.string(), count: z.number().int().min(0) });
+export type RefClicks = z.infer<typeof RefClicks>;

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { removeFromCartForm, setCartQtyForm, setPromoCode, type CartActionResult } from "@/lib/cart/actions";
+import { addPromoCode, removeFromCartForm, removePromoCodeForm, setCartQtyForm, type CartActionResult } from "@/lib/cart/actions";
 
 /*
  * Contrôles du panier. Chaque bouton est un vrai formulaire vers une action serveur :
@@ -43,29 +43,47 @@ export function QtyControls({ slug, qty, max = 50 }: { slug: string; qty: number
   );
 }
 
-export function PromoForm({ current }: { current?: string }) {
-  const [state, action, pending] = useActionState<CartActionResult | null, FormData>(
-    async (_prev, formData) => setPromoCode(formData),
-    null,
-  );
+export type AppliedCode = { code: string; label: string; viaLink?: boolean };
+
+/** Codes promo : saisie d'un code, et la liste des codes appliqués avec retrait. */
+export function PromoForm({ applied = [], errors = [] }: { applied?: AppliedCode[]; errors?: { code: string; reason: string }[] }) {
+  const [state, action, pending] = useActionState<CartActionResult | null, FormData>(async (_prev, formData) => addPromoCode(formData), null);
   return (
-    <form action={action} className="mt-1 flex flex-wrap items-center gap-2 rounded-pill bg-paper p-1.5 pl-[1.125rem]">
-      <label htmlFor="promo" className="sr-only-keep">
-        Code promo
-      </label>
-      <input
-        id="promo"
-        name="code"
-        type="text"
-        defaultValue={current ?? ""}
-        autoComplete="off"
-        placeholder="Code promo"
-        className="min-w-0 flex-1 bg-transparent text-[0.8125rem] outline-none"
-      />
-      <button type="submit" disabled={pending} className="flex-none rounded-pill bg-white px-4 py-2.5 text-xs font-bold disabled:opacity-60">
-        {current ? "Modifier" : "Appliquer"}
-      </button>
-      {state && !state.ok && <span className="basis-full px-2 text-xs font-semibold text-danger">{state.error}</span>}
-    </form>
+    <div className="flex flex-col gap-2">
+      {applied.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5">
+          {applied.map((a) => (
+            <li key={a.code} className="flex items-center gap-1.5 rounded-pill bg-tint-green py-1.5 pl-3 pr-1.5 text-xs font-bold text-tint-green-ink">
+              {a.code} · {a.label}
+              {a.viaLink ? (
+                <span className="rounded-pill bg-white/70 px-2 py-0.5 text-[0.625rem] font-bold">via lien</span>
+              ) : (
+                <form action={removePromoCodeForm}>
+                  <input type="hidden" name="code" value={a.code} />
+                  <button type="submit" aria-label={`Retirer le code ${a.code}`} className="flex h-5 w-5 items-center justify-center rounded-pill bg-white/70 text-[0.6875rem] hover:bg-white">
+                    ×
+                  </button>
+                </form>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <form action={action} className="flex flex-wrap items-center gap-2 rounded-pill bg-paper p-1.5 pl-[1.125rem]">
+        <label htmlFor="promo" className="sr-only-keep">
+          Code promo
+        </label>
+        <input id="promo" name="code" type="text" autoComplete="off" placeholder={applied.length ? "Un autre code ?" : "Code promo"} className="min-w-0 flex-1 bg-transparent text-[0.8125rem] uppercase outline-none" />
+        <button type="submit" disabled={pending} className="flex-none rounded-pill bg-white px-4 py-2.5 text-xs font-bold disabled:opacity-60">
+          Appliquer
+        </button>
+        {state && !state.ok && <span className="basis-full px-2 text-xs font-semibold text-danger">{state.error}</span>}
+      </form>
+      {errors.map((e) => (
+        <p key={e.code} className="px-2 text-xs font-semibold text-danger">
+          {e.code} : {e.reason}
+        </p>
+      ))}
+    </div>
   );
 }

@@ -74,6 +74,8 @@ export type PaidOrderInput = {
   stripe: { checkoutSessionId?: string; paymentIntentId?: string; customerId?: string };
   livemode?: boolean;
   delivery?: Order["delivery"];
+  promoCodes?: string[];
+  attribution?: Order["attribution"];
 };
 
 /**
@@ -133,6 +135,8 @@ export async function createPaidOrder(input: PaidOrderInput): Promise<Order> {
       billingAddress: input.billingAddress,
       livemode: input.livemode ?? true,
       delivery: input.delivery,
+      promoCodes: input.promoCodes ?? [],
+      attribution: input.attribution,
       stripe: input.stripe,
       timeline: [
         { at: createdAt, status: "paid", note: notes.length ? notes.join(" · ") : undefined, by: "stripe" },
