@@ -42,6 +42,17 @@ export function publishableKey(mode: PaymentMode = "live"): string | undefined {
 }
 
 /*
+ * Configuration des moyens de paiement (dashboard Stripe) du mode courant. Quand elle
+ * est définie, c'est elle qui décide des moyens proposés à la caisse (carte, Apple/Google
+ * Pay, Link, PayPal…), côté client comme côté serveur. Non définie : on retombe sur la
+ * carte seule. Les ids diffèrent entre test et live.
+ */
+export function paymentMethodConfig(mode: PaymentMode = "live"): string | undefined {
+  const id = mode === "test" ? process.env.STRIPE_PMC_ID_TEST : process.env.STRIPE_PMC_ID;
+  return id?.trim() || undefined;
+}
+
+/*
  * PayPal n'apparaît à la caisse que s'il est réellement actif sur le compte Stripe.
  * On lit la capacité du compte, mise en cache quelques minutes pour ne pas interroger
  * Stripe à chaque page de paiement.

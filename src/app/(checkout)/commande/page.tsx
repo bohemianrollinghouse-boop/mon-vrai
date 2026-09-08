@@ -6,7 +6,7 @@ import { buildQuote } from "@/lib/checkout/quote";
 import { getCustomer } from "@/lib/db/customers";
 import { getSettings } from "@/lib/db/settings";
 import { getMapToken } from "@/lib/boxtal/client";
-import { paypalAvailable, publishableKey } from "@/lib/stripe/client";
+import { paymentMethodConfig, paypalAvailable, publishableKey } from "@/lib/stripe/client";
 
 export const metadata: Metadata = { title: "Paiement", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -29,6 +29,7 @@ export default async function CheckoutRoute() {
   return (
     <CheckoutPage
       publishableKey={publishableKey(mode) ?? null}
+      pmcId={paymentMethodConfig(mode) ?? null}
       paypal={paypal}
       mapToken={mapToken}
       testMode={mode === "test"}

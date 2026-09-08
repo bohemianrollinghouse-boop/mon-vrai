@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getSessionUser } from "@/lib/auth/session";
 import { getSettings } from "@/lib/db/settings";
 import type Stripe from "stripe";
-import { getStripe } from "@/lib/stripe/client";
+import { getStripe, paymentMethodConfig } from "@/lib/stripe/client";
 import { buildQuote, quoteTotal } from "./quote";
 
 /*
@@ -69,12 +69,13 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
   const user = await getSessionUser();
   const name = `${d.address.firstName} ${d.address.lastName}`.trim();
 
-  // Carte (+ Apple/Google Pay via le paiement express) et, si activé, PayPal. Si PayPal
-  // n'est pas encore activé côté compte Stripe, on retombe proprement sur la carte.
-  const params: Stripe.PaymentIntentCreateParams = {
+  // Les moyens de paiement viennent de la configuration Stripe du mode (carte, Apple/Google
+  // Pay, Link, PayPal… selon le dashboard). Sans configuration, on retombe sur la carte
+  // seule (+ PayPal si activé dans les réglages), avec repli propre si PayPal n'est pas prêt.
+  const pmc = paymentMethodConfig(mode);
+  const base: Stripe.PaymentIntentCreateParams = {
     amount: total,
     currency: "eur",
-    payment_method_types: settings.payments.paypal ? ["card", "paypal"] : ["card"],
     description: `Mon Vrai — ${quote.count} livre${quote.count > 1 ? "s" : ""}`,
     receipt_email: undefined,
     shipping: {
@@ -104,12 +105,14 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
   };
   let intent;
   try {
-    intent = await stripe.paymentIntents.create(params);
+    intent = pmc
+      ? await stripe.paymentIntents.create({ ...base, payment_method_configuration: pmc, automatic_payment_methods: { enabled: true, allow_redirects: "always" } })
+      : await stripe.paymentIntents.create({ ...base, payment_method_types: settings.payments.paypal ? ["card", "paypal"] : ["card"] });
   } catch (e) {
     const err = e as Stripe.errors.StripeError;
-    if (settings.payments.paypal && err.param === "payment_method_types[1]") {
+    if (!pmc && settings.payments.paypal && err.param === "payment_method_types[1]") {
       // PayPal pas encore activé sur le compte Stripe : on n'y renonce que pour cette commande.
-      intent = await stripe.paymentIntents.create({ ...params, payment_method_types: ["card"] });
+      intent = await stripe.paymentIntents.create({ ...base, payment_method_types: ["card"] });
     } else {
       return { ok: false, error: `Stripe : ${err.message}` };
     }
