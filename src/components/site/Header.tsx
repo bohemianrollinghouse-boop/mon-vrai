@@ -33,7 +33,7 @@ export async function Header() {
 
   return (
     <header className="sticky top-0 z-30 bg-paper">
-      <div className="site-wrap flex items-center justify-between gap-6 py-6 max-[1099px]:py-4">
+      <div className="site-wrap relative flex items-center justify-between gap-6 py-6 max-[1099px]:py-4">
         <Link href="/" className="shrink-0" aria-label={settings.shopName}>
           <Image src="/logo.svg" alt={settings.shopName} width={120} height={30} className="h-[30px] w-auto" style={{ height: 30, width: "auto" }} priority />
         </Link>
@@ -41,11 +41,11 @@ export async function Header() {
         <SiteNav links={links} />
         <SiteActions actions={actions} />
 
-        <details className="relative min-[1100px]:hidden">
+        <details className="min-[1100px]:hidden">
           <summary className="list-none cursor-pointer p-2 [&::-webkit-details-marker]:hidden" aria-label="Menu">
             <span className="block h-0.5 w-[22px] bg-ink before:mb-[5px] before:block before:h-0.5 before:w-[22px] before:-translate-y-[7px] before:bg-ink before:content-[''] after:mt-[5px] after:block after:h-0.5 after:w-[22px] after:bg-ink after:content-['']" />
           </summary>
-          <div className="absolute inset-x-0 top-full z-40 mt-3 flex flex-col rounded-card bg-white p-3 shadow-float">
+          <div className="absolute right-0 top-full z-40 mt-3 flex w-64 max-w-[calc(100vw-2rem)] flex-col rounded-card bg-white p-3 shadow-float">
             {[...links, ...actions.map((a) => ({ id: a.href, label: a.label, href: a.href, external: false, newTab: false }))].map((l) => (
               <Link key={l.id} href={l.href} className="rounded-pill px-4 py-3 text-[0.9375rem] font-semibold hover:bg-paper">
                 {l.label}

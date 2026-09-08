@@ -20,6 +20,8 @@ export function HomeHero({ hero }: { hero: HomeContent["hero"] }) {
 
         {/* Dégradé du bas : le texte est calé en bas, c'est là qu'il faut du contraste. */}
         <div className="absolute inset-0 bg-[linear-gradient(to_top,rgb(0_0_0/0.55)_0%,rgb(0_0_0/0.05)_55%)]" />
+        {/* Mobile : la vidéo remplit tout le cadre derrière le texte, un voile sombre le rend lisible. */}
+        <div className="absolute inset-0 hidden bg-black/35 max-[749px]:block" aria-hidden="true" />
 
         <div className="relative flex w-full items-end justify-between gap-10 px-16 py-14 text-white max-[1099px]:flex-col max-[1099px]:items-start max-[1099px]:p-10 max-[749px]:gap-6 max-[749px]:px-6 max-[749px]:py-7">
           <div className="flex max-w-[620px] flex-col gap-[1.125rem]">
