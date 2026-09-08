@@ -45,8 +45,10 @@ export async function listOrders(opts: { status?: OrderStatus; limit?: number } 
   return parseQuery(Order, q);
 }
 
+/** Commandes d'une adresse e-mail (quelques unités) : tri en mémoire, pas d'index composite à entretenir. */
 export async function listOrdersForEmail(email: string): Promise<Order[]> {
-  return parseQuery(Order, orders().where("email", "==", email).orderBy("createdAt", "desc"));
+  const list = await parseQuery(Order, orders().where("email", "==", email).limit(200));
+  return list.sort((a, b) => b.createdAt - a.createdAt);
 }
 
 /** Ajoute une note interne au journal, sans changer le statut. */
