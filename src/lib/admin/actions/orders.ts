@@ -130,7 +130,7 @@ export async function sendToMakeAction(formData: FormData): Promise<AdminResult>
   if (!id) return failed("Commande inconnue");
   const res = await sendOrderToMake(id, user.email);
   if (!res.ok) return failed(res.error);
-  await audit(user.email, "order.make", `orders/${id}`, `${res.status}${res.tiimeClientId ? ` · client Tiime ${res.tiimeClientId}` : ""}`);
+  await audit(user.email, "order.make", `orders/${id}`, [res.invoiceId && `facture ${res.invoiceId}`, res.tiimeClientId && `client ${res.tiimeClientId}`].filter(Boolean).join(" · ") || String(res.status));
   revalidatePath("/admin/commandes");
-  return saved(`Envoyée à Make (${res.status}${res.body ? ` · ${res.body.slice(0, 60)}` : ""}).`);
+  return saved(res.invoiceId ? `Facture Tiime ${res.invoiceId} créée${res.tiimeClientId ? ` (client ${res.tiimeClientId} créé)` : ""}.` : `Envoyée à Make (${res.status}).`);
 }

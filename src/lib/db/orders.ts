@@ -226,3 +226,7 @@ export async function findOrderByBoxtalId(boxtalOrderId: string): Promise<Order 
   const doc = snap.docs[0];
   return doc ? parseDoc(Order, doc) : null;
 }
+
+export async function setTiime(id: string, tiime: NonNullable<Order["tiime"]>): Promise<void> {
+  await orders().doc(id).update({ tiime, updatedAt: now() });
+}

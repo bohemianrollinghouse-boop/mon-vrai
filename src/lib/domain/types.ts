@@ -409,6 +409,8 @@ export const Order = z.object({
         .optional(),
     })
     .optional(),
+  /** Facturation Tiime (via Make) : identifiants renvoyés par le scénario. */
+  tiime: z.object({ clientId: z.number().int().optional(), invoiceId: z.string().optional(), at: z.number() }).optional(),
   /** Expédition créée chez Boxtal : référence, statut, étiquette, dernier suivi. */
   boxtal: z
     .object({

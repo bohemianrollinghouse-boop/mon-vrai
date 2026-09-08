@@ -350,10 +350,15 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
 
           {makeConfigured() && !["pending_payment", "cancelled"].includes(order.status) && (
             <Card title={<span className="text-sm">Tiime (via Make)</span>} className="!gap-2">
-              <p className="text-xs text-subtle">
-                {order.timeline.some((t) => t.note?.startsWith("Envoyée à Tiime")) ? "Commande transmise au scénario Make (voir l'historique)." : "Pas encore transmise à Make."}
-              </p>
-              <ActionForm action={sendToMakeAction} submitLabel="Envoyer à Tiime" submitTone="secondary" className="!gap-0 [&>div:last-child]:justify-start">
+              {order.tiime?.invoiceId ? (
+                <p className="text-xs text-subtle">
+                  Facture Tiime <strong className="text-ink">{order.tiime.invoiceId}</strong>
+                  {order.tiime.clientId && ` · client ${order.tiime.clientId}`} · {new Date(order.tiime.at).toLocaleDateString("fr-FR")}
+                </p>
+              ) : (
+                <p className="text-xs text-subtle">Pas encore facturée dans Tiime.</p>
+              )}
+              <ActionForm action={sendToMakeAction} submitLabel={order.tiime?.invoiceId ? "Refacturer dans Tiime" : "Facturer dans Tiime"} submitTone="secondary" confirm={order.tiime?.invoiceId ? "Une facture Tiime existe déjà pour cette commande : en créer une seconde ?" : undefined} className="!gap-0 [&>div:last-child]:justify-start">
                 <input type="hidden" name="id" value={order.id} />
               </ActionForm>
             </Card>

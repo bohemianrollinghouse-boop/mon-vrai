@@ -1,6 +1,6 @@
 import "server-only";
 import { getCustomer, updateCustomer } from "@/lib/db/customers";
-import { addOrderNote, getOrder } from "@/lib/db/orders";
+import { addOrderNote, getOrder, setTiime } from "@/lib/db/orders";
 import { buildTiimePayload } from "./payload";
 
 /*
@@ -14,7 +14,7 @@ export function makeConfigured(): boolean {
   return Boolean(process.env.MAKE_WEBHOOK_URL && process.env.MAKE_WEBHOOK_API_KEY);
 }
 
-export type MakeResult = { ok: true; status: number; body: string; tiimeClientId?: number } | { ok: false; error: string };
+export type MakeResult = { ok: true; status: number; body: string; tiimeClientId?: number; invoiceId?: string } | { ok: false; error: string };
 
 export async function sendOrderToMake(orderId: string, by = "système"): Promise<MakeResult> {
   const url = process.env.MAKE_WEBHOOK_URL;
@@ -39,19 +39,30 @@ export async function sendOrderToMake(orderId: string, by = "système"): Promise
     return { ok: false, error: `Make a répondu ${res.status}${body ? ` : ${body.slice(0, 200)}` : ""}` };
   }
 
-  // Réponse facultative : { "tiime_client_id": 123 } (ou tiimeClientId) → mémorisée sur le client.
+  // Réponse du scénario : { "tiime_client_id": "12973278", "invoice_id": "25892919" } — l'identifiant
+  // client n'est renvoyé que lorsqu'il vient d'être créé ; l'identifiant de facture, toujours.
   let tiimeClientId: number | undefined;
+  let invoiceId: string | undefined;
   try {
     const json = JSON.parse(body) as Record<string, unknown>;
-    const raw = json.tiime_client_id ?? json.tiimeClientId;
-    if (typeof raw === "number" && Number.isInteger(raw)) tiimeClientId = raw;
-    else if (typeof raw === "string" && /^\d+$/.test(raw)) tiimeClientId = Number(raw);
+    tiimeClientId = asInt(json.tiime_client_id ?? json.tiimeClientId);
+    const inv = json.invoice_id ?? json.invoiceId;
+    if (typeof inv === "number" || (typeof inv === "string" && inv.trim())) invoiceId = String(inv);
   } catch {
-    // Make répond souvent « Accepted » en texte : rien à mémoriser.
+    // Réponse en texte (« Accepted ») : rien à mémoriser.
   }
   if (tiimeClientId !== undefined && order.customerUid && customer && customer.tiimeClientId !== tiimeClientId) {
     await updateCustomer(order.customerUid, { tiimeClientId }).catch(() => undefined);
   }
-  await addOrderNote(orderId, `Envoyée à Tiime via Make${tiimeClientId !== undefined ? ` (client Tiime ${tiimeClientId})` : ""}`, by).catch(() => undefined);
-  return { ok: true, status: res.status, body: body.slice(0, 500), tiimeClientId };
+  if (invoiceId || tiimeClientId !== undefined) {
+    await setTiime(orderId, { clientId: tiimeClientId ?? customer?.tiimeClientId, invoiceId: invoiceId ?? order.tiime?.invoiceId, at: Date.now() }).catch(() => undefined);
+  }
+  await addOrderNote(orderId, `Facturée dans Tiime via Make${invoiceId ? ` (facture ${invoiceId})` : ""}${tiimeClientId !== undefined ? ` · client Tiime ${tiimeClientId} créé` : ""}`, by).catch(() => undefined);
+  return { ok: true, status: res.status, body: body.slice(0, 500), tiimeClientId, invoiceId };
+}
+
+function asInt(v: unknown): number | undefined {
+  if (typeof v === "number" && Number.isInteger(v)) return v;
+  if (typeof v === "string" && /^\d+$/.test(v.trim())) return Number(v.trim());
+  return undefined;
 }
