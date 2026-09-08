@@ -25,6 +25,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const primary: NavItem[] = [
     { href: "/admin", label: "Tableau de bord" },
     { href: "/admin/commandes", label: "Commandes", badge: snap.toShip, badgeTone: "sand" },
+    { href: "/admin/codes-promo", label: "Codes promo" },
     { href: "/admin/produits", label: "Produits" },
     { href: "/admin/stocks", label: "Stocks", badge: snap.lowStock.length, badgeTone: "pink" },
     { href: "/admin/faq", label: "FAQ" },
