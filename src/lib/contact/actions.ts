@@ -2,6 +2,7 @@
 
 import { z } from "zod";
 import { saveContactMessage } from "@/lib/db/content";
+import { sendContactForward } from "@/lib/email/send";
 
 /*
  * Formulaire de contact. Le message est enregistré en base — la boîte de réception de
@@ -35,20 +36,7 @@ export async function sendContactMessage(formData: FormData): Promise<ContactRes
   const { website, ...message } = parsed.data;
   void website;
   await saveContactMessage(message);
-  await forwardByEmail(message).catch((err) => console.warn("[contact] e-mail non envoyé :", err));
+  await sendContactForward(message).catch((err) => console.warn("[contact] e-mail non envoyé :", err));
   return { ok: true };
 }
 
-async function forwardByEmail(m: { name: string; email: string; phone: string; subject: string; body: string }) {
-  const key = process.env.RESEND_API_KEY;
-  const to = process.env.CONTACT_INBOX ?? process.env.EMAIL_FROM;
-  if (!key || !to) return;
-  const { Resend } = await import("resend");
-  await new Resend(key).emails.send({
-    from: process.env.EMAIL_FROM ?? "Mon Vrai <bonjour@monvrai.fr>",
-    to,
-    replyTo: m.email,
-    subject: `[Contact] ${m.subject || "Message"} — ${m.name || m.email}`,
-    text: `${m.name}\n${m.email}\n${m.phone}\n\n${m.body}`,
-  });
-}

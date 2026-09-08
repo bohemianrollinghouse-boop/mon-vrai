@@ -31,6 +31,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     { href: "/admin/codes-promo", label: "Codes promo" },
     { href: "/admin/faq", label: "FAQ" },
     { href: "/admin/reglages", label: "Paramètres" },
+    { href: "/admin/emails", label: "E-mails" },
   ];
   const secondary: NavItem[] = [
     { href: "/admin/contenus", label: "Contenus" },
