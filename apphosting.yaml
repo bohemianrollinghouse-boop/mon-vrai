@@ -72,7 +72,7 @@ env:
     secret: BOXTAL_WEBHOOK_SECRET
 
   - variable: EMAIL_FROM
-    value: "Mon Vrai <bonjour@monvrai.fr>"
+    value: "Mon Vrai <no-reply@monvrai.fr>"
 
   - variable: CONTACT_INBOX
     value: contact@monvrai.fr

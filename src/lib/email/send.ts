@@ -15,7 +15,7 @@ type Mail = BuiltEmail & { to: string; attachments?: Attachment[]; replyTo?: str
 
 export async function deliver(mail: Mail): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
   const key = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM ?? "Mon Vrai <bonjour@monvrai.fr>";
+  const from = process.env.EMAIL_FROM ?? "Mon Vrai <no-reply@monvrai.fr>";
   if (!key) {
     const pj = mail.attachments?.length ? ` [+ ${mail.attachments.map((a) => a.filename).join(", ")}]` : "";
     console.info(`[email] (non envoyé, pas de clé) → ${mail.to} : ${mail.subject}${pj}`);
@@ -40,13 +40,17 @@ async function invoiceAttachment(order: Order): Promise<Attachment[] | undefined
 export async function sendOrderConfirmation(order: Order): Promise<void> {
   const settings = await getSettings();
   const built = orderConfirmationEmail(order, settings, siteUrl());
-  // La facture voyage avec la confirmation : un acheteur sans compte n'a pas d'autre moyen de la récupérer.
-  await deliver({ to: order.email, ...built, attachments: await invoiceAttachment(order) });
+  // Expéditeur no-reply, mais une réponse doit atteindre la boutique : Reply-To vers l'e-mail de contact.
+  await deliver({ to: order.email, replyTo: replyTo(settings), ...built, attachments: await invoiceAttachment(order) });
 }
 
 export async function sendShippingNotice(order: Order): Promise<void> {
   const settings = await getSettings();
-  await deliver({ to: order.email, ...shippingNoticeEmail(order, settings, siteUrl()) });
+  await deliver({ to: order.email, replyTo: replyTo(settings), ...shippingNoticeEmail(order, settings, siteUrl()) });
+}
+
+function replyTo(settings: { contact: { email?: string } }): string | undefined {
+  return settings.contact.email ?? process.env.CONTACT_INBOX ?? undefined;
 }
 
 export async function sendContactForward(message: { name: string; email: string; phone: string; subject: string; body: string }): Promise<void> {

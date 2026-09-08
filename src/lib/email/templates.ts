@@ -22,11 +22,10 @@ const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-s
 
 export type BuiltEmail = { subject: string; html: string; text: string };
 
+/** Logo servi par notre propre domaine : les clients d'e-mail refusent souvent les URLs de stockage. */
 function logoUrl(): string {
-  const bucket = process.env.FIREBASE_STORAGE_BUCKET ?? "mon-vrai.firebasestorage.app";
-  const path = encodeURIComponent("media/email/logo.png");
-  if (process.env.FIREBASE_STORAGE_EMULATOR_HOST) return `http://${process.env.FIREBASE_STORAGE_EMULATOR_HOST}/v0/b/${bucket}/o/${path}?alt=media`;
-  return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${path}?alt=media`;
+  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
+  return `${base}/email-logo.png`;
 }
 
 function esc(s: string): string {
