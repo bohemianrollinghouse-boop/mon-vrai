@@ -33,30 +33,19 @@ export function ProductCard({ product, variant = "detailed" }: { product: Produc
       href={productPath(product.slug)}
       className={`flex flex-col rounded-card bg-white transition-transform hover:-translate-y-[3px] ${detailed ? "gap-[1.125rem] p-6" : "gap-4 p-5"}`}
     >
-      <div
-        className={`relative flex aspect-square min-h-0 items-center justify-center ${
-          detailed ? `rounded-thumb ${TINT_BG[product.tint]}` : ""
-        }`}
-      >
+      <div className={`relative aspect-square min-h-0 rounded-thumb ${TINT_BG[product.tint]}`}>
         {image && (
-          <Image
-            src={image.url}
-            alt={image.alt || product.title}
-            width={image.width ?? 600}
-            height={image.height ?? 800}
-            sizes="(min-width: 990px) 25vw, (min-width: 750px) 45vw, 80vw"
-            className={`h-auto w-auto rounded-lg shadow-card ${detailed ? "max-h-[78%] max-w-[78%]" : "max-h-[90%] max-w-[90%]"}`}
-          />
+          <div className={`absolute overflow-hidden rounded-[10px] ${detailed ? "inset-3.5" : "inset-2.5"}`}>
+            <Image
+              src={image.url}
+              alt={image.alt || product.title}
+              fill
+              sizes="(min-width: 990px) 25vw, (min-width: 750px) 45vw, 80vw"
+              className="object-cover"
+            />
+          </div>
         )}
-        {badge && (
-          <span
-            className={`absolute rounded-pill px-2.5 py-1.5 text-[0.6875rem] font-bold ${
-              detailed ? "top-3.5 left-3.5 bg-white" : "top-0 left-0 bg-tint-green"
-            }`}
-          >
-            {badge}
-          </span>
-        )}
+        {badge && <span className="absolute left-3.5 top-3.5 rounded-pill bg-white px-2.5 py-1.5 text-[0.6875rem] font-bold">{badge}</span>}
       </div>
 
       <div className="flex flex-col gap-1.5">
