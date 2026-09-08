@@ -170,7 +170,8 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [paymentReady, setPaymentReady] = useState(false);
-  const [hasExpress, setHasExpress] = useState(true);
+  // Masqué tant que Stripe n'a pas confirmé qu'un portefeuille (Apple/Google Pay…) est disponible.
+  const [hasExpress, setHasExpress] = useState(false);
   const paymentRef = useRef<HTMLDivElement>(null);
 
   // Le montant des éléments suit le devis (mode de livraison, remise).
