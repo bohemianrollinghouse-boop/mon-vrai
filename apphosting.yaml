@@ -38,6 +38,13 @@ env:
   - variable: STRIPE_WEBHOOK_SECRET
     secret: STRIPE_WEBHOOK_SECRET
 
+  # Clés publiables Stripe (publiques). La clé live est à renseigner (pk_live_…).
+  - variable: STRIPE_PUBLISHABLE_KEY
+    value: ""
+
+  - variable: STRIPE_PUBLISHABLE_KEY_TEST
+    value: pk_test_51QmyvXEg6em054QIHhvvnmWG3mtxsG10LRiFbRKupXcSwEu33hWnoAWxebSbvBWDb0De0OT2wJPOJBOxhfGcY87G00FVddjT9s
+
   # Clés du mode TEST Stripe : utilisées quand l'admin bascule « Paiements en mode test ».
   - variable: STRIPE_SECRET_KEY_TEST
     secret: STRIPE_SECRET_KEY_TEST

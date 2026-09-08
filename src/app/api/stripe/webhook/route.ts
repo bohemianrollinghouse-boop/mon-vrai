@@ -1,8 +1,8 @@
 import type Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { clearCart } from "@/lib/db/carts";
-import { ensureCustomer } from "@/lib/db/customers";
-import { createPaidOrder, findOrderByCheckoutSession } from "@/lib/db/orders";
+import { addAddress, ensureCustomer } from "@/lib/db/customers";
+import { createPaidOrder, findOrderByCheckoutSession, findOrderByPaymentIntent, type PaidOrderInput } from "@/lib/db/orders";
 import { getProductsBySlugs } from "@/lib/db/products";
 import type { Address, OrderLine } from "@/lib/domain/types";
 import { sendOrderConfirmation } from "@/lib/email/send";
@@ -32,33 +32,106 @@ export async function POST(request: Request) {
   const stripe = getStripe(mode);
   if (!stripe) return NextResponse.json({ error: `Stripe ${mode} non configuré` }, { status: 503 });
 
+  // Paiement intégré au site (page /commande) : la commande naît du PaymentIntent.
+  if (event.type === "payment_intent.succeeded") {
+    const intent = event.data.object;
+    if (intent.metadata?.source !== "monvrai-checkout") return NextResponse.json({ received: true, ignored: "not ours" });
+    if (await findOrderByPaymentIntent(intent.id)) return NextResponse.json({ received: true, duplicate: true });
+
+    const input = await orderInputFromIntent(stripe, intent);
+    const order = await createPaidOrder({ ...input, livemode: event.livemode });
+    return finish(order, intent.metadata?.cartId, input);
+  }
+
+  // Ancien parcours Stripe Checkout (page hébergée par Stripe) : conservé par prudence.
   if (event.type === "checkout.session.completed" || event.type === "checkout.session.async_payment_succeeded") {
     const session = event.data.object;
     if (session.payment_status !== "paid") return NextResponse.json({ received: true, ignored: "not paid" });
 
     if (await findOrderByCheckoutSession(session.id)) return NextResponse.json({ received: true, duplicate: true });
 
-    const order = await createPaidOrder({ ...(await orderInputFrom(stripe, session)), livemode: event.livemode });
-
-    const cartId = session.metadata?.cartId;
-    if (cartId) await clearCart(cartId).catch(() => undefined);
-
-    // La facture est émise au paiement ; si elle échoue ici, la route /api/factures la
-    // rattrape à la première consultation, avec le même compteur. Jamais pour une
-    // commande de test : la numérotation comptable doit rester propre.
-    const invoiced = event.livemode
-      ? await issueInvoice(order.id).catch((err) => {
-          console.warn("[stripe] facture non émise :", err);
-          return order;
-        })
-      : order;
-
-    await sendOrderConfirmation(invoiced).catch((err) => console.warn("[stripe] e-mail de confirmation non envoyé :", err));
-    return NextResponse.json({ received: true, order: order.number });
+    const input = await orderInputFrom(stripe, session);
+    const order = await createPaidOrder({ ...input, livemode: event.livemode });
+    return finish(order, session.metadata?.cartId, input);
   }
 
   return NextResponse.json({ received: true });
 }
+
+/** Suites communes d'une commande créée : vider le panier, facturer, prévenir, mémoriser l'adresse. */
+async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId: string | undefined, input: PaidOrderInput) {
+  if (cartId) await clearCart(cartId).catch(() => undefined);
+  if (input.customerUid) await addAddress(input.customerUid, input.shippingAddress).catch(() => undefined);
+
+  // La facture est émise au paiement ; si elle échoue ici, la route /api/factures la
+  // rattrape à la première consultation, avec le même compteur. Jamais pour une
+  // commande de test : la numérotation comptable doit rester propre.
+  const invoiced = order.livemode
+    ? await issueInvoice(order.id).catch((err) => {
+        console.warn("[stripe] facture non émise :", err);
+        return order;
+      })
+    : order;
+
+  await sendOrderConfirmation(invoiced).catch((err) => console.warn("[stripe] e-mail de confirmation non envoyé :", err));
+  return NextResponse.json({ received: true, order: order.number });
+}
+
+/** Commande depuis un PaymentIntent de la page /commande : tout est dans ses métadonnées. */
+async function orderInputFromIntent(stripe: Stripe, intent: Stripe.PaymentIntent): Promise<PaidOrderInput> {
+  const meta = intent.metadata ?? {};
+  const snapshot = safeJson<{ s: string; q: number; p: number }[]>(meta.cart, []);
+  const products = await getProductsBySlugs(snapshot.map((l) => l.s));
+  const lines: OrderLine[] = snapshot.map((l) => {
+    const known = products.get(l.s);
+    return { productSlug: l.s, title: known?.title ?? l.s, qty: l.q, unitPrice: l.p, image: known?.images[0], preorder: known?.preorder.enabled ?? false };
+  });
+
+  const ship = intent.shipping;
+  const shippingAddress: Address = {
+    name: ship?.name ?? "Client",
+    line1: ship?.address?.line1 ?? "",
+    line2: ship?.address?.line2 ?? undefined,
+    postalCode: ship?.address?.postal_code ?? "",
+    city: ship?.address?.city ?? "",
+    country: ship?.address?.country ?? "FR",
+    phone: ship?.phone ?? undefined,
+  };
+
+  let billingAddress: Address | undefined;
+  if (meta.billingSame !== "1") {
+    const full = await stripe.paymentIntents.retrieve(intent.id, { expand: ["latest_charge"] });
+    const charge = full.latest_charge as Stripe.Charge | null;
+    const b = charge?.billing_details;
+    if (b?.address?.line1) {
+      billingAddress = { name: b.name ?? shippingAddress.name, line1: b.address.line1, line2: b.address.line2 ?? undefined, postalCode: b.address.postal_code ?? "", city: b.address.city ?? "", country: b.address.country ?? shippingAddress.country };
+    }
+  }
+
+  const email = meta.email || intent.receipt_email || "";
+  const customerUid = meta.customerUid || undefined;
+  if (customerUid && email) await ensureCustomer(customerUid, email, shippingAddress.name).catch(() => undefined);
+
+  const n = (v: string | undefined) => Number(v ?? 0) || 0;
+  return {
+    lines,
+    totals: { subtotal: n(meta.subtotal), shipping: n(meta.shipping), discount: n(meta.discount), tax: 0, total: intent.amount_received || intent.amount, currency: "eur" as const },
+    email,
+    customerUid,
+    shippingAddress,
+    billingAddress,
+    stripe: { paymentIntentId: intent.id, customerId: typeof intent.customer === "string" ? intent.customer : intent.customer?.id },
+  };
+}
+
+function safeJson<T>(raw: string | undefined, fallback: T): T {
+  try {
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 
 function verify(payload: string, signature: string): { event: Stripe.Event } | null {
   for (const mode of ["live", "test"] as const) {
@@ -75,7 +148,7 @@ function verify(payload: string, signature: string): { event: Stripe.Event } | n
   return null;
 }
 
-async function orderInputFrom(stripe: Stripe, session: Stripe.Checkout.Session) {
+async function orderInputFrom(stripe: Stripe, session: Stripe.Checkout.Session): Promise<PaidOrderInput> {
   const items = await stripe.checkout.sessions.listLineItems(session.id, { limit: 100, expand: ["data.price.product"] });
 
   const slugs = items.data

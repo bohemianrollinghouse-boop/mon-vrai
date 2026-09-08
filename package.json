@@ -16,6 +16,8 @@
     "make-admin": "NODE_OPTIONS=--conditions=react-server tsx --env-file=.env.local scripts/make-admin.ts"
   },
   "dependencies": {
+    "@stripe/react-stripe-js": "^6.9.0",
+    "@stripe/stripe-js": "^9.15.0",
     "@tiptap/extension-image": "^3.31.3",
     "@tiptap/extension-link": "^3.31.3",
     "@tiptap/extension-placeholder": "^3.31.3",

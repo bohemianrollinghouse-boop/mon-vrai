@@ -1,83 +1,92 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { z } from "zod";
 import { getSessionUser } from "@/lib/auth/session";
-import { loadCart } from "@/lib/cart/read";
 import { getSettings } from "@/lib/db/settings";
 import { getStripe } from "@/lib/stripe/client";
-import type { ShippingRate } from "@/lib/domain/types";
+import { buildQuote, quoteTotal } from "./quote";
 
 /*
- * Passage à la caisse. On ne calcule rien ici que Stripe ne recalcule : les lignes
- * partent avec leur prix courant, et c'est la session Stripe qui fait foi jusqu'au
- * webhook. Le panier est identifié dans les métadonnées pour être vidé à la
- * confirmation, pas avant — un paiement abandonné doit retrouver son panier intact.
+ * Création du PaymentIntent, au moment où le client clique « Payer » : on recalcule le
+ * devis côté serveur (prix courants, remise, port), on y attache tout ce que le webhook
+ * devra savoir pour créer la commande (lignes figées, adresse, e-mail, port, remise),
+ * et on renvoie le client_secret. Le navigateur ne fixe jamais un montant.
  */
 
-export type CheckoutResult = { ok: false; error: string };
+const AddressInput = z.object({
+  firstName: z.string().trim().min(1, "Prénom requis").max(60),
+  lastName: z.string().trim().min(1, "Nom requis").max(60),
+  line1: z.string().trim().min(3, "Adresse requise").max(120),
+  line2: z.string().trim().max(120).default(""),
+  postalCode: z.string().trim().min(4, "Code postal requis").max(10),
+  city: z.string().trim().min(1, "Ville requise").max(80),
+  country: z.string().length(2),
+  phone: z.string().trim().max(30).default(""),
+});
 
-export async function startCheckout(): Promise<CheckoutResult> {
-  const view = await loadCart();
-  if (!view.id || view.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
+const Input = z.object({
+  email: z.email("E-mail invalide"),
+  shippingUpdates: z.boolean().default(true),
+  rateId: z.string().min(1),
+  billingSame: z.boolean().default(true),
+  address: AddressInput,
+});
+export type CheckoutInput = z.input<typeof Input>;
 
-  const [settings, user] = await Promise.all([getSettings(), getSessionUser()]);
+export type IntentResult = { ok: true; clientSecret: string; amount: number; intentId: string } | { ok: false; error: string; field?: string };
+
+export async function createPaymentIntentAction(raw: CheckoutInput): Promise<IntentResult> {
+  const parsed = Input.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { ok: false, error: issue?.message ?? "Formulaire incomplet", field: issue?.path.join(".") };
+  }
+  const d = parsed.data;
+
+  const settings = await getSettings();
   const mode = settings.payments.mode;
   const stripe = getStripe(mode);
-  if (!stripe) {
-    return { ok: false, error: `Le paiement n'est pas encore activé sur ce site. Les clés Stripe (${mode}) manquent.` };
-  }
+  if (!stripe) return { ok: false, error: `Le paiement n'est pas activé (clés Stripe ${mode} manquantes).` };
+  if (!settings.shipping.countries.includes(d.address.country)) return { ok: false, error: "Nous ne livrons pas encore ce pays.", field: "address.country" };
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-  const freeShipping = view.shipping.enabled && view.shipping.reached;
+  const { quote } = await buildQuote(mode);
+  if (!quote.cartId || quote.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
+  const { shipping, total } = quoteTotal(quote, d.rateId);
+  if (total < 50) return { ok: false, error: "Montant trop faible pour un paiement par carte." };
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "payment",
-    locale: "fr",
+  const user = await getSessionUser();
+  const name = `${d.address.firstName} ${d.address.lastName}`.trim();
+
+  const intent = await stripe.paymentIntents.create({
+    amount: total,
     currency: "eur",
-    customer_email: user?.email || undefined,
-    client_reference_id: view.id,
-    metadata: { cartId: view.id, customerUid: user?.uid ?? "", mode },
-    line_items: view.lines.map((l) => ({
-      quantity: l.qty,
-      price_data: {
-        currency: "eur",
-        unit_amount: l.product.price,
-        product_data: {
-          name: l.product.title,
-          description: l.product.preorder.enabled ? "Précommande" : undefined,
-          images: l.product.images[0] ? [l.product.images[0].url] : undefined,
-          metadata: { slug: l.product.slug },
-        },
-      },
-    })),
-    shipping_address_collection: { allowed_countries: settings.shipping.countries as ["FR"] },
-    // Les modes de livraison viennent des réglages ; Stripe les affiche et les encaisse.
-    // Un mode « offert dès X € » passe à 0 quand le panier atteint le seuil.
-    shipping_options: shippingOptions(settings.shipping.rates, freeShipping),
-    allow_promotion_codes: true,
-    discounts: view.cart.promoCode ? undefined : undefined,
-    phone_number_collection: { enabled: true },
-    automatic_tax: process.env.STRIPE_TAX === "1" ? { enabled: true } : undefined,
-    success_url: `${site}/commande/merci?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${site}/panier`,
+    // Carte (dont Apple Pay / Google Pay) : la page n'affiche que ça, l'intention doit coïncider.
+    payment_method_types: ["card"],
+    description: `Mon Vrai — ${quote.count} livre${quote.count > 1 ? "s" : ""}`,
+    receipt_email: undefined,
+    shipping: {
+      name,
+      phone: d.address.phone || undefined,
+      address: { line1: d.address.line1, line2: d.address.line2 || undefined, postal_code: d.address.postalCode, city: d.address.city, country: d.address.country },
+    },
+    metadata: {
+      source: "monvrai-checkout",
+      cartId: quote.cartId,
+      customerUid: user?.uid ?? "",
+      email: d.email,
+      shippingUpdates: d.shippingUpdates ? "1" : "0",
+      billingSame: d.billingSame ? "1" : "0",
+      rateId: shipping.id,
+      rateName: shipping.name,
+      subtotal: String(quote.subtotal),
+      shipping: String(shipping.price),
+      discount: String(quote.discount?.amount ?? 0),
+      promoCode: quote.discount?.code ?? "",
+      // Lignes figées : slug, quantité, prix unitaire au moment du paiement.
+      cart: JSON.stringify(quote.lines.map((l) => ({ s: l.slug, q: l.qty, p: l.unitPrice }))),
+    },
   });
 
-  if (!session.url) return { ok: false, error: "Stripe n'a pas renvoyé de page de paiement." };
-  redirect(session.url);
-}
-
-function shippingOptions(rates: ShippingRate[], freeShipping: boolean) {
-  const enabled = rates.filter((r) => r.enabled);
-  const list = enabled.length ? enabled : [{ id: "standard", name: "Livraison", description: "", price: 490, freeAboveThreshold: true, enabled: true }];
-  return list.map((r) => {
-    const free = freeShipping && r.freeAboveThreshold;
-    return {
-      shipping_rate_data: {
-        type: "fixed_amount" as const,
-        display_name: free ? `${r.name} — offerte` : r.name,
-        fixed_amount: { currency: "eur", amount: free ? 0 : r.price },
-        metadata: { rateId: r.id },
-      },
-    };
-  });
+  if (!intent.client_secret) return { ok: false, error: "Stripe n'a pas renvoyé de secret de paiement." };
+  return { ok: true, clientSecret: intent.client_secret, amount: total, intentId: intent.id };
 }

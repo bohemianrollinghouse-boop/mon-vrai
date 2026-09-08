@@ -35,3 +35,8 @@ export function getStripe(mode: PaymentMode = "live"): Stripe | null {
 export function stripeConfigured(mode: PaymentMode = "live"): boolean {
   return Boolean(secretKey(mode));
 }
+
+/** Clé publiable du mode, pour Stripe.js dans le navigateur. */
+export function publishableKey(mode: PaymentMode = "live"): string | undefined {
+  return mode === "test" ? process.env.STRIPE_PUBLISHABLE_KEY_TEST : process.env.STRIPE_PUBLISHABLE_KEY;
+}

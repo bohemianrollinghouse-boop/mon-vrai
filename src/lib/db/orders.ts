@@ -26,6 +26,19 @@ export async function findOrderByCheckoutSession(sessionId: string): Promise<Ord
   return doc ? parseDoc(Order, doc) : null;
 }
 
+export async function findOrderByPaymentIntent(intentId: string): Promise<Order | null> {
+  const snap = await orders().where("stripe.paymentIntentId", "==", intentId).limit(1).get();
+  const doc = snap.docs[0];
+  return doc ? parseDoc(Order, doc) : null;
+}
+
+/** Clé d'idempotence d'une commande : la session Checkout si elle existe, sinon le PaymentIntent. */
+function idempotencyField(stripe: PaidOrderInput["stripe"]): { field: string; value: string } {
+  if (stripe.checkoutSessionId) return { field: "stripe.checkoutSessionId", value: stripe.checkoutSessionId };
+  if (stripe.paymentIntentId) return { field: "stripe.paymentIntentId", value: stripe.paymentIntentId };
+  throw new Error("Une commande payée doit référencer une session Checkout ou un PaymentIntent");
+}
+
 export async function listOrders(opts: { status?: OrderStatus; limit?: number } = {}): Promise<Order[]> {
   let q = orders().orderBy("createdAt", "desc").limit(opts.limit ?? 100);
   if (opts.status) q = orders().where("status", "==", opts.status).orderBy("createdAt", "desc").limit(opts.limit ?? 100);
@@ -56,13 +69,13 @@ export type PaidOrderInput = {
   customerUid?: string;
   shippingAddress: Address;
   billingAddress?: Address;
-  stripe: { checkoutSessionId: string; paymentIntentId?: string; customerId?: string };
+  stripe: { checkoutSessionId?: string; paymentIntentId?: string; customerId?: string };
   livemode?: boolean;
 };
 
 /**
- * Crée une commande payée. Idempotent sur `stripe.checkoutSessionId` : rappelé avec la
- * même session, renvoie la commande existante sans rien toucher.
+ * Crée une commande payée. Idempotent sur la session Checkout ou, à défaut, sur le
+ * PaymentIntent : rappelé avec le même identifiant, renvoie la commande existante.
  *
  * Le stock est décrémenté ici, au paiement, pas à l'ajout au panier : un panier
  * abandonné ne bloque jamais un exemplaire. Un stock qui passerait négatif est
@@ -70,7 +83,8 @@ export type PaidOrderInput = {
  * pour qu'un humain tranche.
  */
 export async function createPaidOrder(input: PaidOrderInput): Promise<Order> {
-  const existing = await findOrderByCheckoutSession(input.stripe.checkoutSessionId);
+  const key = idempotencyField(input.stripe);
+  const existing = input.stripe.checkoutSessionId ? await findOrderByCheckoutSession(input.stripe.checkoutSessionId) : await findOrderByPaymentIntent(key.value);
   if (existing) return existing;
 
   const id = newId("ord");
@@ -78,7 +92,7 @@ export async function createPaidOrder(input: PaidOrderInput): Promise<Order> {
 
   return db().runTransaction(async (tx) => {
     // Relecture dans la transaction : un webhook concurrent ne doit pas passer.
-    const dup = await tx.get(orders().where("stripe.checkoutSessionId", "==", input.stripe.checkoutSessionId).limit(1));
+    const dup = await tx.get(orders().where(key.field, "==", key.value).limit(1));
     const dupDoc = dup.docs[0];
     if (dupDoc) {
       const found = parseDoc(Order, dupDoc);

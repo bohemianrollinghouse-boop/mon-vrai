@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { PromoForm, QtyControls } from "@/components/site/CartLineControls";
-import { CheckoutButton } from "@/components/site/CheckoutButton";
 import { PillLink, TINT_BG } from "@/components/site/ui";
 import { addToCartForm } from "@/lib/cart/actions";
 import { loadCart } from "@/lib/cart/read";
@@ -142,7 +141,9 @@ export default async function CartPage() {
                 <span className="text-xs leading-relaxed text-subtle">
                   Taxes incluses. Livraison calculée à l'étape suivante selon la destination et le transporteur.
                 </span>
-                <CheckoutButton label="Passer la commande" />
+                <PillLink href="/commande" variant="dark" className="w-full justify-center py-[1.125rem] text-sm">
+                  Passer la commande
+                </PillLink>
                 {settings.payments.mode === "test" && (
                   <span className="rounded-[14px] bg-tint-sand px-4 py-3 text-center text-xs font-bold text-tint-sand-ink">
                     Paiement en mode test — aucun débit réel. Carte de test : 4242 4242 4242 4242.
