@@ -15,10 +15,9 @@ export async function adjustStockAction(formData: FormData): Promise<AdminResult
   const user = await assertAdmin();
   const parsed = parseForm(Input, formData, { numbers: ["delta"] });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
-  const next = await adjustStock(parsed.data.slug, parsed.data.delta);
-  if (next === null) return failed("Ce titre n'a pas de stock suivi.");
-  await audit(user.email, "stock.adjust", `products/${parsed.data.slug}`, `${parsed.data.delta > 0 ? "+" : ""}${parsed.data.delta} → ${next}`);
+  const { stock, startedTracking } = await adjustStock(parsed.data.slug, parsed.data.delta);
+  await audit(user.email, "stock.adjust", `products/${parsed.data.slug}`, `${parsed.data.delta > 0 ? "+" : ""}${parsed.data.delta} → ${stock}`);
   revalidatePath("/admin/stocks");
   revalidatePath("/", "layout");
-  return saved(`Stock : ${next}.`);
+  return saved(startedTracking ? `Suivi du stock activé : ${stock} ex.` : `Stock : ${stock}.`);
 }

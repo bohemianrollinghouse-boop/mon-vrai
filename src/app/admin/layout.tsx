@@ -1,10 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { signOut } from "@/lib/auth/actions";
 import { requireAdmin } from "@/lib/auth/session";
 import { adminSnapshot } from "@/lib/admin/counts";
+import { AdminNav, type NavItem } from "@/components/admin/AdminNav";
 import { Avatar } from "@/components/admin/ui";
 
 /*
@@ -12,16 +12,15 @@ import { Avatar } from "@/components/admin/ui";
  * latérale blanche de 240 px, collante, avec la navigation et ses badges (commandes à
  * expédier, titres en stock bas, messages non lus) ; le contenu à droite sur fond
  * crème. Aucun élément du site public ici. requireAdmin() est la vraie barrière ;
- * proxy.ts ne fait qu'un premier tri sur la présence du cookie.
+ * proxy.ts ne fait qu'un premier tri sur la présence du cookie. L'élément actif est
+ * calculé côté client (AdminNav) : le layout persiste entre les navigations.
  */
 
 export const dynamic = "force-dynamic";
 
-type NavItem = { href: string; label: string; badge?: number; badgeTone?: "sand" | "pink" | "blue" };
-
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireAdmin();
-  const [pathname, snap] = await Promise.all([headers().then((h) => h.get("x-pathname") ?? "/admin"), adminSnapshot()]);
+  const snap = await adminSnapshot();
 
   const primary: NavItem[] = [
     { href: "/admin", label: "Tableau de bord" },
@@ -41,24 +40,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     { href: "/admin/messages", label: "Messages", badge: snap.unread, badgeTone: "blue" },
   ];
 
-  const isActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
-
-  const renderItem = (n: NavItem) => {
-    const active = isActive(n.href);
-    const badgeCls = active ? "bg-[#333] text-white" : { sand: "bg-tint-sand text-tint-sand-ink", pink: "bg-tint-pink text-tint-pink-ink", blue: "bg-tint-blue text-tint-blue-ink" }[n.badgeTone ?? "sand"];
-    return (
-      <Link
-        key={n.href}
-        href={n.href}
-        aria-current={active ? "page" : undefined}
-        className={`flex items-center justify-between gap-2 rounded-[14px] px-3.5 py-3 text-sm font-semibold ${active ? "bg-ink text-white" : "hover:bg-paper"}`}
-      >
-        <span>{n.label}</span>
-        {n.badge ? <span className={`rounded-pill px-2 py-0.5 text-[0.6875rem] font-bold ${badgeCls}`}>{n.badge}</span> : null}
-      </Link>
-    );
-  };
-
   const displayName = user.name || user.email.split("@")[0];
 
   return (
@@ -70,11 +51,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           </Link>
           <span className="rounded-pill bg-tint-sand px-2 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-sand-ink">Admin</span>
         </div>
-        <nav className="flex flex-col gap-0.5 max-[899px]:flex-row max-[899px]:flex-wrap" aria-label="Administration">
-          {primary.map(renderItem)}
-          <span className="my-2 border-t border-line-soft max-[899px]:hidden" aria-hidden="true" />
-          {secondary.map(renderItem)}
-        </nav>
+        <AdminNav primary={primary} secondary={secondary} />
         <div className="mt-auto flex flex-col gap-3 max-[899px]:mt-0">
           <Link href="/" target="_blank" className="flex justify-between rounded-[14px] bg-paper px-3.5 py-3 text-[0.8125rem] font-semibold hover:opacity-70">
             <span>Voir la boutique</span>

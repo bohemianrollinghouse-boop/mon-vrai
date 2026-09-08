@@ -73,13 +73,16 @@ function stripHtml(s: string): string {
   return s.replace(/<[^>]+>/g, " ");
 }
 
-/** Ajuste le stock d'un titre suivi de ±n, sans passer sous zéro. Renvoie le nouveau stock. */
-export async function adjustStock(slug: string, delta: number): Promise<number | null> {
+/**
+ * Ajuste le stock d'un titre de ±n, sans passer sous zéro. Un titre sans suivi (stock
+ * null) passe en suivi à cette occasion, en partant de zéro. Renvoie le nouveau stock.
+ */
+export async function adjustStock(slug: string, delta: number): Promise<{ stock: number; startedTracking: boolean }> {
   const ref = col("products").doc(slug);
   const product = parseDoc(Product, await ref.get());
   if (!product) throw new Error(`Produit ${slug} introuvable`);
-  if (product.stock === null) return null;
-  const next = Math.max(0, product.stock + delta);
+  const startedTracking = product.stock === null;
+  const next = Math.max(0, (product.stock ?? 0) + delta);
   await ref.update({ stock: next, updatedAt: now() });
-  return next;
+  return { stock: next, startedTracking };
 }

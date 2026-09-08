@@ -17,6 +17,7 @@ export default async function StocksPage() {
   const reserved = reservedBySlug(snap.orders.filter((o) => o.livemode));
   const low = new Set(lowStockProducts(snap.products, snap.settings).map((p) => p.slug));
   const tracked = snap.products.filter((p) => p.stock !== null);
+  const untracked = snap.products.filter((p) => p.stock === null);
 
   return (
     <>
@@ -26,10 +27,11 @@ export default async function StocksPage() {
         <GridTable
           columns="56px 1fr 110px 110px 120px 150px"
           head={["", "Produit", "Physique", "Réservé", "Disponible", "Ajuster"]}
-          empty="Aucun titre avec stock suivi. Activez « Suivre le stock » sur une fiche produit."
-          rows={tracked.map((p) => {
+          empty="Aucun titre avec stock suivi. Enregistrez une réception à droite : le suivi démarre pour ce titre."
+          rows={[...tracked, ...untracked].map((p) => {
             const r = reserved.get(p.slug) ?? 0;
             const stock = p.stock ?? 0;
+            const untrackedRow = p.stock === null;
             return {
               key: p.slug,
               cells: [
@@ -40,9 +42,9 @@ export default async function StocksPage() {
                   </Link>
                   <span className="text-[0.6875rem] text-subtle">{p.status === "published" ? "en ligne" : "brouillon"}{p.preorder.enabled && " · précommande"}</span>
                 </span>,
-                <span key="p" className="font-bold">{stock + r}</span>,
+                <span key="p" className="font-bold">{untrackedRow ? "—" : stock + r}</span>,
                 <span key="r" className="text-muted">{r}</span>,
-                <span key="d"><Pill tone={low.has(p.slug) ? "pink" : "ok"}>{stock}</Pill></span>,
+                <span key="d">{untrackedRow ? <Pill tone="muted">non suivi</Pill> : <Pill tone={low.has(p.slug) ? "pink" : "ok"}>{stock}</Pill>}</span>,
                 <span key="a" className="flex justify-end">
                   <span className="flex items-center gap-1 rounded-pill bg-paper p-[3px]">
                     <ActionForm action={adjustStockAction} submitLabel="−" submitTone="secondary" className="!gap-0 [&>div:last-child]:contents [&_button]:h-[30px] [&_button]:w-[30px] [&_button]:!px-0">
@@ -62,13 +64,14 @@ export default async function StocksPage() {
         />
 
         <Card title="Réception de stock">
-          <p className="text-[0.8125rem] text-muted">Vous recevez un carton : ajoutez d'un coup les exemplaires à un titre.</p>
+          <p className="text-[0.8125rem] text-muted">Vous recevez un carton : ajoutez d'un coup les exemplaires à un titre. Sur un titre « non suivi », le suivi démarre à partir de ce nombre.</p>
           <ActionForm action={adjustStockAction} submitLabel="Ajouter au stock">
             <Field label="Titre" name="slug">
-              <Select name="slug" defaultValue={tracked[0]?.slug}>
-                {tracked.map((p) => (
+              <Select name="slug" defaultValue={snap.products[0]?.slug}>
+                {snap.products.map((p) => (
                   <option key={p.slug} value={p.slug}>
                     {p.title}
+                    {p.stock === null ? " (non suivi)" : ` (${p.stock})`}
                   </option>
                 ))}
               </Select>
@@ -77,9 +80,9 @@ export default async function StocksPage() {
               <Input name="delta" type="number" defaultValue={50} min={-1000} max={1000} required />
             </Field>
           </ActionForm>
-          {snap.products.some((p) => p.stock === null) && (
+          {untracked.length > 0 && (
             <p className="border-t border-line-soft pt-3 text-xs text-subtle">
-              Sans suivi de stock : {snap.products.filter((p) => p.stock === null).map((p) => p.title).join(", ")}. Activez « Suivre le stock » sur leur fiche pour les voir ici.
+              Sans suivi ({untracked.length}) : ces titres se vendent sans limite. Le « + » de leur ligne ou une réception démarre le suivi.
             </p>
           )}
         </Card>
