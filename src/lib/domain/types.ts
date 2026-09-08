@@ -263,8 +263,10 @@ export const SiteSettings = z.object({
     .object({
       /** « test » : clés Stripe de test, commandes marquées, pas de facture. */
       mode: z.enum(["live", "test"]).default("live"),
+      /** Proposer PayPal à la caisse (à activer d'abord dans le compte Stripe). */
+      paypal: z.boolean().default(false),
     })
-    .default({ mode: "live" }),
+    .default({ mode: "live", paypal: false }),
   legal: z
     .object({
       footerLine: z.string().default(""),

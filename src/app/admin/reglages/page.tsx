@@ -65,7 +65,7 @@ export default async function SettingsPage() {
                 <div className="flex items-center justify-between gap-3 rounded-[14px] bg-paper px-4 py-3.5 text-[0.8125rem]">
                   <div className="flex flex-col">
                     <span className="font-bold">Stripe</span>
-                    <span className="text-xs text-subtle">Carte, Apple Pay, Google Pay · clés {s.payments.mode === "test" ? "de test" : "de production"}</span>
+                    <span className="text-xs text-subtle">Carte, Apple Pay, Google Pay{s.payments.paypal ? ", PayPal" : ""} · clés {s.payments.mode === "test" ? "de test" : "de production"}</span>
                   </div>
                   {stripeConfigured(s.payments.mode) ? (
                     <span className="rounded-pill bg-tint-green px-2.5 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-green-ink">Connecté</span>
@@ -82,6 +82,16 @@ export default async function SettingsPage() {
                   }
                   hint="Carte de test 4242 4242 4242 4242, n'importe quelle date future et CVC. Commandes marquées « Test » (factures F-TEST séparées, hors chiffre d'affaires) ; l'étiquette Boxtal reste à créer à la main."
                   defaultChecked={s.payments.mode === "test"}
+                />
+                <Switch
+                  name="payments.paypal"
+                  label={
+                    <span className="flex items-center gap-2">
+                      Proposer PayPal à la caisse {s.payments.paypal && <Pill tone="ok">activé</Pill>}
+                    </span>
+                  }
+                  hint="À activer d'abord dans votre compte Stripe (Paramètres → Moyens de paiement → PayPal). Sans cela, PayPal n'apparaît pas."
+                  defaultChecked={s.payments.paypal}
                 />
               </Card>
             </div>

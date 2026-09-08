@@ -6,7 +6,7 @@ import { buildQuote } from "@/lib/checkout/quote";
 import { getCustomer } from "@/lib/db/customers";
 import { getSettings } from "@/lib/db/settings";
 import { getMapToken } from "@/lib/boxtal/client";
-import { publishableKey } from "@/lib/stripe/client";
+import { paypalAvailable, publishableKey } from "@/lib/stripe/client";
 
 export const metadata: Metadata = { title: "Paiement", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -20,6 +20,7 @@ export const dynamic = "force-dynamic";
 export default async function CheckoutRoute() {
   const [user, mode] = await Promise.all([getSessionUser(), getSettings().then((s) => s.payments.mode)]);
   const [{ quote, settings }, customer, mapToken] = await Promise.all([buildQuote(mode), user ? getCustomer(user.uid) : null, getMapToken().catch(() => null)]);
+  const paypal = settings.payments.paypal && (await paypalAvailable(mode));
   if (quote.lines.length === 0) redirect("/panier");
 
   const saved = customer?.addresses.at(-1);
@@ -28,6 +29,7 @@ export default async function CheckoutRoute() {
   return (
     <CheckoutPage
       publishableKey={publishableKey(mode) ?? null}
+      paypal={paypal}
       mapToken={mapToken}
       testMode={mode === "test"}
       quote={quote}

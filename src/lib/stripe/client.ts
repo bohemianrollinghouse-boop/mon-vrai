@@ -40,3 +40,26 @@ export function stripeConfigured(mode: PaymentMode = "live"): boolean {
 export function publishableKey(mode: PaymentMode = "live"): string | undefined {
   return mode === "test" ? process.env.STRIPE_PUBLISHABLE_KEY_TEST : process.env.STRIPE_PUBLISHABLE_KEY;
 }
+
+/*
+ * PayPal n'apparaît à la caisse que s'il est réellement actif sur le compte Stripe.
+ * On lit la capacité du compte, mise en cache quelques minutes pour ne pas interroger
+ * Stripe à chaque page de paiement.
+ */
+const paypalCache = new Map<PaymentMode, { active: boolean; at: number }>();
+
+export async function paypalAvailable(mode: PaymentMode): Promise<boolean> {
+  const cached = paypalCache.get(mode);
+  if (cached && Date.now() - cached.at < 5 * 60_000) return cached.active;
+  const stripe = getStripe(mode);
+  if (!stripe) return false;
+  try {
+    const account = await stripe.accounts.retrieve();
+    const active = account.capabilities?.paypal_payments === "active";
+    paypalCache.set(mode, { active, at: Date.now() });
+    return active;
+  } catch (err) {
+    console.warn("[stripe] capacité PayPal non lue :", err);
+    return false;
+  }
+}

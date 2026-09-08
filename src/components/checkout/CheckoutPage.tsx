@@ -24,6 +24,7 @@ type Prefill = { email: string; firstName: string; lastName: string; line1: stri
 
 type Props = {
   publishableKey: string | null;
+  paypal: boolean;
   mapToken: string | null;
   testMode: boolean;
   quote: Quote;
@@ -113,7 +114,7 @@ export function CheckoutPage(props: Props) {
 
       <div className="site-wrap grid grid-cols-[1.5fr_1fr] items-start gap-5 pb-[4.5rem] pt-4 max-[1099px]:grid-cols-1">
         {stripePromise ? (
-          <Elements stripe={stripePromise} options={{ mode: "payment", amount: total, currency: "eur", paymentMethodTypes: ["card"], appearance: APPEARANCE, fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" }] }}>
+          <Elements stripe={stripePromise} options={{ mode: "payment", amount: total, currency: "eur", paymentMethodTypes: props.paypal ? ["card", "paypal"] : ["card"], appearance: APPEARANCE, fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" }] }}>
             <CheckoutForm {...props} rateId={rateId} setRateId={setRateId} total={total} onStep={setStep} />
           </Elements>
         ) : (

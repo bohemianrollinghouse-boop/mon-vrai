@@ -169,7 +169,7 @@ async function main() {
       sender: { ...EMPTY_SENDER, company: "Mon Vrai", street: "78 avenue des Champs-Élysées, Bureau 326", postalCode: "75008", city: "Paris", country: "FR", email: "contact@monvrai.fr" },
     },
     inventory: { lowThreshold: 20 },
-    payments: { mode: "live" },
+    payments: { mode: "live", paypal: false },
     legal: {
       footerLine: "",
       sellerName: "",

@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth/session";
 import { getSettings } from "@/lib/db/settings";
+import type Stripe from "stripe";
 import { getStripe } from "@/lib/stripe/client";
 import { buildQuote, quoteTotal } from "./quote";
 
@@ -68,11 +69,12 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
   const user = await getSessionUser();
   const name = `${d.address.firstName} ${d.address.lastName}`.trim();
 
-  const intent = await stripe.paymentIntents.create({
+  // Carte (+ Apple/Google Pay via le paiement express) et, si activé, PayPal. Si PayPal
+  // n'est pas encore activé côté compte Stripe, on retombe proprement sur la carte.
+  const params: Stripe.PaymentIntentCreateParams = {
     amount: total,
     currency: "eur",
-    // Carte (dont Apple Pay / Google Pay) : la page n'affiche que ça, l'intention doit coïncider.
-    payment_method_types: ["card"],
+    payment_method_types: settings.payments.paypal ? ["card", "paypal"] : ["card"],
     description: `Mon Vrai — ${quote.count} livre${quote.count > 1 ? "s" : ""}`,
     receipt_email: undefined,
     shipping: {
@@ -99,7 +101,19 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
       // Lignes figées : slug, quantité, prix unitaire au moment du paiement, g = offert.
       cart: JSON.stringify(quote.lines.map((l) => ({ s: l.slug, q: l.qty, p: l.unitPrice, ...(l.gift ? { g: 1 } : {}) }))),
     },
-  });
+  };
+  let intent;
+  try {
+    intent = await stripe.paymentIntents.create(params);
+  } catch (e) {
+    const err = e as Stripe.errors.StripeError;
+    if (settings.payments.paypal && err.param === "payment_method_types[1]") {
+      // PayPal pas encore activé sur le compte Stripe : on n'y renonce que pour cette commande.
+      intent = await stripe.paymentIntents.create({ ...params, payment_method_types: ["card"] });
+    } else {
+      return { ok: false, error: `Stripe : ${err.message}` };
+    }
+  }
 
   if (!intent.client_secret) return { ok: false, error: "Stripe n'a pas renvoyé de secret de paiement." };
   return { ok: true, clientSecret: intent.client_secret, amount: total, intentId: intent.id };
