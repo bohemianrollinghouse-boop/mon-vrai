@@ -41,18 +41,29 @@ export async function Header() {
         <SiteNav links={links} />
         <SiteActions actions={actions} />
 
-        <details className="min-[1100px]:hidden">
-          <summary className="list-none cursor-pointer p-2 [&::-webkit-details-marker]:hidden" aria-label="Menu">
-            <span className="block h-0.5 w-[22px] bg-ink before:mb-[5px] before:block before:h-0.5 before:w-[22px] before:-translate-y-[7px] before:bg-ink before:content-[''] after:mt-[5px] after:block after:h-0.5 after:w-[22px] after:bg-ink after:content-['']" />
-          </summary>
-          <div className="absolute right-0 top-full z-40 mt-3 flex w-64 max-w-[calc(100vw-2rem)] flex-col rounded-card bg-white p-3 shadow-float">
-            {[...links, ...actions.map((a) => ({ id: a.href, label: a.label, href: a.href, external: false, newTab: false }))].map((l) => (
-              <Link key={l.id} href={l.href} className="rounded-pill px-4 py-3 text-[0.9375rem] font-semibold hover:bg-paper">
-                {l.label}
-              </Link>
-            ))}
-          </div>
-        </details>
+        {/* Mobile : le panier reste visible à côté du burger ; le reste va dans le menu. */}
+        <div className="flex items-center gap-2 min-[1100px]:hidden">
+          <Link
+            href={systemPath("cart")}
+            aria-label={count > 0 ? `Panier · ${count}` : "Panier"}
+            className="whitespace-nowrap rounded-pill bg-ink px-4 py-2.5 text-[0.8125rem] font-semibold leading-tight text-white"
+          >
+            {count > 0 ? `Panier · ${count}` : "Panier"}
+          </Link>
+
+          <details>
+            <summary className="list-none cursor-pointer p-2 [&::-webkit-details-marker]:hidden" aria-label="Menu">
+              <span className="block h-0.5 w-[22px] bg-ink before:mb-[5px] before:block before:h-0.5 before:w-[22px] before:-translate-y-[7px] before:bg-ink before:content-[''] after:mt-[5px] after:block after:h-0.5 after:w-[22px] after:bg-ink after:content-['']" />
+            </summary>
+            <div className="absolute right-0 top-full z-40 mt-3 flex w-64 max-w-[calc(100vw-2rem)] flex-col rounded-card bg-white p-3 shadow-float">
+              {[...links, ...actions.filter((a) => a.href !== systemPath("cart")).map((a) => ({ id: a.href, label: a.label, href: a.href, external: false, newTab: false }))].map((l) => (
+                <Link key={l.id} href={l.href} className="rounded-pill px-4 py-3 text-[0.9375rem] font-semibold hover:bg-paper">
+                  {l.label}
+                </Link>
+              ))}
+            </div>
+          </details>
+        </div>
       </div>
     </header>
   );
