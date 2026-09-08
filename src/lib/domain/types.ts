@@ -326,6 +326,8 @@ export const Customer = z.object({
   email: z.email(),
   name: z.string().default(""),
   stripeCustomerId: z.string().optional(),
+  /** Identifiant du client dans Tiime (facturation), renvoyé par le scénario Make. */
+  tiimeClientId: z.number().int().optional(),
   addresses: z.array(Address).default([]),
   /** Consentement newsletter, avec horodatage pour la preuve RGPD. */
   newsletter: z.object({ optIn: z.boolean(), at: z.number() }).optional(),

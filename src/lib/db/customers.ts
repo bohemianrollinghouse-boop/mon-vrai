@@ -29,7 +29,7 @@ export async function ensureCustomer(uid: string, email: string, name = ""): Pro
 
 export async function updateCustomer(
   uid: string,
-  patch: Partial<Pick<Customer, "name" | "addresses" | "stripeCustomerId" | "newsletter">>,
+  patch: Partial<Pick<Customer, "name" | "addresses" | "stripeCustomerId" | "newsletter" | "tiimeClientId">>,
 ): Promise<void> {
   await customers().doc(uid).set(patch, { merge: true });
 }

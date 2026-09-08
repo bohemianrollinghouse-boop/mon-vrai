@@ -84,3 +84,9 @@ env:
   - variable: FIREBASE_STORAGE_BUCKET
     value: mon-vrai.firebasestorage.app
     availability: [BUILD, RUNTIME]
+
+  # Make Webhook
+  - variable: MAKE_WEBHOOK_URL
+    secret: MAKE_WEBHOOK_URL
+  - variable: MAKE_WEBHOOK_API_KEY
+    secret: MAKE_WEBHOOK_API_KEY

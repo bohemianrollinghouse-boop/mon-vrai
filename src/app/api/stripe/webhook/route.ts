@@ -7,6 +7,7 @@ import { getProductsBySlugs } from "@/lib/db/products";
 import type { Address, OrderLine } from "@/lib/domain/types";
 import { sendOrderConfirmation } from "@/lib/email/send";
 import { issueInvoice } from "@/lib/invoice/issue";
+import { makeConfigured, sendOrderToMake } from "@/lib/make/tiime";
 import { getStripe, webhookSecret, type PaymentMode } from "@/lib/stripe/client";
 
 /*
@@ -74,6 +75,8 @@ async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId
     : order;
 
   await sendOrderConfirmation(invoiced).catch((err) => console.warn("[stripe] e-mail de confirmation non envoyé :", err));
+  // Facturation Tiime via Make : en dernier, et sans jamais faire échouer le webhook.
+  if (makeConfigured()) await sendOrderToMake(order.id, "stripe").catch((err) => console.warn("[stripe] envoi Make/Tiime :", err));
   return NextResponse.json({ received: true, order: order.number });
 }
 

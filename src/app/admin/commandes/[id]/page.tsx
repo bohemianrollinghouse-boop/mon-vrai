@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { Avatar, ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Thumb } from "@/components/admin/ui";
-import { addOrderNoteAction, createBoxtalLabelAction, issueInvoiceAction, setTrackingAction, syncBoxtalAction, transitionOrderAction } from "@/lib/admin/actions/orders";
+import { addOrderNoteAction, createBoxtalLabelAction, issueInvoiceAction, sendToMakeAction, setTrackingAction, syncBoxtalAction, transitionOrderAction } from "@/lib/admin/actions/orders";
+import { makeConfigured } from "@/lib/make/tiime";
 import { boxtalConfigured } from "@/lib/boxtal/client";
 import { carrierOf, findOffer } from "@/lib/boxtal/offers";
 import { parcelWeightKg } from "@/lib/boxtal/shipment";
@@ -344,6 +345,17 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
               <span className="text-[0.8125rem] font-semibold">
                 {shipFrom ? `Expédition prévue à partir du ${shipFrom}.` : "Expédition dès réception du stock."} Le client a été prévenu à la commande.
               </span>
+            </Card>
+          )}
+
+          {makeConfigured() && !["pending_payment", "cancelled"].includes(order.status) && (
+            <Card title={<span className="text-sm">Tiime (via Make)</span>} className="!gap-2">
+              <p className="text-xs text-subtle">
+                {order.timeline.some((t) => t.note?.startsWith("Envoyée à Tiime")) ? "Commande transmise au scénario Make (voir l'historique)." : "Pas encore transmise à Make."}
+              </p>
+              <ActionForm action={sendToMakeAction} submitLabel="Envoyer à Tiime" submitTone="secondary" className="!gap-0 [&>div:last-child]:justify-start">
+                <input type="hidden" name="id" value={order.id} />
+              </ActionForm>
             </Card>
           )}
 
