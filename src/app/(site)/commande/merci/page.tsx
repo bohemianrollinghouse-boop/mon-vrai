@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RefreshUntilOrder } from "@/components/site/RefreshUntilOrder";
 import { PillLink } from "@/components/site/ui";
 import { findOrderByCheckoutSession, findOrderByPaymentIntent } from "@/lib/db/orders";
 import { formatEuro } from "@/lib/domain/money";
@@ -19,6 +20,7 @@ export default async function ThankYouPage({ searchParams }: PageProps<"/command
 
   return (
     <section className="site-wrap py-16">
+      <RefreshUntilOrder found={Boolean(order)} />
       <div className="mx-auto flex max-w-[640px] flex-col items-center gap-4 rounded-panel bg-white p-16 text-center max-[599px]:px-6 max-[599px]:py-9">
         <span className="eyebrow text-tint-green-ink">Merci</span>
         <h1 className="display-2">{order ? `Commande ${order.number} confirmée` : "Votre paiement est bien pris"}</h1>

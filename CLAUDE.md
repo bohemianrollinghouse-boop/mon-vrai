@@ -42,6 +42,17 @@ Stripe Tax est prêt mais désactivé (`STRIPE_TAX=0`) ; la vidéo d'accueil est
 dans le bucket par le seed. Reste : brancher les vrais projets Firebase/Stripe/Resend
 (voir `.env.example`) et pointer le DNS au go-live. Voir `PLAN.md`.
 
+## Paiement
+
+Page `/commande` (groupe `(checkout)`, sans en-tête du site) : Stripe Elements en
+intent différé. Le devis (`lib/checkout/quote.ts`) est la seule source des montants ;
+`createPaymentIntentAction` le recalcule et met tout ce que le webhook doit savoir dans
+les métadonnées du PaymentIntent (lignes figées `cart`, adresse, port, remise, e-mail).
+`payment_intent.succeeded` crée la commande (idempotent sur l'id du PaymentIntent).
+Clés publiables par mode : `STRIPE_PUBLISHABLE_KEY(_TEST)` (pas de `NEXT_PUBLIC_`, la
+page les passe au client selon le mode choisi dans l'admin). Codes promo = promotion
+codes Stripe. Seule la carte est proposée (Apple/Google Pay via le paiement express).
+
 ## Factures
 
 `src/lib/invoice/issue.ts` émet la facture (numéro séquentiel via transaction, PDF
