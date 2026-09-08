@@ -76,6 +76,31 @@
     margin: 0;
   }
 
+  /*
+   * Tailwind 4 ne met plus la main sur les boutons : on la remet partout, site et
+   * admin, pour tout ce qui se clique — boutons, liens-boutons, sélecteurs, cases,
+   * étiquettes qui portent une case. Un contrôle désactivé garde le curseur normal.
+   */
+  button,
+  [role="button"],
+  input[type="submit"],
+  input[type="button"],
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="file"],
+  select,
+  summary,
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  input:disabled,
+  select:disabled {
+    cursor: default;
+  }
+
   /* Un contrôle natif hérite de la police du site, pas de celle de l'OS. */
   button,
   input,
