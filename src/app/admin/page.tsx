@@ -140,6 +140,28 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
           </Card>
         </div>
       </div>
+
+      <Card title="Liens utiles" className="mt-3">
+        <div className="grid grid-cols-4 gap-2.5 max-[899px]:grid-cols-2">
+          {SERVICE_LINKS.map((s) => (
+            <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-2 rounded-[14px] bg-paper px-4 py-3.5 text-[0.8125rem] font-bold hover:opacity-70">
+              <span className="flex flex-col">
+                <span>{s.label}</span>
+                <span className="text-[0.6875rem] font-medium text-subtle">{s.note}</span>
+              </span>
+              <span aria-hidden="true">↗</span>
+            </a>
+          ))}
+        </div>
+      </Card>
     </>
   );
 }
+
+/** Tableaux de bord des services externes utilisés par la boutique. */
+const SERVICE_LINKS = [
+  { label: "Boxtal", note: "Expéditions, étiquettes", href: "https://shipping.boxtal.com/fr/fr/accueil" },
+  { label: "Resend", note: "E-mails envoyés", href: "https://resend.com/overview" },
+  { label: "Firebase", note: "Hébergement, base de données", href: "https://console.firebase.google.com/project/mon-vrai/overview" },
+  { label: "Tiime", note: "Facturation, comptabilité", href: "https://apps.tiime.fr/companies/459759" },
+];
