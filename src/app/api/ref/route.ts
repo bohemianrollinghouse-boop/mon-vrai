@@ -12,7 +12,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const slug = (url.searchParams.get("r") ?? "").toLowerCase();
   const safeTo = safeInternalPath(url.searchParams.get("to"), "/");
-  const res = NextResponse.redirect(new URL(safeTo, url.origin), 302);
+  // Base publique explicite : derrière Cloud Run, request.url porte l'origine interne
+  // (0.0.0.0:8080), et une redirection absolue construite dessus sortait du site.
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? url.origin;
+  const res = NextResponse.redirect(new URL(safeTo, base), 302);
 
   const influencer = slug ? await getInfluencerBySlug(slug).catch(() => null) : null;
   if (influencer && influencer.active && !(influencer.endAt && influencer.endAt < Date.now())) {
