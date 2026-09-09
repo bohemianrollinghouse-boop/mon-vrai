@@ -8,7 +8,7 @@ import { addAddressAction, deleteAccountAction, deleteAddressAction, setNewslett
 import { signOut } from "@/lib/auth/actions";
 import { requireUser } from "@/lib/auth/session";
 import { getCustomer } from "@/lib/db/customers";
-import { listOrdersForCustomer } from "@/lib/db/orders";
+import { listOrdersForUser } from "@/lib/db/orders";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import { formatEuroShort } from "@/lib/domain/money";
@@ -39,7 +39,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/compte">
   const { onglet } = await searchParams;
   const tab: Tab = TABS.some((t) => t.key === onglet) ? (onglet as Tab) : "commandes";
   const user = await requireUser();
-  const [orders, customer, products, settings] = await Promise.all([listOrdersForCustomer(user.uid), getCustomer(user.uid), listPublishedProducts(), getSettings()]);
+  const [orders, customer, products, settings] = await Promise.all([listOrdersForUser(user.uid, user.email), getCustomer(user.uid), listPublishedProducts(), getSettings()]);
   const firstName = (customer?.name || user.name || "").split(" ")[0];
   const current = orders.find((o) => ACTIVE.includes(o.status));
   const previous = orders.filter((o) => o !== current);

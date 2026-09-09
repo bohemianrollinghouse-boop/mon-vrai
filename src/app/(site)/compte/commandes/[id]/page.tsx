@@ -17,7 +17,7 @@ export default async function AccountOrderPage({ params }: PageProps<"/compte/co
   const { id } = await params;
   const user = await requireUser(`/compte/commandes/${id}`);
   const [order, settings] = await Promise.all([getOrder(id), getSettings()]);
-  if (!order || order.customerUid !== user.uid) notFound();
+  if (!order || (order.customerUid !== user.uid && order.email !== user.email)) notFound();
   const a = order.shippingAddress;
 
   return (

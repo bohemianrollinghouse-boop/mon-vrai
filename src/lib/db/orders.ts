@@ -47,7 +47,7 @@ export async function listOrders(opts: { status?: OrderStatus; limit?: number } 
 
 /** Commandes d'une adresse e-mail (quelques unités) : tri en mémoire, pas d'index composite à entretenir. */
 export async function listOrdersForEmail(email: string): Promise<Order[]> {
-  const list = await parseQuery(Order, orders().where("email", "==", email).limit(200));
+  const list = await parseQuery(Order, orders().where("email", "==", email.toLowerCase()).limit(200));
   return list.sort((a, b) => b.createdAt - a.createdAt);
 }
 
@@ -62,6 +62,21 @@ export async function addOrderNote(id: string, note: string, by: string): Promis
 
 export async function listOrdersForCustomer(uid: string): Promise<Order[]> {
   return parseQuery(Order, orders().where("customerUid", "==", uid).orderBy("createdAt", "desc"));
+}
+
+/*
+ * Commandes d'un client connecté : celles rattachées à son compte (uid) ET celles passées
+ * en invité avec son adresse e-mail (vérifiée par la session). Ainsi, créer un compte avec
+ * l'e-mail d'anciennes commandes invité fait apparaître tout l'historique. Union dédupliquée.
+ */
+export async function listOrdersForUser(uid: string, email?: string): Promise<Order[]> {
+  const [byUid, byEmail] = await Promise.all([
+    listOrdersForCustomer(uid).catch(() => [] as Order[]),
+    email ? listOrdersForEmail(email).catch(() => [] as Order[]) : Promise.resolve([] as Order[]),
+  ]);
+  const map = new Map<string, Order>();
+  for (const o of [...byUid, ...byEmail]) map.set(o.id, o);
+  return [...map.values()].sort((a, b) => b.createdAt - a.createdAt);
 }
 
 export type PaidOrderInput = {
@@ -130,7 +145,8 @@ export async function createPaidOrder(input: PaidOrderInput): Promise<Order> {
       lines: input.lines,
       totals: input.totals,
       customerUid: input.customerUid,
-      email: input.email,
+      // E-mail en minuscules : le rattachement des commandes invité à un compte se fait par e-mail.
+      email: input.email.trim().toLowerCase(),
       shippingAddress: input.shippingAddress,
       billingAddress: input.billingAddress,
       livemode: input.livemode ?? true,
