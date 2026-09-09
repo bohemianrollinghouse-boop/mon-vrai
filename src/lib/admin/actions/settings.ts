@@ -21,7 +21,9 @@ import { SiteSettings } from "@/lib/domain/types";
 const boolish = z.union([z.boolean(), z.string()]).default(false).transform((v) => v === true || v === "true" || v === "on");
 
 const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true, socials: true, legal: true, payments: true }).extend({
-  payments: z.object({ testMode: z.boolean().default(false), paypal: z.boolean().default(false) }),
+  // Le mode test/production n'est plus ici : il est piloté par le slider en haut de l'admin
+  // (setSiteModeAction). Le formulaire de réglages ne touche que PayPal.
+  payments: z.object({ paypal: z.boolean().default(false) }),
   legal: z.object({
     footerLine: z.string().trim().default(""),
     sellerName: z.string().trim().default(""),
@@ -85,7 +87,7 @@ const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true
 export async function saveSettingsAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const parsed = parseForm(Input, formData, {
-    booleans: ["announcement.enabled", "payments.testMode", "payments.paypal"],
+    booleans: ["announcement.enabled", "payments.paypal"],
     numbers: ["shipping.freeThresholdEuros", "inventory.lowThreshold", "shipping.parcel.lengthCm", "shipping.parcel.widthCm", "shipping.parcel.heightCm", "shipping.parcel.unitWeightG", "shipping.parcel.baseWeightG"],
   });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
@@ -114,7 +116,8 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
       tiktok: d.socials.tiktok || undefined,
       facebook: d.socials.facebook || undefined,
     },
-    payments: { mode: d.payments.testMode ? "test" : "live", paypal: d.payments.paypal },
+    // Le mode reste piloté par le slider : on préserve la valeur actuelle.
+    payments: { mode: current.payments.mode, paypal: d.payments.paypal },
     legal: {
       ...d.legal,
       sellerAddressLines: d.legal.sellerAddress.split("\n").map((l) => l.trim()).filter(Boolean),
@@ -147,8 +150,22 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
   if (!next.success) return failed(next.error.issues[0]?.message ?? "Réglages invalides");
 
   await saveSettings(next.data);
-  const modeChanged = current.payments.mode !== next.data.payments.mode;
-  await audit(user.email, "settings.save", "settings/site", modeChanged ? `paiements → ${next.data.payments.mode}` : undefined);
+  await audit(user.email, "settings.save", "settings/site");
   revalidatePath("/", "layout");
   return saved("Réglages enregistrés.");
+}
+
+/*
+ * Slider prod/test en haut de l'admin. Bascule le mode global : Stripe (clés test/live)
+ * et Boxtal (étiquettes en bac à sable) suivent tous ce réglage. Action légère et
+ * réservée à l'admin, séparée du formulaire de réglages.
+ */
+export async function setSiteModeAction(formData: FormData): Promise<void> {
+  const user = await assertAdmin();
+  const mode = formData.get("mode") === "test" ? "test" : "live";
+  const current = await getSettings();
+  if (current.payments.mode === mode) return;
+  await saveSettings({ ...current, payments: { ...current.payments, mode } });
+  await audit(user.email, "settings.mode", "settings/site", `mode → ${mode}`);
+  revalidatePath("/", "layout");
 }

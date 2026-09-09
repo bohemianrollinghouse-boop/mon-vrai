@@ -73,16 +73,12 @@ export default async function SettingsPage() {
                     <span className="rounded-pill bg-tint-pink px-2.5 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-pink-ink">Clé manquante</span>
                   )}
                 </div>
-                <Switch
-                  name="payments.testMode"
-                  label={
-                    <span className="flex items-center gap-2">
-                      Paiements en mode test {s.payments.mode === "test" ? <Pill tone="warn">actif</Pill> : <Pill tone="ok">production</Pill>}
-                    </span>
-                  }
-                  hint="Carte de test 4242 4242 4242 4242, n'importe quelle date future et CVC. Commandes marquées « Test » (hors chiffre d'affaires, envoyées à Tiime avec le drapeau test) ; l'étiquette Boxtal reste à créer à la main."
-                  defaultChecked={s.payments.mode === "test"}
-                />
+                <div className="flex items-center justify-between gap-3 rounded-[14px] bg-paper px-4 py-3 text-[0.8125rem]">
+                  <span className="text-xs text-subtle">
+                    Mode {s.payments.mode === "test" ? "test" : "production"} : bascule globale (Stripe + Boxtal) via le slider en haut de l&apos;admin.
+                  </span>
+                  {s.payments.mode === "test" ? <Pill tone="warn">test</Pill> : <Pill tone="ok">production</Pill>}
+                </div>
                 <Switch
                   name="payments.paypal"
                   label={

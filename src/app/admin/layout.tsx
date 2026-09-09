@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { AdminNav, type NavItem } from "@/components/admin/AdminNav";
 import { Avatar } from "@/components/admin/ui";
+import { ModeToggle } from "@/components/admin/ModeToggle";
 
 /*
  * Coquille de l'administration, d'après la maquette « Mon Vrai - Admin » : une barre
@@ -48,11 +49,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   return (
     <div className="grid min-h-screen flex-1 grid-cols-[240px_minmax(0,1fr)] max-[899px]:grid-cols-1">
       <aside className="sticky top-0 flex h-screen flex-col gap-6 border-r border-line-sand bg-white px-4 py-6 max-[899px]:static max-[899px]:h-auto max-[899px]:border-b max-[899px]:border-r-0">
-        <div className="flex items-center justify-between px-2">
-          <Link href="/admin" aria-label="Tableau de bord">
-            <Image src="/email-logo.png" alt="Mon Vrai" width={96} height={24} className="h-6 w-auto" style={{ height: 24, width: "auto" }} priority />
-          </Link>
-          <span className="rounded-pill bg-tint-sand px-2 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-sand-ink">Admin</span>
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between px-2">
+            <Link href="/admin" aria-label="Tableau de bord">
+              <Image src="/email-logo.png" alt="Mon Vrai" width={96} height={24} className="h-6 w-auto" style={{ height: 24, width: "auto" }} priority />
+            </Link>
+            <span className="rounded-pill bg-tint-sand px-2 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-sand-ink">Admin</span>
+          </div>
+          <ModeToggle mode={snap.settings.payments.mode} />
         </div>
         <AdminNav primary={primary} secondary={secondary} />
         <div className="mt-auto flex flex-col gap-3 max-[899px]:mt-0">
@@ -76,13 +80,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
       <main className="flex min-w-0 flex-col gap-6 px-10 pb-16 pt-8 max-[899px]:px-5">
         {snap.settings.payments.mode === "test" && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-tint-sand px-5 py-3 text-[0.8125rem] font-semibold text-tint-sand-ink">
+          <div className="flex flex-wrap items-center gap-3 rounded-card bg-tint-sand px-5 py-3 text-[0.8125rem] font-semibold text-tint-sand-ink">
             <span>
-              Paiements en <strong>mode test</strong> : cartes réelles refusées, commandes marquées « Test » (hors chiffre d'affaires).
+              Site en <strong>mode test</strong> : Stripe et Boxtal en bac à sable. Aucun débit réel, aucune étiquette facturée, commandes marquées « Test » (hors chiffre d&apos;affaires). Bascule en haut à gauche.
             </span>
-            <Link href="/admin/reglages#paiements" className="underline">
-              Changer
-            </Link>
           </div>
         )}
         {children}
