@@ -11,7 +11,7 @@ runConfig:
   maxInstances: 4
   concurrency: 80
   cpu: 1
-  memoryMiB: 512
+  memoryMiB: 1024
 
 env:
   # Domaine public (liens des e-mails, retour Stripe, métadonnées). DNS basculé le 2026-09-08.

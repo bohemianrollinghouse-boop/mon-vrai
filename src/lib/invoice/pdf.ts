@@ -2,6 +2,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
+import sharp from "sharp";
 import { formatEuro } from "@/lib/domain/money";
 import type { Address, Order, SiteSettings } from "@/lib/domain/types";
 
@@ -11,11 +12,19 @@ import type { Address, Order, SiteSettings } from "@/lib/domain/types";
  * viennent de la commande. La facture s'adapte à la configuration : en franchise de TVA
  * (pas de numéro de TVA), on affiche « TVA non applicable, art. 293 B du CGI » et pas de
  * colonne de taxe. Polices standard (WinAnsi) : les caractères hors Latin-1 sont nettoyés.
+ *
+ * Pagination : le tableau des lignes et le bloc des totaux passent à la page suivante
+ * quand ils n'ont plus la place au-dessus du pied de page ; chaque page porte « page n/N ».
+ * Les vignettes produit sont réduites (sharp) avant incorporation : une image de
+ * catalogue pèse plus d'un mégaoctet, une vignette de facture quelques kilo-octets.
  */
 
 const A4 = { width: 595.28, height: 841.89 };
 const M = 44; // marge
 const CONTENT = A4.width - 2 * M;
+const FOOTER_Y = A4.height - 34; // ligne de base du pied de page
+const BOTTOM = FOOTER_Y - 36; // limite basse du contenu
+const THUMB_PX = 120; // côté max des vignettes incorporées (30 pt affichés, net à l'impression)
 
 const INK = rgb(0.067, 0.067, 0.067);
 const MUTED = rgb(0.4, 0.4, 0.4);
@@ -38,19 +47,29 @@ const TINT: Record<string, RGB> = {
 };
 const tintRgb = (t?: string): RGB => TINT[t ?? "green"] ?? TINT.green;
 
-/** Télécharge et incorpore une image (PNG/JPEG) ; renvoie null en cas d'échec (best-effort). */
-async function embedImage(doc: PDFDocument, url?: string): Promise<PDFImage | null> {
+/**
+ * Télécharge une image produit, la réduit en vignette PNG et l'incorpore ; null en cas
+ * d'échec (best-effort : la facture se passe d'image plutôt que d'échouer).
+ */
+async function embedThumb(doc: PDFDocument, url?: string): Promise<PDFImage | null> {
   if (!url) return null;
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: AbortSignal.timeout(8_000) });
     if (!res.ok) return null;
-    const buf = new Uint8Array(await res.arrayBuffer());
-    if (buf[0] === 0x89 && buf[1] === 0x50) return await doc.embedPng(buf);
-    if (buf[0] === 0xff && buf[1] === 0xd8) return await doc.embedJpg(buf);
-    return null;
+    const original = Buffer.from(await res.arrayBuffer());
+    const png = await sharp(original).resize(THUMB_PX, THUMB_PX, { fit: "inside", withoutEnlargement: true }).png({ compressionLevel: 9 }).toBuffer();
+    return await doc.embedPng(png);
   } catch {
     return null;
   }
+}
+
+/** Une vignette par URL distincte : deux lignes du même titre partagent l'image. */
+async function embedThumbs(doc: PDFDocument, urls: (string | undefined)[]): Promise<(PDFImage | null)[]> {
+  const unique = Array.from(new Set(urls.filter((u): u is string => Boolean(u))));
+  const embedded = await Promise.all(unique.map((u) => embedThumb(doc, u)));
+  const byUrl = new Map(unique.map((u, i) => [u, embedded[i]]));
+  return urls.map((u) => (u ? (byUrl.get(u) ?? null) : null));
 }
 
 // WinAnsi (CP1252) encode ces caractères hors ASCII, dont les tirets cadratin/demi-cadratin
@@ -73,8 +92,7 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const page = doc.addPage([A4.width, A4.height]);
-  const w = new Writer(page, font, bold);
+  const w = new Writer(doc, font, bold);
 
   const sellerName = settings.legal.sellerName || settings.shopName;
   const vatApplies = Boolean(settings.legal.vatNumber) && (invoice.data?.vatAmount ?? 0) > 0;
@@ -92,7 +110,7 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
   if (logo) {
     const h = 30;
     const lw = (logo.width / logo.height) * h;
-    page.drawImage(logo, { x: M, y: A4.height - M - h, width: lw, height: h });
+    w.image(logo, M, M, lw, h);
     leftY = M + h + 12;
   } else {
     w.text(sellerName, M, M + 6, { font: bold, size: 18 });
@@ -147,21 +165,40 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
   const imgX = M;
   const imgS = 30;
   const col = { des: M + imgS + 12, ref: M + 250, qty: M + 330, pu: M + 415, tot: rightX };
-  let y = cardsY + cardH + 26;
-  w.text("Désignation", col.des, y, { size: 8, font: bold, color: SUBTLE });
-  w.text("Référence", col.ref, y, { size: 8, font: bold, color: SUBTLE });
-  w.text("Qté", col.qty, y, { size: 8, font: bold, color: SUBTLE, align: "right" });
-  w.text(vatApplies ? "P.U. HT" : "P.U.", col.pu, y, { size: 8, font: bold, color: SUBTLE, align: "right" });
-  w.text(vatApplies ? "Total TTC" : "Total", col.tot, y, { size: 8, font: bold, color: SUBTLE, align: "right" });
-  y += 13; // sous le texte de l'en-tête (taille 8) avant le filet
-  line(page, M, rightX, y, 1.2, INK);
-  y += 15;
+  const nameWidth = col.ref - col.des - 12;
 
-  // Vignettes produit incorporées en amont (téléchargement best-effort, en parallèle).
-  const lineImages = await Promise.all(order.lines.map((l) => embedImage(doc, l.image?.url)));
+  const tableHead = (top: number): number => {
+    w.text("Désignation", col.des, top, { size: 8, font: bold, color: SUBTLE });
+    w.text("Référence", col.ref, top, { size: 8, font: bold, color: SUBTLE });
+    w.text("Qté", col.qty, top, { size: 8, font: bold, color: SUBTLE, align: "right" });
+    w.text(vatApplies ? "P.U. HT" : "P.U.", col.pu, top, { size: 8, font: bold, color: SUBTLE, align: "right" });
+    w.text(vatApplies ? "Total TTC" : "Total", col.tot, top, { size: 8, font: bold, color: SUBTLE, align: "right" });
+    w.line(M, rightX, top + 13, 1.2, INK); // sous le texte de l'en-tête (taille 8)
+    return top + 28;
+  };
+
+  // Nouvelle page de suite : rappel discret de la facture, puis l'en-tête du tableau.
+  const continueOnNewPage = (withTableHead: boolean): number => {
+    w.newPage();
+    const top = M;
+    w.text(`Facture ${invoice.number} · Commande ${order.number} · suite`, M, top, { size: 8.5, color: SUBTLE, font: bold });
+    w.line(M, rightX, top + 16, 0.6, LINE);
+    return withTableHead ? tableHead(top + 30) : top + 30;
+  };
+
+  let y = tableHead(cardsY + cardH + 26);
+
+  // Vignettes produit incorporées en amont (téléchargement et réduction en parallèle).
+  const lineImages = await embedThumbs(doc, order.lines.map((l) => l.image?.url));
 
   type RowOpts = { name: string; sub?: string; ref?: string; qty?: string; pu?: string; total: string; totalColor?: RGB; img?: PDFImage | null; tint?: string };
+  const rowHeight = (o: RowOpts): number => {
+    const nameLines = w.wrapLines(o.name, bold, 9.5, nameWidth).length;
+    const textBottom = nameLines * 12 + (o.sub ? 9 : -2);
+    return Math.max(textBottom, o.img !== undefined ? imgS - 1 : 0, 22) + 10;
+  };
   const drawRow = (o: RowOpts) => {
+    if (y + rowHeight(o) > BOTTOM) y = continueOnNewPage(true);
     const top = y;
     const hasThumb = o.img !== undefined; // ligne produit : carré teinté même sans image
     if (hasThumb) {
@@ -170,20 +207,17 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
         const scale = Math.min((imgS - 8) / o.img.width, (imgS - 8) / o.img.height);
         const iw = o.img.width * scale;
         const ih = o.img.height * scale;
-        const squareBottom = A4.height - (top - 1) - imgS;
-        page.drawImage(o.img, { x: imgX + (imgS - iw) / 2, y: squareBottom + (imgS - ih) / 2, width: iw, height: ih });
+        w.image(o.img, imgX + (imgS - iw) / 2, top - 1 + (imgS - ih) / 2, iw, ih);
       }
     }
-    const end = w.wrapped(o.name, col.des, top, { size: 9.5, font: bold, maxWidth: col.ref - col.des - 12, leading: 12 });
+    const end = w.wrapped(o.name, col.des, top, { size: 9.5, font: bold, maxWidth: nameWidth, leading: 12 });
     if (o.sub) w.text(o.sub, col.des, end + 1, { size: 8, color: SUBTLE });
     if (o.ref) w.text(o.ref, col.ref, top, { size: 8.5, color: MUTED, font: bold });
     if (o.qty) w.text(o.qty, col.qty, top, { size: 9.5, align: "right" });
     if (o.pu) w.text(o.pu, col.pu, top, { size: 9.5, align: "right" });
     w.text(o.total, col.tot, top, { size: 9.5, font: bold, align: "right", color: o.totalColor });
-    const textBottom = o.sub ? end + 9 : end - 2;
-    const bottom = Math.max(textBottom, hasThumb ? top - 1 + imgS : 0, top + 22);
-    y = bottom + 10;
-    line(page, M, rightX, y - 6, 0.6, HAIR);
+    y = top + rowHeight(o);
+    w.line(M, rightX, y - 6, 0.6, HAIR);
   };
 
   order.lines.forEach((l, i) => {
@@ -208,28 +242,37 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
   }
 
   /* ---- Totaux + conditions ---- */
-  y += 12;
   const boxW = 240;
   const boxX = rightX - boxW;
+  const pad = 16;
 
-  // Conditions (gauche).
   const conditions = [
     "Facture acquittée : paiement reçu à la commande.",
     !vatApplies && settings.legal.vatNote ? settings.legal.vatNote : "",
     "Droit de rétractation de 14 jours à compter de la réception.",
     preorder ? "Article(s) en précommande : expédition à la date annoncée." : "",
   ].filter(Boolean) as string[];
-  w.text("Conditions", M, y, { size: 8, font: bold, color: SUBTLE });
-  let cy = y + 14;
-  for (const c of conditions) cy = w.wrapped(c, M, cy, { size: 8.5, color: MUTED, maxWidth: boxX - M - 24, leading: 12 }) + 4;
+  const conditionsWidth = boxX - M - 24;
+  const conditionsH = 14 + conditions.reduce((h, c) => h + w.wrapLines(c, font, 8.5, conditionsWidth).length * 12 + 4, 0);
 
-  // Encadré totaux (droite).
   const rows: Array<[string, string, RGB?]> = [[vatApplies ? "Articles HT" : "Sous-total articles", formatEuro(articlesTotal(order))]];
   if (order.totals.discount > 0) rows.push(["Remise", `-${formatEuro(order.totals.discount)}`, RED]);
   rows.push(["Livraison", order.totals.shipping === 0 ? "Offerte" : formatEuro(order.totals.shipping)]);
-  const boxH = 62 + rows.length * 16 + (vatApplies ? 38 : 16);
+  // 18 de marge haute, les lignes, la zone TVA (une ou deux lignes), le filet, le total,
+  // la bande « Réglé » (22) et 14 de marge basse.
+  const boxH = 18 + rows.length * 16 + (vatApplies ? 38 : 16) + 8 + 22 + 22 + 14;
+
+  // Le bloc entier tient sur une page ; sinon il passe sur la suivante, d'un seul tenant.
+  y += 12;
+  if (y + Math.max(boxH, conditionsH) > BOTTOM) y = continueOnNewPage(false);
+
+  // Conditions (gauche).
+  w.text("Conditions", M, y, { size: 8, font: bold, color: SUBTLE });
+  let cy = y + 14;
+  for (const c of conditions) cy = w.wrapped(c, M, cy, { size: 8.5, color: MUTED, maxWidth: conditionsWidth, leading: 12 }) + 4;
+
+  // Encadré totaux (droite).
   w.rect(boxX, y, boxW, boxH, PAPER);
-  const pad = 16;
   let by = y + 18;
   for (const [k, v, color] of rows) {
     w.text(k, boxX + pad, by, { size: 9.5, color: MUTED, font: bold });
@@ -237,7 +280,7 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
     by += 16;
   }
   if (vatApplies) {
-    line(page, boxX + pad, boxX + boxW - pad, by - 2, 0.6, LINE);
+    w.line(boxX + pad, boxX + boxW - pad, by - 2, 0.6, LINE);
     w.text("Total HT", boxX + pad, by + 4, { size: 9.5, color: MUTED, font: bold });
     w.text(formatEuro(invoice.data?.totalHt ?? order.totals.total), boxX + boxW - pad, by + 4, { size: 9.5, font: bold, align: "right" });
     by += 20;
@@ -248,7 +291,7 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
     w.text("TVA non applicable", boxX + pad, by, { size: 8.5, color: SUBTLE, font: bold });
     by += 16;
   }
-  line(page, boxX + pad, boxX + boxW - pad, by, 1.4, INK);
+  w.line(boxX + pad, boxX + boxW - pad, by, 1.4, INK);
   by += 8;
   w.text(vatApplies ? "Total TTC" : "Total", boxX + pad, by, { size: 11, font: bold });
   w.text(formatEuro(order.totals.total), boxX + boxW - pad, by, { size: 15, font: bold, align: "right" });
@@ -257,12 +300,15 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
   w.text("Réglé", boxX + pad + 12, by + 7, { size: 9, font: bold, color: GREEN_INK });
   w.text(formatEuro(order.totals.total), boxX + boxW - pad - 12, by + 7, { size: 9, font: bold, color: GREEN_INK, align: "right" });
 
-  /* ---- Pied de page ---- */
-  const footerY = A4.height - 34;
-  line(page, M, rightX, footerY - 12, 0.6, LINE);
-  w.text("Merci de faire grandir votre enfant avec du vrai.", M, footerY, { size: 10, font: bold });
-  const legal = [sellerName, settings.legal.siret ? `SIREN ${settings.legal.siret}` : null, "monvrai.fr", `Facture ${invoice.number} · page 1/1`].filter(Boolean).join(" · ");
-  w.text(legal, rightX, footerY, { size: 7.5, color: SUBTLE, align: "right" });
+  /* ---- Pied de page, sur chaque page, une fois le nombre total connu ---- */
+  const total = w.pages.length;
+  w.pages.forEach((page, i) => {
+    w.use(page);
+    w.line(M, rightX, FOOTER_Y - 12, 0.6, LINE);
+    w.text("Merci de faire grandir votre enfant avec du vrai.", M, FOOTER_Y, { size: 10, font: bold });
+    const legal = [sellerName, settings.legal.siret ? `SIREN ${settings.legal.siret}` : null, "monvrai.fr", `Facture ${invoice.number} · page ${i + 1}/${total}`].filter(Boolean).join(" · ");
+    w.text(legal, rightX, FOOTER_Y, { size: 7.5, color: SUBTLE, align: "right" });
+  });
 
   return doc.save();
 }
@@ -320,10 +366,6 @@ async function loadLogo(doc: PDFDocument): Promise<PDFImage | null> {
 
 type TextOpts = { font?: PDFFont; size?: number; color?: RGB; align?: "left" | "right" | "center" };
 
-function line(page: PDFPage, x1: number, x2: number, yFromTop: number, thickness = 0.6, color: RGB = LINE): void {
-  page.drawLine({ start: { x: x1, y: A4.height - yFromTop }, end: { x: x2, y: A4.height - yFromTop }, thickness, color });
-}
-
 function card(w: Writer, x: number, yFromTop: number, width: number, height: number, bg: RGB, label: string, labelColor: RGB, bodyColor: RGB, title: string, body: string[]): void {
   w.rect(x, yFromTop, width, height, bg);
   w.text(label.toUpperCase(), x + 14, yFromTop + 14, { size: 7.5, font: w.bold, color: labelColor });
@@ -334,13 +376,32 @@ function card(w: Writer, x: number, yFromTop: number, width: number, height: num
   }
 }
 
-/** Coordonnées depuis le haut de la page ; alignement et retours à la ligne. */
+/**
+ * Écriture sur la page courante, en coordonnées depuis le haut de la page ; alignement,
+ * retours à la ligne, et gestion des pages (la première est créée d'emblée).
+ */
 class Writer {
+  readonly pages: PDFPage[] = [];
+  private page: PDFPage;
+
   constructor(
-    private page: PDFPage,
+    private doc: PDFDocument,
     public regular: PDFFont,
     public bold: PDFFont,
-  ) {}
+  ) {
+    this.page = this.newPage();
+  }
+
+  newPage(): PDFPage {
+    this.page = this.doc.addPage([A4.width, A4.height]);
+    this.pages.push(this.page);
+    return this.page;
+  }
+
+  /** Revient sur une page existante (pieds de page, une fois toutes les pages connues). */
+  use(page: PDFPage): void {
+    this.page = page;
+  }
 
   text(raw: string, x: number, yFromTop: number, opts: TextOpts = {}): void {
     const font = opts.font ?? this.regular;
@@ -360,15 +421,14 @@ class Writer {
     return y;
   }
 
-  wrapped(raw: string, x: number, yFromTop: number, opts: TextOpts & { maxWidth: number; leading?: number }): number {
-    const font = opts.font ?? this.regular;
-    const size = opts.size ?? 10;
+  /** Découpe en lignes tenant dans maxWidth (mots entiers). Sert aussi à mesurer avant de dessiner. */
+  wrapLines(raw: string, font: PDFFont, size: number, maxWidth: number): string[] {
     const words = safe(raw).split(/\s+/);
     const out: string[] = [];
     let current = "";
     for (const word of words) {
       const candidate = current ? `${current} ${word}` : word;
-      if (font.widthOfTextAtSize(candidate, size) > opts.maxWidth && current) {
+      if (font.widthOfTextAtSize(candidate, size) > maxWidth && current) {
         out.push(current);
         current = word;
       } else {
@@ -376,10 +436,23 @@ class Writer {
       }
     }
     if (current) out.push(current);
+    return out;
+  }
+
+  wrapped(raw: string, x: number, yFromTop: number, opts: TextOpts & { maxWidth: number; leading?: number }): number {
+    const out = this.wrapLines(raw, opts.font ?? this.regular, opts.size ?? 10, opts.maxWidth);
     return this.lines(out, x, yFromTop, { ...opts, leading: opts.leading ?? 13 });
   }
 
   rect(x: number, yFromTop: number, width: number, height: number, color: RGB): void {
     this.page.drawRectangle({ x, y: A4.height - yFromTop - height, width, height, color });
+  }
+
+  line(x1: number, x2: number, yFromTop: number, thickness = 0.6, color: RGB = LINE): void {
+    this.page.drawLine({ start: { x: x1, y: A4.height - yFromTop }, end: { x: x2, y: A4.height - yFromTop }, thickness, color });
+  }
+
+  image(img: PDFImage, x: number, yFromTop: number, width: number, height: number): void {
+    this.page.drawImage(img, { x, y: A4.height - yFromTop - height, width, height });
   }
 }
