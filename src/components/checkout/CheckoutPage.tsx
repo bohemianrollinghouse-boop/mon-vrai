@@ -57,13 +57,10 @@ const APPEARANCE: Appearance = {
     ".Input": { padding: "16px 18px", fontWeight: "600", border: "1.5px solid transparent", boxShadow: "none" },
     ".Input:focus": { border: "1.5px solid #111111", boxShadow: "none" },
     ".Label": { fontWeight: "700", fontSize: "13px", marginBottom: "8px" },
-    ".Tab": { padding: "14px 16px", borderRadius: "14px", border: "1.5px solid #e8e2d8", backgroundColor: "#ffffff", fontWeight: "700", boxShadow: "none" },
-    ".Tab:hover": { border: "1.5px solid #111111", backgroundColor: "#ffffff", boxShadow: "none" },
-    ".Tab--selected": { border: "1.5px solid #111111", backgroundColor: "#111111", color: "#ffffff", boxShadow: "none" },
-    ".Tab--selected:hover": { border: "1.5px solid #111111", backgroundColor: "#111111", color: "#ffffff", boxShadow: "none" },
-    ".TabLabel": { fontWeight: "700" },
-    ".TabIcon--selected": { fill: "#ffffff" },
-    ".TabLabel--selected": { color: "#ffffff" },
+    // Moyens de paiement en liste verticale sobre (voir layout « accordion » plus bas).
+    ".AccordionItem": { border: "1.5px solid #e8e2d8", borderRadius: "12px", backgroundColor: "#ffffff", boxShadow: "none", padding: "18px 18px" },
+    ".AccordionItem:hover": { borderColor: "#111111" },
+    ".AccordionItem--selected": { border: "1.5px solid #111111", backgroundColor: "#ffffff", boxShadow: "none" },
     ".Block": { borderRadius: "16px", backgroundColor: "#fbf8f3", boxShadow: "none" },
   },
 };
@@ -443,7 +440,8 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
         </div>
         <PaymentElement
           options={{
-            layout: { type: "tabs", defaultCollapsed: false },
+            // Liste verticale : logos plus lisibles et rendu plus sobre que les onglets.
+            layout: { type: "accordion", defaultCollapsed: false, radios: "always", spacedAccordionItems: true },
             // On collecte nous-mêmes la facturation (identique à la livraison ou saisie ci-dessous).
             fields: { billingDetails: { name: "never", email: "never", phone: "never", address: "never" } },
             // Apple/Google Pay vivent dans le paiement express au-dessus ; Link n'a pas sa place ici.
