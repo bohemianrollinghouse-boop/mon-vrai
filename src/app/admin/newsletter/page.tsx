@@ -1,6 +1,7 @@
 import { ActionForm } from "@/components/admin/ActionForm";
 import { Card, Field, GridTable, Input, PageHeader, Pill, Textarea } from "@/components/admin/ui";
 import { NewsletterSend } from "@/components/admin/NewsletterSend";
+import { NewsletterPreview } from "@/components/admin/NewsletterPreview";
 import { requireAdmin } from "@/lib/auth/session";
 import { saveNewsletterContentAction } from "@/lib/admin/actions/newsletter";
 import { buyerEmailsByProduct, getNewsletterContent, listSubscribers } from "@/lib/db/newsletter";
@@ -25,9 +26,9 @@ export default async function NewsletterPage() {
     <>
       <PageHeader title="Newsletter" subtitle={`${subscribers.length} inscrit${subscribers.length > 1 ? "s" : ""}`} />
 
-      <div className="grid grid-cols-[1.4fr_1fr] items-start gap-4 max-[1099px]:grid-cols-1">
+      <div className="grid grid-cols-[1fr_1fr] items-start gap-4 max-[1099px]:grid-cols-1">
         <Card title="Contenu de la newsletter" aside={<span className="text-xs text-subtle">Gabarit fixe · seul le contenu change</span>}>
-          <ActionForm action={saveNewsletterContentAction} submitLabel="Enregistrer le contenu">
+          <ActionForm id="newsletter-content-form" action={saveNewsletterContentAction} submitLabel="Enregistrer le contenu">
             <Field label="Sujet de l'e-mail" name="subject">
               <Input name="subject" defaultValue={content.subject} placeholder="Des nouvelles de Mon Vrai" />
             </Field>
@@ -56,10 +57,14 @@ export default async function NewsletterPage() {
           </ActionForm>
         </Card>
 
-        <Card title="Envoyer">
-          <NewsletterSend products={products.map((p) => ({ slug: p.slug, title: p.title }))} adminEmail={user.email} counts={counts} />
+        <Card title="Aperçu en direct" aside={<span className="text-xs text-subtle">Se met à jour pendant l'édition</span>}>
+          <NewsletterPreview formId="newsletter-content-form" />
         </Card>
       </div>
+
+      <Card title="Envoyer" className="mt-4">
+        <NewsletterSend products={products.map((p) => ({ slug: p.slug, title: p.title }))} adminEmail={user.email} counts={counts} />
+      </Card>
 
       <Card title={`Inscrits (${subscribers.length})`} className="mt-4">
         <GridTable
