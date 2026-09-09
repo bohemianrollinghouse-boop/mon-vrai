@@ -9,15 +9,14 @@ import { assertAdmin } from "@/lib/auth/session";
 import { addOrderNote, getOrder, setTracking, transitionOrder } from "@/lib/db/orders";
 import { OrderStatus } from "@/lib/domain/types";
 import { sendShippingNotice } from "@/lib/email/send";
-import { issueInvoice } from "@/lib/invoice/issue";
 import { createLabelForOrder, syncBoxtal } from "@/lib/boxtal/shipment";
 import { sendOrderToMake } from "@/lib/make/tiime";
 
 /*
  * Commandes. Trois gestes : changer le statut (en respectant la machine à états),
  * renseigner le suivi (qui passe la commande en « expédiée » et prévient le client),
- * émettre la facture (numéro + PDF). Aucune écriture directe : tout passe par les
- * transactions de db/orders.ts.
+ * facturer dans Tiime via Make (qui renvoie le PDF). Aucune écriture directe : tout
+ * passe par les transactions de db/orders.ts.
  */
 
 const Transition = z.object({ id: z.string().min(1), to: OrderStatus, note: z.string().trim().max(500).default("") });
@@ -66,20 +65,6 @@ export async function setTrackingAction(formData: FormData): Promise<AdminResult
   await audit(user.email, "order.tracking", `orders/${d.id}`, `${d.carrier} ${d.number}`);
   revalidatePath("/admin/commandes");
   return saved(`Suivi enregistré${updated.status === "shipped" ? ", commande expédiée" : ""}${d.notify ? ", client prévenu" : ""}.`);
-}
-
-export async function issueInvoiceAction(formData: FormData): Promise<AdminResult> {
-  const user = await assertAdmin();
-  const id = String(formData.get("id") ?? "");
-  if (!id) return failed("Commande inconnue");
-  try {
-    const order = await issueInvoice(id);
-    await audit(user.email, "order.invoice", `orders/${id}`, order.invoice?.number);
-    revalidatePath("/admin/commandes");
-    return saved(`Facture ${order.invoice?.number} émise.`);
-  } catch (e) {
-    return failed((e as Error).message);
-  }
 }
 
 const Note = z.object({ id: z.string().min(1), note: z.string().trim().min(1, "La note est vide").max(500) });

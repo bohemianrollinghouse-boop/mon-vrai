@@ -218,6 +218,11 @@ export async function setInvoiceFile(id: string, storagePath: string): Promise<v
   await orders().doc(id).update({ "invoice.storagePath": storagePath, updatedAt: now() });
 }
 
+/** Rattache la facture Tiime (numéro + PDF déposé) à la commande. */
+export async function setInvoiceDoc(id: string, invoice: { number: string; issuedAt: number; storagePath: string }): Promise<void> {
+  await orders().doc(id).update({ invoice, updatedAt: now() });
+}
+
 export async function setTracking(id: string, tracking: NonNullable<Order["tracking"]>): Promise<void> {
   await orders().doc(id).update({ tracking, updatedAt: now() });
 }

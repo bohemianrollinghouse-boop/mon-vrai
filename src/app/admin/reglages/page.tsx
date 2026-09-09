@@ -80,7 +80,7 @@ export default async function SettingsPage() {
                       Paiements en mode test {s.payments.mode === "test" ? <Pill tone="warn">actif</Pill> : <Pill tone="ok">production</Pill>}
                     </span>
                   }
-                  hint="Carte de test 4242 4242 4242 4242, n'importe quelle date future et CVC. Commandes marquées « Test » (factures F-TEST séparées, hors chiffre d'affaires) ; l'étiquette Boxtal reste à créer à la main."
+                  hint="Carte de test 4242 4242 4242 4242, n'importe quelle date future et CVC. Commandes marquées « Test » (hors chiffre d'affaires, envoyées à Tiime avec le drapeau test) ; l'étiquette Boxtal reste à créer à la main."
                   defaultChecked={s.payments.mode === "test"}
                 />
                 <Switch
@@ -220,8 +220,8 @@ export default async function SettingsPage() {
               <span className="text-[0.6875rem] leading-relaxed text-[#888]">Le poids du colis = emballage + poids par livre × nombre de livres. Contenu déclaré : « Livres ».</span>
             </Card>
 
-            <Card title="Factures">
-              <p className="text-[0.8125rem] text-muted">Mentions imprimées sur chaque facture PDF, émise automatiquement au paiement.</p>
+            <Card title="Identité légale">
+              <p className="text-[0.8125rem] text-muted">Identité de la boutique : mention TVA à la caisse, expéditeur des colis, pages légales du site. Les factures sont émises dans Tiime.</p>
               <div className="grid grid-cols-2 gap-3 max-[749px]:grid-cols-1">
                 <Field label="Raison sociale" hint="Vide : le nom de la boutique." name="legal.sellerName">
                   <Input name="legal.sellerName" defaultValue={s.legal.sellerName} />

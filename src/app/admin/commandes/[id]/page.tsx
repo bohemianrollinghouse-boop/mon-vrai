@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { Avatar, ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Thumb } from "@/components/admin/ui";
-import { addOrderNoteAction, createBoxtalLabelAction, issueInvoiceAction, sendToMakeAction, setTrackingAction, syncBoxtalAction, transitionOrderAction } from "@/lib/admin/actions/orders";
+import { addOrderNoteAction, createBoxtalLabelAction, sendToMakeAction, setTrackingAction, syncBoxtalAction, transitionOrderAction } from "@/lib/admin/actions/orders";
 import { makeConfigured } from "@/lib/make/tiime";
 import { boxtalConfigured } from "@/lib/boxtal/client";
 import { carrierOf, findOffer } from "@/lib/boxtal/offers";
@@ -323,17 +323,15 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                 "Identique à la livraison"
               )}
             </Block>
-            <Block label="Facture">
+            <Block label="Facture Tiime">
               {order.invoice ? (
                 <a href={`/api/factures/${order.id}`} target="_blank" className="underline">
-                  {order.invoice.number}
+                  {order.invoice.number} (PDF)
                 </a>
               ) : ["pending_payment", "cancelled"].includes(order.status) ? (
                 "Pas de facture pour une commande non payée"
               ) : (
-                <ActionForm action={issueInvoiceAction} submitLabel={order.livemode ? "Émettre la facture" : "Émettre une facture de test"} submitTone="secondary" className="!gap-0 [&>div:last-child]:justify-start">
-                  <input type="hidden" name="id" value={order.id} />
-                </ActionForm>
+                "Facturée dans Tiime au paiement. PDF absent : utilisez « Refacturer dans Tiime » ci-dessous."
               )}
             </Block>
           </Card>

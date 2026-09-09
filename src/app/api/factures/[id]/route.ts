@@ -4,10 +4,10 @@ import { getOrder } from "@/lib/db/orders";
 import { readInvoicePdf } from "@/lib/invoice/issue";
 
 /*
- * Téléchargement d'une facture. Le fichier n'est jamais public : on vérifie que le
- * visiteur est l'acheteur (compte rattaché à la commande) ou un administrateur avant
- * de le lire depuis le bucket. Une commande payée mais pas encore facturée l'est ici,
- * à la volée — le numéro est le même que celui que le webhook aurait attribué.
+ * Téléchargement d'une facture (le PDF de Tiime, déposé par le flux Make). Le fichier
+ * n'est jamais public : on vérifie que le visiteur est l'acheteur (compte rattaché à la
+ * commande) ou un administrateur avant de le lire depuis le bucket. Si le PDF n'a pas
+ * encore été récupéré de Tiime, on renvoie 404 (l'admin peut le refaire via « Refacturer »).
  */
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;

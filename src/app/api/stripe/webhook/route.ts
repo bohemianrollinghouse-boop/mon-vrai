@@ -2,12 +2,11 @@ import type Stripe from "stripe";
 import { NextResponse } from "next/server";
 import { clearCart } from "@/lib/db/carts";
 import { addAddress, ensureCustomer } from "@/lib/db/customers";
-import { createPaidOrder, findOrderByCheckoutSession, findOrderByPaymentIntent, type PaidOrderInput } from "@/lib/db/orders";
+import { createPaidOrder, findOrderByCheckoutSession, findOrderByPaymentIntent, getOrder, type PaidOrderInput } from "@/lib/db/orders";
 import { getProductsBySlugs } from "@/lib/db/products";
 import { incrementPromoUses } from "@/lib/db/promos";
 import type { Address, OrderLine } from "@/lib/domain/types";
 import { sendOrderConfirmation } from "@/lib/email/send";
-import { issueInvoice } from "@/lib/invoice/issue";
 import { makeConfigured, sendOrderToMake } from "@/lib/make/tiime";
 import { getStripe, webhookSecret, type PaymentMode } from "@/lib/stripe/client";
 
@@ -66,18 +65,17 @@ async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId
   if (input.customerUid) await addAddress(input.customerUid, input.shippingAddress).catch(() => undefined);
   if (input.promoCodes?.length) await incrementPromoUses(input.promoCodes).catch(() => undefined);
 
-  // La facture est émise au paiement ; si elle échoue ici, la route /api/factures la
-  // rattrape à la première consultation, avec le même compteur. Les commandes de test
-  // reçoivent une facture F-TEST- (compteur distinct : la séquence légale est préservée).
-  const invoiced = await issueInvoice(order.id).catch((err) => {
-    console.warn("[stripe] facture non émise :", err);
-    return order;
-  });
+  // Facturation Tiime via Make (jamais bloquant) : le scénario crée la facture et renvoie
+  // son PDF, qu'on dépose et rattache à la commande. On facture d'abord, puis on recharge
+  // la commande pour joindre ce PDF à l'e-mail de confirmation. Les commandes de test
+  // partent aussi (drapeau test dans le corps) pour un essai complet.
+  let invoiced = order;
+  if (makeConfigured()) {
+    await sendOrderToMake(order.id, "stripe").catch((err) => console.warn("[stripe] envoi Make/Tiime :", err));
+    invoiced = (await getOrder(order.id)) ?? order;
+  }
 
   await sendOrderConfirmation(invoiced).catch((err) => console.warn("[stripe] e-mail de confirmation non envoyé :", err));
-  // Facturation Tiime via Make : en dernier, sans jamais faire échouer le webhook. Les
-  // commandes de test partent aussi (drapeau test dans le corps) pour un essai complet.
-  if (makeConfigured()) await sendOrderToMake(order.id, "stripe").catch((err) => console.warn("[stripe] envoi Make/Tiime :", err));
   return NextResponse.json({ received: true, order: order.number });
 }
 
