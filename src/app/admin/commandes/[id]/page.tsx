@@ -186,6 +186,12 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                   </ActionForm>
                 )}
                 {boxtalOn && !offerCode && <p className="text-[0.8125rem] text-[#bbb]">Aucune offre Boxtal n'est associée à ce mode de livraison (Paramètres → Livraison). Saisissez le suivi à la main ci-dessous.</p>}
+                <div className="flex flex-wrap items-center gap-2 border-t border-[#333] pt-3">
+                  <ButtonLink href={`/api/etiquettes/${order.id}/csv`} tone="outline" className="text-white">
+                    Télécharger le CSV Boxtal
+                  </ButtonLink>
+                  <span className="text-[0.6875rem] text-[#bbb]">En cas d'échec (paiement…), importez ce fichier dans Boxtal, puis saisissez le suivi ci-dessous.</span>
+                </div>
                 <details className={`group ${boxtalOn && offerCode ? "border-t border-[#333] pt-3" : ""}`}>
                   <summary className="cursor-pointer text-xs font-bold text-[#bbb] group-open:mb-3">{boxtalOn && offerCode ? "Ou saisir un suivi à la main" : "Saisir le suivi"}</summary>
                   <ActionForm action={setTrackingAction} submitLabel="Enregistrer le suivi et expédier" submitTone="secondary" footerNote={<span className="text-[#bbb]">Le client sera notifié par e-mail avec le numéro de suivi.</span>}>
