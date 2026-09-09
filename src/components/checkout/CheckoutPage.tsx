@@ -65,6 +65,9 @@ const APPEARANCE: Appearance = {
   },
 };
 
+// Montant minimum accepté par Stripe pour l'euro (0,50 €) : sert de plancher à l'élément de paiement.
+const STRIPE_MIN = 50;
+
 const field = "w-full rounded-[14px] bg-paper px-[1.125rem] py-4 text-sm font-semibold outline-none placeholder:font-medium placeholder:text-faint focus-visible:outline-[1.5px] focus-visible:outline-offset-0 focus-visible:outline-ink";
 const labelCls = "flex flex-col gap-2 text-[0.8125rem] font-bold";
 
@@ -83,6 +86,10 @@ export function CheckoutPage(props: Props) {
   const [step, setStep] = useState<"livraison" | "paiement">("livraison");
   const shipping = quote.shippingOptions.find((o) => o.id === rateId) ?? quote.shippingOptions[0];
   const total = Math.max(0, quote.subtotal - quote.discount) + (shipping?.price ?? 0);
+  // Stripe Elements refuse un montant nul (ex. code -100 % + port offert) : on initialise
+  // l'élément avec un minimum valide pour ne pas planter. Le paiement lui-même reste
+  // validé côté serveur (un total réellement inférieur au minimum carte est refusé proprement).
+  const stripeAmount = Math.max(STRIPE_MIN, total);
 
   return (
     <div className="min-h-screen bg-paper">
@@ -135,7 +142,7 @@ export function CheckoutPage(props: Props) {
             stripe={stripePromise}
             options={{
               mode: "payment",
-              amount: total,
+              amount: stripeAmount,
               currency: "eur",
               // La configuration Stripe pilote les moyens ; à défaut, carte (+ PayPal si activé).
               ...(props.pmcId ? { paymentMethodConfiguration: props.pmcId } : { paymentMethodTypes: props.paypal ? ["card", "paypal"] : ["card"] }),
@@ -188,7 +195,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
 
   // Le montant des éléments suit le devis (mode de livraison, remise).
   useEffect(() => {
-    elements?.update({ amount: total });
+    elements?.update({ amount: Math.max(STRIPE_MIN, total) });
   }, [elements, total]);
 
   const set = (k: keyof Prefill) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [k]: e.target.value });
