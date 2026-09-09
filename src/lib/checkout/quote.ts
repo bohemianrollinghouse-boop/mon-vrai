@@ -10,7 +10,7 @@ import { resolvePromos } from "@/lib/promos/resolve";
 
 /*
  * Le devis du paiement : ce que le client va payer, calculé côté serveur à partir du
- * panier et des réglages — jamais à partir de ce que le navigateur envoie. La page de
+ * panier et des réglages - jamais à partir de ce que le navigateur envoie. La page de
  * paiement l'affiche ; l'action qui crée le PaymentIntent le recalcule à l'identique.
  */
 

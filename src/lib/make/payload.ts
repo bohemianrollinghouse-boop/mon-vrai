@@ -2,7 +2,7 @@ import type { Customer, Order } from "@/lib/domain/types";
 
 /*
  * Corps envoyé au scénario Make qui crée le client et la facture dans Tiime. Format
- * fixé par Steve : montants en euros (nombres), prix unitaires HT — en franchise de
+ * fixé par Steve : montants en euros (nombres), prix unitaires HT - en franchise de
  * TVA, HT = prix de vente. `tiime_client_id` n'est présent que s'il est déjà connu.
  * La livraison et la remise deviennent des lignes pour que la somme égale le total.
  * Les commandes de test ne partent jamais automatiquement (voir le webhook Stripe) ;
@@ -35,7 +35,7 @@ export function buildTiimePayload(order: Order, customer: Customer | null): Tiim
   const a = order.billingAddress ?? order.shippingAddress;
   const phone = a.phone ?? order.shippingAddress.phone ?? "";
   const lines: TiimePayload["lines"] = order.lines.map((l) => ({ description: l.title, quantity: l.qty, unit_price: euros(l.unitPrice) }));
-  if (order.totals.shipping > 0) lines.push({ description: `Livraison${order.delivery?.rateName ? ` — ${order.delivery.rateName}` : ""}`, quantity: 1, unit_price: euros(order.totals.shipping) });
+  if (order.totals.shipping > 0) lines.push({ description: `Livraison${order.delivery?.rateName ? ` - ${order.delivery.rateName}` : ""}`, quantity: 1, unit_price: euros(order.totals.shipping) });
   if (order.totals.discount > 0) lines.push({ description: "Remise", quantity: 1, unit_price: -euros(order.totals.discount) });
 
   const payload: TiimePayload = {

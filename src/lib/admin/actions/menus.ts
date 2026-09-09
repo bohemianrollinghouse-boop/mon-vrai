@@ -10,7 +10,7 @@ import { FooterColumn, MenuItem } from "@/lib/domain/types";
 
 /*
  * Menus. L'éditeur (client) manipule la structure et l'envoie en JSON dans un champ
- * caché ; ici on valide avec les schémas du domaine — un lien vers une page système
+ * caché ; ici on valide avec les schémas du domaine - un lien vers une page système
  * inconnue ou une URL vide est refusé avant d'atteindre la base.
  */
 

@@ -53,7 +53,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/com
               <Pill tone={STATUS_TONE[o.status]}>{ADMIN_STATUS_LABELS[o.status]}</Pill>
               {!o.livemode && <Pill tone="muted">Test</Pill>}
             </span>,
-            <span key="l" className="truncate font-semibold text-muted">{o.tracking?.carrier ?? "—"}</span>,
+            <span key="l" className="truncate font-semibold text-muted">{o.tracking?.carrier ?? "-"}</span>,
             <span key="d" className="text-subtle">{shortDate(o.createdAt)}</span>,
             <span key="t" className="font-extrabold whitespace-nowrap">{formatEuro(o.totals.total)}</span>,
           ],

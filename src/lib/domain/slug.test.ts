@@ -11,7 +11,7 @@ describe("slugify", () => {
 
 describe("splitLegacyTitle", () => {
   it("sépare le surtitre du nom sur « : »", () => {
-    expect(splitLegacyTitle("6-18 mois : Le Visage")).toEqual({ ageLabel: "6–18 mois", name: "Le Visage" });
+    expect(splitLegacyTitle("6-18 mois : Le Visage")).toEqual({ ageLabel: "6-18 mois", name: "Le Visage" });
   });
 
   it("laisse le surtitre vide sans séparateur", () => {

@@ -11,14 +11,14 @@ const order = Order.parse({
   customerUid: "uid-1",
   email: "camille@exemple.fr",
   shippingAddress: { name: "Camille Dupont", line1: "12 rue des Lilas", line2: "Bât. B", postalCode: "69003", city: "Lyon", country: "FR", phone: "0612345678" },
-  delivery: { rateId: "mondial-relay", rateName: "Mondial Relay — point relais" },
+  delivery: { rateId: "mondial-relay", rateName: "Mondial Relay - point relais" },
   stripe: { paymentIntentId: "pi_1" },
   timeline: [{ at: 1, status: "paid" }],
   createdAt: 1,
   updatedAt: 1,
 });
 
-describe("Make / Tiime — corps de la requête", () => {
+describe("Make / Tiime - corps de la requête", () => {
   it("respecte le format attendu, en euros, livraison en ligne, sans tiime_client_id inconnu", () => {
     const p = buildTiimePayload(order, Customer.parse({ uid: "uid-1", email: "camille@exemple.fr", createdAt: 1 }));
     expect(p.order_id).toBe("ord_1");
@@ -26,7 +26,7 @@ describe("Make / Tiime — corps de la requête", () => {
     expect("tiime_client_id" in p.customer).toBe(false);
     expect(p.lines).toEqual([
       { description: "Le Visage", quantity: 2, unit_price: 10 },
-      { description: "Livraison — Mondial Relay — point relais", quantity: 1, unit_price: 3.9 },
+      { description: "Livraison - Mondial Relay - point relais", quantity: 1, unit_price: 3.9 },
     ]);
     expect(p.total).toBe(23.9);
     expect(p.lines.reduce((s, l) => s + l.quantity * l.unit_price, 0)).toBeCloseTo(p.total, 2);

@@ -5,7 +5,7 @@ import type { PromoType } from "@/lib/domain/types";
 import { TINT_BG } from "@/components/site/ui";
 
 /*
- * Éditeur d'un code promo : le type choisi montre ses champs — valeur et minimum pour
+ * Éditeur d'un code promo : le type choisi montre ses champs - valeur et minimum pour
  * une remise, la liste des produits à offrir pour un cadeau. Les champs restent de vrais
  * champs de formulaire, lus par l'action serveur.
  */

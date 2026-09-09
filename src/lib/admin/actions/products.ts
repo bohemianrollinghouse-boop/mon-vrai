@@ -22,7 +22,7 @@ const Input = z.object({
   originalSlug: z.string().default(""),
   slug: z.string().trim().default(""),
   title: z.string().trim().min(1, "Le titre est requis").max(120),
-  ageLabel: z.string().trim().max(40).default("6–18 mois"),
+  ageLabel: z.string().trim().max(40).default("6-18 mois"),
   subtitle: z.string().trim().max(200).default(""),
   descriptionHtml: z.string().default(""),
   items: z.string().default(""),
@@ -80,7 +80,7 @@ export async function saveProductAction(formData: FormData): Promise<AdminResult
   await upsertProduct({
     slug,
     title: d.title,
-    ageLabel: d.ageLabel || "6–18 mois",
+    ageLabel: d.ageLabel || "6-18 mois",
     subtitle: d.subtitle,
     descriptionHtml: d.descriptionHtml,
     items: d.items.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean),

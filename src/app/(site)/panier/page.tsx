@@ -37,7 +37,7 @@ export default async function CartPage() {
       {view.lines.length === 0 ? (
         <div className="mt-6 flex flex-col items-center gap-4 rounded-panel bg-white px-8 py-16 text-center">
           <h2 className="display-2">Votre panier est vide</h2>
-          <p className="max-w-[460px] leading-relaxed text-[#555]">Neuf imagiers réalistes pour les 6–18 mois vous attendent.</p>
+          <p className="max-w-[460px] leading-relaxed text-[#555]">Neuf imagiers réalistes pour les 6-18 mois vous attendent.</p>
           <PillLink href={systemPath("catalogue")} variant="dark">
             Voir les imagiers
           </PillLink>
@@ -169,7 +169,7 @@ export default async function CartPage() {
                 </PillLink>
                 {settings.payments.mode === "test" && (
                   <span className="rounded-[14px] bg-tint-sand px-4 py-3 text-center text-xs font-bold text-tint-sand-ink">
-                    Paiement en mode test — aucun débit réel. Carte de test : 4242 4242 4242 4242.
+                    Paiement en mode test - aucun débit réel. Carte de test : 4242 4242 4242 4242.
                   </span>
                 )}
                 <div className="flex flex-wrap justify-center gap-2">
@@ -182,7 +182,7 @@ export default async function CartPage() {
               </div>
 
               <div className="flex flex-col gap-3 rounded-card bg-tint-sand p-6 text-[0.8125rem] font-semibold leading-relaxed text-tint-sand-ink">
-                {shipFrom && <span>Précommande — expédition dès le {shipFrom}, tous vos livres dans un seul colis.</span>}
+                {shipFrom && <span>Précommande - expédition dès le {shipFrom}, tous vos livres dans un seul colis.</span>}
                 <span>Mondial Relay, Colissimo ou Chronopost · {settings.shipping.countries.map(countryName).join(", ")}.</span>
                 <span>14 jours pour changer d'avis.</span>
               </div>

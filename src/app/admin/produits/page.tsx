@@ -6,7 +6,7 @@ import type { Product } from "@/lib/domain/types";
 
 export const dynamic = "force-dynamic";
 
-const BADGE = { none: "—", new: "Nouveauté", reissue: "Nouvelle édition" } as const;
+const BADGE = { none: "-", new: "Nouveauté", reissue: "Nouvelle édition" } as const;
 
 const FILTERS: { key: string; label: string; test: (p: Product, low: Set<string>) => boolean }[] = [
   { key: "en-ligne", label: "En ligne", test: (p) => p.status === "published" },

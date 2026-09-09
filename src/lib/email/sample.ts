@@ -15,7 +15,7 @@ export function sampleOrder(): Order {
     totals: { subtotal: 3000, shipping: 0, discount: 300, tax: 0, total: 2700, currency: "eur" },
     email: "camille.dupont@exemple.fr",
     shippingAddress: { name: "Camille Dupont", line1: "12 rue des Lilas", postalCode: "69003", city: "Lyon", country: "FR", phone: "0612345678" },
-    delivery: { rateId: "mondial-relay", rateName: "Mondial Relay — point relais", offerCode: "MONR-CpourToi", relay: { code: "22731", name: "Tabac de la Gare", street: "8 place de la Gare", postalCode: "69003", city: "Lyon", network: "MONR_NETWORK" } },
+    delivery: { rateId: "mondial-relay", rateName: "Mondial Relay - point relais", offerCode: "MONR-CpourToi", relay: { code: "22731", name: "Tabac de la Gare", street: "8 place de la Gare", postalCode: "69003", city: "Lyon", network: "MONR_NETWORK" } },
     tracking: { carrier: "Mondial Relay", number: "6A12345678901", url: "https://www.mondialrelay.fr/suivi-de-colis" },
     promoCodes: ["NOEL10"],
     stripe: { paymentIntentId: "pi_apercu" },

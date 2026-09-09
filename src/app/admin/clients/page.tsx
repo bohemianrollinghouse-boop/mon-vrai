@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /*
  * Clients : la liste des comptes, avec le nombre de commandes et le total dépensé.
- * Les données personnelles restent minimales — un client se supprime depuis sa fiche
+ * Les données personnelles restent minimales - un client se supprime depuis sa fiche
  * Auth et eraseCustomer() (RGPD), pas depuis cette liste.
  */
 export default async function CustomersPage() {
@@ -31,7 +31,7 @@ export default async function CustomersPage() {
             const stats = byUid.get(c.uid) ?? { count: 0, total: 0 };
             return (
               <tr key={c.uid} className="hover:bg-paper">
-                <td className="font-bold">{c.name || <span className="font-normal text-subtle">—</span>}</td>
+                <td className="font-bold">{c.name || <span className="font-normal text-subtle">-</span>}</td>
                 <td>
                   <a href={`mailto:${c.email}`} className="hover:underline">
                     {c.email}
@@ -48,7 +48,7 @@ export default async function CustomersPage() {
                   )}
                 </td>
                 <td className="font-semibold">{formatEuro(stats.total)}</td>
-                <td className="text-subtle">{c.newsletter?.optIn ? "oui" : "—"}</td>
+                <td className="text-subtle">{c.newsletter?.optIn ? "oui" : "-"}</td>
               </tr>
             );
           })}

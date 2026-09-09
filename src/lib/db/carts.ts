@@ -5,7 +5,7 @@ import { col, newId, now, parseDoc } from "./helpers";
 /*
  * Le panier vit côté serveur, identifié par un cookie opaque. Un visiteur retrouve
  * donc son panier d'un onglet à l'autre, et le paiement lit exactement ce que la
- * page affichait — pas une copie côté navigateur qui aurait pu diverger.
+ * page affichait - pas une copie côté navigateur qui aurait pu diverger.
  *
  * Les paniers abandonnés sont purgés par une tâche planifiée (voir scripts/).
  */

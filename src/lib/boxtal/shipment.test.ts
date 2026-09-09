@@ -26,13 +26,13 @@ const base = {
   updatedAt: 1,
 };
 
-describe("Boxtal — demande d'expédition", () => {
+describe("Boxtal - demande d'expédition", () => {
   it("calcule le poids du colis à partir des livres et de l'emballage", () => {
     expect(parcelWeightKg(Order.parse(base), settings)).toBeCloseTo(0.6, 3);
   });
 
   it("construit une commande Boxtal à domicile", () => {
-    const order = Order.parse({ ...base, delivery: { rateId: "colissimo", rateName: "Colissimo — domicile", offerCode: "POFR-ColissimoAccess" } });
+    const order = Order.parse({ ...base, delivery: { rateId: "colissimo", rateName: "Colissimo - domicile", offerCode: "POFR-ColissimoAccess" } });
     const req = buildShippingOrderRequest(order, settings);
     expect(req.shippingOfferCode).toBe("POFR-ColissimoAccess");
     expect(req.shipment.pickupPointCode).toBeUndefined();

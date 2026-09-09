@@ -32,7 +32,7 @@ export default async function MessagesPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <a
-                    href={`mailto:${m.email}?subject=${encodeURIComponent(`Re : ${m.subject || "votre message"} — Mon Vrai`)}`}
+                    href={`mailto:${m.email}?subject=${encodeURIComponent(`Re : ${m.subject || "votre message"} - Mon Vrai`)}`}
                     className="rounded-pill bg-ink px-3.5 py-2 text-xs font-bold text-white"
                   >
                     Répondre

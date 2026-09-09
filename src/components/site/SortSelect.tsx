@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /*
  * Sélecteur de tri en pilule. Le tri vit dans l'URL (?tri=…) : partageable, et rendu
- * côté serveur — le composant client ne fait que naviguer.
+ * côté serveur - le composant client ne fait que naviguer.
  */
 export function SortSelect({ value, options }: { value: string; options: { value: string; label: string }[] }) {
   const router = useRouter();

@@ -29,6 +29,8 @@ const LINE = rgb(0.909, 0.886, 0.847);
 const HAIR = rgb(0.933, 0.914, 0.882);
 const RED = rgb(0.69, 0.282, 0.243);
 
+// WinAnsi (CP1252) encode ces caractères hors ASCII, dont les tirets cadratin/demi-cadratin
+// qui peuvent venir d'un contenu dynamique (titre, adresse) même si nos textes ne les utilisent plus.
 const WINANSI_EXTRA = new Set(["€", "–", "—", "‘", "’", "“", "”", "…", "Œ", "œ", "•", "×", "·", "°"]);
 function safe(text: string): string {
   return Array.from((text ?? "").normalize("NFC"))
@@ -56,7 +58,7 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
   const paid = order.status !== "pending_payment" && order.status !== "cancelled";
   const rightX = A4.width - M;
 
-  doc.setTitle(`Facture ${invoice.number} — ${sellerName}`);
+  doc.setTitle(`Facture ${invoice.number} - ${sellerName}`);
   doc.setAuthor(sellerName);
   doc.setCreationDate(new Date(invoice.issuedAt));
 
@@ -141,14 +143,14 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
   };
 
   for (const l of order.lines) {
-    const sub = l.gift ? "Offert" : "Imagier cartonné · 6–18 mois";
+    const sub = l.gift ? "Offert" : "Imagier cartonné · 6-18 mois";
     row(l.title, sub, reference(l.productSlug), String(l.qty), l.gift ? "Offert" : formatEuro(l.unitPrice), l.gift ? "0,00 €" : formatEuro(l.unitPrice * l.qty), l.gift ? GREEN_INK : undefined);
   }
   if (order.totals.shipping > 0) {
-    row(`Livraison — ${order.delivery?.rateName || "standard"}`, order.delivery?.relay ? "Point relais via Boxtal" : "Via Boxtal", "", "1", formatEuro(order.totals.shipping), formatEuro(order.totals.shipping));
+    row(`Livraison - ${order.delivery?.rateName || "standard"}`, order.delivery?.relay ? "Point relais via Boxtal" : "Via Boxtal", "", "1", formatEuro(order.totals.shipping), formatEuro(order.totals.shipping));
   }
   if (order.totals.discount > 0) {
-    const codes = order.promoCodes.length ? ` — code ${order.promoCodes.join(", ")}` : "";
+    const codes = order.promoCodes.length ? ` - code ${order.promoCodes.join(", ")}` : "";
     row(`Remise${codes}`, "Sur les articles", "", "", "", `-${formatEuro(order.totals.discount)}`, RED);
   }
 
@@ -235,7 +237,7 @@ function addressTail(a: Address): string[] {
 
 function deliveryBlock(order: Order): { title: string; lines: string[] } {
   const relay = order.delivery?.relay;
-  if (relay) return { title: `Point relais — ${relay.name}`, lines: [[relay.street, `${relay.postalCode} ${relay.city}`].filter(Boolean).join(", "), order.delivery?.rateName || "Point relais via Boxtal"] };
+  if (relay) return { title: `Point relais - ${relay.name}`, lines: [[relay.street, `${relay.postalCode} ${relay.city}`].filter(Boolean).join(", "), order.delivery?.rateName || "Point relais via Boxtal"] };
   const a = order.shippingAddress;
   return { title: a.name, lines: addressTail(a) };
 }

@@ -58,8 +58,8 @@ export type Tint = z.infer<typeof Tint>;
 export const Product = z.object({
   slug: Slug,
   title: z.string().min(1).max(120),
-  /** Surtitre, ex. « 6–18 mois ». */
-  ageLabel: z.string().max(40).default("6–18 mois"),
+  /** Surtitre, ex. « 6-18 mois ». */
+  ageLabel: z.string().max(40).default("6-18 mois"),
   /** Phrase d'accroche courte sous le titre. */
   subtitle: z.string().max(200).default(""),
   /** Description longue, HTML issu du WYSIWYG. */
@@ -181,9 +181,9 @@ export const ShippingRate = z.object({
 export type ShippingRate = z.infer<typeof ShippingRate>;
 
 export const DEFAULT_SHIPPING_RATES: ShippingRate[] = [
-  { id: "mondial-relay", name: "Mondial Relay — point relais", description: "3 à 5 jours", price: 390, freeAboveThreshold: true, enabled: true, boxtalOfferCode: "MONR-CpourToi", relay: true, networks: ["MONR_NETWORK"] },
-  { id: "colissimo", name: "Colissimo — domicile", description: "2 à 3 jours", price: 590, freeAboveThreshold: false, enabled: true, boxtalOfferCode: "POFR-ColissimoAccess", relay: false, networks: [] },
-  { id: "chronopost", name: "Chronopost — express", description: "J+1", price: 990, freeAboveThreshold: false, enabled: true, boxtalOfferCode: "CHRP-Chrono13", relay: false, networks: [] },
+  { id: "mondial-relay", name: "Mondial Relay - point relais", description: "3 à 5 jours", price: 390, freeAboveThreshold: true, enabled: true, boxtalOfferCode: "MONR-CpourToi", relay: true, networks: ["MONR_NETWORK"] },
+  { id: "colissimo", name: "Colissimo - domicile", description: "2 à 3 jours", price: 590, freeAboveThreshold: false, enabled: true, boxtalOfferCode: "POFR-ColissimoAccess", relay: false, networks: [] },
+  { id: "chronopost", name: "Chronopost - express", description: "J+1", price: 990, freeAboveThreshold: false, enabled: true, boxtalOfferCode: "CHRP-Chrono13", relay: false, networks: [] },
 ];
 
 /** Colis par défaut pour Boxtal : un carton de livres 14 × 14 cm. */
@@ -514,7 +514,7 @@ export type HomeContent = z.infer<typeof HomeContent>;
 export const CatalogueContent = z.object({
   hero: z.object({
     /** [count] est remplacé par le nombre de titres publiés. */
-    eyebrow: z.string().max(80).default("Collection 6–18 mois · [count] titres"),
+    eyebrow: z.string().max(80).default("Collection 6-18 mois · [count] titres"),
     heading: z.string().max(120).default("Mon vrai imagier"),
     text: z.string().max(400).default(""),
     tint: Tint.default("green"),
@@ -609,7 +609,7 @@ export const Promo = z.object({
   code: z.string().min(2).max(24).regex(/^[A-Z0-9]+$/),
   description: z.string().max(120).default(""),
   type: PromoType,
-  /** Pourcentage (0–100) pour `percent`, centimes pour `fixed`, ignoré sinon. */
+  /** Pourcentage (0-100) pour `percent`, centimes pour `fixed`, ignoré sinon. */
   amount: z.number().int().min(0).default(0),
   /** Panier minimum, en centimes ; 0 = aucun. */
   minimum: Cents.default(0),

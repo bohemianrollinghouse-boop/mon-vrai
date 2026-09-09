@@ -5,8 +5,8 @@ import { saveContactMessage } from "@/lib/db/content";
 import { sendContactForward } from "@/lib/email/send";
 
 /*
- * Formulaire de contact. Le message est enregistré en base — la boîte de réception de
- * l'admin — et, quand une clé Resend existe, transmis par e-mail. Sans clé, il reste
+ * Formulaire de contact. Le message est enregistré en base - la boîte de réception de
+ * l'admin - et, quand une clé Resend existe, transmis par e-mail. Sans clé, il reste
  * consultable dans l'admin : rien ne se perd.
  */
 

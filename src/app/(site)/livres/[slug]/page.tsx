@@ -45,7 +45,7 @@ export default async function ProductPage({ params }: PageProps<"/livres/[slug]"
   const soldOut = product.stock !== null && product.stock <= 0 && !product.preorder.enabled;
   const shipFromIso = product.preorder.enabled ? product.preorder.shipFrom || settings.shipping.preorderShipFrom : undefined;
   const shipFrom = shipFromIso ? formatDate(shipFromIso) : null;
-  const carriers = settings.shipping.rates.filter((r) => r.enabled).map((r) => r.name.split(" — ")[0]);
+  const carriers = settings.shipping.rates.filter((r) => r.enabled).map((r) => r.name.split(" - ")[0]);
   const countries = settings.shipping.countries.map(countryName);
   const free = settings.shipping.freeThreshold;
 

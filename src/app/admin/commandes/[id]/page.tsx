@@ -67,7 +67,7 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                 Facture PDF
               </ButtonLink>
             )}
-            <ButtonLink href={`mailto:${order.email}?subject=${encodeURIComponent(`Votre commande ${order.number} — Mon Vrai`)}`} tone="secondary">
+            <ButtonLink href={`mailto:${order.email}?subject=${encodeURIComponent(`Votre commande ${order.number} - Mon Vrai`)}`} tone="secondary">
               Envoyer un e-mail
             </ButtonLink>
           </>
@@ -368,8 +368,8 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
 
           <Card title={<span className="text-sm">Stripe</span>} className="!gap-1.5">
             <dl className="flex flex-col gap-1 text-xs text-subtle">
-              <Row k="Session" v={order.stripe.checkoutSessionId ?? "—"} />
-              <Row k="Paiement" v={order.stripe.paymentIntentId ?? "—"} />
+              <Row k="Session" v={order.stripe.checkoutSessionId ?? "-"} />
+              <Row k="Paiement" v={order.stripe.paymentIntentId ?? "-"} />
             </dl>
           </Card>
         </div>

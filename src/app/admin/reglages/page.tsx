@@ -10,8 +10,8 @@ import { stripeConfigured } from "@/lib/stripe/client";
 export const dynamic = "force-dynamic";
 
 /*
- * Paramètres, d'après la maquette : deux colonnes de cartes — boutique et paiement à
- * gauche, livraison et factures à droite — puis identité/SEO, réseaux et pied de page.
+ * Paramètres, d'après la maquette : deux colonnes de cartes - boutique et paiement à
+ * gauche, livraison et factures à droite - puis identité/SEO, réseaux et pied de page.
  * Un seul formulaire : le bouton « Enregistrer » de l'en-tête soumet tout.
  */
 export default async function SettingsPage() {
@@ -121,7 +121,7 @@ export default async function SettingsPage() {
                       <input name={`shipping.rates[${i}].name`} defaultValue={r.name} placeholder={i >= s.shipping.rates.length ? "Nouveau mode (ex. Lettre suivie)" : "Nom"} className="w-full bg-transparent font-bold outline-none placeholder:font-medium placeholder:text-faint" />
                       <input name={`shipping.rates[${i}].description`} defaultValue={r.description} placeholder="Délai, ex. 2 à 3 jours" className="w-full bg-transparent text-xs text-subtle outline-none placeholder:text-faint" />
                       <select name={`shipping.rates[${i}].boxtalOfferCode`} defaultValue={r.boxtalOfferCode} className="w-full cursor-pointer bg-transparent text-xs font-semibold text-tint-green-ink outline-none" aria-label="Offre Boxtal">
-                        <option value="">— Sans Boxtal (suivi saisi à la main) —</option>
+                        <option value="">- Sans Boxtal (suivi saisi à la main) -</option>
                         {BOXTAL_OFFERS.map((o) => (
                           <option key={o.code} value={o.code}>
                             {o.label}

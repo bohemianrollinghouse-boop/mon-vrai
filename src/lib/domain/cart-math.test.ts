@@ -6,7 +6,7 @@ function product(slug: string, price: number, status: Product["status"] = "publi
   return {
     slug,
     title: slug,
-    ageLabel: "6–18 mois",
+    ageLabel: "6-18 mois",
     subtitle: "",
     descriptionHtml: "",
     items: [],

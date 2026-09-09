@@ -7,7 +7,7 @@ import { contactForwardEmail, orderConfirmationEmail, shippingNoticeEmail, type 
 /*
  * Envoi des e-mails transactionnels, habillés (voir templates.ts). Sans clé Resend, on
  * journalise au lieu d'envoyer : le flux reste testable en développement et rien ne
- * casse en production si la clé manque — on le voit dans les logs.
+ * casse en production si la clé manque - on le voit dans les logs.
  */
 
 type Attachment = { filename: string; content: Buffer };

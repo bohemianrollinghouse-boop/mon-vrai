@@ -11,7 +11,7 @@ import { ContactContent } from "@/lib/domain/types";
 
 /*
  * FAQ : les questions vivent dans le contenu de la page Contact (`faq.items`). Chaque
- * action relit le document, applique un changement sur une question, réécrit le tout —
+ * action relit le document, applique un changement sur une question, réécrit le tout -
  * la liste est courte, une transaction serait du zèle.
  */
 

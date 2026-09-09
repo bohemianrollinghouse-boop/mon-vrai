@@ -47,8 +47,8 @@ export function ProductForm({ product }: { product: Product | null }) {
                 <Input name="title" defaultValue={p?.title ?? ""} required maxLength={120} className="!text-[0.9375rem] !font-bold" />
               </Field>
               <div className="grid grid-cols-2 gap-3 max-[749px]:grid-cols-1">
-                <Field label="Surtitre" hint="Ex. « 6–18 mois »." name="ageLabel">
-                  <Input name="ageLabel" defaultValue={p?.ageLabel ?? "6–18 mois"} />
+                <Field label="Surtitre" hint="Ex. « 6-18 mois »." name="ageLabel">
+                  <Input name="ageLabel" defaultValue={p?.ageLabel ?? "6-18 mois"} />
                 </Field>
                 <Field label="Adresse (slug)" hint="Vide = généré depuis le titre." name="slug">
                   <Input name="slug" defaultValue={p?.slug ?? ""} placeholder="le-visage" />
@@ -69,7 +69,7 @@ export function ProductForm({ product }: { product: Product | null }) {
 
             <Card title={<span className="text-[0.8125rem]">Référencement (SEO)</span>}>
               <Field label="Titre de page" hint="Vide = titre du livre." name="seoTitle">
-                <Input name="seoTitle" defaultValue={p?.seo.title ?? ""} maxLength={70} placeholder={p ? `${p.title} — imagier 6–18 mois` : ""} className="!font-medium" />
+                <Input name="seoTitle" defaultValue={p?.seo.title ?? ""} maxLength={70} placeholder={p ? `${p.title} - imagier 6-18 mois` : ""} className="!font-medium" />
               </Field>
               <Field label="Description" hint="Vide = sous-titre." name="seoDescription">
                 <Textarea name="seoDescription" defaultValue={p?.seo.description ?? ""} maxLength={200} rows={2} className="!font-medium" />
@@ -129,7 +129,7 @@ export function ProductForm({ product }: { product: Product | null }) {
                   <Input name="price" inputMode="decimal" defaultValue={p ? euros(p.price) : "10,00"} required className="!text-[0.9375rem] !font-bold" />
                 </Field>
                 <Field label="Prix barré (€)" hint="Optionnel." name="compareAtPrice">
-                  <Input name="compareAtPrice" inputMode="decimal" defaultValue={euros(p?.compareAtPrice)} placeholder="—" />
+                  <Input name="compareAtPrice" inputMode="decimal" defaultValue={euros(p?.compareAtPrice)} placeholder="-" />
                 </Field>
               </div>
               <Switch name="stockTracked" label="Suivre le stock" hint="Décoché : vente illimitée." defaultChecked={p ? p.stock !== null : false} />

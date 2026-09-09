@@ -88,7 +88,7 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
   const base: Stripe.PaymentIntentCreateParams = {
     amount: total,
     currency: "eur",
-    description: `Mon Vrai — ${quote.count} livre${quote.count > 1 ? "s" : ""}`,
+    description: `Mon Vrai - ${quote.count} livre${quote.count > 1 ? "s" : ""}`,
     receipt_email: undefined,
     shipping: {
       name,

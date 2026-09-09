@@ -5,7 +5,7 @@ import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 
 /*
  * SDK navigateur, réduit au strict nécessaire : l'authentification. Les données
- * ne sont jamais lues depuis le navigateur — tout passe par le serveur, qui
+ * ne sont jamais lues depuis le navigateur - tout passe par le serveur, qui
  * applique les règles métier et évite d'exposer la structure de la base.
  *
  * Avec l'émulateur, la clé d'API n'est pas vérifiée : une valeur factice suffit.

@@ -11,7 +11,7 @@ import { makeConfigured, sendOrderToMake } from "@/lib/make/tiime";
 import { getStripe, webhookSecret, type PaymentMode } from "@/lib/stripe/client";
 
 /*
- * Webhook Stripe. C'est ici qu'une commande naît — jamais sur la page de retour, que
+ * Webhook Stripe. C'est ici qu'une commande naît - jamais sur la page de retour, que
  * le client peut fermer ou rafraîchir. Trois garde-fous :
  *  1. la signature : on ne traite que ce que Stripe a réellement envoyé ;
  *  2. l'idempotence : Stripe rejoue les événements, createPaidOrder ne crée qu'une fois ;

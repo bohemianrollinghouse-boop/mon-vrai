@@ -21,7 +21,7 @@ export function splitLegacyTitle(title: string): { ageLabel: string; name: strin
   const idx = title.indexOf(" : ");
   if (idx === -1) return { ageLabel: "", name: title.trim() };
   return {
-    ageLabel: title.slice(0, idx).trim().replace("6-18", "6–18"),
+    ageLabel: title.slice(0, idx).trim().replace("6-18", "6-18"),
     name: title.slice(idx + 3).trim(),
   };
 }

@@ -4,7 +4,7 @@ import type { Order } from "@/lib/domain/types";
 
 /*
  * Suivi d'une commande en quatre étapes (maquette 7b) : confirmée, payée, expédiée,
- * livrée — puis livraison, paiement, liens vers le détail et la facture.
+ * livrée - puis livraison, paiement, liens vers le détail et la facture.
  */
 export function OrderProgress({ order, preorderShipFrom }: { order: Order; preorderShipFrom?: string }) {
   const at = (s: Order["status"]) => order.timeline.find((t) => t.status === s)?.at;

@@ -5,7 +5,7 @@ import type { Order, SiteSettings } from "@/lib/domain/types";
 /*
  * Templates d'e-mails, aux couleurs de Mon Vrai. Contrainte des clients d'e-mail :
  * pas de feuille de style externe ni de police web fiable, un rendu correct dans
- * Outlook — d'où des tableaux, des styles en ligne et une pile de polices système.
+ * Outlook - d'où des tableaux, des styles en ligne et une pile de polices système.
  * Chaque template rend { subject, html, text } ; le texte est le repli sans images.
  */
 
@@ -122,7 +122,7 @@ ${
   const text = [
     `Merci pour votre commande ${order.number} !`,
     "",
-    ...order.lines.map((l) => `• ${l.title} × ${l.qty} — ${l.gift ? "offert" : formatEuro(l.unitPrice * l.qty)}`),
+    ...order.lines.map((l) => `• ${l.title} × ${l.qty} - ${l.gift ? "offert" : formatEuro(l.unitPrice * l.qty)}`),
     "",
     `Sous-total : ${formatEuro(order.totals.subtotal)}`,
     order.totals.discount ? `Remise : −${formatEuro(order.totals.discount)}` : "",
@@ -140,7 +140,7 @@ ${
   ]
     .filter((l) => l !== "")
     .join("\n");
-  return { subject: `Votre commande ${order.number} — ${settings.shopName}`, html: layout(settings, { preheader: `Commande ${order.number} confirmée · ${formatEuro(order.totals.total)}`, banner: preorder && shipFrom ? `Précommande · expédition dès le ${shipFrom}` : undefined, content }), text };
+  return { subject: `Votre commande ${order.number} - ${settings.shopName}`, html: layout(settings, { preheader: `Commande ${order.number} confirmée · ${formatEuro(order.totals.total)}`, banner: preorder && shipFrom ? `Précommande · expédition dès le ${shipFrom}` : undefined, content }), text };
 }
 
 export function shippingNoticeEmail(order: Order, settings: SiteSettings, siteUrl: string): BuiltEmail {
@@ -179,6 +179,6 @@ export function contactForwardEmail(m: { name: string; email: string; phone: str
   const content = `${eyebrow("Nouveau message")}${h1(m.subject || "Formulaire de contact")}
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:16px">${row("Nom", m.name)}${row("E-mail", m.email)}${row("Téléphone", m.phone)}</table>
 <div style="background:${PAPER};border-radius:16px;padding:18px 20px;font-size:14px;line-height:1.6;white-space:pre-wrap">${esc(m.body)}</div>
-${button("Répondre", `mailto:${esc(m.email)}?subject=${encodeURIComponent(`Re : ${m.subject || "votre message"} — ${settings.shopName}`)}`)}`;
-  return { subject: `[Contact] ${m.subject || "Message"} — ${m.name || m.email}`, html: layout(settings, { preheader: m.body.slice(0, 100), content }), text: `${m.name}\n${m.email}\n${m.phone}\n\n${m.body}` };
+${button("Répondre", `mailto:${esc(m.email)}?subject=${encodeURIComponent(`Re : ${m.subject || "votre message"} - ${settings.shopName}`)}`)}`;
+  return { subject: `[Contact] ${m.subject || "Message"} - ${m.name || m.email}`, html: layout(settings, { preheader: m.body.slice(0, 100), content }), text: `${m.name}\n${m.email}\n${m.phone}\n\n${m.body}` };
 }

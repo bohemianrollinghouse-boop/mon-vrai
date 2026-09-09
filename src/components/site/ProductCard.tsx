@@ -70,7 +70,7 @@ export function ProductCard({ product, variant = "detailed" }: { product: Produc
   );
 }
 
-/** « la pomme, la clémentine, … et le kiwi » — la liste redevient une phrase. */
+/** « la pomme, la clémentine, … et le kiwi » - la liste redevient une phrase. */
 export function joinItems(items: string[]): string {
   if (items.length <= 1) return items.join("");
   return `${items.slice(0, -1).join(", ")} et ${items[items.length - 1]}`;

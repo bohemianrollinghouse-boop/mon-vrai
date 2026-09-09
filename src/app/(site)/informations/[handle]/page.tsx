@@ -69,7 +69,7 @@ export default async function PolicyPage({ params }: PageProps<"/informations/[h
         <div className="flex flex-col gap-9 rounded-panel bg-white px-14 py-12 max-[899px]:px-6 max-[899px]:py-8">
           <div className="prose-mv" dangerouslySetInnerHTML={{ __html: policy.body.html }} />
           <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6 text-[0.8125rem] font-semibold text-subtle">
-            <span>Mon Vrai — {policy.title}</span>
+            <span>Mon Vrai - {policy.title}</span>
             <a href="#contenu" className="border-b-[1.5px] border-ink text-ink">
               Retour en haut
             </a>

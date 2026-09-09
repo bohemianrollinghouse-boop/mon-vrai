@@ -42,7 +42,7 @@ export default async function StocksPage() {
                   </Link>
                   <span className="text-[0.6875rem] text-subtle">{p.status === "published" ? "en ligne" : "brouillon"}{p.preorder.enabled && " · précommande"}</span>
                 </span>,
-                <span key="p" className="font-bold">{untrackedRow ? "—" : stock + r}</span>,
+                <span key="p" className="font-bold">{untrackedRow ? "-" : stock + r}</span>,
                 <span key="r" className="text-muted">{r}</span>,
                 <span key="d">{untrackedRow ? <Pill tone="muted">non suivi</Pill> : <Pill tone={low.has(p.slug) ? "pink" : "ok"}>{stock}</Pill>}</span>,
                 <span key="a" className="flex justify-end">

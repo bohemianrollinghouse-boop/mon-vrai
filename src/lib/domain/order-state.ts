@@ -53,7 +53,7 @@ export function formatOrderNumber(seq: number, createdAt: number): string {
 
 /**
  * Numéro de facture : F-2026-00042. Séquentiel et sans trou, exigence légale
- * française — d'où un compteur distinct du numéro de commande, car toutes les
+ * française - d'où un compteur distinct du numéro de commande, car toutes les
  * commandes ne donnent pas lieu à facture (annulées avant paiement).
  */
 export function formatInvoiceNumber(seq: number, issuedAt: number, test = false): string {

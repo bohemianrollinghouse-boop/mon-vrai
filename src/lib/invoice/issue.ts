@@ -9,7 +9,7 @@ import { renderInvoicePdf, type InvoiceMeta } from "./pdf";
  * Émission de la facture : on génère le PDF (maquette « Mon Vrai - Facture ») à partir de
  * la commande et des données renvoyées par Tiime via Make (numéro, dates, totaux), on le
  * dépose dans un dossier privé du bucket et on le rattache à la commande. Le numéro de
- * facture est celui de Tiime — la comptabilité reste la source des numéros. Un PDF déjà
+ * facture est celui de Tiime - la comptabilité reste la source des numéros. Un PDF déjà
  * déposé pour une commande est écrasé si on refacture (le fichier reste au même chemin).
  */
 

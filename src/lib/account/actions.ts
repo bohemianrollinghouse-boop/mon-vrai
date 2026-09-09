@@ -10,7 +10,7 @@ import { Address } from "@/lib/domain/types";
 import { parseForm } from "@/lib/admin/form";
 
 /*
- * Espace client : ce que la personne connectée peut faire elle-même — ses adresses, son
+ * Espace client : ce que la personne connectée peut faire elle-même - ses adresses, son
  * nom, sa newsletter, la suppression de son compte. Toujours sur son propre uid, jamais
  * un identifiant venu du formulaire.
  */

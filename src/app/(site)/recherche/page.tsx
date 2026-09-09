@@ -78,7 +78,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/recherche
             <div className="mt-5 flex flex-col items-center gap-4 rounded-panel bg-white p-16 text-center max-[599px]:px-6 max-[599px]:py-9">
               <h2 className="display-2">Pas encore dans nos pages</h2>
               <p className="max-w-[460px] leading-relaxed text-muted">
-                Aujourd'hui l'univers Mon Vrai compte {all.length} imagiers 6–18 mois. D'autres thèmes viendront enrichir la collection.
+                Aujourd'hui l'univers Mon Vrai compte {all.length} imagiers 6-18 mois. D'autres thèmes viendront enrichir la collection.
               </p>
               <div className="flex flex-wrap justify-center gap-2.5 pt-2">
                 <PillLink href={systemPath("catalogue")} variant="dark" className="text-[0.8125rem]">

@@ -6,7 +6,7 @@ import { useEffect } from "react";
 /*
  * Page de merci : la commande est créée par le webhook, parfois une ou deux secondes
  * après le retour du client. Tant qu'elle n'est pas là, on redemande la page à
- * intervalle court, quelques fois — puis on laisse le message d'attente.
+ * intervalle court, quelques fois - puis on laisse le message d'attente.
  */
 export function RefreshUntilOrder({ found, attempts = 6 }: { found: boolean; attempts?: number }) {
   const router = useRouter();

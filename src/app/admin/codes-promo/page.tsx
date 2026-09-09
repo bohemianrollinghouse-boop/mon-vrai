@@ -35,7 +35,7 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
   const rows = withStatus.filter((x) => filter === "Tous" || x.status === filter);
   const isNew = selectedCode === "NOUVEAU";
   const current = !isNew ? promos.find((p) => p.code === selectedCode) ?? (selectedCode ? undefined : promos[0]) : undefined;
-  const date = (ts?: number) => (ts ? new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) : "—");
+  const date = (ts?: number) => (ts ? new Date(ts).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" }) : "-");
   const iso = (ts?: number) => (ts ? new Date(ts).toISOString().slice(0, 10) : "");
   const products = snap.products.filter((p) => p.status === "published").map((p) => ({ slug: p.slug, title: p.title, image: p.images[0]?.url, tint: p.tint }));
 
@@ -65,7 +65,7 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
               cells: [
                 <span key="c" className={`w-fit rounded-lg px-2.5 py-1.5 text-xs font-extrabold tracking-[0.04em] ${current?.code === p.code ? "bg-ink text-white" : "bg-paper"}`}>{p.code}</span>,
                 <span key="d" className="flex flex-col">
-                  <span className="truncate font-semibold">{p.description || "—"}</span>
+                  <span className="truncate font-semibold">{p.description || "-"}</span>
                   <span className="text-[0.6875rem] text-subtle">
                     {p.minimum ? `dès ${formatEuro(p.minimum)}` : "sans minimum"} · {p.stackWith.length ? `cumulable (${p.stackWith.length})` : "non cumulable"}
                   </span>

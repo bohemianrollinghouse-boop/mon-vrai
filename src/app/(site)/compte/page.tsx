@@ -251,8 +251,8 @@ function date(ts: number): string {
 }
 function shippingLine(o: Order, preorderShipFrom?: string): string {
   if (o.status === "shipped") return `Expédiée${o.tracking ? ` · ${o.tracking.carrier} ${o.tracking.number}` : ""}.`;
-  if (o.lines.some((l) => l.preorder) && preorderShipFrom) return `Expédition prévue à partir du ${date(new Date(preorderShipFrom).getTime())} — un seul colis.`;
-  return "Nous préparons votre colis — un seul envoi pour tous vos livres.";
+  if (o.lines.some((l) => l.preorder) && preorderShipFrom) return `Expédition prévue à partir du ${date(new Date(preorderShipFrom).getTime())} - un seul colis.`;
+  return "Nous préparons votre colis - un seul envoi pour tous vos livres.";
 }
 function countryName(code: string): string {
   try {

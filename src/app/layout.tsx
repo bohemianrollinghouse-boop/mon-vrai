@@ -6,7 +6,7 @@ import "./globals.css";
 /*
  * Layout racine : la police et les métadonnées par défaut, rien d'autre. Le site
  * public ajoute son bandeau, son en-tête et son pied de page dans `(site)/layout.tsx` ;
- * l'administration a sa propre coquille dans `admin/layout.tsx` — deux univers qui ne
+ * l'administration a sa propre coquille dans `admin/layout.tsx` - deux univers qui ne
  * partagent que la police et les jetons.
  */
 
@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = settings.seo.title ?? settings.shopName;
   return {
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
-    title: { default: title, template: `%s — ${settings.shopName}` },
+    title: { default: title, template: `%s - ${settings.shopName}` },
     description: settings.seo.description,
     icons: { icon: "/logo.png" },
   };
