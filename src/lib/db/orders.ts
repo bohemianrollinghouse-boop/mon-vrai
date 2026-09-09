@@ -124,20 +124,24 @@ export async function createPaidOrder(input: PaidOrderInput): Promise<Order> {
     const counterSnap = await tx.get(counterRef);
     const seq = ((counterSnap.data()?.seq as number | undefined) ?? 0) + 1;
 
+    // Firestore exige que TOUTES les lectures d'une transaction précèdent la première
+    // écriture : on lit d'abord chaque produit, puis seulement on décrémente. Lire et
+    // écrire ligne par ligne faisait échouer toute commande de deux produits ou plus.
     const notes: string[] = [];
-    for (const line of input.lines) {
-      const ref = col("products").doc(line.productSlug);
-      const product = parseDoc(Product, await tx.get(ref));
+    const productRefs = input.lines.map((line) => col("products").doc(line.productSlug));
+    const productSnaps = await Promise.all(productRefs.map((ref) => tx.get(ref)));
+    input.lines.forEach((line, i) => {
+      const product = parseDoc(Product, productSnaps[i]);
       if (!product) {
         notes.push(`Produit ${line.productSlug} introuvable au moment du paiement`);
-        continue;
+        return;
       }
       if (product.stock !== null) {
         const remaining = product.stock - line.qty;
         if (remaining < 0) notes.push(`Stock négatif pour ${line.productSlug} (${remaining})`);
-        tx.update(ref, { stock: FieldValue.increment(-line.qty), updatedAt: createdAt });
+        tx.update(productRefs[i], { stock: FieldValue.increment(-line.qty), updatedAt: createdAt });
       }
-    }
+    });
 
     const order = Order.parse({
       id,
@@ -178,13 +182,15 @@ export async function transitionOrder(id: string, to: OrderStatus, opts: { note?
 
     const releasing = stockIsReserved(order.status) && !stockIsReserved(to);
     if (releasing) {
-      for (const line of order.lines) {
-        const pref = col("products").doc(line.productSlug);
-        const product = parseDoc(Product, await tx.get(pref));
+      // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
+      const prefs = order.lines.map((line) => col("products").doc(line.productSlug));
+      const snaps = await Promise.all(prefs.map((pref) => tx.get(pref)));
+      order.lines.forEach((line, i) => {
+        const product = parseDoc(Product, snaps[i]);
         if (product && product.stock !== null) {
-          tx.update(pref, { stock: FieldValue.increment(line.qty), updatedAt: now() });
+          tx.update(prefs[i], { stock: FieldValue.increment(line.qty), updatedAt: now() });
         }
-      }
+      });
     }
 
     const at = now();
