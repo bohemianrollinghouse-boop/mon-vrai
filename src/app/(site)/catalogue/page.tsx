@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { Newsletter } from "@/components/site/Newsletter";
-import { PreorderCollectionCard } from "@/components/site/PreorderCollectionCard";
+import { CollectionOfferButton } from "@/components/site/CollectionOfferButton";
 import { ProductCard } from "@/components/site/ProductCard";
 import { SortSelect } from "@/components/site/SortSelect";
-import { Chip, Eyebrow, PillLink, TINT_BG, TINT_INK } from "@/components/site/ui";
+import { Chip, Eyebrow, TINT_BG, TINT_INK } from "@/components/site/ui";
 import { getCatalogueContent, getHomeContent } from "@/lib/db/content";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
@@ -65,7 +65,7 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
               <h1 className="display-1 text-[clamp(2rem,4.4vw,3.25rem)]">{hero.heading}</h1>
               {hero.text && <p className={`max-w-[520px] text-[1.0625rem] leading-relaxed ${TINT_INK[hero.tint]}`}>{hero.text}</p>}
             </div>
-            {offer?.enabled && (
+            {showCollectionOffer && offer?.enabled && (
               <div className="flex flex-col gap-3 rounded-card bg-white p-6">
                 <div className="flex items-baseline justify-between gap-4">
                   <span className="text-[0.9375rem] font-bold">{offer.title}</span>
@@ -73,18 +73,13 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
                 </div>
                 <span className="text-[2rem] font-extrabold tracking-[-0.02em]">{offer.price}</span>
                 {offer.note && <span className="text-[0.8125rem] leading-relaxed text-muted">{offer.note}</span>}
-                {offer.cta.label && (
-                  <PillLink href={offer.cta.href || "/catalogue"} variant="dark" className="text-center text-[0.8125rem]">
-                    {offer.cta.label}
-                  </PillLink>
-                )}
+                {offer.cta.label && <CollectionOfferButton label={offer.cta.label} />}
               </div>
             )}
           </div>
         </section>
       )}
 
-      {showCollectionOffer && <PreorderCollectionCard totalTitles={collection.totalTitles} fullPrice={collection.fullPrice} offerPrice={collection.offerPrice} />}
 
       <section className="site-wrap flex flex-wrap items-center justify-between gap-4 pt-8 max-[749px]:items-start">
         <div className="flex flex-wrap gap-2">
