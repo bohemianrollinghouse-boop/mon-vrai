@@ -35,8 +35,11 @@ const cell = (v: string | number): string => `"${String(v).replace(/"/g, '""')}"
 const num = (n: number, decimals = 2): string => n.toFixed(decimals).replace(/\.?0+$/, "") || "0";
 
 function splitName(full: string): [string, string] {
-  const parts = full.trim().split(/\s+/);
-  if (parts.length <= 1) return [parts[0] || "Client", parts[0] || "Client"];
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) {
+    const one = parts[0] || "Client";
+    return [one, one];
+  }
   return [parts[0], parts.slice(1).join(" ")];
 }
 
@@ -46,9 +49,25 @@ function contentCategoryCode(settings: SiteSettings): string {
   return digits || "10150";
 }
 
+/*
+ * Code du point relais au format attendu par Boxtal : « xxxx-yy-zzzzz » où xxxx est le
+ * code transporteur à 4 lettres (MONR, CHRP, UPSE, SOGP, COPR), yy le pays ISO, zzzzz le
+ * code du point. Notre réseau stocké vaut par ex. « MONR_NETWORK » : on garde les lettres
+ * de tête. Vide si pas de relais : Boxtal choisit alors le plus proche de l'adresse.
+ */
+function proximityPoint(order: Order): string {
+  const relay = order.delivery?.relay;
+  if (!relay?.code) return "";
+  const carrier = (relay.network || "").replace(/_NETWORK$/i, "").toUpperCase().slice(0, 4);
+  if (!carrier) return "";
+  return `${carrier}-${order.shippingAddress.country}-${relay.code}`;
+}
+
 export function buildBoxtalCsvRow(order: Order, settings: SiteSettings): string[] {
   const a = order.shippingAddress;
-  const [first, last] = splitName(a.name);
+  const [firstRaw, lastRaw] = splitName(a.name);
+  const first = firstRaw || lastRaw || "Client";
+  const last = lastRaw || firstRaw || "Client";
   const p = settings.shipping.parcel;
   const value = Math.max(1, Math.round(order.totals.subtotal - order.totals.discount) / 100);
   const description = order.lines.map((l) => `${l.qty}x ${l.title}`).join(", ").slice(0, 250) || "Imagiers Mon Vrai";
@@ -64,7 +83,7 @@ export function buildBoxtalCsvRow(order: Order, settings: SiteSettings): string[
     "",
     a.phone ?? "",
     order.email,
-    order.delivery?.relay?.code ?? "",
+    proximityPoint(order),
     description,
     contentCategoryCode(settings),
     num(parcelWeightKg(order, settings), 3),
