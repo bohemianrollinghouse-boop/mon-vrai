@@ -19,6 +19,14 @@ import { ModeToggle } from "@/components/admin/ModeToggle";
 
 export const dynamic = "force-dynamic";
 
+/** Date du dernier build (donc du dernier déploiement), en heure de Paris. */
+function formatBuildTime(iso: string | undefined): string {
+  if (!iso) return "date inconnue";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "date inconnue";
+  return d.toLocaleString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireAdmin();
   const snap = await adminSnapshot();
@@ -75,6 +83,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
               </form>
             </div>
           </div>
+          <p className="px-2 text-[0.625rem] text-faint" title={process.env.BUILD_COMMIT ? `commit ${process.env.BUILD_COMMIT}` : undefined}>
+            Code mis à jour le {formatBuildTime(process.env.BUILD_TIME)}
+          </p>
         </div>
       </aside>
 

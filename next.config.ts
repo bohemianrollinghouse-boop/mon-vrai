@@ -1,7 +1,23 @@
+import { execSync } from "node:child_process";
 import type { NextConfig } from "next";
 import legacyRedirects from "./content/redirects.json";
 
+/*
+ * Horodatage et commit du build, figés au moment de `next build` (donc à chaque déploiement).
+ * Affichés dans l'admin comme « dernière mise à jour » — automatique, rien à saisir à la main.
+ * Le SHA vient de git s'il est disponible dans l'environnement de build, sinon on l'ignore.
+ */
+const BUILD_TIME = new Date().toISOString();
+let BUILD_COMMIT = "";
+try {
+  BUILD_COMMIT = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+} catch {
+  BUILD_COMMIT = "";
+}
+
 const nextConfig: NextConfig = {
+  // Inlinés au build : lus via process.env dans l'admin (voir components/admin, layout).
+  env: { BUILD_TIME, BUILD_COMMIT },
   /*
    * Redirections permanentes depuis les URLs de l'ancienne boutique Shopify : produits,
    * politiques, collections, panier, compte. Générées depuis l'export dans
