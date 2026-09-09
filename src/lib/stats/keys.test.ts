@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bucketPath, clientIp, dayKey, deviceKind, hourKey, isBot, lastDays, OTHER_PAGE, referrerHost, sourceKey, sourceMeta, visitorHash } from "./keys";
+import { bucketPath, dayKey, deviceKind, hourKey, isBot, lastDays, OTHER_PAGE, pickUserAgent, referrerHost, sourceKey, sourceMeta, visitorHash } from "./keys";
 
 describe("clés de temps (Europe/Paris)", () => {
   it("bascule de jour à minuit heure de Paris, pas UTC", () => {
@@ -43,7 +43,7 @@ describe("referrerHost", () => {
   });
 });
 
-describe("isBot / clientIp / visitorHash", () => {
+describe("isBot / visitorHash / pickUserAgent", () => {
   it("reconnaît les robots courants et les agents vides", () => {
     expect(isBot("Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)")).toBe(true);
     expect(isBot("curl/8.4.0")).toBe(true);
@@ -51,17 +51,19 @@ describe("isBot / clientIp / visitorHash", () => {
     expect(isBot("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Safari/604.1")).toBe(false);
   });
 
-  it("prend la première IP transmise", () => {
-    expect(clientIp("203.0.113.9, 10.0.0.1")).toBe("203.0.113.9");
-    expect(clientIp(null)).toBe("0.0.0.0");
+  it("change d'empreinte avec le jour et l'identifiant, sans le révéler", () => {
+    const a = visitorHash("sel", "2026-09-09", "abc123");
+    expect(a).not.toBe(visitorHash("sel", "2026-09-10", "abc123"));
+    expect(a).not.toBe(visitorHash("sel", "2026-09-09", "abc124"));
+    expect(a).toHaveLength(16);
+    expect(a).not.toContain("abc");
   });
 
-  it("change d'empreinte avec le jour et ne révèle pas l'IP", () => {
-    const a = visitorHash("sel", "2026-09-09", "203.0.113.9", "UA");
-    const b = visitorHash("sel", "2026-09-10", "203.0.113.9", "UA");
-    expect(a).not.toBe(b);
-    expect(a).toHaveLength(16);
-    expect(a).not.toContain("203");
+  it("ignore l'en-tête « Google » posé par le proxy et prend le navigateur de la balise", () => {
+    const real = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1";
+    expect(pickUserAgent("Google", real)).toBe(real);
+    expect(pickUserAgent(real, "autre")).toBe(real);
+    expect(pickUserAgent(null, "")).toBe("");
   });
 });
 

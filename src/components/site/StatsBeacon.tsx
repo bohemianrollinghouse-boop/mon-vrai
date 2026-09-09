@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 
 /*
- * Balise de fréquentation, sans cookie : à chaque page affichée, un « view » vers
+ * Balise de fréquentation, sans cookie (stockage local seulement) : à chaque page affichée, un « view » vers
  * /api/stats/hit ; tant que l'onglet est visible, un « ping » toutes les 30 s pour le
  * compteur « en ligne ». L'identifiant de session vit dans sessionStorage (propre à
  * l'onglet, disparaît à sa fermeture) et ne sert qu'à dédupliquer la présence et à savoir
@@ -28,6 +28,21 @@ function session(): { sid: string; first: boolean } {
   }
 }
 
+/** Identifiant visiteur du jour (heure de Paris) : tiré au sort, renouvelé chaque jour, jamais envoyé ailleurs. */
+function visitorId(): string | undefined {
+  try {
+    const day = new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+    const raw = localStorage.getItem("mv_vid");
+    const cur = raw ? (JSON.parse(raw) as { id?: string; day?: string }) : null;
+    if (cur?.id && cur.day === day) return cur.id;
+    const id = crypto.randomUUID().replace(/-/g, "").slice(0, 24);
+    localStorage.setItem("mv_vid", JSON.stringify({ id, day }));
+    return id;
+  } catch {
+    return undefined;
+  }
+}
+
 function send(payload: Record<string, unknown>): void {
   const body = JSON.stringify(payload);
   try {
@@ -45,7 +60,9 @@ export function StatsBeacon() {
     if (!pathname || pathname.startsWith("/admin") || navigator.webdriver) return;
     const { sid, first } = session();
     const utm = first ? new URLSearchParams(window.location.search).get("utm_source") ?? "" : "";
-    send({ t: "view", p: pathname, r: first ? document.referrer : "", u: utm, s: sid, f: first });
+    // Le navigateur est envoyé dans le corps : l'en-tête User-Agent n'atteint pas le serveur
+    // tel quel derrière App Hosting.
+    send({ t: "view", p: pathname, r: first ? document.referrer : "", u: utm, s: sid, f: first, ua: navigator.userAgent, v: visitorId() });
     const ping = () => {
       if (document.visibilityState === "visible") send({ t: "ping", p: pathname, s: sid });
     };

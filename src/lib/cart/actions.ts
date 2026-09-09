@@ -36,7 +36,7 @@ export async function addToCart(formData: FormData): Promise<CartActionResult> {
   const lines = addQty(cart.lines, product.slug, parsed.data.qty);
   await saveCart(id, { lines, promoCodes: cartCodes(cart) });
   // Statistiques (parcours d'achat) : jamais bloquant.
-  await recordCartAddFromRequest().catch(() => undefined);
+  await recordCartAddFromRequest(id).catch(() => undefined);
   refresh();
   return { ok: true, count: lines.reduce((n, l) => n + l.qty, 0) };
 }

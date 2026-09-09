@@ -74,16 +74,27 @@ export function isBot(userAgent: string | null | undefined): boolean {
 }
 
 /**
- * Empreinte du visiteur pour la journée : sel serveur + jour + IP + navigateur, hachée
- * et tronquée. Ne permet ni de retrouver l'IP, ni de suivre quelqu'un d'un jour à l'autre.
+ * Navigateur à retenir. Derrière App Hosting, l'en-tête User-Agent arrive réécrit en
+ * « Google » (constaté dans les journaux Cloud Run) : il ne dit rien du visiteur. On
+ * garde l'en-tête s'il ressemble à un vrai navigateur, sinon celui que la balise envoie
+ * (navigator.userAgent). Les robots n'exécutent pas la balise : ce choix ne les fait pas
+ * entrer, et isBot() écarte les rares qui le feraient.
  */
-export function visitorHash(salt: string, day: string, ip: string, userAgent: string): string {
-  return createHash("sha256").update(`${salt}|${day}|${ip}|${userAgent}`).digest("base64url").slice(0, 16);
+export function pickUserAgent(headerUa: string | null | undefined, bodyUa: string | null | undefined): string {
+  const h = (headerUa ?? "").trim();
+  if (h.length >= 20 && /Mozilla|Opera|Safari|Chrome|Firefox/i.test(h)) return h;
+  return (bodyUa ?? "").trim().slice(0, 300);
 }
 
-/** Première IP de x-forwarded-for (celle du client, posée par le répartiteur de Cloud Run). */
-export function clientIp(forwardedFor: string | null | undefined): string {
-  return (forwardedFor ?? "").split(",")[0].trim() || "0.0.0.0";
+/**
+ * Empreinte du visiteur pour la journée : sel serveur + jour + identifiant, hachés et
+ * tronqués. L'identifiant est celui que la balise tire au sort pour la journée (stockage
+ * local du navigateur, renouvelé chaque jour) ou, pour un ajout au panier côté serveur,
+ * l'identifiant du panier. Pas d'adresse IP : derrière le proxy d'App Hosting elle n'est
+ * pas fiable, et on n'a ainsi aucune donnée personnelle à traiter.
+ */
+export function visitorHash(salt: string, day: string, id: string): string {
+  return createHash("sha256").update(`${salt}|${day}|${id}`).digest("base64url").slice(0, 16);
 }
 
 export type DeviceKind = "mobile" | "tablette" | "ordinateur";
