@@ -115,3 +115,13 @@ env:
     secret: MAKE_WEBHOOK_URL
   - variable: MAKE_WEBHOOK_API_KEY
     secret: MAKE_WEBHOOK_API_KEY
+
+  # Notifications push (Web Push / VAPID) pour l'admin (PWA)
+  - variable: NEXT_PUBLIC_VAPID_PUBLIC_KEY
+    value: BFJR8BzlTaPuF2R8C9RSsNW7GUcz_S347LanmguwQakxO26vcBtPh4SssLGpFHVwDaK5NS7c9CkRRgFi24bpm3E
+    availability: [BUILD, RUNTIME]
+  - variable: VAPID_SUBJECT
+    value: mailto:contact@monvrai.fr
+    availability: [RUNTIME]
+  - variable: VAPID_PRIVATE_KEY
+    secret: VAPID_PRIVATE_KEY

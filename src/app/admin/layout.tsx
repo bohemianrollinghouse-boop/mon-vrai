@@ -1,12 +1,28 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { signOut } from "@/lib/auth/actions";
 import { requireAdmin } from "@/lib/auth/session";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { AdminNav, type NavSection } from "@/components/admin/AdminNav";
+import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { PwaRegister } from "@/components/admin/PwaRegister";
 import { Avatar } from "@/components/admin/ui";
 import { ModeToggle } from "@/components/admin/ModeToggle";
+
+/*
+ * PWA « admin seule » : le manifest est scopé à /admin (installable uniquement depuis
+ * l'admin, jamais depuis la boutique). Voir /admin/manifest.webmanifest et /admin/sw.js.
+ */
+export const metadata: Metadata = {
+  title: { default: "Mon Vrai Admin", template: "%s · Mon Vrai Admin" },
+  manifest: "/admin/manifest",
+  appleWebApp: { capable: true, title: "Mon Vrai Admin", statusBarStyle: "default" },
+  icons: { apple: "/admin/app-icon/180" },
+};
+
+export const viewport: Viewport = { themeColor: "#111111" };
 
 /*
  * Coquille de l'administration, d'après la maquette « Mon Vrai - Admin » : une barre
@@ -83,7 +99,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
 
   return (
     <div className="grid min-h-screen flex-1 grid-cols-[240px_minmax(0,1fr)] max-[899px]:grid-cols-1">
-      <aside className="sticky top-0 flex h-screen flex-col gap-6 overflow-y-auto border-r border-line-sand bg-white px-4 py-6 max-[899px]:static max-[899px]:h-auto max-[899px]:overflow-visible max-[899px]:border-b max-[899px]:border-r-0">
+      <PwaRegister />
+      <AdminSidebar>
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between px-2">
             <Link href="/admin" aria-label="Tableau de bord">
@@ -114,9 +131,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             Code mis à jour le {formatBuildTime(process.env.BUILD_TIME)}
           </p>
         </div>
-      </aside>
+      </AdminSidebar>
 
-      <main className="flex min-w-0 flex-col gap-6 px-10 pb-16 pt-8 max-[899px]:px-5">
+      <main className="flex min-w-0 flex-col gap-6 px-10 pb-16 pt-8 max-[899px]:px-5 max-[899px]:pt-20">
         {(snap.settings.payments.mode === "test" || snap.settings.shipping.boxtalMode === "test") && (
           <div className="flex flex-wrap items-center gap-3 rounded-card bg-tint-sand px-5 py-3 text-[0.8125rem] font-semibold text-tint-sand-ink">
             <span>

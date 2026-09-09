@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Input, Select } from "@/components/admin/ui";
 import { saveNewsletterTemplateAction, sendNewsletterAction } from "@/lib/admin/actions/newsletter";
-import { NEWSLETTER_TEMPLATES, renderTemplateBody, templateById, type Brand, type RenderCtx } from "@/lib/newsletter/render";
+import { isValidHref, NEWSLETTER_TEMPLATES, renderTemplateBody, templateById, type Brand, type RenderCtx } from "@/lib/newsletter/render";
 import type { AdminResult } from "@/lib/admin/types";
 
 /*
  * Composeur de newsletter : on choisit un modèle (onglets), et on l'édite DIRECTEMENT
  * dans l'aperçu — chaque texte se modifie sur place (aucun champ, aucun éditeur riche),
- * chaque image se remplace via le petit crayon (sélection d'un fichier, recadrage centré).
+ * chaque image se remplace via le petit crayon (sélection d'un fichier, recadrage centré),
+ * chaque bouton garde son texte éditable et son lien se change via le petit 🔗 (le clic
+ * sur un bouton ne navigue pas dans l'aperçu).
  * On enregistre, puis on envoie à l'audience choisie. Le gabarit reste fixe.
  *
  * L'aperçu éditable est injecté en HTML brut dans un conteneur et n'est PAS géré par React
@@ -46,6 +48,8 @@ export function NewsletterComposer({
   const [email, setEmail] = useState(adminEmail);
   const [message, setMessage] = useState<AdminResult | null>(null);
   const [uploading, setUploading] = useState(false);
+  // Édition du lien d'un bouton : petite fenêtre positionnée sous le bouton 🔗 cliqué.
+  const [linkEdit, setLinkEdit] = useState<{ key: string; href: string; top: number; left: number } | null>(null);
   const [pending, start] = useTransition();
 
   // Valeurs éditées (textes + images) par modèle, dans un objet mutable hors React : on le
@@ -82,6 +86,10 @@ export function NewsletterComposer({
     el.querySelectorAll<HTMLElement>('[contenteditable="true"][data-k]').forEach((node) => {
       vals[node.dataset.k as string] = node.innerText.replace(/ /g, " ").replace(/\n{3,}/g, "\n\n").replace(/[ \t]+$/gm, "").trim();
     });
+    el.querySelectorAll<HTMLAnchorElement>("a[data-href-k]").forEach((a) => {
+      const href = a.getAttribute("href") ?? "";
+      if (href) vals["href:" + (a.dataset.hrefK as string)] = href;
+    });
     el.querySelectorAll<HTMLImageElement>("img[data-img][data-k]").forEach((img) => {
       const src = img.getAttribute("src") ?? "";
       const key = "img:" + (img.dataset.k as string);
@@ -102,7 +110,20 @@ export function NewsletterComposer({
     const el = container.current;
     if (!el) return;
     const onClick = (e: MouseEvent) => {
-      const btn = (e.target as HTMLElement).closest(".nl-pencil");
+      const target = e.target as HTMLElement;
+      // Bouton 🔗 : ouvrir l'édition du lien du bouton voisin.
+      const linkBtn = target.closest<HTMLElement>(".nl-linkbtn");
+      if (linkBtn) {
+        e.preventDefault();
+        const key = linkBtn.dataset.k ?? "";
+        const anchor = el.querySelector<HTMLAnchorElement>(`a[data-href-k="${CSS.escape(key)}"]`);
+        const r = linkBtn.getBoundingClientRect();
+        setLinkEdit({ key, href: anchor?.getAttribute("href") ?? "", top: r.bottom + 8, left: Math.max(12, Math.min(r.left - 220, window.innerWidth - 360)) });
+        return;
+      }
+      // Un bouton de l'aperçu ne doit pas naviguer : on édite son texte comme les autres.
+      if (target.closest("a")) e.preventDefault();
+      const btn = target.closest(".nl-pencil");
       if (!btn) return;
       e.preventDefault();
       currentKey.current = (btn as HTMLElement).dataset.k ?? "";
@@ -153,6 +174,20 @@ export function NewsletterComposer({
     }
   };
 
+  const applyLink = () => {
+    if (!linkEdit) return;
+    const href = linkEdit.href.trim();
+    if (!isValidHref(href)) {
+      setMessage({ ok: false, error: "Lien invalide : une adresse https://…, mailto:… ou un chemin du site (/catalogue)." });
+      return;
+    }
+    const anchor = container.current?.querySelector<HTMLAnchorElement>(`a[data-href-k="${CSS.escape(linkEdit.key)}"]`);
+    if (anchor) anchor.setAttribute("href", href);
+    scrape(templateId);
+    setMessage(null);
+    setLinkEdit(null);
+  };
+
   const currentValues = (): Values => {
     scrape(templateId);
     return { ...getStore()[templateId], subject: subjects[templateId] };
@@ -168,6 +203,7 @@ export function NewsletterComposer({
   const switchTemplate = (id: string) => {
     scrape(templateId);
     setMessage(null);
+    setLinkEdit(null);
     setTemplateId(id);
   };
 
@@ -194,7 +230,35 @@ export function NewsletterComposer({
         .nl-root [contenteditable="true"]:focus{ box-shadow:0 0 0 2px rgba(17,17,17,.6); background:rgba(255,255,255,.5); }
         .nl-root .nl-pencil{ position:absolute; top:8px; right:8px; z-index:6; width:34px; height:34px; border-radius:999px; border:none; background:rgba(17,17,17,.74); color:#fff; font-size:15px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:.55; transition:opacity .12s ease; box-shadow:0 2px 8px rgba(0,0,0,.25); }
         .nl-root .nl-pencil:hover{ opacity:1; }
+        .nl-root .nl-btn{ cursor:text; }
+        .nl-root .nl-linkbtn{ position:absolute; top:-12px; right:-12px; z-index:6; width:28px; height:28px; border-radius:999px; border:2px solid #fff; background:rgba(17,17,17,.82); color:#fff; font-size:13px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:.6; transition:opacity .12s ease; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+        .nl-root .nl-linkbtn:hover, .nl-root .nl-btnwrap:hover .nl-linkbtn{ opacity:1; }
       `}</style>
+
+      {linkEdit && (
+        <div className="fixed z-50 flex w-[340px] flex-col gap-2 rounded-card bg-white p-4 shadow-[0_16px_40px_rgb(0_0_0/0.18)]" style={{ top: linkEdit.top, left: linkEdit.left }} role="dialog" aria-label="Lien du bouton">
+          <span className="text-xs font-bold">Lien du bouton</span>
+          <Input
+            autoFocus
+            value={linkEdit.href}
+            onChange={(e) => setLinkEdit({ ...linkEdit, href: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") applyLink();
+              if (e.key === "Escape") setLinkEdit(null);
+            }}
+            placeholder="https://monvrai.fr/catalogue"
+          />
+          <span className="text-[0.6875rem] text-subtle">Adresse complète (https://…), e-mail (mailto:…) ou chemin du site (/livres/le-visage).</span>
+          <div className="flex justify-end gap-2">
+            <button type="button" onClick={() => setLinkEdit(null)} className="rounded-pill bg-paper px-3.5 py-2 text-xs font-bold">
+              Annuler
+            </button>
+            <button type="button" onClick={applyLink} className="rounded-pill bg-ink px-3.5 py-2 text-xs font-bold text-white">
+              Appliquer
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Onglets des modèles */}
       <div className="flex flex-wrap gap-1.5">
@@ -216,7 +280,7 @@ export function NewsletterComposer({
         <div className="flex flex-col gap-3 rounded-card bg-paper p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="text-lg font-extrabold">{templateById(templateId)?.label}</span>
-            <span className="text-[0.6875rem] text-subtle">Cliquez un texte pour l'éditer · survolez une image pour la remplacer (crayon)</span>
+            <span className="text-[0.6875rem] text-subtle">Cliquez un texte pour l'éditer · crayon : remplacer une image · 🔗 : changer le lien d'un bouton</span>
           </div>
           <label className="flex flex-col gap-1.5 text-xs font-semibold text-subtle">
             <span>Objet de l'e-mail</span>

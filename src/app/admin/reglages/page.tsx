@@ -1,5 +1,6 @@
 import { ActionForm } from "@/components/admin/ActionForm";
 import { Button, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
+import { PushSettings } from "@/components/admin/PushSettings";
 import { ServiceModeSwitch } from "@/components/admin/ServiceModeSwitch";
 import { saveSettingsAction } from "@/lib/admin/actions/settings";
 import { getSettings } from "@/lib/db/settings";
@@ -237,6 +238,11 @@ export default async function SettingsPage() {
           </Card>
         </div>
       </ActionForm>
+
+      <Card title="Notifications push" className="mt-3">
+        <p className="-mt-1 text-[0.8125rem] leading-relaxed text-subtle">Recevez une notification sur votre téléphone ou votre ordinateur à chaque évènement choisi. À activer sur chaque appareil (idéalement l'admin installé en application).</p>
+        <PushSettings />
+      </Card>
     </>
   );
 }

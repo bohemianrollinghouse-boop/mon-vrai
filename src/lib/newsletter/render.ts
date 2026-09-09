@@ -5,8 +5,9 @@
  *   - "email" : HTML propre, envoyé aux inscrits (styles en ligne, une colonne) ;
  *   - "edit"  : le même visuel, mais chaque texte est `contenteditable` et chaque image
  *               reçoit un crayon — c'est l'aperçu éditable de l'admin.
- * Les modifications (textes, images) sont stockées dans `values` : clés nues pour les
- * textes, préfixe « img: » pour les images. Une clé absente = le contenu par défaut.
+ * Les modifications (textes, images, liens) sont stockées dans `values` : clés nues pour
+ * les textes, préfixe « img: » pour les images, préfixe « href: » pour la cible des boutons.
+ * Une clé absente = le contenu par défaut.
  *
  * Module pur (pas d'accès base/réseau) : utilisable côté serveur (envoi) ET côté client
  * (aperçu éditable), d'où l'absence de `server-only`.
@@ -138,8 +139,32 @@ function footer(c: RenderCtx): string {
 <span>${esc(c.brand.shopName)} · ${addr} · <a href="${esc(c.unsub)}" style="color:${SUBTLE};text-decoration:underline">Se désinscrire</a></span></div>`;
 }
 
+/** Cible d'un bouton : la valeur éditée (« href:clé ») sinon celle du modèle ; un chemin relatif est résolu sur le site. */
+export function resolveHref(raw: string, base: string): string {
+  const v = raw.trim();
+  if (v.startsWith("/")) return `${base.replace(/\/$/, "")}${v}`;
+  return v;
+}
+const btnHref = (c: RenderCtx, key: string, def: string) => resolveHref(c.values["href:" + key] ?? def, c.base);
+
+/** Une URL acceptable pour un bouton : http(s), mailto, ou un chemin du site. */
+export function isValidHref(raw: string): boolean {
+  const v = raw.trim();
+  return /^https?:\/\/[^\s]+$/i.test(v) || /^mailto:[^\s@]+@[^\s@]+$/i.test(v) || (/^\/[^\s]*$/.test(v) && !v.startsWith("//"));
+}
+
+/**
+ * Lien éditable. En mode « edit », le clic ne navigue pas (géré par le composeur) et un
+ * petit bouton 🔗 permet de changer la cible ; le texte reste éditable comme les autres.
+ */
+function linkT(c: RenderCtx, key: string, def: string, href: string, style: string): string {
+  const target = btnHref(c, key, href);
+  if (c.mode === "email") return `<a href="${esc(target)}" style="${style}">${T(c, key, def, "")}</a>`;
+  return `<span class="nl-btnwrap" style="position:relative;display:inline-block"><a href="${esc(target)}" class="nl-btn" data-href-k="${esc(key)}" style="${style}">${T(c, key, def, "")}</a><button type="button" class="nl-linkbtn" data-k="${esc(key)}" aria-label="Changer le lien" title="Changer le lien" contenteditable="false">🔗</button></span>`;
+}
+
 const btn = (c: RenderCtx, key: string, def: string, href: string, dark = true) =>
-  `<a href="${esc(href)}" style="display:inline-block;background:${dark ? INK : "#fff"};color:${dark ? "#fff" : INK};padding:16px 28px;border-radius:999px;font-size:14px;font-weight:700;text-decoration:none">${T(c, key, def, "")}</a>`;
+  linkT(c, key, def, href, `display:inline-block;background:${dark ? INK : "#fff"};color:${dark ? "#fff" : INK};padding:16px 28px;border-radius:999px;font-size:14px;font-weight:700;text-decoration:none`);
 
 const eyebrow = (c: RenderCtx, key: string, def: string, color: string) =>
   T(c, key, def, `font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${color}`, "div");
@@ -200,7 +225,7 @@ function tplPrecommande(c: RenderCtx): string {
 <span style="width:28px;height:28px;border-radius:999px;background:${BLUE};color:${BLUE_INK};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">2</span>${T(c, "step2", "Nous fabriquons — cartonné, papier FSC, encre de soja, en Europe.", "")}
 <span style="width:28px;height:28px;border-radius:999px;background:${SAND};color:${SAND_INK};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800">3</span>${T(c, "step3", "Nous expédions dès le 25 décembre — un seul colis, suivi par e-mail, point relais ou domicile.", "")}
 </div></div>
-<div style="padding:28px 40px 0;text-align:center">${T(c, "link", "Voir les 9 titres →", "font-size:13px;font-weight:700;border-bottom:1.5px solid #111;color:#111")}</div>
+<div style="padding:28px 40px 0;text-align:center">${linkT(c, "link", "Voir les 9 titres →", c.base, "font-size:13px;font-weight:700;border-bottom:1.5px solid #111;color:#111;text-decoration:none")}</div>
 ${footer(c)}`);
 }
 

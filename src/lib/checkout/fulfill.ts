@@ -6,6 +6,7 @@ import { incrementPromoUses } from "@/lib/db/promos";
 import type { Order } from "@/lib/domain/types";
 import { sendOrderConfirmation } from "@/lib/email/send";
 import { makeConfigured, sendOrderToMake } from "@/lib/make/tiime";
+import { notifyNewOrder } from "@/lib/push/send";
 
 /*
  * Suites communes d'une commande payée, quelle qu'en soit l'origine (webhook Stripe ou
@@ -22,6 +23,9 @@ export async function fulfillOrder(
   if (cartId) await clearCart(cartId).catch(() => undefined);
   if (input.customerUid) await addAddress(input.customerUid, input.shippingAddress).catch(() => undefined);
   if (input.promoCodes?.length) await incrementPromoUses(input.promoCodes).catch(() => undefined);
+
+  // Notification push à l'admin (nouvelle commande) — jamais bloquant.
+  await notifyNewOrder(order).catch(() => undefined);
 
   let invoiced = order;
   if (makeConfigured()) {

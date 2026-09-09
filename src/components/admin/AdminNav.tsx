@@ -34,10 +34,10 @@ export function AdminNav({ sections }: { sections: NavSection[] }) {
   };
 
   return (
-    <nav className="flex flex-col gap-0.5 max-[899px]:flex-row max-[899px]:flex-wrap" aria-label="Administration">
+    <nav className="flex flex-col gap-0.5" aria-label="Administration">
       {sections.map((section, i) => (
-        <div key={section.label ?? i} className="flex flex-col gap-0.5 max-[899px]:contents">
-          {section.label && <span className="px-3.5 pb-1 pt-3 text-[0.625rem] font-bold uppercase tracking-[0.12em] text-faint max-[899px]:hidden">{section.label}</span>}
+        <div key={section.label ?? i} className="flex flex-col gap-0.5">
+          {section.label && <span className="px-3.5 pb-1 pt-3 text-[0.625rem] font-bold uppercase tracking-[0.12em] text-faint">{section.label}</span>}
           {section.items.map(item)}
         </div>
       ))}
