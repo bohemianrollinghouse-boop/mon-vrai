@@ -1,14 +1,16 @@
 import "server-only";
 import { storage } from "@/lib/firebase/admin";
 import { getOrder, setInvoiceDoc } from "@/lib/db/orders";
+import { getSettings } from "@/lib/db/settings";
 import type { Order } from "@/lib/domain/types";
+import { renderInvoicePdf, type InvoiceMeta } from "./pdf";
 
 /*
- * Facture = document de Tiime. On ne génère plus de PDF nous-mêmes : le scénario Make
- * renvoie le PDF de la facture Tiime (base64), qu'on dépose dans un dossier privé du
- * bucket et qu'on rattache à la commande (numéro Tiime + chemin). La facture reste un
- * document figé, jamais régénéré côté site ; l'admin peut la refaire via « Refacturer
- * dans Tiime », qui la redépose.
+ * Émission de la facture : on génère le PDF (maquette « Mon Vrai - Facture ») à partir de
+ * la commande et des données renvoyées par Tiime via Make (numéro, dates, totaux), on le
+ * dépose dans un dossier privé du bucket et on le rattache à la commande. Le numéro de
+ * facture est celui de Tiime — la comptabilité reste la source des numéros. Un PDF déjà
+ * déposé pour une commande est écrasé si on refacture (le fichier reste au même chemin).
  */
 
 function storagePathFor(order: Order, at: number): string {
@@ -16,15 +18,16 @@ function storagePathFor(order: Order, at: number): string {
   return `invoices/${year}/${order.id}.pdf`;
 }
 
-/** Dépose le PDF de la facture Tiime et le rattache à la commande. */
-export async function storeTiimeInvoice(order: Order, pdf: Buffer, number: string): Promise<Order> {
-  const issuedAt = order.invoice?.issuedAt ?? Date.now();
-  const path = order.invoice?.storagePath ?? storagePathFor(order, issuedAt);
+/** Génère la facture, la dépose et la rattache à la commande (numéro Tiime + chemin). */
+export async function storeInvoice(order: Order, meta: InvoiceMeta): Promise<Order> {
+  const settings = await getSettings();
+  const bytes = await renderInvoicePdf(order, settings, meta);
+  const filePath = order.invoice?.storagePath ?? storagePathFor(order, meta.issuedAt);
   await storage()
     .bucket()
-    .file(path)
-    .save(pdf, { contentType: "application/pdf", metadata: { cacheControl: "private, max-age=0" } });
-  await setInvoiceDoc(order.id, { number, issuedAt, storagePath: path });
+    .file(filePath)
+    .save(Buffer.from(bytes), { contentType: "application/pdf", metadata: { cacheControl: "private, max-age=0" } });
+  await setInvoiceDoc(order.id, { number: meta.number, issuedAt: meta.issuedAt, storagePath: filePath });
   return (await getOrder(order.id)) ?? order;
 }
 

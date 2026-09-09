@@ -1,7 +1,8 @@
 import "server-only";
 import { getCustomer, updateCustomer } from "@/lib/db/customers";
 import { addOrderNote, getOrder, setTiime } from "@/lib/db/orders";
-import { storeTiimeInvoice } from "@/lib/invoice/issue";
+import { storeInvoice } from "@/lib/invoice/issue";
+import type { InvoiceData } from "@/lib/invoice/pdf";
 import { buildTiimePayload } from "./payload";
 
 /*
@@ -40,20 +41,21 @@ export async function sendOrderToMake(orderId: string, by = "système"): Promise
     return { ok: false, error: `Make a répondu ${res.status}${body ? ` : ${body.slice(0, 200)}` : ""}` };
   }
 
-  // Réponse du scénario : { "tiime_client_id": "12973278", "invoice_id": "25892919",
-  // "invoice_number": "F2026-0042", "invoice_pdf": "<base64>" }. L'identifiant client n'est
-  // renvoyé que lorsqu'il vient d'être créé ; le reste, à chaque facturation. Le PDF est
-  // celui de Tiime : on le dépose et on le rattache à la commande (aucun PDF généré ici).
+  // Réponse du scénario : { "tiime_client_id": 12973278, "invoice_id": "25892919",
+  // "invoice_number": "F2026-0042", "invoice_data": { issue_date, due_date, total_ht,
+  // total_ttc, vat_amount } }. L'identifiant client n'est renvoyé que lorsqu'il vient
+  // d'être créé ; le reste, à chaque facturation. On génère la facture PDF (maquette
+  // Mon Vrai) avec le numéro et les données de Tiime.
   let tiimeClientId: number | undefined;
   let invoiceId: string | undefined;
   let invoiceNumber: string | undefined;
-  let pdfB64: string | undefined;
+  let invoiceData: InvoiceData | undefined;
   try {
     const json = JSON.parse(body) as Record<string, unknown>;
     tiimeClientId = asInt(json.tiime_client_id ?? json.tiimeClientId);
     invoiceId = asString(json.invoice_id ?? json.invoiceId);
     invoiceNumber = asString(json.invoice_number ?? json.invoiceNumber ?? json.invoice_no ?? json.number);
-    pdfB64 = asString(json.invoice_pdf ?? json.invoicePdf ?? json.invoice_pdf_base64 ?? json.pdf ?? json.pdf_base64);
+    invoiceData = parseInvoiceData(json.invoice_data ?? json.invoiceData);
   } catch {
     // Réponse en texte (« Accepted ») : rien à mémoriser.
   }
@@ -64,19 +66,18 @@ export async function sendOrderToMake(orderId: string, by = "système"): Promise
     await setTiime(orderId, { clientId: tiimeClientId ?? customer?.tiimeClientId, invoiceId: invoiceId ?? order.tiime?.invoiceId, at: Date.now() }).catch(() => undefined);
   }
 
-  // Dépôt du PDF Tiime : rend la facture téléchargeable (client, e-mail, admin).
+  // Génération de la facture PDF (téléchargeable par le client, l'admin, jointe à l'e-mail).
   let invoiceStored = false;
-  const pdf = pdfB64 ? decodePdf(pdfB64) : null;
-  if (pdf) {
+  if (invoiceNumber) {
     try {
-      await storeTiimeInvoice(order, pdf, invoiceNumber || invoiceId || order.number);
+      await storeInvoice(order, { number: invoiceNumber, issuedAt: invoiceData?.issueDate ?? Date.now(), data: invoiceData });
       invoiceStored = true;
     } catch (err) {
-      await addOrderNote(orderId, `PDF de facture Tiime non stocké : ${(err as Error).message}`, by).catch(() => undefined);
+      await addOrderNote(orderId, `Facture PDF non générée : ${(err as Error).message}`, by).catch(() => undefined);
     }
   }
 
-  await addOrderNote(orderId, `Facturée dans Tiime via Make${invoiceNumber || invoiceId ? ` (facture ${invoiceNumber || invoiceId})` : ""}${invoiceStored ? " · PDF récupéré" : ""}${tiimeClientId !== undefined ? ` · client Tiime ${tiimeClientId} créé` : ""}`, by).catch(() => undefined);
+  await addOrderNote(orderId, `Facturée dans Tiime via Make${invoiceNumber || invoiceId ? ` (facture ${invoiceNumber || invoiceId})` : ""}${invoiceStored ? " · PDF émis" : ""}${tiimeClientId !== undefined ? ` · client Tiime ${tiimeClientId} créé` : ""}`, by).catch(() => undefined);
   return { ok: true, status: res.status, body: body.slice(0, 500), tiimeClientId, invoiceId };
 }
 
@@ -86,15 +87,30 @@ function asString(v: unknown): string | undefined {
   return undefined;
 }
 
-/** Décode un PDF en base64 (avec ou sans préfixe data:), en vérifiant l'en-tête %PDF. */
-function decodePdf(b64: string): Buffer | null {
-  const clean = b64.includes(",") && b64.startsWith("data:") ? b64.slice(b64.indexOf(",") + 1) : b64;
-  try {
-    const buf = Buffer.from(clean, "base64");
-    return buf.length > 4 && buf.subarray(0, 5).toString("latin1") === "%PDF-" ? buf : null;
-  } catch {
-    return null;
-  }
+function asNum(v: unknown): number | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() && Number.isFinite(Number(v))) return Number(v);
+  return undefined;
+}
+
+const toCents = (euros: number | undefined): number | undefined => (euros === undefined ? undefined : Math.round(euros * 100));
+const toTs = (s: unknown): number | undefined => {
+  if (typeof s !== "string" || !s.trim()) return undefined;
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? undefined : t;
+};
+
+/** Données de facture renvoyées par Tiime (montants en euros → centimes, dates → ms). */
+function parseInvoiceData(raw: unknown): InvoiceData | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const d = raw as Record<string, unknown>;
+  return {
+    issueDate: toTs(d.issue_date ?? d.issueDate),
+    dueDate: toTs(d.due_date ?? d.dueDate),
+    totalHt: toCents(asNum(d.total_ht ?? d.totalHt)),
+    totalTtc: toCents(asNum(d.total_ttc ?? d.totalTtc)),
+    vatAmount: toCents(asNum(d.vat_amount ?? d.vatAmount)),
+  };
 }
 
 function asInt(v: unknown): number | undefined {
