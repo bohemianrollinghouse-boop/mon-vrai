@@ -68,7 +68,7 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                 Facture PDF
               </ButtonLink>
             )}
-            <ButtonLink href={`mailto:${order.email}?subject=${encodeURIComponent(`Votre commande ${order.number} - Mon Vrai`)}`} tone="secondary">
+            <ButtonLink href={`mailto:${order.email}?subject=${encodeURIComponent(`Votre commande ${order.number} — Mon Vrai`)}`} tone="secondary">
               Envoyer un e-mail
             </ButtonLink>
           </>

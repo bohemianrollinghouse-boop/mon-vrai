@@ -15,9 +15,31 @@ try {
   BUILD_COMMIT = "";
 }
 
+/*
+ * En-têtes de sécurité, sur toutes les réponses. Pas de CSP complète (les scripts inline
+ * de Next, Stripe.js, la carte Boxtal et la fenêtre Google exigeraient des nonces) : on
+ * pose ce qui ne casse rien et protège vraiment. `frame-ancestors 'self'` interdit
+ * d'encadrer le site (clickjacking de l'admin) tout en laissant l'aperçu e-mail de l'admin,
+ * qui est une iframe de même origine. La géolocalisation reste possible pour la carte des
+ * points relais. HSTS : App Hosting sert déjà tout en HTTPS.
+ */
+const SECURITY_HEADERS = [
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+  { key: "Content-Security-Policy", value: "frame-ancestors 'self'; base-uri 'self'; object-src 'none'" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self)" },
+];
+
 const nextConfig: NextConfig = {
   // Inlinés au build : lus via process.env dans l'admin (voir components/admin, layout).
   env: { BUILD_TIME, BUILD_COMMIT },
+  // Ne pas annoncer la pile technique.
+  poweredByHeader: false,
+  async headers() {
+    return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
+  },
   /*
    * Redirections permanentes depuis les URLs de l'ancienne boutique Shopify : produits,
    * politiques, collections, panier, compte. Générées depuis l'export dans

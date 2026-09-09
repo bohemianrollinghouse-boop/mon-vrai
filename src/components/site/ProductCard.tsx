@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatEuroShort } from "@/lib/domain/money";
 import { productPath } from "@/lib/domain/system-pages";
 import type { Product } from "@/lib/domain/types";
+import { AddToCartButton } from "./AddToCartButton";
 import { TINT_BG } from "./ui";
 
 /*
@@ -27,13 +28,12 @@ export function ProductCard({ product, variant = "detailed" }: { product: Produc
   const image = product.images[0];
   const badge = BADGE_LABEL[product.badge];
   const detailed = variant === "detailed";
+  const soldOut = product.stock !== null && product.stock <= 0 && !product.preorder.enabled;
+  const href = productPath(product.slug);
 
   return (
-    <Link
-      href={productPath(product.slug)}
-      className={`flex flex-col rounded-card bg-white transition-transform hover:-translate-y-[3px] ${detailed ? "gap-[1.125rem] p-6" : "gap-4 p-5"}`}
-    >
-      <div className={`relative aspect-square min-h-0 rounded-thumb ${TINT_BG[product.tint]}`}>
+    <div className={`flex flex-col rounded-card bg-white transition-transform hover:-translate-y-[3px] ${detailed ? "gap-[1.125rem] p-6" : "gap-4 p-5"}`}>
+      <Link href={href} className={`relative block aspect-square min-h-0 rounded-thumb ${TINT_BG[product.tint]}`}>
         {image && (
           <div className={`absolute overflow-hidden rounded-[10px] ${detailed ? "inset-3.5" : "inset-2.5"}`}>
             <Image
@@ -46,27 +46,25 @@ export function ProductCard({ product, variant = "detailed" }: { product: Produc
           </div>
         )}
         {badge && <span className="absolute left-3.5 top-3.5 rounded-pill bg-white px-2.5 py-1.5 text-[0.6875rem] font-bold">{badge}</span>}
-      </div>
+      </Link>
 
-      <div className="flex flex-col gap-1.5">
+      <Link href={href} className="flex flex-col gap-1.5">
         <span className="text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-subtle">{product.ageLabel}</span>
         <span className={`font-bold ${detailed ? "text-lg tracking-[-0.01em]" : "text-[0.9375rem]"}`}>{product.title}</span>
         {detailed && product.items.length > 0 && (
           <span className="text-[0.8125rem] leading-relaxed text-muted">{joinItems(product.items)}</span>
         )}
-      </div>
+      </Link>
 
       {detailed ? (
         <div className="mt-auto flex items-center justify-between gap-4">
           <span className="font-extrabold">{formatEuroShort(product.price)}</span>
-          <span className="rounded-pill bg-ink px-[1.125rem] py-3 text-xs font-bold text-white">{ctaLabel(product)}</span>
+          <AddToCartButton slug={product.slug} label={ctaLabel(product)} price={product.price} variant="detailed" disabled={soldOut} />
         </div>
       ) : (
-        <span className="w-fit rounded-pill bg-ink px-4 py-2.5 text-xs font-bold text-white">
-          {ctaLabel(product)} · {formatEuroShort(product.price)}
-        </span>
+        <AddToCartButton slug={product.slug} label={ctaLabel(product)} price={product.price} variant="compact" disabled={soldOut} />
       )}
-    </Link>
+    </div>
   );
 }
 

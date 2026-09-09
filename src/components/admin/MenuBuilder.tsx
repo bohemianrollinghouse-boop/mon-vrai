@@ -53,7 +53,7 @@ function ItemRow({ item, opts, onChange, onRemove, onMove }: { item: MenuItem; o
         <Select value={t.key} onChange={(e) => onChange({ ...item, target: { kind: "system", key: e.target.value as typeof t.key } })} aria-label="Page système">
           {Object.entries(SYSTEM_PAGES).map(([key, p]) => (
             <option key={key} value={key}>
-              {p.label} - {p.path}
+              {p.label} • {p.path}
             </option>
           ))}
         </Select>

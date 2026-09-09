@@ -69,7 +69,7 @@ export function ProductForm({ product }: { product: Product | null }) {
 
             <Card title={<span className="text-[0.8125rem]">Référencement (SEO)</span>}>
               <Field label="Titre de page" hint="Vide = titre du livre." name="seoTitle">
-                <Input name="seoTitle" defaultValue={p?.seo.title ?? ""} maxLength={70} placeholder={p ? `${p.title} - imagier 6-18 mois` : ""} className="!font-medium" />
+                <Input name="seoTitle" defaultValue={p?.seo.title ?? ""} maxLength={70} placeholder={p ? `${p.title} • imagier 6-18 mois` : ""} className="!font-medium" />
               </Field>
               <Field label="Description" hint="Vide = sous-titre." name="seoDescription">
                 <Textarea name="seoDescription" defaultValue={p?.seo.description ?? ""} maxLength={200} rows={2} className="!font-medium" />

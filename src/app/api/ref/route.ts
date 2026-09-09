@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getInfluencerBySlug, recordRefClick } from "@/lib/db/promos";
 import { REF_COOKIE, REF_DAYS } from "@/lib/promos/resolve";
+import { safeInternalPath } from "@/lib/domain/safe-path";
 
 /*
  * Lien de suivi influenceur : monvrai.fr/…?ref=<slug>. Le proxy redirige ici ; on pose
@@ -10,8 +11,7 @@ import { REF_COOKIE, REF_DAYS } from "@/lib/promos/resolve";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const slug = (url.searchParams.get("r") ?? "").toLowerCase();
-  const to = url.searchParams.get("to") ?? "/";
-  const safeTo = to.startsWith("/") && !to.startsWith("//") ? to : "/";
+  const safeTo = safeInternalPath(url.searchParams.get("to"), "/");
   const res = NextResponse.redirect(new URL(safeTo, url.origin), 302);
 
   const influencer = slug ? await getInfluencerBySlug(slug).catch(() => null) : null;

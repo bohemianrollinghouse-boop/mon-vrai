@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import { Newsletter } from "@/components/site/Newsletter";
+import { PreorderCollectionCard } from "@/components/site/PreorderCollectionCard";
 import { ProductCard } from "@/components/site/ProductCard";
 import { SortSelect } from "@/components/site/SortSelect";
 import { Chip, Eyebrow, PillLink, TINT_BG, TINT_INK } from "@/components/site/ui";
 import { getCatalogueContent, getHomeContent } from "@/lib/db/content";
 import { listPublishedProducts } from "@/lib/db/products";
+import { getSettings } from "@/lib/db/settings";
+import { collectionState, toCollectionTitles } from "@/lib/promos/collection";
 import type { Product } from "@/lib/domain/types";
 
 export const metadata: Metadata = { title: "Catalogue" };
@@ -44,10 +47,13 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
   const { tri } = await searchParams;
   const sort = (SORTS.some((s) => s.value === tri) ? tri : "position") as Sort;
 
-  const [products, content, home] = await Promise.all([listPublishedProducts(), getCatalogueContent(), getHomeContent()]);
+  const [products, content, home, settings] = await Promise.all([listPublishedProducts(), getCatalogueContent(), getHomeContent(), getSettings()]);
   const sorted = sortProducts(products, sort);
   const hero = content?.hero;
   const offer = content?.offer;
+  // Encart « Précommander la collection » : uniquement si l'offre collection est activée.
+  const collection = collectionState(toCollectionTitles(products), new Set(), settings.promos.collectionOffer.enabled);
+  const showCollectionOffer = collection.enabled && collection.totalTitles > 1;
 
   return (
     <>
@@ -77,6 +83,8 @@ export default async function CataloguePage({ searchParams }: PageProps<"/catalo
           </div>
         </section>
       )}
+
+      {showCollectionOffer && <PreorderCollectionCard totalTitles={collection.totalTitles} fullPrice={collection.fullPrice} offerPrice={collection.offerPrice} />}
 
       <section className="site-wrap flex flex-wrap items-center justify-between gap-4 pt-8 max-[749px]:items-start">
         <div className="flex flex-wrap gap-2">

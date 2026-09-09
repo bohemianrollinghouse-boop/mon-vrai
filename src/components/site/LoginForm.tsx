@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { createUserWithEmailAndPassword, GoogleAuthProvider, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, updateProfile, type UserCredential } from "firebase/auth";
+import { createUserWithEmailAndPassword, GoogleAuthProvider, sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signInWithPopup, updateProfile, type UserCredential } from "firebase/auth";
 import { clientAuth } from "@/lib/firebase/client";
 
 /*
@@ -43,7 +43,11 @@ export function LoginForm({ returnTo }: { returnTo: string }) {
         mode === "register"
           ? await createUserWithEmailAndPassword(auth, email, password)
           : await signInWithEmailAndPassword(auth, email, password);
-      if (mode === "register" && name) await updateProfile(cred.user, { displayName: name });
+      if (mode === "register") {
+        if (name) await updateProfile(cred.user, { displayName: name });
+        // L'adresse doit être confirmée avant de donner accès aux commandes passées en invité.
+        await sendEmailVerification(cred.user).catch(() => undefined);
+      }
 
       await openSession(cred);
     } catch (err) {

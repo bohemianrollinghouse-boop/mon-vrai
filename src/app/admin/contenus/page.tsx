@@ -78,7 +78,7 @@ export default async function ContentsPage({ searchParams }: PageProps<"/admin/c
                   const t = home.tiles[i] ?? { title: "", text: "", tint: "green" as Tint };
                   return (
                     <div key={i} className="flex flex-col gap-3 rounded-xl bg-paper p-4">
-                      <Field label={`Tuile ${i + 1} - titre`}><Input name={`tiles[${i}].title`} defaultValue={t.title} /></Field>
+                      <Field label={`Tuile ${i + 1} • titre`}><Input name={`tiles[${i}].title`} defaultValue={t.title} /></Field>
                       <Field label="Texte"><Input name={`tiles[${i}].text`} defaultValue={t.text} /></Field>
                       <Field label="Teinte"><TintSelect name={`tiles[${i}].tint`} value={t.tint} /></Field>
                     </div>

@@ -66,13 +66,14 @@ export async function listOrdersForCustomer(uid: string): Promise<Order[]> {
 
 /*
  * Commandes d'un client connecté : celles rattachées à son compte (uid) ET celles passées
- * en invité avec son adresse e-mail (vérifiée par la session). Ainsi, créer un compte avec
- * l'e-mail d'anciennes commandes invité fait apparaître tout l'historique. Union dédupliquée.
+ * en invité avec son adresse e-mail. L'appelant ne passe l'e-mail que s'il est VÉRIFIÉ
+ * (SessionUser.emailVerified) : sinon, créer un compte avec l'adresse d'un tiers suffirait
+ * à lire ses commandes. Union dédupliquée.
  */
-export async function listOrdersForUser(uid: string, email?: string): Promise<Order[]> {
+export async function listOrdersForUser(uid: string, verifiedEmail?: string): Promise<Order[]> {
   const [byUid, byEmail] = await Promise.all([
     listOrdersForCustomer(uid).catch(() => [] as Order[]),
-    email ? listOrdersForEmail(email).catch(() => [] as Order[]) : Promise.resolve([] as Order[]),
+    verifiedEmail ? listOrdersForEmail(verifiedEmail).catch(() => [] as Order[]) : Promise.resolve([] as Order[]),
   ]);
   const map = new Map<string, Order>();
   for (const o of [...byUid, ...byEmail]) map.set(o.id, o);

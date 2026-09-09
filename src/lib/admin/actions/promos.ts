@@ -7,6 +7,7 @@ import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { deletePromo, getPromo, setPromoActive, upsertPromo } from "@/lib/db/promos";
+import { getSettings, saveSettings } from "@/lib/db/settings";
 import { parseEuroToCents } from "@/lib/domain/money";
 import { PromoType } from "@/lib/domain/types";
 
@@ -94,6 +95,23 @@ export async function togglePromoAction(formData: FormData): Promise<AdminResult
   await audit(user.email, promo.active ? "promo.deactivate" : "promo.activate", `promos/${code}`);
   revalidatePath("/admin/codes-promo");
   return saved(promo.active ? `Code ${code} désactivé.` : `Code ${code} activé.`);
+}
+
+/*
+ * Offre « collection complète » (un livre offert) : réglage automatique, sans code. Cet
+ * interrupteur bascule settings.promos.collectionOffer.enabled. Quand il est actif, la
+ * remise s'applique toute seule au panier/paiement, et l'encart « Précommander la
+ * collection » et le bloc « Compléter la collection » apparaissent sur le site.
+ */
+export async function setCollectionOfferAction(): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const settings = await getSettings();
+  const enabled = !settings.promos.collectionOffer.enabled;
+  await saveSettings({ ...settings, promos: { ...settings.promos, collectionOffer: { enabled } } });
+  await audit(user.email, "settings.collectionOffer", "settings/site", enabled ? "on" : "off");
+  revalidatePath("/admin/codes-promo");
+  revalidatePath("/", "layout");
+  return saved(enabled ? "Offre collection activée." : "Offre collection désactivée.");
 }
 
 export async function deletePromoAction(formData: FormData): Promise<AdminResult> {

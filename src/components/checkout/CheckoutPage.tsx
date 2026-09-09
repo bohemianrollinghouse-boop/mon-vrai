@@ -140,7 +140,7 @@ export function CheckoutPage(props: Props) {
 
       {props.testMode && (
         <div className="site-wrap">
-          <p className="rounded-[14px] bg-tint-sand px-5 py-3 text-center text-xs font-bold text-tint-sand-ink">Mode test - aucun débit réel. Carte de test : 4242 4242 4242 4242, date future, CVC 123.</p>
+          <p className="rounded-[14px] bg-tint-sand px-5 py-3 text-center text-xs font-bold text-tint-sand-ink">Mode test — aucun débit réel. Carte de test : 4242 4242 4242 4242, date future, CVC 123.</p>
         </div>
       )}
 
@@ -635,6 +635,12 @@ function Summary({ quote, shipping, shippingPrice, total, preorderShipFrom, cont
                 <span>−{formatEuro(a.amount)}</span>
               </div>
             ))}
+          {quote.collectionDiscount > 0 && (
+            <div className="flex justify-between text-tint-green-ink">
+              <span>{quote.collectionLabel}</span>
+              <span>−{formatEuro(quote.collectionDiscount)}</span>
+            </div>
+          )}
           <div className="flex justify-between gap-3">
             <span className="text-muted">Livraison · {shipping?.name ?? "-"}</span>
             <span className={quote.freeShipping ? "text-tint-green-ink" : ""}>{shipping ? (shippingPrice === 0 ? "Offerte" : formatEuro(shippingPrice)) : "-"}</span>
@@ -653,7 +659,7 @@ function Summary({ quote, shipping, shippingPrice, total, preorderShipFrom, cont
         {hasPreorder && shipFrom && <span>Expédition à partir du {shipFrom}, tous les livres dans un seul colis.</span>}
         {!hasPreorder && <span>Expédition sous 2 jours ouvrés, tous les livres dans un seul colis.</span>}
         <span>14 jours pour changer d'avis après réception.</span>
-        {contactEmail && <span>Une question ? {contactEmail} - réponse sous 48 h.</span>}
+        {contactEmail && <span>Une question ? {contactEmail} — réponse sous 48 h.</span>}
       </div>
     </aside>
   );

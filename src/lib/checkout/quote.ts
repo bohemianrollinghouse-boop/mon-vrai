@@ -2,7 +2,8 @@ import "server-only";
 import { loadCart, type CartView } from "@/lib/cart/read";
 import { getSettings } from "@/lib/db/settings";
 import { cartCodes } from "@/lib/db/carts";
-import { getProductsBySlugs } from "@/lib/db/products";
+import { getProductsBySlugs, listPublishedProducts } from "@/lib/db/products";
+import { collectionDiscount, collectionState, COLLECTION_DISCOUNT_LABEL, toCollectionTitles } from "@/lib/promos/collection";
 import type { PaymentMode } from "@/lib/stripe/client";
 import type { ShippingRate, SiteSettings } from "@/lib/domain/types";
 import { bracketIndexForWeight } from "@/lib/shipping/tariffs";
@@ -54,10 +55,14 @@ export type Quote = {
   countries: string[];
   freeThreshold: number;
   freeReached: boolean;
+  /** Remise « collection complète » (un livre offert), incluse dans `discount` ; 0 si non applicable. */
+  collectionDiscount: number;
+  /** Étiquette de la ligne de remise collection, quand `collectionDiscount > 0`. */
+  collectionLabel: string;
 };
 
 export async function buildQuote(_mode: PaymentMode, email?: string): Promise<{ quote: Quote; view: CartView; settings: SiteSettings }> {
-  const [view, settings] = await Promise.all([loadCart(), getSettings()]);
+  const [view, settings, published] = await Promise.all([loadCart(), getSettings(), listPublishedProducts()]);
   const codes = cartCodes(view.cart);
   const outcome = await resolvePromos({
     codes,
@@ -94,6 +99,12 @@ export async function buildQuote(_mode: PaymentMode, email?: string): Promise<{ 
   const parcelWeightG = Math.max(1, parcel.baseWeightG + itemsWeight);
   const bracket = bracketIndexForWeight(parcelWeightG);
 
+  // Offre collection : automatique (sans code), conditionnée au réglage admin. La remise
+  // est ajoutée au total remisé pour que le port, Stripe, la facture et le webhook la
+  // reflètent tous (les totaux dérivent de `discount`).
+  const collection = collectionState(toCollectionTitles(published), new Set(view.lines.map((l) => l.product.slug)), settings.promos.collectionOffer.enabled);
+  const collDiscount = collectionDiscount(collection);
+
   const freeReached = view.shipping.enabled && view.shipping.reached;
   const quote: Quote = {
     cartId: view.id,
@@ -104,13 +115,15 @@ export async function buildQuote(_mode: PaymentMode, email?: string): Promise<{ 
     parcelWeightG,
     applied: outcome.applied.map((a) => ({ code: a.code, amount: a.amount, label: a.label, viaLink: a.viaLink, type: a.type })),
     rejected: outcome.rejected,
-    discount: outcome.discount,
+    discount: outcome.discount + collDiscount,
     freeShipping: outcome.freeShipping,
     attribution: outcome.attribution,
     codes,
     countries: settings.shipping.countries,
     freeThreshold: settings.shipping.freeThreshold,
     freeReached,
+    collectionDiscount: collDiscount,
+    collectionLabel: COLLECTION_DISCOUNT_LABEL,
   };
   return { quote, view, settings };
 }

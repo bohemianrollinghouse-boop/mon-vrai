@@ -4,9 +4,10 @@ import { AutoSubmitSwitch } from "@/components/admin/AutoSubmitSwitch";
 import { CodeInput } from "@/components/admin/CodeInput";
 import { PromoTypeFields } from "@/components/admin/PromoTypeFields";
 import { ButtonLink, Card, Field, FilterPills, GridTable, Input, PageHeader, Pill, type PillTone } from "@/components/admin/ui";
-import { deletePromoAction, savePromoAction, togglePromoAction } from "@/lib/admin/actions/promos";
+import { deletePromoAction, savePromoAction, setCollectionOfferAction, togglePromoAction } from "@/lib/admin/actions/promos";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { listPromos } from "@/lib/db/promos";
+import { getSettings } from "@/lib/db/settings";
 import { formatEuro } from "@/lib/domain/money";
 import { promoLabel, promoStatus } from "@/lib/promos/engine";
 import { promoStats } from "@/lib/promos/stats";
@@ -26,8 +27,9 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
   const sp = await searchParams;
   const filter = typeof sp.statut === "string" && FILTERS.includes(sp.statut as never) ? sp.statut : "Tous";
   const selectedCode = typeof sp.code === "string" ? sp.code.toUpperCase() : "";
-  const [all, snap] = await Promise.all([listPromos(), adminSnapshot()]);
+  const [all, snap, settings] = await Promise.all([listPromos(), adminSnapshot(), getSettings()]);
   const now = snap.now;
+  const collectionOfferEnabled = settings.promos.collectionOffer.enabled;
   const promos = all.filter((p) => !p.influencerId);
   const influencerCodes = all.filter((p) => p.influencerId);
   const stats = promoStats(promos, snap.orders);
@@ -51,6 +53,21 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
         }
       />
       <FilterPills items={FILTERS.map((f) => ({ href: f === "Tous" ? "/admin/codes-promo" : `/admin/codes-promo?statut=${f}`, label: f, count: f === "Tous" ? withStatus.length : withStatus.filter((x) => x.status === f).length, active: filter === f }))} />
+
+      <Card
+        title="Offre « collection complète » — un livre offert"
+        className="mb-3"
+        aside={
+          <ActionForm action={setCollectionOfferAction} hideFooter className="!gap-0">
+            <AutoSubmitSwitch label={collectionOfferEnabled ? "Désactiver l'offre" : "Activer l'offre"} defaultChecked={collectionOfferEnabled} />
+          </ActionForm>
+        }
+      >
+        <p className="text-[0.8125rem] leading-relaxed text-muted">
+          Automatique, sans code : quand un panier contient tous les imagiers publiés, le titre le moins cher est offert (un exemplaire). La remise s'applique seule au panier et au paiement. Activée, l'offre affiche aussi l'encart « Précommander la collection » du catalogue et le bloc « Compléter la collection » du panier.{" "}
+          <strong className={collectionOfferEnabled ? "text-tint-green-ink" : "text-subtle"}>{collectionOfferEnabled ? "Offre active." : "Offre désactivée."}</strong>
+        </p>
+      </Card>
 
       <div className="grid grid-cols-[1fr_360px] items-start gap-3 max-[1099px]:grid-cols-1">
         <GridTable

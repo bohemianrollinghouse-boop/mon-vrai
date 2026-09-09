@@ -22,7 +22,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const title = settings.seo.title ?? settings.shopName;
   return {
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
-    title: { default: title, template: `%s - ${settings.shopName}` },
+    title: { default: title, template: `%s — ${settings.shopName}` },
     description: settings.seo.description,
     // Favicon et icônes : fichiers app/favicon.ico, app/icon.png, app/apple-icon.png (détectés par Next).
   };

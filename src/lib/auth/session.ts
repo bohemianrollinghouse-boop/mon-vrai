@@ -19,6 +19,12 @@ export type SessionUser = {
   uid: string;
   email: string;
   name: string;
+  /**
+   * Vrai si Firebase a vérifié l'adresse (lien de confirmation, ou fournisseur Google).
+   * Tout rattachement de données par e-mail (commandes invité, factures) l'exige : sans
+   * ça, créer un compte avec l'adresse d'un tiers suffirait à lire ses commandes.
+   */
+  emailVerified: boolean;
   isAdmin: boolean;
 };
 
@@ -48,6 +54,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       uid: decoded.uid,
       email: decoded.email ?? "",
       name: (decoded.name as string | undefined) ?? "",
+      emailVerified: decoded.email_verified === true,
       isAdmin: decoded.admin === true,
     };
   } catch {

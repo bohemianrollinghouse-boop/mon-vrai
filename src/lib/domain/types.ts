@@ -248,9 +248,9 @@ function costMatrix(id: string): { FR: number[]; BE: number[]; LU: number[] } {
 }
 
 export const DEFAULT_SHIPPING_RATES: ShippingRate[] = [
-  { id: "mondial-relay", name: "Mondial Relay - point relais", description: "3 à 5 jours", prices: costMatrix("mondial-relay"), freeAboveThreshold: true, enabled: true, offerCodes: { ...DEFAULT_OFFER_CODES["mondial-relay"] }, relay: true, networks: ["MONR_NETWORK"] },
-  { id: "colissimo", name: "Colissimo - domicile", description: "2 à 3 jours", prices: costMatrix("colissimo"), freeAboveThreshold: false, enabled: true, offerCodes: { ...DEFAULT_OFFER_CODES.colissimo }, relay: false, networks: [] },
-  { id: "chronopost", name: "Chronopost - express", description: "J+1", prices: costMatrix("chronopost"), freeAboveThreshold: false, enabled: true, offerCodes: { ...DEFAULT_OFFER_CODES.chronopost }, relay: false, networks: [] },
+  { id: "mondial-relay", name: "Mondial Relay • point relais", description: "3 à 5 jours", prices: costMatrix("mondial-relay"), freeAboveThreshold: true, enabled: true, offerCodes: { ...DEFAULT_OFFER_CODES["mondial-relay"] }, relay: true, networks: ["MONR_NETWORK"] },
+  { id: "colissimo", name: "Colissimo • domicile", description: "2 à 3 jours", prices: costMatrix("colissimo"), freeAboveThreshold: false, enabled: true, offerCodes: { ...DEFAULT_OFFER_CODES.colissimo }, relay: false, networks: [] },
+  { id: "chronopost", name: "Chronopost • express", description: "J+1", prices: costMatrix("chronopost"), freeAboveThreshold: false, enabled: true, offerCodes: { ...DEFAULT_OFFER_CODES.chronopost }, relay: false, networks: [] },
 ];
 
 /** Colis par défaut pour Boxtal : un carton de livres 14 × 14 cm. */
@@ -336,6 +336,17 @@ export const SiteSettings = z.object({
       paypal: z.boolean().default(false),
     })
     .default({ mode: "live", paypal: false }),
+  promos: z
+    .object({
+      /*
+       * Offre « collection complète » : quand le panier contient au moins un exemplaire
+       * de chaque titre publié, le titre le moins cher est offert (remise = son prix
+       * unitaire). Automatique, sans code ; activable ici. Pilote aussi l'affichage de
+       * l'encart « Précommander la collection » et du bloc « Compléter la collection ».
+       */
+      collectionOffer: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
+    })
+    .default({ collectionOffer: { enabled: false } }),
   legal: z
     .object({
       footerLine: z.string().default(""),

@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { PromoForm, QtyControls } from "@/components/site/CartLineControls";
+import { CompleteCollectionButton } from "@/components/site/CompleteCollectionButton";
 import { PillLink, TINT_BG } from "@/components/site/ui";
 import { addToCartForm } from "@/lib/cart/actions";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import { buildQuote } from "@/lib/checkout/quote";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
+import { collectionState, toCollectionTitles } from "@/lib/promos/collection";
 import { productPath, systemPath } from "@/lib/domain/system-pages";
 
 export const metadata: Metadata = { title: "Votre panier" };
@@ -24,6 +26,9 @@ export default async function CartPage() {
   const inCart = new Set(view.lines.map((l) => l.product.slug));
   const upsell = all.filter((p) => !inCart.has(p.slug)).slice(0, 4);
   const shipFrom = settings.shipping.preorderShipFrom ? formatDate(settings.shipping.preorderShipFrom) : null;
+  // Bloc « Compléter la collection » : conditionné au réglage admin de l'offre collection.
+  const collection = collectionState(toCollectionTitles(all), inCart, settings.promos.collectionOffer.enabled);
+  const showComplete = collection.enabled && collection.missing.length > 0;
 
   return (
     <section className="site-wrap py-6 pb-[4.5rem]">
@@ -91,11 +96,17 @@ export default async function CartPage() {
                 );
               })}
 
-              {upsell.length > 0 && (
+              {showComplete && (
                 <div className="mt-3 flex flex-col gap-4 rounded-card bg-white p-6">
-                  <div className="flex flex-wrap items-baseline justify-between gap-4">
-                    <span className="font-extrabold">Compléter la collection</span>
-                    <span className="text-[0.8125rem] font-semibold text-subtle">Expédiés dans le même colis</span>
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="flex flex-col gap-1">
+                      <span className="font-extrabold">Compléter la collection</span>
+                      <span className="text-[0.8125rem] font-semibold text-tint-sand-ink">
+                        Ajoutez {collection.missing.length === 1 ? "le titre manquant" : `les ${collection.missing.length} titres manquants`} · un livre offert, la collection à {formatEuroShort(collection.offerPrice)}{" "}
+                        <span className="line-through opacity-60">{formatEuroShort(collection.fullPrice)}</span>
+                      </span>
+                    </div>
+                    <CompleteCollectionButton missingCost={collection.missingCost} />
                   </div>
                   <div className="grid grid-cols-4 gap-3 max-[989px]:grid-cols-2">
                     {upsell.map((p) => {
@@ -151,6 +162,12 @@ export default async function CartPage() {
                       <span>0,00 €</span>
                     </div>
                   ))}
+                  {quote.collectionDiscount > 0 && (
+                    <div className="flex justify-between gap-4 text-tint-green-ink">
+                      <span>{quote.collectionLabel}</span>
+                      <span>−{formatEuro(quote.collectionDiscount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between gap-4">
                     <span className="text-muted">Livraison</span>
                     <span className={quote.freeShipping ? "text-tint-green-ink" : ""}>{quote.freeShipping || (view.shipping.enabled && view.shipping.reached) ? "Offerte" : "Calculée au paiement"}</span>
@@ -169,7 +186,7 @@ export default async function CartPage() {
                 </PillLink>
                 {settings.payments.mode === "test" && (
                   <span className="rounded-[14px] bg-tint-sand px-4 py-3 text-center text-xs font-bold text-tint-sand-ink">
-                    Paiement en mode test - aucun débit réel. Carte de test : 4242 4242 4242 4242.
+                    Paiement en mode test — aucun débit réel. Carte de test : 4242 4242 4242 4242.
                   </span>
                 )}
                 <div className="flex flex-wrap justify-center gap-2">
@@ -182,7 +199,7 @@ export default async function CartPage() {
               </div>
 
               <div className="flex flex-col gap-3 rounded-card bg-tint-sand p-6 text-[0.8125rem] font-semibold leading-relaxed text-tint-sand-ink">
-                {shipFrom && <span>Précommande - expédition dès le {shipFrom}, tous vos livres dans un seul colis.</span>}
+                {shipFrom && <span>Précommande — expédition dès le {shipFrom}, tous vos livres dans un seul colis.</span>}
                 <span>Mondial Relay, Colissimo ou Chronopost · {settings.shipping.countries.map(countryName).join(", ")}.</span>
                 <span>14 jours pour changer d'avis.</span>
               </div>

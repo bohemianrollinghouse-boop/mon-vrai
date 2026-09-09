@@ -9,7 +9,7 @@ import { resolveAudience, saveTemplateValues, type Audience } from "@/lib/db/new
 import { renderNewsletter } from "@/lib/email/newsletter";
 import { sendNewsletterBatch } from "@/lib/email/send";
 import { unsubscribeUrl } from "@/lib/newsletter/unsub";
-import { templateById } from "@/lib/newsletter/templates";
+import { templateById } from "@/lib/newsletter/render";
 
 /*
  * Newsletter par modèles : on enregistre les textes/images d'un modèle, et on l'envoie à
@@ -18,12 +18,20 @@ import { templateById } from "@/lib/newsletter/templates";
  * désinscription signé.
  */
 
-/** Récupère, depuis le formulaire, les valeurs des champs déclarés par le modèle. */
-function valuesFrom(formData: FormData, templateId: string): Record<string, string> {
-  const def = templateById(templateId);
-  const out: Record<string, string> = {};
-  for (const field of def?.fields ?? []) out[field.name] = String(formData.get(field.name) ?? "");
-  return out;
+/*
+ * Les modifications d'un modèle (textes édités en ligne + images remplacées) arrivent en
+ * un seul blob JSON `values` : clés nues pour les textes, préfixe « img: » pour les images.
+ */
+function valuesFrom(formData: FormData): Record<string, string> {
+  try {
+    const parsed = JSON.parse(String(formData.get("values") ?? "{}")) as unknown;
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) if (typeof v === "string") out[k] = v;
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 export async function saveNewsletterTemplateAction(formData: FormData): Promise<AdminResult> {
@@ -31,7 +39,7 @@ export async function saveNewsletterTemplateAction(formData: FormData): Promise<
   const templateId = String(formData.get("templateId") ?? "");
   const def = templateById(templateId);
   if (!def) return failed("Modèle inconnu.");
-  await saveTemplateValues(templateId, valuesFrom(formData, templateId));
+  await saveTemplateValues(templateId, valuesFrom(formData));
   await audit(user.email, "newsletter.template", `content/newsletter#${templateId}`);
   revalidatePath("/admin/newsletter");
   return saved(`Modèle « ${def.label} » enregistré.`);
@@ -59,9 +67,8 @@ export async function sendNewsletterAction(formData: FormData): Promise<AdminRes
   if (audience.kind === "one" && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(audience.email)) return failed("Adresse e-mail invalide.", { email: "Invalide" });
   if (audience.kind === "product" && !audience.slug) return failed("Choisissez un titre.", { slug: "Requis" });
 
-  const values = valuesFrom(formData, templateId);
+  const values = valuesFrom(formData);
   if (!values.subject?.trim()) return failed("Renseignez le sujet de l'e-mail.");
-  if (!values.intro?.trim() && !values.title?.trim()) return failed("Le contenu du modèle est vide.");
 
   // On enregistre au passage ce qui est envoyé, pour le retrouver tel quel plus tard.
   await saveTemplateValues(templateId, values).catch(() => undefined);

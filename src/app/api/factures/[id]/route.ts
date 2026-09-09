@@ -16,7 +16,8 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
 
   const order = await getOrder(id);
   if (!order) return NextResponse.json({ error: "Commande introuvable" }, { status: 404 });
-  if (!user.isAdmin && order.customerUid !== user.uid && order.email.toLowerCase() !== (user.email ?? "").toLowerCase()) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  const byEmail = user.emailVerified && order.email.toLowerCase() === user.email.toLowerCase();
+  if (!user.isAdmin && order.customerUid !== user.uid && !byEmail) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   if (order.status === "pending_payment" || order.status === "cancelled") {
     return NextResponse.json({ error: "Pas de facture pour cette commande" }, { status: 404 });
   }

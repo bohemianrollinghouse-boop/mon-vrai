@@ -94,7 +94,7 @@ export function RelayPicker({ token, networks, address, selected, onSelect }: Pr
       </div>
       <div className="relative min-h-[360px] overflow-hidden rounded-[20px] bg-paper p-3">
         <div id="boxtal-relay-map" ref={host} className="h-[400px] w-full overflow-hidden rounded-[14px] bg-canvas [&_iframe]:h-full [&_iframe]:w-full" />
-        {!token && <p className="absolute inset-3 flex items-center justify-center rounded-[14px] bg-white/80 p-6 text-center text-sm font-semibold text-muted">Carte indisponible pour le moment - écrivez-nous le relais souhaité dans la commande.</p>}
+        {!token && <p className="absolute inset-3 flex items-center justify-center rounded-[14px] bg-white/80 p-6 text-center text-sm font-semibold text-muted">Carte indisponible pour le moment — écrivez-nous le relais souhaité dans la commande.</p>}
         {error && <p className="absolute inset-3 flex items-center justify-center rounded-[14px] bg-white/80 p-6 text-center text-sm font-semibold text-danger">{error}</p>}
         <span className="pointer-events-none absolute bottom-5 right-5 rounded-pill bg-white px-2.5 py-1.5 text-[0.625rem] font-bold text-subtle">Carte Boxtal</span>
       </div>

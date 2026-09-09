@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useState } from "react";
 import { addToCart, type CartActionResult } from "@/lib/cart/actions";
 import { formatEuroShort } from "@/lib/domain/money";
+import { useCartModal } from "./CartModal";
 
 /*
  * Bloc d'achat de la fiche produit (maquette 9a) : compteur − n + et bouton dont le
@@ -12,7 +12,12 @@ import { formatEuroShort } from "@/lib/domain/money";
  */
 export function AddToCartForm({ slug, verb, unitPrice, disabled = false, note }: { slug: string; verb: string; unitPrice: number; disabled?: boolean; note?: string }) {
   const [qty, setQty] = useState(1);
-  const [state, action, pending] = useActionState<CartActionResult | null, FormData>(async (_prev, formData) => addToCart(formData), null);
+  const { openCartModal } = useCartModal();
+  const [state, action, pending] = useActionState<CartActionResult | null, FormData>(async (_prev, formData) => {
+    const result = await addToCart(formData);
+    if (result.ok) openCartModal({ slug });
+    return result;
+  }, null);
 
   return (
     <form action={action} className="flex flex-col gap-3.5 rounded-card bg-white p-5">
@@ -42,10 +47,7 @@ export function AddToCartForm({ slug, verb, unitPrice, disabled = false, note }:
       )}
       {state?.ok && (
         <p role="status" className="text-sm font-semibold text-tint-green-ink">
-          Ajouté au panier ·{" "}
-          <Link href="/panier" className="underline">
-            voir le panier ({state.count})
-          </Link>
+          Ajouté au panier · {state.count} dans le panier
         </p>
       )}
       {state && !state.ok && (

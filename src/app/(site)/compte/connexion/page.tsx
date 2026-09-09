@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/site/LoginForm";
 import { getSessionUser } from "@/lib/auth/session";
+import { safeInternalPath } from "@/lib/domain/safe-path";
 
 export const metadata: Metadata = { title: "Connexion" };
 export const dynamic = "force-dynamic";
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function LoginPage({ searchParams }: PageProps<"/compte/connexion">) {
   const { retour } = await searchParams;
   // Seuls des chemins internes sont acceptés : pas de redirection vers un autre site.
-  const returnTo = typeof retour === "string" && retour.startsWith("/") && !retour.startsWith("//") ? retour : "/compte";
+  const returnTo = safeInternalPath(retour, "/compte");
 
   const user = await getSessionUser();
   if (user) redirect(returnTo);

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { AccountForm } from "@/components/site/AccountForm";
+import { VerifyEmailNotice } from "@/components/site/VerifyEmailNotice";
 import { OrderProgress } from "@/components/site/OrderProgress";
 import { PillLink } from "@/components/site/ui";
 import { addAddressAction, deleteAccountAction, deleteAddressAction, setNewsletterAction, updateProfileAction } from "@/lib/account/actions";
@@ -39,7 +40,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/compte">
   const { onglet } = await searchParams;
   const tab: Tab = TABS.some((t) => t.key === onglet) ? (onglet as Tab) : "commandes";
   const user = await requireUser();
-  const [orders, customer, products, settings] = await Promise.all([listOrdersForUser(user.uid, user.email), getCustomer(user.uid), listPublishedProducts(), getSettings()]);
+  const [orders, customer, products, settings] = await Promise.all([listOrdersForUser(user.uid, user.emailVerified ? user.email : undefined), getCustomer(user.uid), listPublishedProducts(), getSettings()]);
   const firstName = (customer?.name || user.name || "").split(" ")[0];
   const current = orders.find((o) => ACTIVE.includes(o.status));
   const previous = orders.filter((o) => o !== current);
@@ -76,6 +77,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/compte">
         <div className="flex flex-col gap-4">
           {tab === "commandes" && (
             <>
+              {!user.emailVerified && <VerifyEmailNotice email={user.email} />}
               {current ? (
                 <>
                   <div className="grid grid-cols-[1fr_auto] items-center gap-6 rounded-card bg-tint-green p-7 max-[599px]:grid-cols-1">
@@ -252,7 +254,7 @@ function date(ts: number): string {
 function shippingLine(o: Order, preorderShipFrom?: string): string {
   if (o.status === "shipped") return `Expédiée${o.tracking ? ` · ${o.tracking.carrier} ${o.tracking.number}` : ""}.`;
   if (o.lines.some((l) => l.preorder) && preorderShipFrom) return `Expédition prévue à partir du ${date(new Date(preorderShipFrom).getTime())} - un seul colis.`;
-  return "Nous préparons votre colis - un seul envoi pour tous vos livres.";
+  return "Nous préparons votre colis — un seul envoi pour tous vos livres.";
 }
 function countryName(code: string): string {
   try {

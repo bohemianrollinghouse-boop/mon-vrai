@@ -172,6 +172,7 @@ async function main() {
     },
     inventory: { lowThreshold: 20 },
     payments: { mode: "live", paypal: false },
+    promos: { collectionOffer: { enabled: true } },
     legal: {
       footerLine: "",
       sellerName: "",
@@ -182,7 +183,7 @@ async function main() {
     },
     seo: {
       title: "Mon Vrai — imagiers réalistes 6–18 mois",
-      description: "Des imagiers réalistes pour les 6–18 mois : une vraie photo par double-page, sur fond blanc.",
+      description: "Des imagiers réalistes pour les 6–18 mois : une illustration réaliste par double-page, sur fond blanc.",
     },
   });
 
@@ -216,7 +217,7 @@ async function main() {
     hero: {
       badge: "Imagiers 6–18 mois",
       heading: "Le monde, en vrai, dans de petites mains.",
-      text: "Des photos nettes sur fond blanc, une par double-page. Pour apprendre à nommer, sans se distraire.",
+      text: "Des illustrations réalistes nettes sur fond blanc, une par double-page. Pour apprendre à nommer, sans se distraire.",
       videoUrl: heroVideo.url,
       posterUrl: heroPoster.url,
       primary: { label: "Acheter maintenant", href: "/catalogue" },
@@ -290,7 +291,7 @@ async function main() {
       ],
     },
     principles: [
-      { eyebrow: "01 · Réaliste", title: "De vraies photos, jamais de dessins", text: "Ce que l'enfant voit dans le livre, il le retrouve dans la rue, la cuisine ou le jardin.", tint: "green" },
+      { eyebrow: "01 · Réaliste", title: "Des illustrations réalistes, jamais de dessins", text: "Ce que l'enfant voit dans le livre, il le retrouve dans la rue, la cuisine ou le jardin.", tint: "green" },
       { eyebrow: "02 · Simple", title: "Un objet par double-page", text: "Sans texte ni décor, pour favoriser l'attention et laisser l'enfant explorer à son rythme.", tint: "blue" },
       { eyebrow: "03 · Essentiel", title: "Fait pour durer", text: "Cartonné, coins arrondis, papier FSC, encre de soja. Conforme EN 71.", tint: "sand" },
     ],

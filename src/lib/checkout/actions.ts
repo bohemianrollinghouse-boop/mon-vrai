@@ -62,6 +62,36 @@ export type CheckoutInput = z.input<typeof Input>;
 
 export type IntentResult = { ok: true; clientSecret: string; amount: number; intentId: string } | { ok: false; error: string; field?: string };
 
+/*
+ * Contrôle du stock juste avant le paiement : on relit les produits en base et on refuse
+ * si une ligne dépasse le stock réel (précommande comprise : son stock est fini). Ça
+ * n'élimine pas totalement la course entre deux paiements simultanés — le filet « stock
+ * négatif signalé » à la création de commande reste le dernier recours — mais ça bloque
+ * le cas courant (l'article est parti entre l'ajout au panier et le clic « Payer »).
+ * `null` = stock non suivi : jamais bloquant.
+ */
+async function stockShortfall(lines: { slug: string; qty: number; title: string }[]): Promise<{ title: string; available: number } | null> {
+  const wanted = new Map<string, { qty: number; title: string }>();
+  for (const l of lines) {
+    const e = wanted.get(l.slug) ?? { qty: 0, title: l.title };
+    e.qty += l.qty;
+    wanted.set(l.slug, e);
+  }
+  const products = await getProductsBySlugs([...wanted.keys()]);
+  for (const [slug, w] of wanted) {
+    const p = products.get(slug);
+    if (!p) return { title: w.title, available: 0 };
+    if (p.stock !== null && w.qty > p.stock) return { title: p.title, available: Math.max(0, p.stock) };
+  }
+  return null;
+}
+
+function outOfStockMessage(short: { title: string; available: number }): string {
+  return short.available > 0
+    ? `« ${short.title} » : il ne reste que ${short.available} exemplaire${short.available > 1 ? "s" : ""} en stock.`
+    : `« ${short.title} » n'est plus disponible.`;
+}
+
 export async function createPaymentIntentAction(raw: CheckoutInput): Promise<IntentResult> {
   const parsed = Input.safeParse(raw);
   if (!parsed.success) {
@@ -78,6 +108,8 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
 
   const { quote } = await buildQuote(mode, d.email);
   if (!quote.cartId || quote.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
+  const short = await stockShortfall(quote.lines);
+  if (short) return { ok: false, error: outOfStockMessage(short) };
   const { shipping, price: shippingPrice, offerCode, total } = quoteTotal(quote, d.rateId, d.address.country);
   if (total < 50) return { ok: false, error: "Montant trop faible pour un paiement par carte." };
   if (shipping.relay && !d.relay) return { ok: false, error: "Choisissez votre point relais sur la carte avant de payer.", field: "relay" };
@@ -162,6 +194,8 @@ export async function placeFreeOrderAction(raw: CheckoutInput): Promise<FreeOrde
 
   const { quote } = await buildQuote(mode, d.email);
   if (!quote.cartId || quote.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
+  const short = await stockShortfall(quote.lines);
+  if (short) return { ok: false, error: outOfStockMessage(short) };
   const { shipping, price: shippingPrice, offerCode, total } = quoteTotal(quote, d.rateId, d.address.country);
   if (total !== 0) return { ok: false, error: "Cette commande n'est pas gratuite : réglez le paiement." };
   if (shipping.relay && !d.relay) return { ok: false, error: "Choisissez votre point relais sur la carte.", field: "relay" };

@@ -45,7 +45,7 @@ export default async function ProductPage({ params }: PageProps<"/livres/[slug]"
   const soldOut = product.stock !== null && product.stock <= 0 && !product.preorder.enabled;
   const shipFromIso = product.preorder.enabled ? product.preorder.shipFrom || settings.shipping.preorderShipFrom : undefined;
   const shipFrom = shipFromIso ? formatDate(shipFromIso) : null;
-  const carriers = settings.shipping.rates.filter((r) => r.enabled).map((r) => r.name.split(" - ")[0]);
+  const carriers = settings.shipping.rates.filter((r) => r.enabled).map((r) => r.name.split(/\s[•—-]\s/)[0]);
   const countries = settings.shipping.countries.map(countryName);
   const free = settings.shipping.freeThreshold;
 
@@ -55,7 +55,7 @@ export default async function ProductPage({ params }: PageProps<"/livres/[slug]"
       body: product.descriptionHtml ? (
         <div className="prose-mv text-sm" dangerouslySetInnerHTML={{ __html: product.descriptionHtml }} />
       ) : (
-        <p>Six doubles pages cartonnées, une vraie photo par page sur fond blanc, sans texte ni décor{product.items.length ? ` : ${joinItems(product.items)}.` : "."}</p>
+        <p>Six doubles pages cartonnées, une illustration réaliste par page sur fond blanc, sans texte ni décor{product.items.length ? ` : ${joinItems(product.items)}.` : "."}</p>
       ),
     },
     {

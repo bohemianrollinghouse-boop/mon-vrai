@@ -1,70 +1,180 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { Input, Select, Textarea } from "@/components/admin/ui";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { Input, Select } from "@/components/admin/ui";
 import { saveNewsletterTemplateAction, sendNewsletterAction } from "@/lib/admin/actions/newsletter";
-import { NEWSLETTER_TEMPLATES, templateById, templateDefaults } from "@/lib/newsletter/templates";
+import { NEWSLETTER_TEMPLATES, renderTemplateBody, templateById, type Brand, type RenderCtx } from "@/lib/newsletter/render";
 import type { AdminResult } from "@/lib/admin/types";
 
 /*
- * Composeur de newsletter par modèles : on choisit un modèle (onglets), on modifie ses
- * textes et images (aperçu en direct à droite), on enregistre, puis on envoie à l'audience
- * choisie. Pas d'éditeur libre : on part toujours d'un modèle riche et on l'ajuste.
+ * Composeur de newsletter : on choisit un modèle (onglets), et on l'édite DIRECTEMENT
+ * dans l'aperçu — chaque texte se modifie sur place (aucun champ, aucun éditeur riche),
+ * chaque image se remplace via le petit crayon (sélection d'un fichier, recadrage centré).
+ * On enregistre, puis on envoie à l'audience choisie. Le gabarit reste fixe.
+ *
+ * L'aperçu éditable est injecté en HTML brut dans un conteneur et n'est PAS géré par React
+ * (sinon le curseur sauterait à chaque frappe) : on relit le DOM (« scrape ») au moment de
+ * changer d'onglet, d'enregistrer ou d'envoyer.
  */
 type ProductOpt = { slug: string; title: string };
 type Values = Record<string, string>;
 type AudienceKind = "one" | "all" | "buyers" | "product";
 
-export function NewsletterComposer({ saved, products, adminEmail, counts }: { saved: Record<string, Values>; products: ProductOpt[]; adminEmail: string; counts: { all: number; buyers: number } }) {
+export function NewsletterComposer({
+  saved,
+  products,
+  adminEmail,
+  counts,
+  brand,
+  base,
+}: {
+  saved: Record<string, Values>;
+  products: ProductOpt[];
+  adminEmail: string;
+  counts: { all: number; buyers: number };
+  brand: Brand;
+  base: string;
+}) {
   const [templateId, setTemplateId] = useState(NEWSLETTER_TEMPLATES[0].id);
-  const [store, setStore] = useState<Record<string, Values>>(() => {
-    const s: Record<string, Values> = {};
-    for (const t of NEWSLETTER_TEMPLATES) s[t.id] = { ...templateDefaults(t.id), ...(saved[t.id] ?? {}) };
+  const [subjects, setSubjects] = useState<Record<string, string>>(() => {
+    const s: Record<string, string> = {};
+    for (const t of NEWSLETTER_TEMPLATES) s[t.id] = saved[t.id]?.subject ?? t.subject;
     return s;
   });
   const [kind, setKind] = useState<AudienceKind>("one");
   const [slug, setSlug] = useState(products[0]?.slug ?? "");
   const [email, setEmail] = useState(adminEmail);
   const [message, setMessage] = useState<AdminResult | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [pending, start] = useTransition();
-  const [previewHtml, setPreviewHtml] = useState("");
 
-  const def = templateById(templateId)!;
-  const values = store[templateId];
-  const setField = (name: string, val: string) => setStore((s) => ({ ...s, [templateId]: { ...s[templateId], [name]: val } }));
-
-  const fd = useMemo(() => {
-    const build = (extra: Record<string, string> = {}) => {
-      const f = new FormData();
-      f.set("templateId", templateId);
-      for (const field of def.fields) f.set(field.name, values[field.name] ?? "");
-      for (const [k, v] of Object.entries(extra)) f.set(k, v);
-      return f;
-    };
-    return build;
-  }, [templateId, values, def]);
-
-  // Aperçu en direct (débouncé).
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch("/api/newsletter/preview", { method: "POST", body: fd() });
-        if (!cancelled && res.ok) setPreviewHtml(await res.text());
-      } catch {
-        // aperçu indisponible
+  // Valeurs éditées (textes + images) par modèle, dans un objet mutable hors React : on le
+  // modifie sans re-render pour ne pas faire sauter le curseur de l'aperçu. Initialisé
+  // paresseusement (jamais pendant le rendu ; seulement depuis les effets/gestionnaires).
+  const storeRef = useRef<Record<string, Values> | null>(null);
+  const getStore = (): Record<string, Values> => {
+    if (storeRef.current === null) {
+      const s: Record<string, Values> = {};
+      for (const t of NEWSLETTER_TEMPLATES) {
+        const rest = { ...(saved[t.id] ?? {}) };
+        delete rest.subject;
+        s[t.id] = rest;
       }
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [fd]);
+      storeRef.current = s;
+    }
+    return storeRef.current;
+  };
 
-  const onSave = () => start(async () => setMessage(await saveNewsletterTemplateAction(fd())));
+  const container = useRef<HTMLDivElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const currentKey = useRef<string>("");
+
+  const renderInto = (id: string) => {
+    if (!container.current) return;
+    const ctx: RenderCtx = { mode: "edit", base, unsub: "#", brand, values: getStore()[id] ?? {} };
+    container.current.innerHTML = renderTemplateBody(id, ctx);
+  };
+
+  const scrape = (id: string) => {
+    const el = container.current;
+    if (!el) return;
+    const vals: Values = { ...(getStore()[id] ?? {}) };
+    el.querySelectorAll<HTMLElement>('[contenteditable="true"][data-k]').forEach((node) => {
+      vals[node.dataset.k as string] = node.innerText.replace(/ /g, " ").replace(/\n{3,}/g, "\n\n").replace(/[ \t]+$/gm, "").trim();
+    });
+    el.querySelectorAll<HTMLImageElement>("img[data-img][data-k]").forEach((img) => {
+      const src = img.getAttribute("src") ?? "";
+      const key = "img:" + (img.dataset.k as string);
+      if (src && !src.startsWith("data:")) vals[key] = src;
+      else delete vals[key];
+    });
+    getStore()[id] = vals;
+  };
+
+  // (Re)rend l'aperçu quand on change de modèle.
+  useEffect(() => {
+    renderInto(templateId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateId]);
+
+  // Clic sur un crayon → sélecteur de fichier ; collage → texte brut.
+  useEffect(() => {
+    const el = container.current;
+    if (!el) return;
+    const onClick = (e: MouseEvent) => {
+      const btn = (e.target as HTMLElement).closest(".nl-pencil");
+      if (!btn) return;
+      e.preventDefault();
+      currentKey.current = (btn as HTMLElement).dataset.k ?? "";
+      if (fileInput.current) {
+        fileInput.current.value = "";
+        fileInput.current.click();
+      }
+    };
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (!t.closest('[contenteditable="true"]')) return;
+      e.preventDefault();
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      document.getSelection()?.getRangeAt(0)?.deleteContents();
+      document.execCommand("insertText", false, text);
+    };
+    el.addEventListener("click", onClick);
+    el.addEventListener("paste", onPaste as EventListener);
+    return () => {
+      el.removeEventListener("click", onClick);
+      el.removeEventListener("paste", onPaste as EventListener);
+    };
+  }, []);
+
+  const onPickFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const key = currentKey.current;
+    if (!file || !key) return;
+    setUploading(true);
+    setMessage(null);
+    try {
+      const fd = new FormData();
+      fd.set("file", file);
+      const res = await fetch("/api/newsletter/image", { method: "POST", body: fd });
+      const data = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !data.url) throw new Error(data.error ?? "Envoi impossible.");
+      const img = container.current?.querySelector<HTMLImageElement>(`img[data-img][data-k="${CSS.escape(key)}"]`);
+      if (img) {
+        img.src = data.url;
+        const wrap = img.closest<HTMLElement>(".nl-imgwrap");
+        if (wrap) wrap.style.background = "";
+      }
+      scrape(templateId);
+    } catch (err) {
+      setMessage({ ok: false, error: (err as Error).message });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const currentValues = (): Values => {
+    scrape(templateId);
+    return { ...getStore()[templateId], subject: subjects[templateId] };
+  };
+  const formData = (extra: Record<string, string> = {}): FormData => {
+    const fd = new FormData();
+    fd.set("templateId", templateId);
+    fd.set("values", JSON.stringify(currentValues()));
+    for (const [k, v] of Object.entries(extra)) fd.set(k, v);
+    return fd;
+  };
+
+  const switchTemplate = (id: string) => {
+    scrape(templateId);
+    setMessage(null);
+    setTemplateId(id);
+  };
+
+  const onSave = () => start(async () => setMessage(await saveNewsletterTemplateAction(formData())));
   const onSend = () => {
     if (kind !== "one" && !window.confirm("Envoyer cette newsletter à tous les destinataires de cette sélection ? De vrais e-mails partent.")) return;
-    start(async () => setMessage(await sendNewsletterAction(fd({ kind, slug, email }))));
+    start(async () => setMessage(await sendNewsletterAction(formData({ kind, slug, email }))));
   };
 
   const audienceOptions: { value: AudienceKind; label: string; note?: string }[] = [
@@ -74,18 +184,25 @@ export function NewsletterComposer({ saved, products, adminEmail, counts }: { sa
     { value: "product", label: "Acheteurs inscrits d'un titre" },
   ];
 
+  const busy = pending || uploading;
+
   return (
     <div className="flex flex-col gap-4">
+      <style>{`
+        .nl-root [contenteditable="true"]{ outline:none; cursor:text; border-radius:5px; transition:box-shadow .12s ease; }
+        .nl-root [contenteditable="true"]:hover{ box-shadow:0 0 0 2px rgba(17,17,17,.14); }
+        .nl-root [contenteditable="true"]:focus{ box-shadow:0 0 0 2px rgba(17,17,17,.6); background:rgba(255,255,255,.5); }
+        .nl-root .nl-pencil{ position:absolute; top:8px; right:8px; z-index:6; width:34px; height:34px; border-radius:999px; border:none; background:rgba(17,17,17,.74); color:#fff; font-size:15px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:.55; transition:opacity .12s ease; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+        .nl-root .nl-pencil:hover{ opacity:1; }
+      `}</style>
+
       {/* Onglets des modèles */}
       <div className="flex flex-wrap gap-1.5">
         {NEWSLETTER_TEMPLATES.map((t) => (
           <button
             key={t.id}
             type="button"
-            onClick={() => {
-              setTemplateId(t.id);
-              setMessage(null);
-            }}
+            onClick={() => switchTemplate(t.id)}
             title={t.description}
             className={`rounded-pill px-3.5 py-2 text-[0.6875rem] font-bold transition-colors ${t.id === templateId ? "bg-ink text-white" : "bg-paper hover:bg-line"}`}
           >
@@ -94,40 +211,32 @@ export function NewsletterComposer({ saved, products, adminEmail, counts }: { sa
         ))}
       </div>
 
-      <div className="grid grid-cols-[1fr_1fr] items-start gap-4 max-[1099px]:grid-cols-1">
-        {/* Édition */}
-        <div className="flex flex-col gap-3 rounded-card bg-white p-6">
-          <div className="flex items-baseline justify-between">
-            <span className="text-lg font-extrabold">{def.label}</span>
-            <span className="text-xs text-subtle">{def.description}</span>
+      <div className="grid grid-cols-[minmax(0,640px)_1fr] items-start gap-4 max-[1099px]:grid-cols-1">
+        {/* Aperçu éditable */}
+        <div className="flex flex-col gap-3 rounded-card bg-paper p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="text-lg font-extrabold">{templateById(templateId)?.label}</span>
+            <span className="text-[0.6875rem] text-subtle">Cliquez un texte pour l'éditer · survolez une image pour la remplacer (crayon)</span>
           </div>
-          {def.fields.map((field) => (
-            <label key={field.name} className="flex flex-col gap-1.5 text-xs font-semibold text-subtle">
-              <span>
-                {field.label}
-                {field.hint && <span className="ml-1 font-medium text-faint">— {field.hint}</span>}
-              </span>
-              {field.type === "textarea" ? (
-                <Textarea value={values[field.name] ?? ""} onChange={(e) => setField(field.name, e.target.value)} rows={field.name === "intro" ? 6 : 3} />
-              ) : (
-                <Input type={field.type === "image" ? "url" : "text"} value={values[field.name] ?? ""} onChange={(e) => setField(field.name, e.target.value)} placeholder={field.type === "image" ? "https://…" : ""} />
-              )}
-            </label>
-          ))}
+          <label className="flex flex-col gap-1.5 text-xs font-semibold text-subtle">
+            <span>Objet de l'e-mail</span>
+            <Input value={subjects[templateId] ?? ""} onChange={(e) => setSubjects((s) => ({ ...s, [templateId]: e.target.value }))} placeholder="Objet…" />
+          </label>
+          <div className="overflow-x-auto rounded-[14px] bg-[#E9E6E0] p-4">
+            <div ref={container} className="nl-root mx-auto" style={{ width: 600, maxWidth: "100%" }} />
+          </div>
+          <input ref={fileInput} type="file" accept="image/*" hidden onChange={onPickFile} />
+          {uploading && <span className="text-[0.6875rem] font-semibold text-subtle">Envoi de l'image…</span>}
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3 border-t border-line pt-3">
-            <button type="button" onClick={onSave} disabled={pending} className="rounded-pill bg-paper px-5 py-3 text-sm font-bold disabled:opacity-60">
+        {/* Enregistrer + envoyer */}
+        <div className="sticky top-6 flex flex-col gap-4">
+          <div className="flex flex-col gap-3 rounded-card bg-white p-6">
+            <span className="text-lg font-extrabold">Enregistrer</span>
+            <button type="button" onClick={onSave} disabled={busy} className="rounded-pill bg-paper px-5 py-3 text-sm font-bold disabled:opacity-60">
               {pending ? "…" : "Enregistrer le modèle"}
             </button>
             <span className="text-[0.6875rem] text-faint">Les modifications restent sur ce modèle.</span>
-          </div>
-        </div>
-
-        {/* Aperçu + envoi */}
-        <div className="flex flex-col gap-4">
-          <div className="rounded-card bg-white p-6">
-            <span className="mb-3 block text-lg font-extrabold">Aperçu en direct</span>
-            <iframe title="Aperçu de la newsletter" srcDoc={previewHtml} className="h-[560px] w-full rounded-[14px] border border-line bg-white" />
           </div>
 
           <div className="flex flex-col gap-3 rounded-card bg-white p-6">
@@ -154,17 +263,17 @@ export function NewsletterComposer({ saved, products, adminEmail, counts }: { sa
             )}
             {kind === "one" && <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prenom@exemple.fr" />}
 
-            <button type="button" onClick={onSend} disabled={pending} className="rounded-pill bg-ink px-5 py-3.5 text-sm font-bold text-white disabled:opacity-60">
+            <button type="button" onClick={onSend} disabled={busy} className="rounded-pill bg-ink px-5 py-3.5 text-sm font-bold text-white disabled:opacity-60">
               {pending ? "Envoi…" : "Envoyer la newsletter"}
             </button>
             <span className="text-[0.6875rem] text-subtle">Seuls les inscrits reçoivent l'e-mail. Chacun a son lien de désinscription. Envoyez-vous un test avant l'envoi de masse.</span>
           </div>
+
+          {message && (
+            <p className={`rounded-[14px] px-5 py-3.5 text-sm font-semibold ${message.ok ? "bg-tint-green text-tint-green-ink" : "bg-danger-bg text-danger"}`}>{message.ok ? message.message : message.error}</p>
+          )}
         </div>
       </div>
-
-      {message && (
-        <p className={`rounded-[14px] px-5 py-3.5 text-sm font-semibold ${message.ok ? "bg-tint-green text-tint-green-ink" : "bg-danger-bg text-danger"}`}>{message.ok ? message.message : message.error}</p>
-      )}
     </div>
   );
 }
