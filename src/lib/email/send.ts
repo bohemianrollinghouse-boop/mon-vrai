@@ -27,6 +27,49 @@ export async function deliver(mail: Mail): Promise<{ ok: boolean; skipped?: bool
   return { ok: true };
 }
 
+export type NewsletterItem = { to: string; subject: string; html: string; text: string; unsubscribeUrl: string };
+
+/*
+ * Envoi de la newsletter en lots (Resend : 100 e-mails par appel batch). Chaque message
+ * porte l'en-tête List-Unsubscribe (désinscription en un clic dans les boîtes mail) en
+ * plus du lien dans le corps. Jamais bloquant : on compte les envois et les échecs.
+ */
+export async function sendNewsletterBatch(items: NewsletterItem[]): Promise<{ sent: number; failed: number; skipped: boolean }> {
+  const key = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM ?? "Mon Vrai <no-reply@monvrai.fr>";
+  if (!key) {
+    console.info(`[newsletter] (non envoyé, pas de clé) → ${items.length} destinataire(s)`);
+    return { sent: 0, failed: 0, skipped: true };
+  }
+  const { Resend } = await import("resend");
+  const resend = new Resend(key);
+  let sent = 0;
+  let failed = 0;
+  for (let i = 0; i < items.length; i += 100) {
+    const chunk = items.slice(i, i + 100).map((it) => ({
+      from,
+      to: it.to,
+      subject: it.subject,
+      html: it.html,
+      text: it.text,
+      headers: { "List-Unsubscribe": `<${it.unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
+    }));
+    try {
+      const { error } = await resend.batch.send(chunk);
+      if (error) {
+        failed += chunk.length;
+        console.warn("[newsletter] lot refusé :", error.message);
+      } else {
+        sent += chunk.length;
+      }
+    } catch (err) {
+      failed += chunk.length;
+      console.warn("[newsletter] lot en erreur :", (err as Error).message);
+    }
+  }
+  return { sent, failed, skipped: false };
+}
+
 function siteUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr";
 }

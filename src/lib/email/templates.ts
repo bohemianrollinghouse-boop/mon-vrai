@@ -28,12 +28,12 @@ function logoUrl(): string {
   return `${base}/email-logo.png`;
 }
 
-function esc(s: string): string {
+export function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 /** Bouton pilule noir, table-based pour Outlook. */
-function button(label: string, href: string): string {
+export function button(label: string, href: string): string {
   return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0"><tr><td style="border-radius:999px;background:${INK}"><a href="${esc(href)}" style="display:inline-block;padding:14px 28px;font-family:${FONT};font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:999px">${esc(label)}</a></td></tr></table>`;
 }
 
@@ -95,10 +95,10 @@ function addressBlock(order: Order): string {
   return lines.filter(Boolean).join("<br>");
 }
 
-function h1(text: string): string {
+export function h1(text: string): string {
   return `<h1 style="margin:0 0 6px;font-size:24px;line-height:1.15;font-weight:800;letter-spacing:-.02em;color:${INK}">${esc(text)}</h1>`;
 }
-function eyebrow(text: string, ink = GREEN_INK): string {
+export function eyebrow(text: string, ink = GREEN_INK): string {
   return `<div style="font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${ink};margin-bottom:10px">${esc(text)}</div>`;
 }
 function panel(bg: string, ink: string, html: string): string {

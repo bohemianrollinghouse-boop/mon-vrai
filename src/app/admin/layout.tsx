@@ -38,6 +38,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     { href: "/admin/stocks", label: "Stocks", badge: snap.lowStock.length, badgeTone: "pink" },
     { href: "/admin/influenceurs", label: "Influenceurs" },
     { href: "/admin/codes-promo", label: "Codes promo" },
+    { href: "/admin/newsletter", label: "Newsletter" },
     { href: "/admin/faq", label: "FAQ" },
     { href: "/admin/reglages", label: "Paramètres" },
     { href: "/admin/emails", label: "E-mails" },
