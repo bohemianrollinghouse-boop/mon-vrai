@@ -170,7 +170,7 @@ export async function placeFreeOrderAction(raw: CheckoutInput): Promise<FreeOrde
   const products = await getProductsBySlugs(quote.lines.map((l) => l.slug));
   const lines: OrderLine[] = quote.lines.map((l) => {
     const p = products.get(l.slug);
-    return { productSlug: l.slug, title: p?.title ?? l.title, qty: l.qty, unitPrice: l.unitPrice, image: p?.images[0], preorder: p?.preorder.enabled ?? l.preorder, gift: l.gift };
+    return { productSlug: l.slug, title: p?.title ?? l.title, qty: l.qty, unitPrice: l.unitPrice, image: p?.images[0], preorder: p?.preorder.enabled ?? l.preorder, gift: l.gift, weightG: p?.weightG };
   });
 
   const shippingAddress: Address = {

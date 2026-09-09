@@ -7,10 +7,15 @@ import { findOffer } from "./offers";
  * réglages. Fonctions pures, sans accès réseau ni base : testables à sec.
  */
 
-/** Poids du colis en kg : un poids par livre plus l'emballage. */
+/*
+ * Poids du colis en kg : emballage + somme des poids des articles. Le poids d'un article
+ * est celui figé à la commande (par produit) ; à défaut (anciennes commandes), on retombe
+ * sur le poids par défaut des réglages.
+ */
 export function parcelWeightKg(order: Order, settings: SiteSettings): number {
-  const books = order.lines.reduce((s, l) => s + l.qty, 0);
-  return Math.max(0.05, (settings.shipping.parcel.baseWeightG + books * settings.shipping.parcel.unitWeightG) / 1000);
+  const fallback = settings.shipping.parcel.unitWeightG;
+  const items = order.lines.reduce((s, l) => s + l.qty * (l.weightG ?? fallback), 0);
+  return Math.max(0.05, (settings.shipping.parcel.baseWeightG + items) / 1000);
 }
 
 function splitName(full: string): { firstName: string; lastName: string } {

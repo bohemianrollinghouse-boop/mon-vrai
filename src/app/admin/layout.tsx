@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { signOut } from "@/lib/auth/actions";
 import { requireAdmin } from "@/lib/auth/session";
 import { adminSnapshot } from "@/lib/admin/counts";
-import { AdminNav, type NavItem } from "@/components/admin/AdminNav";
+import { AdminNav, type NavSection } from "@/components/admin/AdminNav";
 import { Avatar } from "@/components/admin/ui";
 import { ModeToggle } from "@/components/admin/ModeToggle";
 
@@ -31,33 +31,58 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const user = await requireAdmin();
   const snap = await adminSnapshot();
 
-  const primary: NavItem[] = [
-    { href: "/admin", label: "Tableau de bord" },
-    { href: "/admin/commandes", label: "Commandes", badge: snap.toShip, badgeTone: "sand" },
-    { href: "/admin/produits", label: "Produits" },
-    { href: "/admin/stocks", label: "Stocks", badge: snap.lowStock.length, badgeTone: "pink" },
-    { href: "/admin/influenceurs", label: "Influenceurs" },
-    { href: "/admin/codes-promo", label: "Codes promo" },
-    { href: "/admin/newsletter", label: "Newsletter" },
-    { href: "/admin/faq", label: "FAQ" },
-    { href: "/admin/reglages", label: "Paramètres" },
-    { href: "/admin/emails", label: "E-mails" },
-  ];
-  const secondary: NavItem[] = [
-    { href: "/admin/contenus", label: "Contenus" },
-    { href: "/admin/pages", label: "Pages" },
-    { href: "/admin/menus", label: "Menus" },
-    { href: "/admin/politiques", label: "Pages légales" },
-    { href: "/admin/medias", label: "Médias" },
-    { href: "/admin/clients", label: "Clients" },
-    { href: "/admin/messages", label: "Messages", badge: snap.unread, badgeTone: "blue" },
+  const sections: NavSection[] = [
+    {
+      items: [{ href: "/admin", label: "Tableau de bord" }],
+    },
+    {
+      label: "Ventes",
+      items: [
+        { href: "/admin/commandes", label: "Commandes", badge: snap.toShip, badgeTone: "sand" },
+        { href: "/admin/clients", label: "Clients" },
+        { href: "/admin/messages", label: "Messages", badge: snap.unread, badgeTone: "blue" },
+      ],
+    },
+    {
+      label: "Catalogue",
+      items: [
+        { href: "/admin/produits", label: "Produits" },
+        { href: "/admin/stocks", label: "Stocks", badge: snap.lowStock.length, badgeTone: "pink" },
+      ],
+    },
+    {
+      label: "Marketing",
+      items: [
+        { href: "/admin/newsletter", label: "Newsletter" },
+        { href: "/admin/codes-promo", label: "Codes promo" },
+        { href: "/admin/influenceurs", label: "Influenceurs" },
+      ],
+    },
+    {
+      label: "Contenu du site",
+      items: [
+        { href: "/admin/contenus", label: "Contenus" },
+        { href: "/admin/pages", label: "Pages" },
+        { href: "/admin/menus", label: "Menus" },
+        { href: "/admin/medias", label: "Médias" },
+        { href: "/admin/faq", label: "FAQ" },
+        { href: "/admin/politiques", label: "Pages légales" },
+      ],
+    },
+    {
+      label: "Réglages",
+      items: [
+        { href: "/admin/reglages", label: "Paramètres" },
+        { href: "/admin/emails", label: "E-mails" },
+      ],
+    },
   ];
 
   const displayName = user.name || user.email.split("@")[0];
 
   return (
     <div className="grid min-h-screen flex-1 grid-cols-[240px_minmax(0,1fr)] max-[899px]:grid-cols-1">
-      <aside className="sticky top-0 flex h-screen flex-col gap-6 border-r border-line-sand bg-white px-4 py-6 max-[899px]:static max-[899px]:h-auto max-[899px]:border-b max-[899px]:border-r-0">
+      <aside className="sticky top-0 flex h-screen flex-col gap-6 overflow-y-auto border-r border-line-sand bg-white px-4 py-6 max-[899px]:static max-[899px]:h-auto max-[899px]:overflow-visible max-[899px]:border-b max-[899px]:border-r-0">
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between px-2">
             <Link href="/admin" aria-label="Tableau de bord">
@@ -67,7 +92,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
           </div>
           <ModeToggle stripe={snap.settings.payments.mode} boxtal={snap.settings.shipping.boxtalMode} />
         </div>
-        <AdminNav primary={primary} secondary={secondary} />
+        <AdminNav sections={sections} />
         <div className="mt-auto flex flex-col gap-3 max-[899px]:mt-0">
           <Link href="/" target="_blank" className="flex justify-between rounded-[14px] bg-paper px-3.5 py-3 text-[0.8125rem] font-semibold hover:opacity-70">
             <span>Voir la boutique</span>

@@ -11,6 +11,7 @@ function product(slug: string, price: number, status: Product["status"] = "publi
     descriptionHtml: "",
     items: [],
     price,
+    weightG: 250,
     images: [],
     badge: "none",
     tint: "green",

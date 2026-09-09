@@ -68,6 +68,8 @@ export const Product = z.object({
   items: z.array(z.string().min(1)).max(12).default([]),
   price: Cents,
   compareAtPrice: Cents.optional(),
+  /** Poids unitaire du produit en grammes : sert au calcul du poids du colis (Boxtal). */
+  weightG: z.number().int().min(1).default(250),
   images: z.array(ImageRef).default([]),
   badge: Badge.default("none"),
   tint: Tint.default("green"),
@@ -362,6 +364,8 @@ export const OrderLine = z.object({
   preorder: z.boolean().default(false),
   /** Article offert par un code promo (prix unitaire 0). */
   gift: z.boolean().default(false),
+  /** Poids unitaire figé à la commande (grammes) : sert au poids du colis Boxtal. */
+  weightG: z.number().int().min(1).optional(),
 });
 
 export const Order = z.object({

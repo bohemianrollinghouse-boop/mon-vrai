@@ -123,10 +123,13 @@ export default async function SettingsPage() {
                         ))}
                       </select>
                     </div>
-                    <div className="flex items-center gap-1 font-extrabold">
-                      <input name={`shipping.rates[${i}].priceEuros`} defaultValue={r.name ? euros(r.price) : ""} placeholder="0,00" inputMode="decimal" className="w-16 bg-transparent text-right outline-none placeholder:font-medium placeholder:text-faint" />
-                      €
-                    </div>
+                    <label className="flex flex-col items-end gap-0.5">
+                      <span className="text-[0.5625rem] font-bold uppercase tracking-[0.08em] text-faint">Prix</span>
+                      <span className="flex items-center gap-1 rounded-lg bg-white px-2 py-1 font-extrabold">
+                        <input name={`shipping.rates[${i}].priceEuros`} defaultValue={r.name ? euros(r.price) : ""} placeholder="0,00" inputMode="decimal" className="w-14 bg-transparent text-right outline-none placeholder:font-medium placeholder:text-faint" />
+                        €
+                      </span>
+                    </label>
                     <div className="flex flex-col items-end gap-1">
                       <input type="hidden" name={`shipping.rates[${i}].enabled`} value="false" />
                       <Switch name={`shipping.rates[${i}].enabled`} value="true" label={<span className="sr-only">Proposé</span>} defaultChecked={r.enabled} className="!gap-0" />
@@ -196,7 +199,7 @@ export default async function SettingsPage() {
                 <Field label="Hauteur (cm)" name="shipping.parcel.heightCm">
                   <Input name="shipping.parcel.heightCm" type="number" min={1} defaultValue={parcel.heightCm} />
                 </Field>
-                <Field label="Poids par livre (g)" name="shipping.parcel.unitWeightG">
+                <Field label="Poids par défaut (g)" hint="Repli si un produit n'a pas de poids." name="shipping.parcel.unitWeightG">
                   <Input name="shipping.parcel.unitWeightG" type="number" min={1} defaultValue={parcel.unitWeightG} />
                 </Field>
                 <Field label="Emballage (g)" name="shipping.parcel.baseWeightG">
@@ -210,7 +213,7 @@ export default async function SettingsPage() {
                 </Field>
               </div>
               <input type="hidden" name="shipping.parcel.contentCategoryId" value={parcel.contentCategoryId} />
-              <span className="text-[0.6875rem] leading-relaxed text-[#888]">Le poids du colis = emballage + poids par livre × nombre de livres. Contenu déclaré : « Livres ».</span>
+              <span className="text-[0.6875rem] leading-relaxed text-[#888]">Le poids du colis = emballage + somme des poids des produits (défini sur chaque fiche produit). Le poids par défaut ci-dessus sert de repli. Contenu déclaré : « Livres ».</span>
             </Card>
 
             <Card title="Identité légale">

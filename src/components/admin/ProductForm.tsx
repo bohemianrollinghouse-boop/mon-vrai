@@ -131,6 +131,9 @@ export function ProductForm({ product }: { product: Product | null }) {
                 <Field label="Prix barré (€)" hint="Optionnel." name="compareAtPrice">
                   <Input name="compareAtPrice" inputMode="decimal" defaultValue={euros(p?.compareAtPrice)} placeholder="-" />
                 </Field>
+                <Field label="Poids (g)" hint="Sert au calcul du colis Boxtal." name="weightG">
+                  <Input name="weightG" type="number" min={1} defaultValue={p?.weightG ?? 250} className="!font-bold" />
+                </Field>
               </div>
               <Switch name="stockTracked" label="Suivre le stock" hint="Décoché : vente illimitée." defaultChecked={p ? p.stock !== null : false} />
               <div className="grid grid-cols-2 gap-3">

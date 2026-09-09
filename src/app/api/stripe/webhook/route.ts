@@ -69,7 +69,7 @@ async function orderInputFromIntent(intent: Stripe.PaymentIntent): Promise<PaidO
   const products = await getProductsBySlugs(snapshot.map((l) => l.s));
   const lines: OrderLine[] = snapshot.map((l) => {
     const known = products.get(l.s);
-    return { productSlug: l.s, title: known?.title ?? l.s, qty: l.q, unitPrice: l.p, image: known?.images[0], preorder: known?.preorder.enabled ?? false, gift: l.g === 1 };
+    return { productSlug: l.s, title: known?.title ?? l.s, qty: l.q, unitPrice: l.p, image: known?.images[0], preorder: known?.preorder.enabled ?? false, gift: l.g === 1 , weightG: known?.weightG };
   });
 
   const ship = intent.shipping;

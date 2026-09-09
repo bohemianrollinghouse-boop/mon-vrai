@@ -28,6 +28,7 @@ const Input = z.object({
   items: z.string().default(""),
   price: z.string().trim().min(1, "Le prix est requis"),
   compareAtPrice: z.string().trim().default(""),
+  weightG: z.number().int().min(1).default(250),
   badge: Badge.default("none"),
   tint: Tint.default("green"),
   preorderEnabled: z.boolean().default(false),
@@ -46,7 +47,7 @@ export async function saveProductAction(formData: FormData): Promise<AdminResult
   const user = await assertAdmin();
   const parsed = parseForm(Input, formData, {
     booleans: ["preorderEnabled", "stockTracked"],
-    numbers: ["stock", "position"],
+    numbers: ["stock", "position", "weightG"],
   });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
@@ -86,6 +87,7 @@ export async function saveProductAction(formData: FormData): Promise<AdminResult
     items: d.items.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean),
     price,
     compareAtPrice,
+    weightG: d.weightG,
     images,
     badge: d.badge,
     tint: d.tint,
