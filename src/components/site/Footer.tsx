@@ -26,7 +26,7 @@ export async function Footer() {
         <div className="grid grid-cols-[2fr_1fr_1fr_1fr] gap-8 pt-14 pb-6 max-[899px]:grid-cols-2 max-[899px]:gap-7 max-[479px]:grid-cols-1">
           <div className="flex flex-col gap-3 max-[899px]:col-span-full">
             <Link href="/" aria-label={settings.shopName} className="w-fit">
-              <Image src="/logo.svg" alt={settings.shopName} width={104} height={26} className="h-[26px] w-auto" style={{ height: 26, width: "auto" }} />
+              <Image src="/logo.png" alt={settings.shopName} width={104} height={26} className="h-[26px] w-auto" style={{ height: 26, width: "auto" }} />
             </Link>
             {settings.tagline && <p className="max-w-[300px] font-medium leading-relaxed text-muted">{settings.tagline}</p>}
             {hasContact && (

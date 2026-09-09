@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
     title: { default: title, template: `%s — ${settings.shopName}` },
     description: settings.seo.description,
-    icons: { icon: "/logo.svg" },
+    icons: { icon: "/logo.png" },
   };
 }
 

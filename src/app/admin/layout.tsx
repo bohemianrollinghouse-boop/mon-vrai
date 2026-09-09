@@ -50,7 +50,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       <aside className="sticky top-0 flex h-screen flex-col gap-6 border-r border-line-sand bg-white px-4 py-6 max-[899px]:static max-[899px]:h-auto max-[899px]:border-b max-[899px]:border-r-0">
         <div className="flex items-center justify-between px-2">
           <Link href="/admin" aria-label="Tableau de bord">
-            <Image src="/logo.svg" alt="Mon Vrai" width={96} height={24} className="h-6 w-auto" style={{ height: 24, width: "auto" }} priority />
+            <Image src="/logo.png" alt="Mon Vrai" width={96} height={24} className="h-6 w-auto" style={{ height: 24, width: "auto" }} priority />
           </Link>
           <span className="rounded-pill bg-tint-sand px-2 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-sand-ink">Admin</span>
         </div>
