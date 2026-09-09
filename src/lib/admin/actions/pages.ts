@@ -13,7 +13,7 @@ import { Slug, Status } from "@/lib/domain/types";
 /*
  * Pages libres, rédigées avec l'éditeur. Le HTML est celui produit par Tiptap côté
  * client : on le garde tel quel car seuls des administrateurs authentifiés peuvent
- * l'écrire - un visiteur ne passe jamais par ici.
+ * l'écrire — un visiteur ne passe jamais par ici.
  */
 
 const Input = z.object({

@@ -29,8 +29,32 @@ const LINE = rgb(0.909, 0.886, 0.847);
 const HAIR = rgb(0.933, 0.914, 0.882);
 const RED = rgb(0.69, 0.282, 0.243);
 
+// Fonds des vignettes produit, par teinte (mêmes valeurs que les jetons du site).
+const TINT: Record<string, RGB> = {
+  green: rgb(0.863, 0.898, 0.839),
+  blue: rgb(0.89, 0.91, 0.941),
+  pink: rgb(0.941, 0.878, 0.91),
+  sand: rgb(0.953, 0.914, 0.863),
+};
+const tintRgb = (t?: string): RGB => TINT[t ?? "green"] ?? TINT.green;
+
+/** Télécharge et incorpore une image (PNG/JPEG) ; renvoie null en cas d'échec (best-effort). */
+async function embedImage(doc: PDFDocument, url?: string): Promise<PDFImage | null> {
+  if (!url) return null;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = new Uint8Array(await res.arrayBuffer());
+    if (buf[0] === 0x89 && buf[1] === 0x50) return await doc.embedPng(buf);
+    if (buf[0] === 0xff && buf[1] === 0xd8) return await doc.embedJpg(buf);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // WinAnsi (CP1252) encode ces caractères hors ASCII, dont les tirets cadratin/demi-cadratin
-// qui peuvent venir d'un contenu dynamique (titre, adresse) même si nos textes ne les utilisent plus.
+// qui peuvent venir d'un contenu dynamique (titre, adresse) — on les garde affichables.
 const WINANSI_EXTRA = new Set(["€", "–", "—", "‘", "’", "“", "”", "…", "Œ", "œ", "•", "×", "·", "°"]);
 function safe(text: string): string {
   return Array.from((text ?? "").normalize("NFC"))
@@ -45,7 +69,7 @@ function safe(text: string): string {
 export type InvoiceData = { issueDate?: number; dueDate?: number; totalHt?: number; totalTtc?: number; vatAmount?: number };
 export type InvoiceMeta = { number: string; issuedAt: number; data?: InvoiceData };
 
-export async function renderInvoicePdf(order: Order, settings: SiteSettings, invoice: InvoiceMeta): Promise<Uint8Array> {
+export async function renderInvoicePdf(order: Order, settings: SiteSettings, invoice: InvoiceMeta, tints: Record<string, string> = {}): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -120,38 +144,67 @@ export async function renderInvoicePdf(order: Order, settings: SiteSettings, inv
   }
 
   /* ---- Tableau des lignes ---- */
-  const col = { des: M, ref: M + 250, qty: M + 330, pu: M + 410, tot: rightX };
+  const imgX = M;
+  const imgS = 30;
+  const col = { des: M + imgS + 12, ref: M + 250, qty: M + 330, pu: M + 415, tot: rightX };
   let y = cardsY + cardH + 26;
   w.text("Désignation", col.des, y, { size: 8, font: bold, color: SUBTLE });
   w.text("Référence", col.ref, y, { size: 8, font: bold, color: SUBTLE });
   w.text("Qté", col.qty, y, { size: 8, font: bold, color: SUBTLE, align: "right" });
   w.text(vatApplies ? "P.U. HT" : "P.U.", col.pu, y, { size: 8, font: bold, color: SUBTLE, align: "right" });
   w.text(vatApplies ? "Total TTC" : "Total", col.tot, y, { size: 8, font: bold, color: SUBTLE, align: "right" });
-  y += 6;
+  y += 13; // sous le texte de l'en-tête (taille 8) avant le filet
   line(page, M, rightX, y, 1.2, INK);
-  y += 16;
+  y += 15;
 
-  const row = (name: string, sub: string | null, ref: string, qty: string, pu: string, total: string, totalColor?: RGB) => {
-    const end = w.wrapped(name, col.des, y, { size: 9.5, font: bold, maxWidth: col.ref - col.des - 12, leading: 12 });
-    if (sub) w.text(sub, col.des, end + 1, { size: 8, color: SUBTLE });
-    if (ref) w.text(ref, col.ref, y, { size: 8.5, color: MUTED, font: bold });
-    if (qty) w.text(qty, col.qty, y, { size: 9.5, align: "right" });
-    if (pu) w.text(pu, col.pu, y, { size: 9.5, align: "right" });
-    w.text(total, col.tot, y, { size: 9.5, font: bold, align: "right", color: totalColor });
-    y = Math.max(end + (sub ? 12 : 0), y) + 10;
+  // Vignettes produit incorporées en amont (téléchargement best-effort, en parallèle).
+  const lineImages = await Promise.all(order.lines.map((l) => embedImage(doc, l.image?.url)));
+
+  type RowOpts = { name: string; sub?: string; ref?: string; qty?: string; pu?: string; total: string; totalColor?: RGB; img?: PDFImage | null; tint?: string };
+  const drawRow = (o: RowOpts) => {
+    const top = y;
+    const hasThumb = o.img !== undefined; // ligne produit : carré teinté même sans image
+    if (hasThumb) {
+      w.rect(imgX, top - 1, imgS, imgS, tintRgb(o.tint));
+      if (o.img) {
+        const scale = Math.min((imgS - 8) / o.img.width, (imgS - 8) / o.img.height);
+        const iw = o.img.width * scale;
+        const ih = o.img.height * scale;
+        const squareBottom = A4.height - (top - 1) - imgS;
+        page.drawImage(o.img, { x: imgX + (imgS - iw) / 2, y: squareBottom + (imgS - ih) / 2, width: iw, height: ih });
+      }
+    }
+    const end = w.wrapped(o.name, col.des, top, { size: 9.5, font: bold, maxWidth: col.ref - col.des - 12, leading: 12 });
+    if (o.sub) w.text(o.sub, col.des, end + 1, { size: 8, color: SUBTLE });
+    if (o.ref) w.text(o.ref, col.ref, top, { size: 8.5, color: MUTED, font: bold });
+    if (o.qty) w.text(o.qty, col.qty, top, { size: 9.5, align: "right" });
+    if (o.pu) w.text(o.pu, col.pu, top, { size: 9.5, align: "right" });
+    w.text(o.total, col.tot, top, { size: 9.5, font: bold, align: "right", color: o.totalColor });
+    const textBottom = o.sub ? end + 9 : end - 2;
+    const bottom = Math.max(textBottom, hasThumb ? top - 1 + imgS : 0, top + 22);
+    y = bottom + 10;
     line(page, M, rightX, y - 6, 0.6, HAIR);
   };
 
-  for (const l of order.lines) {
-    const sub = l.gift ? "Offert" : "Imagier cartonné · 6-18 mois";
-    row(l.title, sub, reference(l.productSlug), String(l.qty), l.gift ? "Offert" : formatEuro(l.unitPrice), l.gift ? "0,00 €" : formatEuro(l.unitPrice * l.qty), l.gift ? GREEN_INK : undefined);
-  }
+  order.lines.forEach((l, i) => {
+    drawRow({
+      name: l.title,
+      sub: l.gift ? "Offert" : "Imagier cartonné · 6-18 mois",
+      ref: reference(l.productSlug),
+      qty: String(l.qty),
+      pu: l.gift ? "Offert" : formatEuro(l.unitPrice),
+      total: l.gift ? "0,00 €" : formatEuro(l.unitPrice * l.qty),
+      totalColor: l.gift ? GREEN_INK : undefined,
+      img: lineImages[i],
+      tint: tints[l.productSlug],
+    });
+  });
   if (order.totals.shipping > 0) {
-    row(`Livraison - ${order.delivery?.rateName || "standard"}`, order.delivery?.relay ? "Point relais via Boxtal" : "Via Boxtal", "", "1", formatEuro(order.totals.shipping), formatEuro(order.totals.shipping));
+    drawRow({ name: `Livraison - ${order.delivery?.rateName || "standard"}`, sub: order.delivery?.relay ? "Point relais via Boxtal" : "Via Boxtal", qty: "1", pu: formatEuro(order.totals.shipping), total: formatEuro(order.totals.shipping) });
   }
   if (order.totals.discount > 0) {
     const codes = order.promoCodes.length ? ` - code ${order.promoCodes.join(", ")}` : "";
-    row(`Remise${codes}`, "Sur les articles", "", "", "", `-${formatEuro(order.totals.discount)}`, RED);
+    drawRow({ name: `Remise${codes}`, sub: "Sur les articles", total: `-${formatEuro(order.totals.discount)}`, totalColor: RED });
   }
 
   /* ---- Totaux + conditions ---- */

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /*
  * Contenus des pages système : accueil, catalogue, notre histoire, contact. Un formulaire
- * par page, champ par champ - c'est le compromis assumé : on change textes et images,
+ * par page, champ par champ — c'est le compromis assumé : on change textes et images,
  * pas la composition. Les images se saisissent par URL (copiée dans Médias).
  */
 

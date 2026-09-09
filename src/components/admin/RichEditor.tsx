@@ -13,7 +13,7 @@ import { useState } from "react";
  * à ce qu'une page de contenu a besoin : titres, gras/italique, listes, lien, image,
  * citation. Pas de couleurs ni de tailles : la charte s'en charge.
  *
- * `htmlOnly` ne pose qu'un champ `<name>` (HTML) - pour la description produit.
+ * `htmlOnly` ne pose qu'un champ `<name>` (HTML) — pour la description produit.
  */
 
 type Props = {

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 
 /*
  * Clients : la liste des comptes, avec le nombre de commandes et le total dépensé.
- * Les données personnelles restent minimales - un client se supprime depuis sa fiche
+ * Les données personnelles restent minimales — un client se supprime depuis sa fiche
  * Auth et eraseCustomer() (RGPD), pas depuis cette liste.
  */
 export default async function CustomersPage() {

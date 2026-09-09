@@ -78,7 +78,7 @@ export default async function FaqPage({ searchParams }: PageProps<"/admin/faq">)
             <input type="hidden" name="index" value={isNew || !current ? -1 : selected} />
             <Field label="Rubrique" name="cat">
               <Select name="cat" defaultValue={current && !isNew ? current.cat || "" : CATEGORIES[0]}>
-                <option value="">- Sans rubrique -</option>
+                <option value="">Sans rubrique</option>
                 {[...new Set([...CATEGORIES, ...items.map((f) => f.cat).filter(Boolean)])].map((c) => (
                   <option key={c} value={c}>
                     {c}

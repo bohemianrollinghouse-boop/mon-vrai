@@ -5,7 +5,7 @@ import type { Order, SiteSettings } from "@/lib/domain/types";
 /*
  * Templates d'e-mails, aux couleurs de Mon Vrai. Contrainte des clients d'e-mail :
  * pas de feuille de style externe ni de police web fiable, un rendu correct dans
- * Outlook - d'où des tableaux, des styles en ligne et une pile de polices système.
+ * Outlook — d'où des tableaux, des styles en ligne et une pile de polices système.
  * Chaque template rend { subject, html, text } ; le texte est le repli sans images.
  */
 

@@ -5,7 +5,7 @@ import { col, now, parseDoc, parseQuery } from "./helpers";
 /*
  * Pages légales. Elles ressemblent aux pages libres mais vivent à part : elles ont
  * un ordre d'affichage (le menu latéral du gabarit 7C) et ne peuvent pas être
- * dépubliées - un site marchand doit toujours les montrer.
+ * dépubliées — un site marchand doit toujours les montrer.
  */
 
 const policies = () => col("policies");

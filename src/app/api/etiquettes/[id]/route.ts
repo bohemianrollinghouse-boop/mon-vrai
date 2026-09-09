@@ -3,7 +3,7 @@ import { readLabel } from "@/lib/boxtal/shipment";
 import { getSessionUser } from "@/lib/auth/session";
 import { getOrder } from "@/lib/db/orders";
 
-/** Bordereau d'expédition (PDF) d'une commande - administrateurs seulement. */
+/** Bordereau d'expédition (PDF) d'une commande — administrateurs seulement. */
 export async function GET(_request: Request, ctx: { params: Promise<{ id: string }> }) {
   const { id } = await ctx.params;
   const user = await getSessionUser();

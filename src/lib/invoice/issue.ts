@@ -1,6 +1,7 @@
 import "server-only";
 import { storage } from "@/lib/firebase/admin";
 import { getOrder, setInvoiceDoc } from "@/lib/db/orders";
+import { getProductsBySlugs } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import type { Order } from "@/lib/domain/types";
 import { renderInvoicePdf, type InvoiceMeta } from "./pdf";
@@ -9,7 +10,7 @@ import { renderInvoicePdf, type InvoiceMeta } from "./pdf";
  * Émission de la facture : on génère le PDF (maquette « Mon Vrai - Facture ») à partir de
  * la commande et des données renvoyées par Tiime via Make (numéro, dates, totaux), on le
  * dépose dans un dossier privé du bucket et on le rattache à la commande. Le numéro de
- * facture est celui de Tiime - la comptabilité reste la source des numéros. Un PDF déjà
+ * facture est celui de Tiime — la comptabilité reste la source des numéros. Un PDF déjà
  * déposé pour une commande est écrasé si on refacture (le fichier reste au même chemin).
  */
 
@@ -21,7 +22,14 @@ function storagePathFor(order: Order, at: number): string {
 /** Génère la facture, la dépose et la rattache à la commande (numéro Tiime + chemin). */
 export async function storeInvoice(order: Order, meta: InvoiceMeta): Promise<Order> {
   const settings = await getSettings();
-  const bytes = await renderInvoicePdf(order, settings, meta);
+  // Teinte de chaque produit, pour le fond des vignettes de la facture.
+  const products = await getProductsBySlugs(order.lines.map((l) => l.productSlug)).catch(() => new Map());
+  const tints: Record<string, string> = {};
+  for (const l of order.lines) {
+    const p = products.get(l.productSlug);
+    if (p?.tint) tints[l.productSlug] = p.tint;
+  }
+  const bytes = await renderInvoicePdf(order, settings, meta, tints);
   const filePath = order.invoice?.storagePath ?? storagePathFor(order, meta.issuedAt);
   await storage()
     .bucket()

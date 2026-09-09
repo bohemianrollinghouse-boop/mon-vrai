@@ -58,7 +58,7 @@ export type Tint = z.infer<typeof Tint>;
 export const Product = z.object({
   slug: Slug,
   title: z.string().min(1).max(120),
-  /** Surtitre, ex. « 6-18 mois ». */
+  /** Surtitre, ex. « 6–18 mois ». */
   ageLabel: z.string().max(40).default("6-18 mois"),
   /** Phrase d'accroche courte sous le titre. */
   subtitle: z.string().max(200).default(""),
@@ -609,7 +609,7 @@ export const Promo = z.object({
   code: z.string().min(2).max(24).regex(/^[A-Z0-9]+$/),
   description: z.string().max(120).default(""),
   type: PromoType,
-  /** Pourcentage (0-100) pour `percent`, centimes pour `fixed`, ignoré sinon. */
+  /** Pourcentage (0–100) pour `percent`, centimes pour `fixed`, ignoré sinon. */
   amount: z.number().int().min(0).default(0),
   /** Panier minimum, en centimes ; 0 = aucun. */
   minimum: Cents.default(0),

@@ -6,7 +6,7 @@ import "./globals.css";
 /*
  * Layout racine : la police et les métadonnées par défaut, rien d'autre. Le site
  * public ajoute son bandeau, son en-tête et son pied de page dans `(site)/layout.tsx` ;
- * l'administration a sa propre coquille dans `admin/layout.tsx` - deux univers qui ne
+ * l'administration a sa propre coquille dans `admin/layout.tsx` — deux univers qui ne
  * partagent que la police et les jetons.
  */
 

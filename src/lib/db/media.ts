@@ -5,7 +5,7 @@ import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
 /*
  * Médiathèque : le fichier va dans Cloud Storage, sa fiche dans Firestore. L'envoi
- * passe toujours par le serveur, qui contrôle le type et la taille - le navigateur
+ * passe toujours par le serveur, qui contrôle le type et la taille — le navigateur
  * n'écrit jamais dans le bucket.
  */
 

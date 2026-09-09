@@ -8,7 +8,7 @@ export type { BoxtalAddress, CreateShippingOrderRequest, PackageTracking, Shippi
  * Client Boxtal (API v3). Deux applications distinctes chez Boxtal, donc deux paires de
  * clés : « API v3 » pour expédier, « composant carte » pour le jeton de la carte des
  * points relais. L'API accepte l'authentification Basic (accessKey:secretKey) ; on
- * l'utilise directement, pas besoin de gérer des jetons côté serveur - sauf pour la
+ * l'utilise directement, pas besoin de gérer des jetons côté serveur — sauf pour la
  * carte, qui exige un jeton à passer au navigateur.
  *
  * Sans clés, tout renvoie null / lève une erreur explicite : le site fonctionne, la

@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 /*
  * Page de retour après paiement. Elle n'écrit rien : la commande est créée par le
  * webhook, qui peut arriver une seconde après le client. Si elle n'est pas encore là,
- * on le dit calmement - le paiement est bien pris, l'e-mail suivra.
+ * on le dit calmement — le paiement est bien pris, l'e-mail suivra.
  */
 export default async function ThankYouPage({ searchParams }: PageProps<"/commande/merci">) {
   const { session_id, payment_intent } = await searchParams;

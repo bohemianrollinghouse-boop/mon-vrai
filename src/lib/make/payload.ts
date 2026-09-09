@@ -2,7 +2,7 @@ import type { Customer, Order } from "@/lib/domain/types";
 
 /*
  * Corps envoyé au scénario Make qui crée le client et la facture dans Tiime. Format
- * fixé par Steve : montants en euros (nombres), prix unitaires HT - en franchise de
+ * fixé par Steve : montants en euros (nombres), prix unitaires HT — en franchise de
  * TVA, HT = prix de vente. `tiime_client_id` n'est présent que s'il est déjà connu.
  * La livraison et la remise deviennent des lignes pour que la somme égale le total.
  * Les commandes de test ne partent jamais automatiquement (voir le webhook Stripe) ;

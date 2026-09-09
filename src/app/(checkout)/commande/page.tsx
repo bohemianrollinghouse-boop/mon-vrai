@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 
 /*
  * Paiement en une page, trois étapes (maquette 8a) : contact, livraison, paiement, avec
- * le récapitulatif à droite - sans quitter le site. Stripe.js affiche les moyens de
+ * le récapitulatif à droite — sans quitter le site. Stripe.js affiche les moyens de
  * paiement (carte, Apple Pay, Google Pay, PayPal selon le compte) dans la page ; la
  * commande est créée par le webhook à la confirmation du paiement.
  */
