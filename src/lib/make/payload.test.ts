@@ -33,6 +33,11 @@ describe("Make / Tiime - corps de la requête", () => {
     expect(p.test).toBeUndefined();
   });
 
+  it("reprend l'identifiant Tiime mémorisé sur la commande pour un invité déjà facturé", () => {
+    const p = buildTiimePayload(Order.parse({ ...order, tiime: { clientId: 13008360, invoiceId: "25938739", at: 1 } }), null);
+    expect(p.customer.tiime_client_id).toBe(13008360);
+  });
+
   it("inclut tiime_client_id quand le client en a un, et marque les commandes de test", () => {
     const p = buildTiimePayload(Order.parse({ ...order, livemode: false }), Customer.parse({ uid: "uid-1", email: "camille@exemple.fr", tiimeClientId: 4242, createdAt: 1 }));
     expect(p.customer.tiime_client_id).toBe(4242);
