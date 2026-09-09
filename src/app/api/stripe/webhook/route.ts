@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     if (intent.metadata?.source !== "monvrai-checkout") return NextResponse.json({ received: true, ignored: "not ours" });
     if (await findOrderByPaymentIntent(intent.id)) return NextResponse.json({ received: true, duplicate: true });
 
-    const input = await orderInputFromIntent(stripe, intent);
+    const input = await orderInputFromIntent(intent);
     const order = await createPaidOrder({ ...input, livemode: event.livemode });
     return finish(order, intent.metadata?.cartId, input);
   }
@@ -82,7 +82,7 @@ async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId
 }
 
 /** Commande depuis un PaymentIntent de la page /commande : tout est dans ses métadonnées. */
-async function orderInputFromIntent(stripe: Stripe, intent: Stripe.PaymentIntent): Promise<PaidOrderInput> {
+async function orderInputFromIntent(intent: Stripe.PaymentIntent): Promise<PaidOrderInput> {
   const meta = intent.metadata ?? {};
   const snapshot = safeJson<{ s: string; q: number; p: number; g?: number }[]>(meta.cart, []);
   const products = await getProductsBySlugs(snapshot.map((l) => l.s));
@@ -102,13 +102,13 @@ async function orderInputFromIntent(stripe: Stripe, intent: Stripe.PaymentIntent
     phone: ship?.phone ?? undefined,
   };
 
+  // Adresse de facturation : notre saisie, transmise par les métadonnées (prioritaire sur
+  // ce que le moyen de paiement aurait pu renvoyer). Le téléphone reste celui du contact.
   let billingAddress: Address | undefined;
   if (meta.billingSame !== "1") {
-    const full = await stripe.paymentIntents.retrieve(intent.id, { expand: ["latest_charge"] });
-    const charge = full.latest_charge as Stripe.Charge | null;
-    const b = charge?.billing_details;
-    if (b?.address?.line1) {
-      billingAddress = { name: b.name ?? shippingAddress.name, line1: b.address.line1, line2: b.address.line2 ?? undefined, postalCode: b.address.postal_code ?? "", city: b.address.city ?? "", country: b.address.country ?? shippingAddress.country };
+    const b = safeJson<{ firstName: string; lastName: string; line1: string; line2?: string; postalCode: string; city: string; country: string } | null>(meta.billing, null);
+    if (b?.line1) {
+      billingAddress = { name: `${b.firstName} ${b.lastName}`.trim() || shippingAddress.name, line1: b.line1, line2: b.line2 || undefined, postalCode: b.postalCode, city: b.city, country: b.country, phone: shippingAddress.phone };
     }
   }
 

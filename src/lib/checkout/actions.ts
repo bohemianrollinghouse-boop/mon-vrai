@@ -25,6 +25,17 @@ const AddressInput = z.object({
   phone: z.string().trim().min(1, "Téléphone requis").max(30),
 });
 
+// Adresse de facturation distincte (sans téléphone : on garde celui du contact/livraison).
+const BillingInput = z.object({
+  firstName: z.string().trim().min(1).max(60),
+  lastName: z.string().trim().min(1).max(60),
+  line1: z.string().trim().min(3).max(120),
+  line2: z.string().trim().max(120).default(""),
+  postalCode: z.string().trim().min(4).max(10),
+  city: z.string().trim().min(1).max(80),
+  country: z.string().length(2),
+});
+
 const RelayInput = z.object({
   code: z.string().min(1),
   name: z.string().min(1).max(120),
@@ -40,6 +51,7 @@ const Input = z.object({
   rateId: z.string().min(1),
   billingSame: z.boolean().default(true),
   address: AddressInput,
+  billing: BillingInput.nullable().optional(),
   relay: RelayInput.nullable().optional(),
 });
 export type CheckoutInput = z.input<typeof Input>;
@@ -90,6 +102,8 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
       email: d.email,
       shippingUpdates: d.shippingUpdates ? "1" : "0",
       billingSame: d.billingSame ? "1" : "0",
+      // Adresse de facturation saisie : notre source de vérité pour la facture (Tiime).
+      billing: d.billingSame || !d.billing ? "" : JSON.stringify({ firstName: d.billing.firstName, lastName: d.billing.lastName, line1: d.billing.line1, line2: d.billing.line2, postalCode: d.billing.postalCode, city: d.billing.city, country: d.billing.country }),
       rateId: shipping.id,
       rateName: shipping.name,
       offerCode: shipping.offerCode,

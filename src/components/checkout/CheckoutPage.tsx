@@ -198,6 +198,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
     rateId,
     billingSame,
     address: { firstName: form.firstName, lastName: form.lastName, line1: form.line1, line2: form.line2, postalCode: form.postalCode, city: form.city, country: form.country, phone: form.phone },
+    billing: billingSame ? null : { firstName: billingAddr.firstName, lastName: billingAddr.lastName, line1: billingAddr.line1, line2: billingAddr.line2, postalCode: billingAddr.postalCode, city: billingAddr.city, country: billingAddr.country },
     relay: selectedOption?.relay ? relay : null,
   });
 
