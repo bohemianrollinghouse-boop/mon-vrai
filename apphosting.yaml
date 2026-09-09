@@ -80,6 +80,17 @@ env:
   - variable: BOXTAL_WEBHOOK_SECRET
     secret: BOXTAL_WEBHOOK_SECRET
 
+  # Boxtal — environnement de test (bac à sable api.boxtal.build), utilisé quand la
+  # boutique est en mode test : étiquettes non facturées. Voir lib/boxtal/client.ts.
+  - variable: BOXTAL_ACCESS_KEY_TEST
+    secret: BOXTAL_ACCESS_KEY_TEST
+
+  - variable: BOXTAL_SECRET_KEY_TEST
+    secret: BOXTAL_SECRET_KEY_TEST
+
+  - variable: BOXTAL_WEBHOOK_SECRET_TEST
+    secret: BOXTAL_WEBHOOK_SECRET_TEST
+
   - variable: EMAIL_FROM
     value: "Mon Vrai <no-reply@monvrai.fr>"
 

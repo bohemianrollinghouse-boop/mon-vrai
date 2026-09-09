@@ -5,10 +5,17 @@ import { getSettings } from "@/lib/db/settings";
 import type { Order } from "@/lib/domain/types";
 import { sendShippingNotice } from "@/lib/email/send";
 import { carrierOf } from "./offers";
-import { createShippingOrder, getShippingDocuments, getShippingTracking, type PackageTracking } from "./client";
+import { createShippingOrder, getShippingDocuments, getShippingTracking, type BoxtalMode, type PackageTracking } from "./client";
 import { buildShippingOrderRequest } from "./request";
 
 export { buildShippingOrderRequest, parcelWeightKg, senderAddress } from "./request";
+
+/*
+ * L'environnement Boxtal suit le mode de la commande : une commande de test (livemode
+ * = false) crée son étiquette dans le bac à sable Boxtal, non facturé. Les documents et
+ * le suivi se relisent dans le même environnement que celui où l'étiquette a été créée.
+ */
+const boxtalModeOf = (order: Order): BoxtalMode => (order.livemode === false ? "test" : "live");
 
 /*
  * Du côté commande : construire la demande Boxtal à partir de la commande et des
@@ -24,7 +31,7 @@ export async function createLabelForOrder(orderId: string, by: string): Promise<
   if (!["paid", "preparing"].includes(order.status)) throw new Error(`Une commande ${order.status} ne s'expédie pas.`);
   const settings = await getSettings();
   const req = buildShippingOrderRequest(order, settings);
-  const created = await createShippingOrder(req);
+  const created = await createShippingOrder(req, boxtalModeOf(order));
   await setBoxtal(orderId, { orderId: created.id, status: created.status, createdAt: Date.now(), updatedAt: Date.now() });
   if (order.status === "paid") await transitionOrder(orderId, "preparing", { note: `Étiquette Boxtal demandée (${req.shippingOfferCode}, réf. ${created.id})`, by });
   // L'étiquette et le suivi arrivent souvent tout de suite : on tente, sans dépendre du webhook.
@@ -36,7 +43,8 @@ export async function createLabelForOrder(orderId: string, by: string): Promise<
 export async function syncBoxtal(orderId: string): Promise<Order | null> {
   const order = await getOrder(orderId);
   if (!order?.boxtal) return order;
-  const [docs, trackings] = await Promise.all([getShippingDocuments(order.boxtal.orderId).catch(() => []), getShippingTracking(order.boxtal.orderId).catch(() => [])]);
+  const mode = boxtalModeOf(order);
+  const [docs, trackings] = await Promise.all([getShippingDocuments(order.boxtal.orderId, mode).catch(() => []), getShippingTracking(order.boxtal.orderId, mode).catch(() => [])]);
   const patch: NonNullable<Order["boxtal"]> = { ...order.boxtal, updatedAt: Date.now() };
 
   const label = docs.find((d) => d.type === "LABEL");

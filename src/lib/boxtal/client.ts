@@ -15,10 +15,27 @@ export type { BoxtalAddress, CreateShippingOrderRequest, PackageTracking, Shippi
  * livraison se saisit à la main dans l'admin.
  */
 
-const API = process.env.BOXTAL_API_URL ?? "https://api.boxtal.com";
+/*
+ * Deux environnements Boxtal, calqués sur le mode de paiement de la boutique (comme
+ * Stripe) : « live » achète de vraies étiquettes sur api.boxtal.com, « test » crée des
+ * étiquettes non facturées sur api.boxtal.build. Seule l'expédition (étiquette, suivi,
+ * souscriptions) suit le mode ; la carte des points relais reste en production pour
+ * montrer de vrais relais aux visiteurs.
+ */
+export type BoxtalMode = "live" | "test";
 
-export function boxtalConfigured(): boolean {
-  return Boolean(process.env.BOXTAL_ACCESS_KEY && process.env.BOXTAL_SECRET_KEY);
+function apiBase(mode: BoxtalMode): string {
+  return mode === "test" ? (process.env.BOXTAL_API_URL_TEST ?? "https://api.boxtal.build") : (process.env.BOXTAL_API_URL ?? "https://api.boxtal.com");
+}
+function accessKey(mode: BoxtalMode): string | undefined {
+  return mode === "test" ? process.env.BOXTAL_ACCESS_KEY_TEST : process.env.BOXTAL_ACCESS_KEY;
+}
+function secretKey(mode: BoxtalMode): string | undefined {
+  return mode === "test" ? process.env.BOXTAL_SECRET_KEY_TEST : process.env.BOXTAL_SECRET_KEY;
+}
+
+export function boxtalConfigured(mode: BoxtalMode = "live"): boolean {
+  return Boolean(accessKey(mode) && secretKey(mode));
 }
 
 export function boxtalMapConfigured(): boolean {
@@ -32,15 +49,15 @@ function basic(access: string | undefined, secret: string | undefined): string {
 
 type Envelope<T> = { status: number; content?: T; errors?: { code: string; parameters?: { field?: string; message?: string }[] }[] };
 
-async function call<T>(method: string, path: string, body?: unknown, query?: Record<string, string | string[] | undefined>): Promise<T> {
-  const url = new URL(path, API);
+async function call<T>(method: string, path: string, body?: unknown, query?: Record<string, string | string[] | undefined>, mode: BoxtalMode = "live"): Promise<T> {
+  const url = new URL(path, apiBase(mode));
   for (const [k, v] of Object.entries(query ?? {})) {
     if (v === undefined) continue;
     for (const item of Array.isArray(v) ? v : [v]) url.searchParams.append(k, item);
   }
   const res = await fetch(url, {
     method,
-    headers: { Authorization: basic(process.env.BOXTAL_ACCESS_KEY, process.env.BOXTAL_SECRET_KEY), "content-type": "application/json", accept: "application/json" },
+    headers: { Authorization: basic(accessKey(mode), secretKey(mode)), "content-type": "application/json", accept: "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
   });
@@ -66,7 +83,8 @@ let mapToken: { token: string; expiresAt: number } | null = null;
 export async function getMapToken(): Promise<string | null> {
   if (!boxtalMapConfigured()) return null;
   if (mapToken && mapToken.expiresAt > Date.now() + 60_000) return mapToken.token;
-  const res = await fetch(new URL("/iam/account-app/token", API), {
+  // La carte des points relais reste toujours en production (vrais relais pour les visiteurs).
+  const res = await fetch(new URL("/iam/account-app/token", apiBase("live")), {
     method: "POST",
     headers: { Authorization: basic(process.env.BOXTAL_MAP_ACCESS_KEY, process.env.BOXTAL_MAP_SECRET_KEY) },
     cache: "no-store",
@@ -95,42 +113,47 @@ export async function searchParcelPoints(address: { countryIsoCode: string; post
 
 /* ---------- Expéditions ---------- */
 
-export function createShippingOrder(req: CreateShippingOrderRequest): Promise<ShippingOrder> {
-  return call("POST", "/shipping/v3.1/shipping-order", req);
+export function createShippingOrder(req: CreateShippingOrderRequest, mode: BoxtalMode = "live"): Promise<ShippingOrder> {
+  return call("POST", "/shipping/v3.1/shipping-order", req, undefined, mode);
 }
-export function getShippingOrder(id: string): Promise<ShippingOrder> {
-  return call("GET", `/shipping/v3.1/shipping-order/${encodeURIComponent(id)}`);
+export function getShippingOrder(id: string, mode: BoxtalMode = "live"): Promise<ShippingOrder> {
+  return call("GET", `/shipping/v3.1/shipping-order/${encodeURIComponent(id)}`, undefined, undefined, mode);
 }
-export function getShippingDocuments(id: string): Promise<ShippingDocument[]> {
-  return call("GET", `/shipping/v3.1/shipping-order/${encodeURIComponent(id)}/shipping-document`);
+export function getShippingDocuments(id: string, mode: BoxtalMode = "live"): Promise<ShippingDocument[]> {
+  return call("GET", `/shipping/v3.1/shipping-order/${encodeURIComponent(id)}/shipping-document`, undefined, undefined, mode);
 }
-export function getShippingTracking(id: string): Promise<PackageTracking[]> {
-  return call("GET", `/shipping/v3.1/shipping-order/${encodeURIComponent(id)}/tracking`);
+export function getShippingTracking(id: string, mode: BoxtalMode = "live"): Promise<PackageTracking[]> {
+  return call("GET", `/shipping/v3.1/shipping-order/${encodeURIComponent(id)}/tracking`, undefined, undefined, mode);
 }
-export function cancelShippingOrder(id: string): Promise<unknown> {
-  return call("DELETE", `/shipping/v3.1/shipping-order/${encodeURIComponent(id)}`);
+export function cancelShippingOrder(id: string, mode: BoxtalMode = "live"): Promise<unknown> {
+  return call("DELETE", `/shipping/v3.1/shipping-order/${encodeURIComponent(id)}`, undefined, undefined, mode);
 }
 
 /* ---------- Webhooks ---------- */
 
 export type Subscription = { id: string; eventType: "DOCUMENT_CREATED" | "TRACKING_CHANGED"; callbackUrl: string; status: string };
 
-export function listSubscriptions(): Promise<Subscription[]> {
-  return call("GET", "/shipping/v3.1/subscription");
+export function listSubscriptions(mode: BoxtalMode = "live"): Promise<Subscription[]> {
+  return call("GET", "/shipping/v3.1/subscription", undefined, undefined, mode);
 }
-export function createSubscription(eventType: Subscription["eventType"], callbackUrl: string, webhookSecret: string): Promise<Subscription> {
-  return call("POST", "/shipping/v3.1/subscription", { eventType, callbackUrl, webhookSecret });
+export function createSubscription(eventType: Subscription["eventType"], callbackUrl: string, webhookSecret: string, mode: BoxtalMode = "live"): Promise<Subscription> {
+  return call("POST", "/shipping/v3.1/subscription", { eventType, callbackUrl, webhookSecret }, undefined, mode);
 }
 
-/** Signature `x-bxt-signature` = HMAC-SHA256 (hex) du corps brut avec le secret de la souscription. */
+/*
+ * Signature `x-bxt-signature` = HMAC-SHA256 (hex) du corps brut avec le secret de la
+ * souscription. Deux environnements possibles (live / test) : on essaie les deux secrets,
+ * l'un ou l'autre valide selon l'origine du webhook.
+ */
 export function verifyBoxtalSignature(rawBody: string, signature: string | null): boolean {
-  const secret = process.env.BOXTAL_WEBHOOK_SECRET;
-  if (!secret || !signature) return false;
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  const a = Buffer.from(expected);
-  const candidates = [signature.trim(), signature.trim().replace(/^sha256=/i, "")];
-  return candidates.some((c) => {
-    const b = Buffer.from(c.toLowerCase());
-    return a.length === b.length && timingSafeEqual(a, b);
+  if (!signature) return false;
+  const secrets = [process.env.BOXTAL_WEBHOOK_SECRET, process.env.BOXTAL_WEBHOOK_SECRET_TEST].filter(Boolean) as string[];
+  const candidates = [signature.trim(), signature.trim().replace(/^sha256=/i, "")].map((c) => c.toLowerCase());
+  return secrets.some((secret) => {
+    const a = Buffer.from(createHmac("sha256", secret).update(rawBody).digest("hex"));
+    return candidates.some((c) => {
+      const b = Buffer.from(c);
+      return a.length === b.length && timingSafeEqual(a, b);
+    });
   });
 }
