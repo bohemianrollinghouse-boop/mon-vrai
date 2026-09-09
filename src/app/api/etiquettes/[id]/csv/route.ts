@@ -17,8 +17,10 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   if (!order) return NextResponse.json({ error: "Commande introuvable" }, { status: 404 });
   const settings = await getSettings();
   const csv = buildBoxtalCsv(order, settings);
-  // BOM UTF-8 pour qu'Excel et Boxtal lisent bien les accents.
-  return new NextResponse("﻿" + csv, {
+  // Pas de BOM : Boxtal mappe les colonnes par leur en-tête exact ; un BOM collé au
+  // premier en-tête (recipient_first_name) empêchait Boxtal de reconnaître cette colonne.
+  // L'UTF-8 sans BOM passe très bien (les accents sont lus correctement à l'import).
+  return new NextResponse(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
       "content-disposition": `attachment; filename="boxtal-${order.number}.csv"`,
