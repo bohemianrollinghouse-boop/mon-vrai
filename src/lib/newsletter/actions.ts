@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { col, now } from "@/lib/db/helpers";
+import { subscribeEmail } from "@/lib/db/newsletter";
 
 /*
  * Inscription newsletter. On enregistre l'adresse avec la date et l'origine : c'est la
@@ -18,10 +18,6 @@ export async function subscribeNewsletter(formData: FormData): Promise<Newslette
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Adresse invalide" };
 
   const { email, source } = parsed.data;
-  // L'adresse sert d'identifiant : se réinscrire ne crée pas de doublon.
-  await col("newsletter").doc(encodeURIComponent(email)).set(
-    { email, source, optIn: true, subscribedAt: now() },
-    { merge: true },
-  );
+  await subscribeEmail(email, source);
   return { ok: true };
 }

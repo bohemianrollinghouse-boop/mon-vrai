@@ -38,7 +38,7 @@ export async function POST(request: Request) {
 
     const input = await orderInputFromIntent(intent);
     const order = await createPaidOrder({ ...input, livemode: event.livemode });
-    return finish(order, intent.metadata?.cartId, input);
+    return finish(order, intent.metadata?.cartId, { ...input, newsletter: intent.metadata?.newsletter === "1" });
   }
 
   // Ancien parcours Stripe Checkout (page hébergée par Stripe) : conservé par prudence.
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 }
 
 /** Suites communes d'une commande créée : voir fulfillOrder (panier, facture, e-mail, adresse). */
-async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId: string | undefined, input: PaidOrderInput) {
+async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId: string | undefined, input: PaidOrderInput & { newsletter?: boolean }) {
   await fulfillOrder(order, cartId, input, "stripe");
   return NextResponse.json({ received: true, order: order.number });
 }

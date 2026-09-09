@@ -37,6 +37,16 @@ export async function saveTemplateValues(id: string, values: Record<string, stri
   await content().doc("newsletter").set({ values: { [id]: values }, updatedAt: now() }, { merge: true });
 }
 
+/**
+ * Inscrit une adresse (opt-in) en notant la date et l'origine : c'est la preuve de
+ * consentement que le RGPD demande. L'adresse sert d'identifiant : pas de doublon.
+ */
+export async function subscribeEmail(email: string, source: string): Promise<void> {
+  const lower = email.trim().toLowerCase();
+  if (!lower) return;
+  await subs().doc(encodeURIComponent(lower)).set({ email: lower, source, optIn: true, subscribedAt: now() }, { merge: true });
+}
+
 /** Inscrits, dédupliqués par e-mail : inscriptions directes (opt-in) + clients ayant consenti. */
 export async function listSubscribers(): Promise<Subscriber[]> {
   const [direct, customers] = await Promise.all([parseQuery(NewsletterSubscriber, subs().limit(5000)), listCustomers(5000)]);

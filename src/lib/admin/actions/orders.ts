@@ -8,15 +8,16 @@ import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { addOrderNote, getOrder, setTracking, transitionOrder } from "@/lib/db/orders";
 import { OrderStatus } from "@/lib/domain/types";
-import { sendShippingNotice } from "@/lib/email/send";
+import { sendOrderConfirmation, sendShippingNotice } from "@/lib/email/send";
 import { createLabelForOrder, syncBoxtal } from "@/lib/boxtal/shipment";
+import { storeInvoice } from "@/lib/invoice/issue";
 import { sendOrderToMake } from "@/lib/make/tiime";
 
 /*
- * Commandes. Trois gestes : changer le statut (en respectant la machine à états),
- * renseigner le suivi (qui passe la commande en « expédiée » et prévient le client),
- * facturer dans Tiime via Make (qui renvoie le PDF). Aucune écriture directe : tout
- * passe par les transactions de db/orders.ts.
+ * Commandes. Changer le statut (en respectant la machine à états), renseigner le suivi
+ * (qui passe la commande en « expédiée » et prévient le client), facturer dans Tiime via
+ * Make (qui renvoie le numéro et les données de la facture), régénérer le PDF de facture,
+ * renvoyer un e-mail au client. Aucune écriture directe : tout passe par db/orders.ts.
  */
 
 const Transition = z.object({ id: z.string().min(1), to: OrderStatus, note: z.string().trim().max(500).default("") });
@@ -118,4 +119,56 @@ export async function sendToMakeAction(formData: FormData): Promise<AdminResult>
   await audit(user.email, "order.make", `orders/${id}`, [res.invoiceId && `facture ${res.invoiceId}`, res.tiimeClientId && `client ${res.tiimeClientId}`].filter(Boolean).join(" · ") || String(res.status));
   revalidatePath("/admin/commandes");
   return saved(res.invoiceId ? `Facture Tiime ${res.invoiceId} créée${res.tiimeClientId ? ` (client ${res.tiimeClientId} créé)` : ""}.` : `Envoyée à Make (${res.status}).`);
+}
+
+/*
+ * Renvoi d'un e-mail au client : la confirmation de commande (avec la facture PDF
+ * jointe si elle existe) ou l'avis d'expédition (qui exige un suivi renseigné). Chaque
+ * renvoi laisse une trace dans l'historique de la commande.
+ */
+const EMAIL_KINDS = { confirmation: "Confirmation de commande", shipping: "Avis d'expédition" } as const;
+export type OrderEmailKind = keyof typeof EMAIL_KINDS;
+const ResendEmail = z.object({ id: z.string().min(1), kind: z.enum(["confirmation", "shipping"]) });
+
+export async function resendOrderEmailAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const parsed = parseForm(ResendEmail, formData);
+  if (!parsed.ok) return failed(parsed.error, parsed.issues);
+  const { id, kind } = parsed.data;
+  const order = await getOrder(id);
+  if (!order) return failed("Commande introuvable");
+  if (kind === "shipping" && !order.tracking) return failed("Aucun suivi renseigné : rien à annoncer au client.");
+  try {
+    if (kind === "confirmation") await sendOrderConfirmation(order);
+    else await sendShippingNotice(order);
+  } catch (e) {
+    return failed(`E-mail non envoyé : ${(e as Error).message}`);
+  }
+  await addOrderNote(id, `${EMAIL_KINDS[kind]} renvoyé${kind === "confirmation" ? "e" : ""} à ${order.email}`, user.email).catch(() => undefined);
+  await audit(user.email, `order.email.${kind}`, `orders/${id}`, order.email);
+  revalidatePath("/admin/commandes");
+  return saved(`${EMAIL_KINDS[kind]} envoyé${kind === "confirmation" ? "e" : ""} à ${order.email}.`);
+}
+
+/*
+ * Régénère le PDF de la facture avec la maquette courante, en gardant le numéro et la
+ * date de Tiime. Utile quand la mise en page a été corrigée après l'émission ; la
+ * facture comptable, elle, reste celle de Tiime.
+ */
+export async function regenerateInvoicePdfAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return failed("Commande inconnue");
+  const order = await getOrder(id);
+  if (!order) return failed("Commande introuvable");
+  if (!order.invoice) return failed("Pas de facture à régénérer : facturez d'abord dans Tiime.");
+  try {
+    await storeInvoice(order, { number: order.invoice.number, issuedAt: order.invoice.issuedAt });
+  } catch (e) {
+    return failed(`PDF non généré : ${(e as Error).message}`);
+  }
+  await addOrderNote(id, `PDF de la facture ${order.invoice.number} régénéré`, user.email).catch(() => undefined);
+  await audit(user.email, "order.invoice.pdf", `orders/${id}`, order.invoice.number);
+  revalidatePath("/admin/commandes");
+  return saved(`PDF de la facture ${order.invoice.number} régénéré.`);
 }

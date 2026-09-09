@@ -191,6 +191,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, countr
   const router = useRouter();
   const [form, setForm] = useState<Prefill>(prefill);
   const [shippingUpdates, setShippingUpdates] = useState(true);
+  const [newsletter, setNewsletter] = useState(false);
   const [billingSame, setBillingSame] = useState(true);
   const [billingAddr, setBillingAddr] = useState<Prefill>(prefill);
   const [relay, setRelay] = useState<Relay | null>(null);
@@ -223,6 +224,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, countr
   const input = (): CheckoutInput => ({
     email: form.email,
     shippingUpdates,
+    newsletter,
     rateId,
     billingSame,
     address: { firstName: form.firstName, lastName: form.lastName, line1: form.line1, line2: form.line2, postalCode: form.postalCode, city: form.city, country, phone: form.phone },
@@ -343,6 +345,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, countr
     const res = await createPaymentIntentAction({
       email: e.billingDetails?.email ?? form.email,
       shippingUpdates: true,
+      newsletter,
       rateId: rate,
       billingSame: false,
       address: { firstName: firstName || "Client", lastName: rest.join(" "), line1: addr.address.line1 ?? "", line2: addr.address.line2 ?? "", postalCode: addr.address.postal_code ?? "", city: addr.address.city ?? "", country: addr.address.country, phone: e.billingDetails?.phone ?? "" },
@@ -402,6 +405,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, countr
           <input type="email" required autoComplete="email" value={form.email} onChange={set("email")} className={field} />
         </label>
         <Check checked={shippingUpdates} onChange={setShippingUpdates} label="Me tenir au courant de l'expédition par e-mail" />
+        <Check checked={newsletter} onChange={setNewsletter} label="Recevoir les nouvelles de Mon Vrai par e-mail" hint="Pour suivre l'avancement des précommandes et découvrir les nouveaux titres. Désinscription en un clic, à tout moment." />
       </Card>
 
       <Card id="etape-livraison" onFocusCapture={() => onStep("livraison")}>
@@ -687,14 +691,17 @@ function CardHead({ n, title, aside }: { n?: number; title: string; aside?: Reac
   );
 }
 
-function Check({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+function Check({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string }) {
   return (
-    <label className="flex items-center gap-3 text-[0.8125rem] text-[#555]">
+    <label className={`flex gap-3 text-[0.8125rem] text-[#555] ${hint ? "items-start" : "items-center"}`}>
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
       <span aria-hidden="true" className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[0.6875rem] font-bold ${checked ? "bg-ink text-white" : "border-[1.5px] border-[#ccc] bg-white"} peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink`}>
         {checked ? "✓" : ""}
       </span>
-      <span>{label}</span>
+      <span className="flex flex-col gap-0.5">
+        <span>{label}</span>
+        {hint && <span className="text-xs text-subtle">{hint}</span>}
+      </span>
     </label>
   );
 }

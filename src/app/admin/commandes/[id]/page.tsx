@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { Avatar, ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Thumb } from "@/components/admin/ui";
-import { addOrderNoteAction, createBoxtalLabelAction, sendToMakeAction, setTrackingAction, syncBoxtalAction, transitionOrderAction } from "@/lib/admin/actions/orders";
+import { addOrderNoteAction, createBoxtalLabelAction, regenerateInvoicePdfAction, resendOrderEmailAction, sendToMakeAction, setTrackingAction, syncBoxtalAction, transitionOrderAction } from "@/lib/admin/actions/orders";
 import { makeConfigured } from "@/lib/make/tiime";
 import { boxtalConfigured } from "@/lib/boxtal/client";
 import { carrierOf, findOffer } from "@/lib/boxtal/offers";
@@ -20,7 +20,8 @@ export const dynamic = "force-dynamic";
 /*
  * Fiche commande, d'après la maquette : en-tête avec statut et actions, articles et
  * totaux, carte sombre d'expédition (suivi + notification client), historique avec
- * notes internes ; à droite, le client et l'encart précommande.
+ * notes internes ; à droite, le client, l'encart précommande, les e-mails à renvoyer,
+ * Tiime et Stripe.
  */
 export default async function OrderDetail({ params }: PageProps<"/admin/commandes/[id]">) {
   const { id } = await params;
@@ -43,6 +44,7 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
   const parcel = settings.shipping.parcel;
   const stripeUrl = order.stripe.paymentIntentId ? `https://dashboard.stripe.com/${order.livemode ? "" : "test/"}payments/${order.stripe.paymentIntentId}` : null;
   const refundable = stripeUrl && !["refunded", "cancelled", "pending_payment"].includes(order.status);
+  const paidOrder = !["pending_payment", "cancelled"].includes(order.status);
 
   return (
     <>
@@ -351,7 +353,26 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
             </Card>
           )}
 
-          {makeConfigured() && !["pending_payment", "cancelled"].includes(order.status) && (
+          {paidOrder && (
+            <Card title={<span className="text-sm">E-mails au client</span>} className="!gap-3">
+              <EmailRow
+                orderId={order.id}
+                kind="confirmation"
+                title="Confirmation de commande"
+                detail={order.invoice ? `Avec la facture ${order.invoice.number} en pièce jointe.` : "Sans facture : le PDF n'existe pas encore."}
+              />
+              <EmailRow
+                orderId={order.id}
+                kind="shipping"
+                title="Avis d'expédition"
+                detail={order.tracking ? `${order.tracking.carrier} · ${order.tracking.number}` : "Disponible dès qu'un suivi est renseigné."}
+                disabled={!order.tracking}
+              />
+              <p className="text-[0.6875rem] text-faint">Envoyé à {order.email}. Chaque renvoi est noté dans l'historique.</p>
+            </Card>
+          )}
+
+          {makeConfigured() && paidOrder && (
             <Card title={<span className="text-sm">Tiime (via Make)</span>} className="!gap-2">
               {order.tiime?.invoiceId ? (
                 <p className="text-xs text-subtle">
@@ -370,6 +391,11 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
               >
                 <input type="hidden" name="id" value={order.id} />
               </ActionForm>
+              {order.invoice && (
+                <ActionForm action={regenerateInvoicePdfAction} submitLabel="Régénérer le PDF" submitTone="outline" className="!gap-0 [&>div:last-child]:justify-start" footerNote={<span className="text-xs text-subtle">Même numéro et même date, mise en page actuelle.</span>}>
+                  <input type="hidden" name="id" value={order.id} />
+                </ActionForm>
+              )}
             </Card>
           )}
 
@@ -382,6 +408,25 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
         </div>
       </div>
     </>
+  );
+}
+
+function EmailRow({ orderId, kind, title, detail, disabled = false }: { orderId: string; kind: "confirmation" | "shipping"; title: string; detail: string; disabled?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 first:border-t-0 first:pt-0">
+      <div className="flex min-w-0 flex-col text-[0.8125rem]">
+        <span className="font-bold">{title}</span>
+        <span className="truncate text-xs text-subtle">{detail}</span>
+      </div>
+      {disabled ? (
+        <span className="shrink-0 text-xs font-semibold text-faint">Indisponible</span>
+      ) : (
+        <ActionForm action={resendOrderEmailAction} submitLabel="Renvoyer" submitTone="outline" confirm={`Renvoyer « ${title} » au client ?`} className="shrink-0 !gap-0 [&>div:last-child]:contents">
+          <input type="hidden" name="id" value={orderId} />
+          <input type="hidden" name="kind" value={kind} />
+        </ActionForm>
+      )}
+    </div>
   );
 }
 

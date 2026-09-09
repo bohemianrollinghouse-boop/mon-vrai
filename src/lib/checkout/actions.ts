@@ -52,6 +52,8 @@ const RelayInput = z.object({
 const Input = z.object({
   email: z.email("E-mail invalide"),
   shippingUpdates: z.boolean().default(true),
+  // Consentement newsletter (nouveautés, avancement des précommandes) : décoché par défaut.
+  newsletter: z.boolean().default(false),
   rateId: z.string().min(1),
   billingSame: z.boolean().default(true),
   address: AddressInput,
@@ -137,6 +139,7 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
       customerUid: user?.uid ?? "",
       email: d.email,
       shippingUpdates: d.shippingUpdates ? "1" : "0",
+      newsletter: d.newsletter ? "1" : "0",
       billingSame: d.billingSame ? "1" : "0",
       // Adresse de facturation saisie : notre source de vérité pour la facture (Tiime).
       billing: d.billingSame || !d.billing ? "" : JSON.stringify({ firstName: d.billing.firstName, lastName: d.billing.lastName, line1: d.billing.line1, line2: d.billing.line2, postalCode: d.billing.postalCode, city: d.billing.city, country: d.billing.country }),
@@ -236,6 +239,6 @@ export async function placeFreeOrderAction(raw: CheckoutInput): Promise<FreeOrde
   };
 
   const order = await createPaidOrder({ ...input, livemode: mode === "live" });
-  await fulfillOrder(order, quote.cartId, input, "site");
+  await fulfillOrder(order, quote.cartId, { ...input, newsletter: d.newsletter }, "site");
   return { ok: true, orderId: order.id };
 }
