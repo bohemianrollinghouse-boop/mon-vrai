@@ -313,7 +313,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
           options={{
             buttonHeight: 52,
             buttonTheme: { applePay: "black", googlePay: "black", paypal: "black" },
-            layout: { maxColumns: 3, maxRows: 1, overflow: "never" },
+            layout: { maxColumns: 3, maxRows: 1, overflow: "auto" },
             emailRequired: true,
             phoneNumberRequired: true,
             shippingAddressRequired: true,
