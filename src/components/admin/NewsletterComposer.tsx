@@ -117,8 +117,9 @@ export function NewsletterComposer({
         e.preventDefault();
         const key = linkBtn.dataset.k ?? "";
         const anchor = el.querySelector<HTMLAnchorElement>(`a[data-href-k="${CSS.escape(key)}"]`);
-        const r = linkBtn.getBoundingClientRect();
-        setLinkEdit({ key, href: anchor?.getAttribute("href") ?? "", top: r.bottom + 8, left: Math.max(12, Math.min(r.left - 220, window.innerWidth - 360)) });
+        // Fenêtre centrée sous le bouton, sans sortir de l'écran.
+        const r = (anchor ?? linkBtn).getBoundingClientRect();
+        setLinkEdit({ key, href: anchor?.getAttribute("href") ?? "", top: r.bottom + 10, left: Math.max(12, Math.min(r.left + r.width / 2 - 170, window.innerWidth - 352)) });
         return;
       }
       // Un bouton de l'aperçu ne doit pas naviguer : on édite son texte comme les autres.
