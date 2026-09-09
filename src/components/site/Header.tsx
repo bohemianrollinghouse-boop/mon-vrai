@@ -36,7 +36,7 @@ export async function Header() {
     <header className="sticky top-0 z-30 bg-paper">
       <div className="site-wrap relative flex items-center justify-between gap-6 py-6 max-[1099px]:py-4">
         <Link href="/" className="shrink-0" aria-label={settings.shopName}>
-          <Image src="/logo.png" alt={settings.shopName} width={120} height={30} className="h-[30px] w-auto" style={{ height: 30, width: "auto" }} priority />
+          <Image src="/email-logo.png" alt={settings.shopName} width={120} height={30} className="h-[30px] w-auto" style={{ height: 30, width: "auto" }} priority />
         </Link>
 
         <SiteNav links={links} />

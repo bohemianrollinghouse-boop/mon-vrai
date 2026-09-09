@@ -88,7 +88,7 @@ export function CheckoutPage(props: Props) {
     <div className="min-h-screen bg-paper">
       <header className="site-wrap flex flex-wrap items-center justify-between gap-4 py-6">
         <Link href="/" aria-label={props.shopName}>
-          <Image src="/logo.png" alt={props.shopName} width={120} height={30} className="h-[30px] w-auto" style={{ height: 30, width: "auto" }} priority />
+          <Image src="/email-logo.png" alt={props.shopName} width={120} height={30} className="h-[30px] w-auto" style={{ height: 30, width: "auto" }} priority />
         </Link>
         <nav className="flex gap-1.5 rounded-pill bg-white p-1.5 text-[0.8125rem] font-semibold" aria-label="Étapes">
           <Link href="/panier" className="rounded-pill px-[1.125rem] py-2.5 text-subtle hover:text-ink">
