@@ -80,7 +80,7 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
               key: p.code,
               href: `/admin/codes-promo?code=${p.code}${filter !== "Tous" ? `&statut=${filter}` : ""}`,
               cells: [
-                <span key="c" className={`w-fit rounded-lg px-2.5 py-1.5 text-xs font-extrabold tracking-[0.04em] ${current?.code === p.code ? "bg-ink text-white" : "bg-paper"}`}>{p.code}</span>,
+                <span key="c" className={`w-fit rounded-lg px-2.5 py-1.5 text-xs font-extrabold tracking-[0.04em] ${current?.code === p.code ? "bg-ink text-on-ink" : "bg-paper"}`}>{p.code}</span>,
                 <span key="d" className="flex flex-col">
                   <span className="truncate font-semibold">{p.description || "-"}</span>
                   <span className="text-[0.6875rem] text-subtle">
@@ -182,7 +182,7 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
 
 function StackOption({ value, label, hint, checked }: { value: string; label: string; hint: string; checked: boolean }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[0.8125rem] font-semibold hover:bg-white">
+    <label className="flex cursor-pointer items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-[0.8125rem] font-semibold hover:bg-surface">
       <input type="checkbox" name="stackWith" value={value} defaultChecked={checked} className="h-[18px] w-[18px] accent-ink" />
       <span className="flex-1">{label}</span>
       <span className="text-[0.6875rem] font-semibold text-subtle">{hint}</span>

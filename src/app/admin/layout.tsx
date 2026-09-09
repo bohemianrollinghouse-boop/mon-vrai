@@ -5,11 +5,13 @@ import type { ReactNode } from "react";
 import { signOut } from "@/lib/auth/actions";
 import { requireAdmin } from "@/lib/auth/session";
 import { adminSnapshot } from "@/lib/admin/counts";
+import { readAdminTheme, themeAttribute } from "@/lib/admin/theme";
 import { AdminNav, type NavSection } from "@/components/admin/AdminNav";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { PwaRegister } from "@/components/admin/PwaRegister";
 import { Avatar } from "@/components/admin/ui";
 import { ModeToggle } from "@/components/admin/ModeToggle";
+import { ThemeToggle } from "@/components/admin/ThemeToggle";
 
 /*
  * PWA « admin seule » : le manifest est scopé à /admin (installable uniquement depuis
@@ -22,7 +24,17 @@ export const metadata: Metadata = {
   icons: { apple: "/admin/app-icon/180" },
 };
 
-export const viewport: Viewport = { themeColor: "#111111" };
+/*
+ * Couleur de l'interface du navigateur (barre système en application installée) : elle
+ * suit le thème choisi, pour que la barre haute de l'admin et le système soient d'accord.
+ */
+export async function generateViewport(): Promise<Viewport> {
+  const theme = await readAdminTheme();
+  if (theme === "auto") {
+    return { themeColor: [{ media: "(prefers-color-scheme: light)", color: "#ffffff" }, { media: "(prefers-color-scheme: dark)", color: "#1e1d1a" }] };
+  }
+  return { themeColor: theme === "sombre" ? "#1e1d1a" : "#ffffff" };
+}
 
 /*
  * Coquille de l'administration, d'après la maquette « Mon Vrai - Admin » : une barre
@@ -45,7 +57,7 @@ function formatBuildTime(iso: string | undefined): string {
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const user = await requireAdmin();
-  const snap = await adminSnapshot();
+  const [snap, theme] = await Promise.all([adminSnapshot(), readAdminTheme()]);
 
   const sections: NavSection[] = [
     {
@@ -98,13 +110,14 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   const displayName = user.name || user.email.split("@")[0];
 
   return (
-    <div className="grid min-h-screen flex-1 grid-cols-[240px_minmax(0,1fr)] max-[899px]:grid-cols-1">
+    /* `admin-shell` + `data-theme` : la seule prise du thème sombre (voir globals.css). */
+    <div className="admin-shell grid min-h-screen flex-1 grid-cols-[240px_minmax(0,1fr)] max-[899px]:grid-cols-1" data-theme={themeAttribute(theme)}>
       <PwaRegister />
       <AdminSidebar>
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between px-2">
             <Link href="/admin" aria-label="Tableau de bord">
-              <Image src="/email-logo.png" alt="Mon Vrai" width={96} height={24} className="h-6 w-auto" style={{ height: 24, width: "auto" }} priority />
+              <Image src="/email-logo.png" alt="Mon Vrai" width={96} height={24} className="admin-logo h-6 w-auto" style={{ height: 24, width: "auto" }} priority />
             </Link>
             <span className="rounded-pill bg-tint-sand px-2 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-sand-ink">Admin</span>
           </div>
@@ -112,6 +125,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         </div>
         <AdminNav sections={sections} />
         <div className="mt-auto flex flex-col gap-3 max-[899px]:mt-0">
+          <ThemeToggle current={theme} />
           <Link href="/" target="_blank" className="flex justify-between rounded-[14px] bg-paper px-3.5 py-3 text-[0.8125rem] font-semibold hover:opacity-70">
             <span>Voir la boutique</span>
             <span aria-hidden="true">↗</span>

@@ -46,7 +46,7 @@ const DEVICE_BG: Record<DeviceKind, string> = { mobile: "bg-ink", ordinateur: "b
 const TONE = {
   pink: { badge: "bg-tint-pink text-tint-pink-ink", bar: "bg-tint-pink" },
   blue: { badge: "bg-tint-blue text-tint-blue-ink", bar: "bg-tint-blue" },
-  dark: { badge: "bg-ink text-white", bar: "bg-ink" },
+  dark: { badge: "bg-ink text-on-ink", bar: "bg-ink" },
   sand: { badge: "bg-tint-sand text-tint-sand-ink", bar: "bg-tint-sand" },
   green: { badge: "bg-tint-green text-tint-green-ink", bar: "bg-tint-green" },
   paper: { badge: "bg-line-soft text-ink", bar: "bg-ink" },
@@ -151,7 +151,7 @@ export default async function StatsPage({ searchParams }: PageProps<"/admin/stat
         </div>
         <nav className="flex gap-1.5" aria-label="Période">
           {PERIODS.map((p) => (
-            <Link key={p.key} href={p.key === "7" ? "/admin/statistiques" : `/admin/statistiques?periode=${p.key}`} className={`rounded-pill px-4 py-2.5 text-[0.8125rem] font-bold ${p.key === period.key ? "bg-ink text-white" : "bg-white hover:opacity-70"}`}>
+            <Link key={p.key} href={p.key === "7" ? "/admin/statistiques" : `/admin/statistiques?periode=${p.key}`} className={`rounded-pill px-4 py-2.5 text-[0.8125rem] font-bold ${p.key === period.key ? "bg-ink text-on-ink" : "bg-surface hover:opacity-70"}`}>
               {p.label}
             </Link>
           ))}
@@ -198,7 +198,7 @@ export default async function StatsPage({ searchParams }: PageProps<"/admin/stat
                   <div className="relative flex flex-1 flex-col items-center justify-end" style={{ height: "100%" }}>
                     {!inside && b.visitors > 0 && <span className={`mb-0.5 text-[10px] font-bold leading-none text-ink ${keys.length > 7 ? "[writing-mode:vertical-rl] rotate-180" : ""}`}>{b.visitors}</span>}
                     <div className="flex w-full items-start justify-center rounded-t bg-ink" style={{ height: `${Math.max(b.visitors > 0 ? 3 : 0, vh)}%` }}>
-                      {inside && <span className={`pt-1 text-[10px] font-bold leading-none text-white ${keys.length > 7 ? "[writing-mode:vertical-rl] rotate-180 pt-0 pb-1.5" : ""}`}>{b.visitors}</span>}
+                      {inside && <span className={`pt-1 text-[10px] font-bold leading-none text-on-ink ${keys.length > 7 ? "[writing-mode:vertical-rl] rotate-180 pt-0 pb-1.5" : ""}`}>{b.visitors}</span>}
                     </div>
                   </div>
                   <div className="flex-1 rounded-t bg-tint-green" style={{ height: `${Math.max(b.orders > 0 ? 3 : 0, oh)}%` }} />

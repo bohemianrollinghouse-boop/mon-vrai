@@ -121,17 +121,17 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
               )
             }
           >
-            {boxtalOn && <span className="-mt-2 text-xs text-[#bbb]">Étiquette, suivi et notification client en un clic</span>}
+            {boxtalOn && <span className="-mt-2 text-xs text-on-deep-muted">Étiquette, suivi et notification client en un clic</span>}
 
             {order.delivery && (
-              <div className="flex flex-col gap-1 rounded-[14px] bg-ink-soft p-3.5 text-[0.8125rem]">
-                <span className="text-[0.6875rem] font-bold text-[#bbb]">Choix du client</span>
+              <div className="flex flex-col gap-1 rounded-[14px] bg-deep-soft p-3.5 text-[0.8125rem]">
+                <span className="text-[0.6875rem] font-bold text-on-deep-muted">Choix du client</span>
                 <span className="font-bold">
                   {order.delivery.rateName}
-                  {offerCode && <span className="font-medium text-[#bbb]"> · {offer?.label ?? offerCode}</span>}
+                  {offerCode && <span className="font-medium text-on-deep-muted"> · {offer?.label ?? offerCode}</span>}
                 </span>
                 {order.delivery.relay && (
-                  <span className="text-xs text-[#ddd]">
+                  <span className="text-xs text-on-deep-muted">
                     Point relais : {order.delivery.relay.name} · {[order.delivery.relay.street, `${order.delivery.relay.postalCode} ${order.delivery.relay.city}`].filter(Boolean).join(", ")} (code {order.delivery.relay.code})
                   </span>
                 )}
@@ -141,16 +141,16 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
             {order.boxtal ? (
               <>
                 <div className="grid grid-cols-2 gap-3 text-[0.8125rem]">
-                  <div className="flex flex-col gap-1 rounded-[14px] bg-ink-soft p-3.5">
-                    <span className="text-[0.6875rem] font-bold text-[#bbb]">Transporteur</span>
+                  <div className="flex flex-col gap-1 rounded-[14px] bg-deep-soft p-3.5">
+                    <span className="text-[0.6875rem] font-bold text-on-deep-muted">Transporteur</span>
                     <span className="font-bold">{order.tracking?.carrier ?? carrierOf(offerCode)}</span>
-                    <span className="text-xs text-[#bbb]">réf. Boxtal {order.boxtal.orderId} · {order.boxtal.status}</span>
+                    <span className="text-xs text-on-deep-muted">réf. Boxtal {order.boxtal.orderId} · {order.boxtal.status}</span>
                   </div>
-                  <div className="flex flex-col gap-1 rounded-[14px] bg-ink-soft p-3.5">
-                    <span className="text-[0.6875rem] font-bold text-[#bbb]">N° de suivi</span>
+                  <div className="flex flex-col gap-1 rounded-[14px] bg-deep-soft p-3.5">
+                    <span className="text-[0.6875rem] font-bold text-on-deep-muted">N° de suivi</span>
                     <span className="truncate font-bold">{order.boxtal.trackingNumber ?? order.tracking?.number ?? "en attente…"}</span>
                     {order.boxtal.trackingStatus && (
-                      <span className="text-xs text-[#bbb]">
+                      <span className="text-xs text-on-deep-muted">
                         {order.boxtal.trackingStatus}
                         {order.boxtal.trackingMessage && ` · ${order.boxtal.trackingMessage}`}
                       </span>
@@ -159,14 +159,14 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {order.boxtal.labelPath ? (
-                    <ButtonLink href={`/api/etiquettes/${order.id}`} target="_blank" tone="outline" className="text-white">
+                    <ButtonLink href={`/api/etiquettes/${order.id}`} target="_blank" tone="outline" className="text-on-deep">
                       Télécharger l'étiquette
                     </ButtonLink>
                   ) : (
-                    <span className="text-xs text-[#bbb]">Étiquette en cours de génération chez Boxtal…</span>
+                    <span className="text-xs text-on-deep-muted">Étiquette en cours de génération chez Boxtal…</span>
                   )}
                   {(order.boxtal.trackingUrl || order.tracking?.url) && (
-                    <ButtonLink href={order.boxtal.trackingUrl ?? order.tracking?.url ?? "#"} target="_blank" rel="noreferrer" tone="outline" className="text-white">
+                    <ButtonLink href={order.boxtal.trackingUrl ?? order.tracking?.url ?? "#"} target="_blank" rel="noreferrer" tone="outline" className="text-on-deep">
                       Suivre le colis ↗
                     </ButtonLink>
                   )}
@@ -178,26 +178,26 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
             ) : toShip ? (
               <>
                 {boxtalOn && offerCode && (
-                  <ActionForm action={createBoxtalLabelAction} submitLabel="Créer l'étiquette et expédier" submitTone="secondary" footerNote={<span className="text-[#bbb]">Le client sera notifié par e-mail dès que le transporteur prend le colis.</span>}>
+                  <ActionForm action={createBoxtalLabelAction} submitLabel="Créer l'étiquette et expédier" submitTone="secondary" footerNote={<span className="text-on-deep-muted">Le client sera notifié par e-mail dès que le transporteur prend le colis.</span>}>
                     <input type="hidden" name="id" value={order.id} />
-                    <span className="text-xs font-bold text-[#bbb]">
+                    <span className="text-xs font-bold text-on-deep-muted">
                       1 colis · {parcel.lengthCm}×{parcel.widthCm}×{parcel.heightCm} cm · {Math.round(parcelWeightKg(order, settings) * 1000)} g ({books} livre{books > 1 ? "s" : ""}) · {offer?.label ?? offerCode}
                     </span>
                     {!a.phone && <span className="text-xs font-semibold text-tint-sand">Le transporteur exige un téléphone : ajoutez-le au client avant de créer l'étiquette.</span>}
                   </ActionForm>
                 )}
-                {boxtalOn && !offerCode && <p className="text-[0.8125rem] text-[#bbb]">Aucune offre Boxtal n'est associée à ce mode de livraison (Paramètres → Livraison). Saisissez le suivi à la main ci-dessous.</p>}
-                <div className="flex flex-wrap items-center gap-2 border-t border-[#333] pt-3">
-                  <ButtonLink href={`/api/etiquettes/${order.id}/csv`} tone="outline" className="text-white">
+                {boxtalOn && !offerCode && <p className="text-[0.8125rem] text-on-deep-muted">Aucune offre Boxtal n'est associée à ce mode de livraison (Paramètres → Livraison). Saisissez le suivi à la main ci-dessous.</p>}
+                <div className="flex flex-wrap items-center gap-2 border-t border-deep-line pt-3">
+                  <ButtonLink href={`/api/etiquettes/${order.id}/csv`} tone="outline" className="text-on-deep">
                     Télécharger le CSV Boxtal
                   </ButtonLink>
-                  <span className="text-[0.6875rem] text-[#bbb]">En cas d'échec (paiement…), importez ce fichier dans Boxtal, puis saisissez le suivi ci-dessous.</span>
+                  <span className="text-[0.6875rem] text-on-deep-muted">En cas d'échec (paiement…), importez ce fichier dans Boxtal, puis saisissez le suivi ci-dessous.</span>
                 </div>
-                <details className={`group ${boxtalOn && offerCode ? "border-t border-[#333] pt-3" : ""}`}>
-                  <summary className="cursor-pointer text-xs font-bold text-[#bbb] group-open:mb-3">{boxtalOn && offerCode ? "Ou saisir un suivi à la main" : "Saisir le suivi"}</summary>
-                  <ActionForm action={setTrackingAction} submitLabel="Enregistrer le suivi et expédier" submitTone="secondary" footerNote={<span className="text-[#bbb]">Le client sera notifié par e-mail avec le numéro de suivi.</span>}>
+                <details className={`group ${boxtalOn && offerCode ? "border-t border-deep-line pt-3" : ""}`}>
+                  <summary className="cursor-pointer text-xs font-bold text-on-deep-muted group-open:mb-3">{boxtalOn && offerCode ? "Ou saisir un suivi à la main" : "Saisir le suivi"}</summary>
+                  <ActionForm action={setTrackingAction} submitLabel="Enregistrer le suivi et expédier" submitTone="secondary" footerNote={<span className="text-on-deep-muted">Le client sera notifié par e-mail avec le numéro de suivi.</span>}>
                     <input type="hidden" name="id" value={order.id} />
-                    <div className="grid grid-cols-2 gap-3 max-[749px]:grid-cols-1 [&_input]:bg-ink-soft [&_input]:text-white [&_select]:bg-ink-soft [&_select]:text-white [&_label>span:first-child]:text-[#bbb]">
+                    <div className="grid grid-cols-2 gap-3 max-[749px]:grid-cols-1 [&_input]:bg-deep-soft [&_input]:text-on-deep [&_select]:bg-deep-soft [&_select]:text-on-deep [&_label>span:first-child]:text-on-deep-muted">
                       <Field label="Transporteur" name="carrier">
                         <Select name="carrier" defaultValue={carrierOf(offerCode) || "Colissimo"}>
                           <option>Mondial Relay</option>
@@ -214,23 +214,23 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                         <Input name="url" type="url" placeholder="https://…" />
                       </Field>
                     </div>
-                    <Switch name="notify" label="Prévenir le client par e-mail" defaultChecked className="[&>span:last-child]:bg-[#444] [&>span:last-child]:peer-checked:bg-tint-green [&>span:last-child]:after:bg-white" />
+                    <Switch name="notify" label="Prévenir le client par e-mail" defaultChecked className="[&>span:last-child]:bg-deep-line [&>span:last-child]:peer-checked:bg-tint-green [&>span:last-child]:after:bg-surface" />
                   </ActionForm>
                 </details>
               </>
             ) : order.tracking ? (
               <div className="grid grid-cols-2 gap-3 text-[0.8125rem]">
-                <div className="flex flex-col gap-1 rounded-[14px] bg-ink-soft p-3.5">
-                  <span className="text-[0.6875rem] font-bold text-[#bbb]">Transporteur</span>
+                <div className="flex flex-col gap-1 rounded-[14px] bg-deep-soft p-3.5">
+                  <span className="text-[0.6875rem] font-bold text-on-deep-muted">Transporteur</span>
                   <span className="font-bold">{order.tracking.carrier}</span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-[14px] bg-ink-soft p-3.5">
-                  <span className="text-[0.6875rem] font-bold text-[#bbb]">N° de suivi</span>
+                <div className="flex flex-col gap-1 rounded-[14px] bg-deep-soft p-3.5">
+                  <span className="text-[0.6875rem] font-bold text-on-deep-muted">N° de suivi</span>
                   <span className="truncate font-bold">{order.tracking.number}</span>
                 </div>
               </div>
             ) : (
-              <p className="text-[0.8125rem] text-[#bbb]">Rien à expédier pour une commande {ADMIN_STATUS_LABELS[order.status].toLowerCase()}.</p>
+              <p className="text-[0.8125rem] text-on-deep-muted">Rien à expédier pour une commande {ADMIN_STATUS_LABELS[order.status].toLowerCase()}.</p>
             )}
           </Card>
 

@@ -86,7 +86,7 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
                     </span>
                   </span>
                 </span>,
-                <span key="c" className={`w-fit rounded-lg px-2.5 py-1.5 text-xs font-bold ${inf?.id === r.influencer.id ? "bg-ink text-white" : "bg-paper"}`}>{r.influencer.code}</span>,
+                <span key="c" className={`w-fit rounded-lg px-2.5 py-1.5 text-xs font-bold ${inf?.id === r.influencer.id ? "bg-ink text-on-ink" : "bg-paper"}`}>{r.influencer.code}</span>,
                 <span key="k" className="text-muted">{r.clicks}</span>,
                 <span key="v" className="flex flex-col">
                   <span className="font-bold">{r.orders}</span>
@@ -202,7 +202,7 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
                   <Link key={order.id} href={`/admin/commandes/${order.id}`} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2.5 border-b border-line-soft py-2.5 text-xs hover:opacity-70">
                     <span className="font-bold">{order.number.replace(/^MV-\d{4}-/, "#")}</span>
                     <span className="truncate text-muted">{order.shippingAddress.name}</span>
-                    <span className={`rounded-pill px-2 py-[3px] text-[0.625rem] font-bold ${via === "code" ? "bg-ink text-white" : "bg-tint-green text-tint-green-ink"}`}>{via === "code" ? `code ${current.influencer.code}` : "lien"}</span>
+                    <span className={`rounded-pill px-2 py-[3px] text-[0.625rem] font-bold ${via === "code" ? "bg-ink text-on-ink" : "bg-tint-green text-tint-green-ink"}`}>{via === "code" ? `code ${current.influencer.code}` : "lien"}</span>
                     <span className="whitespace-nowrap font-extrabold">{formatEuro(order.totals.total)}</span>
                   </Link>
                 ))}

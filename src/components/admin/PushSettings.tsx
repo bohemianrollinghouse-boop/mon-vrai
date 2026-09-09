@@ -114,7 +114,7 @@ export function PushSettings() {
           type="button"
           onClick={enabled ? disable : enable}
           disabled={busy || supported === null}
-          className={`rounded-pill px-5 py-2.5 text-[0.8125rem] font-bold disabled:opacity-60 ${enabled ? "border border-line-warm bg-white" : "bg-ink text-white"}`}
+          className={`rounded-pill px-5 py-2.5 text-[0.8125rem] font-bold disabled:opacity-60 ${enabled ? "border border-line-warm bg-surface" : "bg-ink text-on-ink"}`}
         >
           {busy ? "…" : enabled ? "Désactiver" : "Activer"}
         </button>
@@ -130,7 +130,7 @@ export function PushSettings() {
       </div>
 
       {enabled && (
-        <button type="button" onClick={test} disabled={busy} className="self-start rounded-pill border border-line-warm bg-white px-4 py-2 text-[0.75rem] font-bold disabled:opacity-60">
+        <button type="button" onClick={test} disabled={busy} className="self-start rounded-pill border border-line-warm bg-surface px-4 py-2 text-[0.75rem] font-bold disabled:opacity-60">
           Envoyer une notification test
         </button>
       )}

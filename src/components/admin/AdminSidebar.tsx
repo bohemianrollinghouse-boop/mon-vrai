@@ -28,9 +28,9 @@ export function AdminSidebar({ children }: { children: ReactNode }) {
   return (
     <>
       {/* Barre mobile avec burger (masquée en desktop). Fixe : le contenu principal a un padding haut en mobile. */}
-      <div className="fixed inset-x-0 top-0 z-40 hidden items-center justify-between border-b border-line-sand bg-white px-4 py-2.5 max-[899px]:flex">
+      <div className="fixed inset-x-0 top-0 z-40 hidden items-center justify-between border-b border-line-sand bg-surface px-4 py-2.5 max-[899px]:flex">
         <Link href="/admin" aria-label="Tableau de bord" className="flex items-center gap-2">
-          <Image src="/email-logo.png" alt="Mon Vrai" width={96} height={24} className="h-6 w-auto" style={{ height: 24, width: "auto" }} priority />
+          <Image src="/email-logo.png" alt="Mon Vrai" width={96} height={24} className="admin-logo h-6 w-auto" style={{ height: 24, width: "auto" }} priority />
           <span className="rounded-pill bg-tint-sand px-2 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-sand-ink">Admin</span>
         </Link>
         <button type="button" aria-label="Ouvrir le menu" aria-expanded={open} onClick={() => setOpen(true)} className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-paper hover:opacity-70">
@@ -51,7 +51,7 @@ export function AdminSidebar({ children }: { children: ReactNode }) {
           // Fermer le tiroir dès qu'on clique un lien (navigation).
           if ((e.target as HTMLElement).closest("a")) setOpen(false);
         }}
-        className={`sticky top-0 z-50 flex h-screen flex-col gap-6 overflow-y-auto border-r border-line-sand bg-white px-4 py-6 max-[899px]:fixed max-[899px]:left-0 max-[899px]:top-0 max-[899px]:w-[84%] max-[899px]:max-w-[320px] max-[899px]:shadow-2xl max-[899px]:transition-transform max-[899px]:duration-200 ${open ? "max-[899px]:translate-x-0" : "max-[899px]:-translate-x-full"}`}
+        className={`sticky top-0 z-50 flex h-screen flex-col gap-6 overflow-y-auto border-r border-line-sand bg-surface px-4 py-6 max-[899px]:fixed max-[899px]:left-0 max-[899px]:top-0 max-[899px]:w-[84%] max-[899px]:max-w-[320px] max-[899px]:shadow-2xl max-[899px]:transition-transform max-[899px]:duration-200 ${open ? "max-[899px]:translate-x-0" : "max-[899px]:-translate-x-full"}`}
       >
         <button type="button" onClick={() => setOpen(false)} aria-label="Fermer" className="absolute right-3 top-3 hidden h-8 w-8 items-center justify-center rounded-pill bg-paper text-lg leading-none max-[899px]:flex">
           ×

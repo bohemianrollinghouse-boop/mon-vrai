@@ -31,11 +31,11 @@ export default async function MediaPage() {
       </Card>
 
       {media.length === 0 ? (
-        <p className="rounded-card bg-white p-6 text-sm text-muted">Aucun média.</p>
+        <p className="rounded-card bg-surface p-6 text-sm text-muted">Aucun média.</p>
       ) : (
         <div className="grid grid-cols-4 gap-4 max-[1199px]:grid-cols-3 max-[899px]:grid-cols-2 max-[479px]:grid-cols-1">
           {media.map((m) => (
-            <div key={m.id} className="flex flex-col gap-3 rounded-card bg-white p-3">
+            <div key={m.id} className="flex flex-col gap-3 rounded-card bg-surface p-3">
               <div className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-paper">
                 {m.mime.startsWith("image/") ? (
                   // eslint-disable-next-line @next/next/no-img-element -- vignette admin

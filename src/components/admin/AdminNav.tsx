@@ -25,10 +25,10 @@ export function AdminNav({ sections }: { sections: NavSection[] }) {
         key={n.href}
         href={n.href}
         aria-current={active ? "page" : undefined}
-        className={`flex items-center justify-between gap-2 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold transition-colors ${active ? "bg-ink text-white" : "hover:bg-paper"}`}
+        className={`flex items-center justify-between gap-2 rounded-[14px] px-3.5 py-2.5 text-sm font-semibold transition-colors ${active ? "bg-ink text-on-ink" : "hover:bg-paper"}`}
       >
         <span>{n.label}</span>
-        {n.badge ? <span className={`rounded-pill px-2 py-0.5 text-[0.6875rem] font-bold ${active ? "bg-[#333] text-white" : BADGE_TONE[n.badgeTone ?? "sand"]}`}>{n.badge}</span> : null}
+        {n.badge ? <span className={`rounded-pill px-2 py-0.5 text-[0.6875rem] font-bold ${active ? "bg-on-ink-soft text-on-ink" : BADGE_TONE[n.badgeTone ?? "sand"]}`}>{n.badge}</span> : null}
       </Link>
     );
   };

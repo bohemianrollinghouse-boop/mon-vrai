@@ -18,7 +18,7 @@ export default async function PagesAdmin() {
         }
       />
       {pages.length === 0 ? (
-        <p className="rounded-card bg-white p-6 text-sm text-muted">Aucune page pour l'instant.</p>
+        <p className="rounded-card bg-surface p-6 text-sm text-muted">Aucune page pour l'instant.</p>
       ) : (
         <Table head={["Titre", "Adresse", "Modifiée", "Statut"]}>
           {pages.map((p) => (

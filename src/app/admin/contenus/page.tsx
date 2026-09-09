@@ -47,9 +47,9 @@ export default async function ContentsPage({ searchParams }: PageProps<"/admin/c
   return (
     <>
       <PageHeader title="Contenus" subtitle="Textes et images des pages système. Les images se collent par URL depuis la médiathèque." />
-      <nav className="mb-6 flex flex-wrap gap-1.5 rounded-pill bg-white p-1.5 text-[0.8125rem] font-semibold" aria-label="Pages">
+      <nav className="mb-6 flex flex-wrap gap-1.5 rounded-pill bg-surface p-1.5 text-[0.8125rem] font-semibold" aria-label="Pages">
         {tabs.map(([key, label]) => (
-          <a key={key} href={`?onglet=${key}`} className={`rounded-pill px-4 py-2 ${tab === key ? "bg-ink text-white" : "hover:bg-paper"}`} aria-current={tab === key ? "page" : undefined}>
+          <a key={key} href={`?onglet=${key}`} className={`rounded-pill px-4 py-2 ${tab === key ? "bg-ink text-on-ink" : "hover:bg-paper"}`} aria-current={tab === key ? "page" : undefined}>
             {label}
           </a>
         ))}

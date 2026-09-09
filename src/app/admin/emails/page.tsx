@@ -48,7 +48,7 @@ export default async function EmailsPage() {
           <Card key={p.key} title={p.label} aside={<span className="text-[0.6875rem] font-semibold text-subtle">Objet : {p.built.subject}</span>}>
             <p className="text-xs text-muted">{p.note}</p>
             <div className="overflow-hidden rounded-2xl border border-line-soft">
-              <iframe title={p.label} srcDoc={p.built.html} className="h-[720px] w-full bg-white" sandbox="" />
+              <iframe title={p.label} srcDoc={p.built.html} className="h-[720px] w-full bg-surface" sandbox="" />
             </div>
           </Card>
         ))}

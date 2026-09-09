@@ -30,7 +30,7 @@ export function CopyButton({ text }: { text: string }) {
           setTimeout(() => setDone(false), 1500);
         });
       }}
-      className="whitespace-nowrap rounded-pill bg-white px-3 py-2 text-[0.6875rem] font-bold hover:opacity-70"
+      className="whitespace-nowrap rounded-pill bg-surface px-3 py-2 text-[0.6875rem] font-bold hover:opacity-70"
     >
       {done ? "Copié ✓" : "Copier"}
     </button>

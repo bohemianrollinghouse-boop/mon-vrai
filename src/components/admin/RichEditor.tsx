@@ -38,7 +38,7 @@ export function RichEditor({ name, initialHtml = "", initialJson, htmlOnly = fal
     ],
     content: initialJson && typeof initialJson === "object" ? (initialJson as object) : initialHtml,
     editorProps: {
-      attributes: { class: "prose-mv max-w-none min-h-[14rem] rounded-b-[14px] bg-paper px-[1.375rem] py-5 text-[0.9375rem] leading-[1.65] text-[#333] outline-none" },
+      attributes: { class: "prose-mv max-w-none min-h-[14rem] rounded-b-[14px] bg-paper px-[1.375rem] py-5 text-[0.9375rem] leading-[1.65] text-ink outline-none" },
     },
     onUpdate: ({ editor }) => {
       setHtml(editor.getHTML());
@@ -52,7 +52,7 @@ export function RichEditor({ name, initialHtml = "", initialJson, htmlOnly = fal
       title={title}
       onMouseDown={(e) => e.preventDefault()}
       onClick={run}
-      className={`flex h-[34px] min-w-[34px] items-center justify-center rounded-[10px] px-2.5 text-[0.8125rem] font-bold ${active ? "bg-ink text-white" : "bg-white hover:opacity-70"}`}
+      className={`flex h-[34px] min-w-[34px] items-center justify-center rounded-[10px] px-2.5 text-[0.8125rem] font-bold ${active ? "bg-ink text-on-ink" : "bg-surface hover:opacity-70"}`}
     >
       {label}
     </button>

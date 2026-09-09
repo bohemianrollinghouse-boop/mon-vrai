@@ -62,9 +62,9 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
             {preordersOpen && " · précommandes ouvertes"}
           </span>
         </div>
-        <nav className="flex gap-1.5 rounded-pill bg-white p-1.5 text-xs font-bold" aria-label="Période">
+        <nav className="flex gap-1.5 rounded-pill bg-surface p-1.5 text-xs font-bold" aria-label="Période">
           {PERIODS.map((p) => (
-            <Link key={p.key} href={p.key === "7" ? "/admin" : `/admin?periode=${p.key}`} className={`rounded-pill px-3.5 py-2 ${p.key === period.key ? "bg-ink text-white" : "hover:opacity-70"}`}>
+            <Link key={p.key} href={p.key === "7" ? "/admin" : `/admin?periode=${p.key}`} className={`rounded-pill px-3.5 py-2 ${p.key === period.key ? "bg-ink text-on-ink" : "hover:opacity-70"}`}>
               {p.label}
             </Link>
           ))}

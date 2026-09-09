@@ -13,11 +13,11 @@ export default async function MessagesPage() {
     <>
       <PageHeader title="Messages" subtitle={`${messages.length} reçus · ${unread} non lus. Répondez depuis votre boîte e-mail : le lien ouvre une réponse pré-remplie.`} />
       {messages.length === 0 ? (
-        <p className="rounded-card bg-white p-6 text-sm text-muted">Aucun message pour l'instant.</p>
+        <p className="rounded-card bg-surface p-6 text-sm text-muted">Aucun message pour l'instant.</p>
       ) : (
         <ul className="flex flex-col gap-3">
           {messages.map((m) => (
-            <li key={m.id} className={`flex flex-col gap-3 rounded-card bg-white p-5 ${m.read ? "opacity-75" : "border-l-4 border-ink"}`}>
+            <li key={m.id} className={`flex flex-col gap-3 rounded-card bg-surface p-5 ${m.read ? "opacity-75" : "border-l-4 border-ink"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex flex-col gap-0.5">
                   <div className="flex flex-wrap items-center gap-2">
@@ -33,7 +33,7 @@ export default async function MessagesPage() {
                 <div className="flex items-center gap-2">
                   <a
                     href={`mailto:${m.email}?subject=${encodeURIComponent(`Re : ${m.subject || "votre message"} — Mon Vrai`)}`}
-                    className="rounded-pill bg-ink px-3.5 py-2 text-xs font-bold text-white"
+                    className="rounded-pill bg-ink px-3.5 py-2 text-xs font-bold text-on-ink"
                   >
                     Répondre
                   </a>

@@ -126,9 +126,9 @@ export default async function SettingsPage() {
                   <span className="rounded-pill bg-tint-sand-ink px-2.5 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-sand">Clés manquantes</span>
                 )
               }
-              className="[&_input]:bg-ink-soft [&_input]:text-white [&_select]:bg-ink-soft [&_select]:text-white [&_label>span:first-child]:text-[#bbb] [&_label_span.text-subtle]:text-[#888]"
+              className="[&_input]:bg-deep-soft [&_input]:text-on-deep [&_select]:bg-deep-soft [&_select]:text-on-deep [&_label>span:first-child]:text-on-deep-muted [&_label_span.text-subtle]:text-on-deep-muted"
             >
-              <p className="-mt-1 text-xs text-[#bbb]">Étiquettes, suivi et carte des points relais. Les clés sont dans la configuration du serveur ; ici, l'adresse d'expédition et le colis par défaut.</p>
+              <p className="-mt-1 text-xs text-on-deep-muted">Étiquettes, suivi et carte des points relais. Les clés sont dans la configuration du serveur ; ici, l'adresse d'expédition et le colis par défaut.</p>
               <div className="grid grid-cols-2 gap-3 max-[749px]:grid-cols-1">
                 <Field label="Prénom (expéditeur)" name="shipping.sender.firstName">
                   <Input name="shipping.sender.firstName" defaultValue={sender.firstName} />
@@ -158,7 +158,7 @@ export default async function SettingsPage() {
                   <Input name="shipping.sender.email" type="email" defaultValue={sender.email} />
                 </Field>
               </div>
-              <div className="grid grid-cols-3 gap-3 border-t border-[#333] pt-3 max-[749px]:grid-cols-2">
+              <div className="grid grid-cols-3 gap-3 border-t border-deep-line pt-3 max-[749px]:grid-cols-2">
                 <Field label="Longueur (cm)" name="shipping.parcel.lengthCm">
                   <Input name="shipping.parcel.lengthCm" type="number" min={1} defaultValue={parcel.lengthCm} />
                 </Field>
@@ -182,7 +182,7 @@ export default async function SettingsPage() {
                 </Field>
               </div>
               <input type="hidden" name="shipping.parcel.contentCategoryId" value={parcel.contentCategoryId} />
-              <span className="text-[0.6875rem] leading-relaxed text-[#888]">Le poids du colis = emballage + somme des poids des produits (défini sur chaque fiche produit). Le poids par défaut ci-dessus sert de repli. Contenu déclaré : « Livres ».</span>
+              <span className="text-[0.6875rem] leading-relaxed text-on-deep-muted">Le poids du colis = emballage + somme des poids des produits (défini sur chaque fiche produit). Le poids par défaut ci-dessus sert de repli. Contenu déclaré : « Livres ».</span>
             </Card>
 
             <Card title="Identité légale">

@@ -24,7 +24,7 @@ export default async function CustomersPage() {
     <>
       <PageHeader title="Clients" subtitle={`${customers.length} comptes`} />
       {customers.length === 0 ? (
-        <p className="rounded-card bg-white p-6 text-sm text-muted">Aucun compte client pour le moment.</p>
+        <p className="rounded-card bg-surface p-6 text-sm text-muted">Aucun compte client pour le moment.</p>
       ) : (
         <Table head={["Client", "E-mail", "Inscrit le", "Commandes", "Total", "Newsletter"]}>
           {customers.map((c) => {

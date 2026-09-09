@@ -32,7 +32,7 @@ export function PromoTypeFields({ initialType, initialValue, initialMinimum, ini
           {TYPES.map((t) => (
             <label key={t.value} className="flex-1 cursor-pointer">
               <input type="radio" name="type" value={t.value} checked={type === t.value} onChange={() => setType(t.value)} className="peer sr-only" />
-              <span className="flex h-[34px] items-center justify-center whitespace-nowrap rounded-pill px-1 peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-ink">{t.label}</span>
+              <span className="flex h-[34px] items-center justify-center whitespace-nowrap rounded-pill px-1 peer-checked:bg-ink peer-checked:text-on-ink peer-focus-visible:outline-2 peer-focus-visible:outline-ink">{t.label}</span>
             </label>
           ))}
         </div>
@@ -79,7 +79,7 @@ export function PromoTypeFields({ initialType, initialValue, initialMinimum, ini
               return (
                 <label key={p.slug} className={`flex cursor-pointer items-center gap-2 rounded-xl border-[1.5px] bg-paper px-2.5 py-2 ${on ? "border-ink" : "border-transparent"}`}>
                   <input type="checkbox" name="gifts" value={p.slug} checked={on} onChange={(e) => setGifts(e.target.checked ? [...gifts, p.slug] : gifts.filter((s) => s !== p.slug))} className="sr-only" />
-                  <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border-[1.5px] border-ink text-[0.625rem] font-extrabold text-white ${on ? "bg-ink" : "bg-transparent"}`}>{on ? "✓" : ""}</span>
+                  <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border-[1.5px] border-ink text-[0.625rem] font-extrabold text-on-ink ${on ? "bg-ink" : "bg-transparent"}`}>{on ? "✓" : ""}</span>
                   <span className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center overflow-hidden rounded-[7px] ${TINT_BG[p.tint]}`}>
                     {/* eslint-disable-next-line @next/next/no-img-element -- vignette admin */}
                     {p.image && <img src={p.image} alt="" className="h-full w-full object-cover" />}
@@ -104,7 +104,7 @@ export function PromoTypeFields({ initialType, initialValue, initialMinimum, ini
       {type !== "free_shipping" && (
         <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-paper px-3 py-3">
           <input type="checkbox" name="freeShipping" checked={freeShipping} onChange={(e) => setFreeShipping(e.target.checked)} className="sr-only" />
-          <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border-[1.5px] border-ink text-[0.625rem] font-extrabold text-white ${freeShipping ? "bg-ink" : "bg-transparent"}`}>{freeShipping ? "✓" : ""}</span>
+          <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border-[1.5px] border-ink text-[0.625rem] font-extrabold text-on-ink ${freeShipping ? "bg-ink" : "bg-transparent"}`}>{freeShipping ? "✓" : ""}</span>
           <span className="flex flex-col">
             <span className="text-[0.8125rem] font-bold text-ink">Offrir aussi les frais de livraison</span>
             <span className="text-[0.6875rem] text-subtle">En plus de la remise ci-dessus.</span>

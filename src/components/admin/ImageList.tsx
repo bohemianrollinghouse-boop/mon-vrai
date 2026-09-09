@@ -43,19 +43,19 @@ export function ImageList({ initial, tint = "sand" }: { initial: ImageRef[]; tin
         )}
         {main && (
           <>
-            <span className="absolute left-2.5 top-2.5 rounded-pill bg-white px-2 py-1 text-[0.625rem] font-bold uppercase tracking-[0.08em]">{selected === 0 ? "Principale" : `Photo ${selected + 1}`}</span>
+            <span className="absolute left-2.5 top-2.5 rounded-pill bg-surface px-2 py-1 text-[0.625rem] font-bold uppercase tracking-[0.08em]">{selected === 0 ? "Principale" : `Photo ${selected + 1}`}</span>
             <div className="absolute bottom-2.5 right-2.5 flex gap-1.5">
               {selected > 0 && (
-                <button type="button" onClick={() => move(selected, -1)} className="rounded-pill bg-white px-2.5 py-1.5 text-[0.6875rem] font-bold">
+                <button type="button" onClick={() => move(selected, -1)} className="rounded-pill bg-surface px-2.5 py-1.5 text-[0.6875rem] font-bold">
                   ← Avancer
                 </button>
               )}
               {selected < images.length - 1 && (
-                <button type="button" onClick={() => move(selected, 1)} className="rounded-pill bg-white px-2.5 py-1.5 text-[0.6875rem] font-bold">
+                <button type="button" onClick={() => move(selected, 1)} className="rounded-pill bg-surface px-2.5 py-1.5 text-[0.6875rem] font-bold">
                   Reculer →
                 </button>
               )}
-              <button type="button" onClick={() => remove(selected)} className="rounded-pill bg-white px-2.5 py-1.5 text-[0.6875rem] font-bold text-accent">
+              <button type="button" onClick={() => remove(selected)} className="rounded-pill bg-surface px-2.5 py-1.5 text-[0.6875rem] font-bold text-accent">
                 Retirer
               </button>
             </div>
@@ -77,7 +77,7 @@ export function ImageList({ initial, tint = "sand" }: { initial: ImageRef[]; tin
             <img src={img.url} alt="" className="h-full w-full object-cover" />
           </button>
         ))}
-        <label className="flex aspect-square cursor-pointer items-center justify-center rounded-xl border-[1.5px] border-dashed border-[#ccc] text-xl text-faint hover:border-ink hover:text-ink" title="Ajouter des photos">
+        <label className="flex aspect-square cursor-pointer items-center justify-center rounded-xl border-[1.5px] border-dashed border-line-warm text-xl text-faint hover:border-ink hover:text-ink" title="Ajouter des photos">
           +
           <input type="file" name="newImages" multiple accept="image/*" className="sr-only" onChange={(e) => setPending(Array.from(e.target.files ?? []).map((f) => f.name))} />
         </label>

@@ -44,15 +44,15 @@ export default async function FaqPage({ searchParams }: PageProps<"/admin/faq">)
 
       <div className="grid grid-cols-[1fr_340px] items-start gap-3 max-[1099px]:grid-cols-1">
         <div className="flex flex-col gap-2">
-          {items.length === 0 && <p className="rounded-card bg-white p-6 text-sm text-muted">Aucune question. Ajoutez la première à droite.</p>}
+          {items.length === 0 && <p className="rounded-card bg-surface p-6 text-sm text-muted">Aucune question. Ajoutez la première à droite.</p>}
           {items.map((f, i) => (
-            <div key={i} className={`grid grid-cols-[auto_1fr_auto] items-start gap-4 rounded-[20px] border-[1.5px] bg-white px-5 py-4 ${i === selected && !isNew ? "border-ink" : "border-transparent"}`}>
-              <div className="flex flex-col gap-0.5 pt-0.5 text-[#ccc]">
-                <ActionForm action={moveFaqItemAction} submitLabel="▲" submitTone="ghost" className="!gap-0 [&>div:last-child]:contents [&_button]:!px-0 [&_button]:py-0 [&_button]:text-[10px] [&_button]:text-[#bbb]">
+            <div key={i} className={`grid grid-cols-[auto_1fr_auto] items-start gap-4 rounded-[20px] border-[1.5px] bg-surface px-5 py-4 ${i === selected && !isNew ? "border-ink" : "border-transparent"}`}>
+              <div className="flex flex-col gap-0.5 pt-0.5 text-faint">
+                <ActionForm action={moveFaqItemAction} submitLabel="▲" submitTone="ghost" className="!gap-0 [&>div:last-child]:contents [&_button]:!px-0 [&_button]:py-0 [&_button]:text-[10px] [&_button]:text-faint">
                   <input type="hidden" name="index" value={i} />
                   <input type="hidden" name="dir" value="-1" />
                 </ActionForm>
-                <ActionForm action={moveFaqItemAction} submitLabel="▼" submitTone="ghost" className="!gap-0 [&>div:last-child]:contents [&_button]:!px-0 [&_button]:py-0 [&_button]:text-[10px] [&_button]:text-[#bbb]">
+                <ActionForm action={moveFaqItemAction} submitLabel="▼" submitTone="ghost" className="!gap-0 [&>div:last-child]:contents [&_button]:!px-0 [&_button]:py-0 [&_button]:text-[10px] [&_button]:text-faint">
                   <input type="hidden" name="index" value={i} />
                   <input type="hidden" name="dir" value="1" />
                 </ActionForm>

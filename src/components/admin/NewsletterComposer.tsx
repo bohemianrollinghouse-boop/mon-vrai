@@ -237,7 +237,7 @@ export function NewsletterComposer({
       `}</style>
 
       {linkEdit && (
-        <div className="fixed z-50 flex w-[340px] flex-col gap-2 rounded-card bg-white p-4 shadow-[0_16px_40px_rgb(0_0_0/0.18)]" style={{ top: linkEdit.top, left: linkEdit.left }} role="dialog" aria-label="Lien du bouton">
+        <div className="fixed z-50 flex w-[340px] flex-col gap-2 rounded-card bg-surface p-4 shadow-[0_16px_40px_rgb(0_0_0/0.18)]" style={{ top: linkEdit.top, left: linkEdit.left }} role="dialog" aria-label="Lien du bouton">
           <span className="text-xs font-bold">Lien du bouton</span>
           <Input
             autoFocus
@@ -254,7 +254,7 @@ export function NewsletterComposer({
             <button type="button" onClick={() => setLinkEdit(null)} className="rounded-pill bg-paper px-3.5 py-2 text-xs font-bold">
               Annuler
             </button>
-            <button type="button" onClick={applyLink} className="rounded-pill bg-ink px-3.5 py-2 text-xs font-bold text-white">
+            <button type="button" onClick={applyLink} className="rounded-pill bg-ink px-3.5 py-2 text-xs font-bold text-on-ink">
               Appliquer
             </button>
           </div>
@@ -269,7 +269,7 @@ export function NewsletterComposer({
             type="button"
             onClick={() => switchTemplate(t.id)}
             title={t.description}
-            className={`rounded-pill px-3.5 py-2 text-[0.6875rem] font-bold transition-colors ${t.id === templateId ? "bg-ink text-white" : "bg-paper hover:bg-line"}`}
+            className={`rounded-pill px-3.5 py-2 text-[0.6875rem] font-bold transition-colors ${t.id === templateId ? "bg-ink text-on-ink" : "bg-paper hover:bg-line"}`}
           >
             {t.label}
           </button>
@@ -278,7 +278,7 @@ export function NewsletterComposer({
 
       <div className="grid grid-cols-[minmax(0,640px)_1fr] items-start gap-4 max-[1099px]:grid-cols-1">
         {/* Aperçu éditable */}
-        <div className="flex flex-col gap-3 rounded-card bg-paper p-5">
+        <div className="flex flex-col gap-3 rounded-card bg-surface p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <span className="text-lg font-extrabold">{templateById(templateId)?.label}</span>
             <span className="text-[0.6875rem] text-subtle">Cliquez un texte pour l'éditer · crayon : remplacer une image · 🔗 : changer le lien d'un bouton</span>
@@ -296,7 +296,7 @@ export function NewsletterComposer({
 
         {/* Enregistrer + envoyer */}
         <div className="sticky top-6 flex flex-col gap-4">
-          <div className="flex flex-col gap-3 rounded-card bg-white p-6">
+          <div className="flex flex-col gap-3 rounded-card bg-surface p-6">
             <span className="text-lg font-extrabold">Enregistrer</span>
             <button type="button" onClick={onSave} disabled={busy} className="rounded-pill bg-paper px-5 py-3 text-sm font-bold disabled:opacity-60">
               {pending ? "…" : "Enregistrer le modèle"}
@@ -304,11 +304,11 @@ export function NewsletterComposer({
             <span className="text-[0.6875rem] text-faint">Les modifications restent sur ce modèle.</span>
           </div>
 
-          <div className="flex flex-col gap-3 rounded-card bg-white p-6">
+          <div className="flex flex-col gap-3 rounded-card bg-surface p-6">
             <span className="text-lg font-extrabold">Envoyer</span>
             <div className="flex flex-col gap-2">
               {audienceOptions.map((o) => (
-                <label key={o.value} className={`flex cursor-pointer items-center justify-between gap-2 rounded-[14px] border-[1.5px] px-3.5 py-3 ${kind === o.value ? "border-ink bg-paper" : "border-line bg-white"}`}>
+                <label key={o.value} className={`flex cursor-pointer items-center justify-between gap-2 rounded-[14px] border-[1.5px] px-3.5 py-3 ${kind === o.value ? "border-ink bg-paper" : "border-line bg-surface"}`}>
                   <span className="flex items-center gap-2.5">
                     <input type="radio" name="audienceKind" checked={kind === o.value} onChange={() => setKind(o.value)} />
                     <span className="text-[0.8125rem] font-bold">{o.label}</span>
@@ -328,7 +328,7 @@ export function NewsletterComposer({
             )}
             {kind === "one" && <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="prenom@exemple.fr" />}
 
-            <button type="button" onClick={onSend} disabled={busy} className="rounded-pill bg-ink px-5 py-3.5 text-sm font-bold text-white disabled:opacity-60">
+            <button type="button" onClick={onSend} disabled={busy} className="rounded-pill bg-ink px-5 py-3.5 text-sm font-bold text-on-ink disabled:opacity-60">
               {pending ? "Envoi…" : "Envoyer la newsletter"}
             </button>
             <span className="text-[0.6875rem] text-subtle">Seuls les inscrits reçoivent l'e-mail. Chacun a son lien de désinscription. Envoyez-vous un test avant l'envoi de masse.</span>

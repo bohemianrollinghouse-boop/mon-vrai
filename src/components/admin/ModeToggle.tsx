@@ -12,7 +12,7 @@ export function ModeToggle({ stripe, boxtal }: { stripe: "live" | "test"; boxtal
   const state: "live" | "test" | "partial" = stripe === boxtal ? stripe : "partial";
   return (
     <div className="flex items-center gap-1 rounded-pill bg-paper p-1" role="group" aria-label="Mode du site">
-      <Seg target="live" active={state === "live"} label="Production" activeClass="bg-ink text-white" confirm="Repasser Stripe ET Boxtal en PRODUCTION ? Les paiements et étiquettes redeviennent réels." />
+      <Seg target="live" active={state === "live"} label="Production" activeClass="bg-ink text-on-ink" confirm="Repasser Stripe ET Boxtal en PRODUCTION ? Les paiements et étiquettes redeviennent réels." />
       <span
         aria-current={state === "partial" ? "true" : undefined}
         title="Stripe et Boxtal ne sont pas au même mode. Se règle service par service dans Paramètres."

@@ -27,8 +27,8 @@ export function PageHeader({ title, subtitle, actions, back }: { title: ReactNod
 
 export function Card({ title, aside, children, className = "", tone = "white" }: { title?: ReactNode; aside?: ReactNode; children: ReactNode; className?: string; tone?: "white" | "dark" | "green" | "sand" | "pink" | "blue" }) {
   const bg = {
-    white: "bg-white",
-    dark: "bg-ink text-white",
+    white: "bg-surface",
+    dark: "bg-deep text-on-deep",
     green: "bg-tint-green text-tint-green-ink",
     sand: "bg-tint-sand text-tint-sand-ink",
     pink: "bg-tint-pink text-tint-pink-ink",
@@ -76,7 +76,7 @@ export function SearchBox({ action, name = "q", defaultValue = "", placeholder, 
         name={name}
         defaultValue={defaultValue}
         placeholder={placeholder}
-        className="min-w-[220px] rounded-pill bg-white px-[1.125rem] py-3 text-[0.8125rem] font-semibold outline-none placeholder:text-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        className="min-w-[220px] rounded-pill bg-surface px-[1.125rem] py-3 text-[0.8125rem] font-semibold outline-none placeholder:text-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
       />
     </form>
   );
@@ -93,7 +93,7 @@ export function Switch({ label, hint, className = "", ...props }: ComponentProps
       <input type="checkbox" {...props} className="peer sr-only" />
       <span
         aria-hidden="true"
-        className="relative h-6 w-10 shrink-0 rounded-pill bg-[#ddd] transition-colors peer-checked:bg-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink after:absolute after:left-[3px] after:top-[3px] after:h-[18px] after:w-[18px] after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4"
+        className="relative h-6 w-10 shrink-0 rounded-pill bg-switch-off transition-colors peer-checked:bg-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-ink after:absolute after:left-[3px] after:top-[3px] after:h-[18px] after:w-[18px] after:rounded-full after:bg-knob-off after:transition-transform peer-checked:after:bg-knob-on peer-checked:after:translate-x-4"
       />
     </label>
   );
@@ -115,7 +115,7 @@ export function Segmented({ name, options, defaultValue, className = "" }: { nam
       {options.map((o) => (
         <label key={o.value} className="flex-1 cursor-pointer">
           <input type="radio" name={name} value={o.value} defaultChecked={o.value === defaultValue} className="peer sr-only" />
-          <span className="block rounded-pill px-3 py-2.5 text-center transition-colors peer-checked:bg-ink peer-checked:text-white peer-focus-visible:outline-2 peer-focus-visible:outline-ink">{o.label}</span>
+          <span className="block rounded-pill px-3 py-2.5 text-center transition-colors peer-checked:bg-ink peer-checked:text-on-ink peer-focus-visible:outline-2 peer-focus-visible:outline-ink">{o.label}</span>
         </label>
       ))}
     </div>
@@ -124,8 +124,8 @@ export function Segmented({ name, options, defaultValue, className = "" }: { nam
 
 type Tone = "primary" | "secondary" | "danger" | "ghost" | "outline";
 const TONE: Record<Tone, string> = {
-  primary: "bg-ink text-white hover:opacity-80",
-  secondary: "bg-white text-ink hover:opacity-70",
+  primary: "bg-ink text-on-ink hover:opacity-80",
+  secondary: "bg-surface text-ink hover:opacity-70",
   danger: "bg-danger-bg text-danger hover:opacity-80",
   ghost: "text-ink underline-offset-4 hover:underline",
   outline: "border-[1.5px] border-current bg-transparent hover:opacity-70",
@@ -159,7 +159,7 @@ export function FilterPills({ items }: { items: { href: string; label: string; c
   return (
     <nav className="flex flex-wrap gap-1.5" aria-label="Filtrer">
       {items.map((f) => (
-        <Link key={f.href} href={f.href} aria-current={f.active ? "page" : undefined} className={`rounded-pill px-4 py-2.5 text-[0.8125rem] font-bold ${f.active ? "bg-ink text-white" : "bg-white hover:opacity-70"}`}>
+        <Link key={f.href} href={f.href} aria-current={f.active ? "page" : undefined} className={`rounded-pill px-4 py-2.5 text-[0.8125rem] font-bold ${f.active ? "bg-ink text-on-ink" : "bg-surface hover:opacity-70"}`}>
           {f.label}
           {f.count !== undefined && <span className="ml-1.5 opacity-60">{f.count}</span>}
         </Link>
@@ -175,7 +175,7 @@ export function FilterPills({ items }: { items: { href: string; label: string; c
 export function GridTable({ columns, head, rows, empty = "Rien pour l'instant." }: { columns: string; head: ReactNode[]; rows: { key: string; href?: string; cells: ReactNode[] }[]; empty?: string }) {
   const grid = { gridTemplateColumns: columns };
   return (
-    <div className="overflow-x-auto rounded-card bg-white px-6 py-2">
+    <div className="overflow-x-auto rounded-card bg-surface px-6 py-2">
       <div className="min-w-[720px]">
         <div className="grid items-center gap-3.5 py-3.5 text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint" style={grid}>
           {head.map((h, i) => (
@@ -210,7 +210,7 @@ export function GridTable({ columns, head, rows, empty = "Rien pour l'instant." 
 /** Compatibilité : ancien tableau HTML, restylé. Préférer GridTable pour les nouveaux écrans. */
 export function Table({ head, children }: { head: string[]; children: ReactNode }) {
   return (
-    <div className="overflow-x-auto rounded-card bg-white px-6 py-2">
+    <div className="overflow-x-auto rounded-card bg-surface px-6 py-2">
       <table className="w-full text-[0.8125rem]">
         <thead>
           <tr className="text-left text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint">
@@ -243,8 +243,8 @@ export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone
 /** Tuile chiffre du tableau de bord : teinte, libellé, valeur, précision. */
 export function Tile({ label, value, note, tone = "white", href }: { label: ReactNode; value: ReactNode; note?: ReactNode; tone?: "white" | "green" | "pink" | "sand" | "blue" | "dark"; href?: string }) {
   const cls = {
-    white: "bg-white [&_.lbl]:text-subtle",
-    dark: "bg-ink text-white [&_.lbl]:text-white/70",
+    white: "bg-surface [&_.lbl]:text-subtle",
+    dark: "bg-deep text-on-deep [&_.lbl]:text-on-deep/70",
     green: "bg-tint-green [&_.lbl]:text-tint-green-ink",
     pink: "bg-tint-pink [&_.lbl]:text-tint-pink-ink",
     sand: "bg-tint-sand [&_.lbl]:text-tint-sand-ink",

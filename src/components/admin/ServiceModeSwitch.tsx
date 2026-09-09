@@ -28,11 +28,11 @@ export function ServiceModeSwitch({ service, mode, label }: { service: "stripe" 
   return (
     <div className="flex items-center justify-between gap-3 rounded-[14px] bg-paper px-4 py-3">
       <span className="text-[0.8125rem] font-bold">{label}</span>
-      <div className="flex w-[190px] shrink-0 rounded-pill bg-white p-1" role="group" aria-label={`Mode ${label}`}>
-        <button type="button" onClick={() => go("live")} disabled={pending} aria-pressed={mode === "live"} className={`${seg} ${mode === "live" ? "bg-ink text-white" : "text-subtle hover:text-ink"}`}>
+      <div className="flex w-[190px] shrink-0 rounded-pill bg-surface p-1" role="group" aria-label={`Mode ${label}`}>
+        <button type="button" onClick={() => go("live")} disabled={pending} aria-pressed={mode === "live"} className={`${seg} ${mode === "live" ? "bg-ink text-on-ink" : "text-subtle hover:text-ink"}`}>
           Production
         </button>
-        <button type="button" onClick={() => go("test")} disabled={pending} aria-pressed={mode === "test"} className={`${seg} ${mode === "test" ? "bg-tint-sand-ink text-white" : "text-subtle hover:text-ink"}`}>
+        <button type="button" onClick={() => go("test")} disabled={pending} aria-pressed={mode === "test"} className={`${seg} ${mode === "test" ? "bg-tint-sand-ink text-tint-sand" : "text-subtle hover:text-ink"}`}>
           Test
         </button>
       </div>

@@ -19,7 +19,28 @@
   /* Admin : bord de la barre latérale, séparateurs de lignes */
   --color-line-sand: #eee9e1;
   --color-line-soft: #f1ede6;
-  --color-ink-soft: #1d1d1d;
+
+  /*
+   * Surfaces et contrastes, nommés par leur rôle et non par leur couleur : c'est ce qui
+   * permet au thème sombre de l'administration de les redéfinir sans toucher un composant.
+   *   surface     — fond d'une carte (blanc en clair)
+   *   on-ink      — texte posé sur un aplat « ink » (bouton principal, pastille active)
+   *   on-ink-soft — petit aplat posé sur un aplat « ink » (badge de la nav active)
+   *   deep / on-deep / deep-soft / deep-line — les cartes sombres d'emphase et leur intérieur
+   *   prose       — texte courant du contenu riche (prose-mv)
+   */
+  --color-surface: #ffffff;
+  --color-on-ink: #ffffff;
+  --color-on-ink-soft: #333333;
+  --color-deep: #111111;
+  --color-on-deep: #ffffff;
+  --color-on-deep-muted: #bbbbbb;
+  --color-deep-soft: #1d1d1d;
+  --color-deep-line: #333333;
+  --color-switch-off: #dddddd;
+  --color-knob-off: #ffffff;
+  --color-knob-on: #ffffff;
+  --color-prose: #444444;
 
   /* Teintes des cartes, chacune avec son encre secondaire */
   --color-tint-green: #dce5d6;
@@ -181,7 +202,7 @@
   & li {
     font-size: 0.9375rem;
     line-height: 1.7;
-    color: #444;
+    color: var(--color-prose);
   }
   & p {
     margin: 0 0 1rem;
@@ -231,4 +252,81 @@
     border-inline-start: 3px solid var(--color-tint-green);
     color: var(--color-muted);
   }
+}
+
+/*
+ * Thème sombre de l'administration.
+ *
+ * Il ne s'applique qu'aux pages qui rendent la coquille `.admin-shell` : le site public
+ * garde ses couleurs en toutes circonstances. Les jetons sont redéfinis une seule fois,
+ * sur <html>, avec `light-dark()` : c'est `color-scheme` (posé juste en dessous d'après
+ * l'attribut data-theme) qui choisit la variante, y compris « Système » sans une ligne de
+ * JavaScript et sans clignotement au chargement. Un navigateur qui ignore `light-dark()`
+ * retombe simplement sur le thème clair.
+ *
+ * `color-scheme` habille aussi les contrôles natifs et les barres de défilement.
+ */
+html:has(.admin-shell[data-theme="light"]) {
+  color-scheme: light;
+}
+html:has(.admin-shell[data-theme="dark"]) {
+  color-scheme: dark;
+}
+html:has(.admin-shell[data-theme="auto"]) {
+  color-scheme: light dark;
+}
+
+html:has(.admin-shell) {
+  --color-ink: light-dark(#111111, #f4f1ea);
+  --color-paper: light-dark(#fbf8f3, #141311);
+  --color-canvas: light-dark(#e9e6e0, #0f0e0d);
+  --color-surface: light-dark(#ffffff, #1e1d1a);
+  --color-muted: light-dark(#666666, #a9a49a);
+  --color-subtle: light-dark(#888888, #948e84);
+  --color-faint: light-dark(#999999, #8a847a);
+  --color-line: light-dark(#eeeeee, #302d28);
+  --color-line-warm: light-dark(#e8e2d8, #322f29);
+  --color-line-sand: light-dark(#eee9e1, #2b2924);
+  --color-line-soft: light-dark(#f1ede6, #282520);
+
+  --color-on-ink: light-dark(#ffffff, #17160f);
+  --color-on-ink-soft: light-dark(#333333, #d8d2c7);
+  /* Élévation en sombre : page #141311 < carte #1e1d1a < carte d'emphase #302d27 < champ #403c35. */
+  --color-deep: light-dark(#111111, #302d27);
+  --color-on-deep: light-dark(#ffffff, #f4f1ea);
+  --color-on-deep-muted: light-dark(#bbbbbb, #b3ada2);
+  --color-deep-soft: light-dark(#1d1d1d, #403c35);
+  --color-deep-line: light-dark(#333333, #47433b);
+
+  /* Teintes : pastel sur fond clair, sourdes sur fond sombre — l'encre suit en miroir. */
+  --color-tint-green: light-dark(#dce5d6, #27302a);
+  --color-tint-green-ink: light-dark(#3a4438, #cadcc4);
+  --color-tint-blue: light-dark(#e3e8f0, #262b34);
+  --color-tint-blue-ink: light-dark(#3a4250, #ccd7e8);
+  --color-tint-pink: light-dark(#f0e0e8, #322530);
+  --color-tint-pink-ink: light-dark(#5a3a4a, #eccddd);
+  --color-tint-sand: light-dark(#f3e9dc, #322b22);
+  --color-tint-sand-ink: light-dark(#5a4a38, #e9d6ba);
+
+  --color-accent: light-dark(#d94e93, #ef7bb0);
+  --color-danger: light-dark(#8a1f1f, #ff9d9d);
+  --color-danger-bg: light-dark(#f7dcdc, #3a1e1e);
+
+  /* Interrupteur : la pastille s'inverse pour rester lisible sur les deux fonds. */
+  --color-switch-off: light-dark(#dddddd, #4a453e);
+  --color-knob-off: light-dark(#ffffff, #cfcabf);
+  --color-knob-on: light-dark(#ffffff, #17160f);
+
+  --color-prose: light-dark(#444444, #b8b2a8);
+
+  /* Le logo est un PNG noir : sur fond sombre, on l'inverse plutôt que d'en servir deux. */
+  --logo-filter: light-dark(none, invert(1));
+
+  --shadow-card: 0 14px 30px light-dark(rgb(0 0 0 / 0.14), rgb(0 0 0 / 0.5));
+  --shadow-soft: 0 10px 30px light-dark(rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.4));
+  --shadow-float: 0 20px 60px light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.55));
+}
+
+.admin-shell .admin-logo {
+  filter: var(--logo-filter, none);
 }

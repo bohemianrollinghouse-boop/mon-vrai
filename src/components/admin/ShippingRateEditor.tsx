@@ -34,7 +34,7 @@ export function ShippingRateEditor({ index, rate, freeThreshold }: { index: numb
 
   const costRow = SUPPLIER_COST_TTC[rate.id]?.[country];
   const costCents = costRow?.[bracket];
-  const selectCls = "rounded-lg bg-white px-2.5 py-1.5 text-[0.8125rem] font-semibold outline-none";
+  const selectCls = "rounded-lg bg-surface px-2.5 py-1.5 text-[0.8125rem] font-semibold outline-none";
 
   return (
     <div className="flex flex-col gap-3 rounded-[14px] bg-paper px-4 py-3.5">
@@ -71,7 +71,7 @@ export function ShippingRateEditor({ index, rate, freeThreshold }: { index: numb
       </div>
 
       {/* Prix client par tranche de poids et par pays. */}
-      <div className="flex flex-wrap items-end gap-2.5 rounded-lg bg-white px-3 py-2.5">
+      <div className="flex flex-wrap items-end gap-2.5 rounded-lg bg-surface px-3 py-2.5">
         <label className="flex flex-col gap-0.5">
           <span className="text-[0.5625rem] font-bold uppercase tracking-[0.08em] text-faint">Pays</span>
           <select value={country} onChange={(e) => setCountry(e.target.value as ShippingCountry)} className={selectCls}>
