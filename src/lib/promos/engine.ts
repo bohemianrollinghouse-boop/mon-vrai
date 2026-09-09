@@ -120,7 +120,8 @@ export function applyPromos(codes: string[], ctx: PromoContext): PromoOutcome {
     remaining -= a.amount;
   }
 
-  const freeShipping = applied.some((a) => a.type === "free_shipping");
+  // Frais de livraison offerts : par le type dédié, ou par la case cochée sur n'importe quel autre code.
+  const freeShipping = applied.some((a) => a.type === "free_shipping" || ctx.promos.get(a.code)?.freeShipping === true);
   const giftLines = applied.flatMap((a) => a.gifts).filter((slug, i, arr) => arr.indexOf(slug) === i).map((slug) => ({ slug, qty: 1 }));
 
   const byCode = applied.find((a) => a.influencerId && !a.viaLink);

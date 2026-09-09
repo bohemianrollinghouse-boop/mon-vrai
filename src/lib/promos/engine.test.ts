@@ -84,6 +84,13 @@ describe("moteur des codes promo", () => {
     expect(both.discount).toBe(570);
   });
 
+  it("offre les frais de livraison via la case, sur n'importe quel type", () => {
+    const ctx = base([mk({ code: "DIX", type: "percent", amount: 10, freeShipping: true })]);
+    const r = applyPromos(["DIX"], ctx);
+    expect(r.discount).toBe(300);
+    expect(r.freeShipping).toBe(true);
+  });
+
   it("calcule le statut admin", () => {
     expect(promoStatus(mk({ code: "AA", type: "percent" }), now)).toBe("Actif");
     expect(promoStatus(mk({ code: "AA", type: "percent", startAt: now + 1 }), now)).toBe("Programmé");

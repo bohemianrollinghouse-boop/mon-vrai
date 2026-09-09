@@ -19,9 +19,10 @@ const TYPES: { value: PromoType; label: string }[] = [
 
 type ProductOpt = { slug: string; title: string; image?: string; tint: keyof typeof TINT_BG };
 
-export function PromoTypeFields({ initialType, initialValue, initialMinimum, initialGifts, products }: { initialType: PromoType; initialValue: string; initialMinimum: string; initialGifts: string[]; products: ProductOpt[] }) {
+export function PromoTypeFields({ initialType, initialValue, initialMinimum, initialGifts, initialFreeShipping = false, products }: { initialType: PromoType; initialValue: string; initialMinimum: string; initialGifts: string[]; initialFreeShipping?: boolean; products: ProductOpt[] }) {
   const [type, setType] = useState<PromoType>(initialType);
   const [gifts, setGifts] = useState<string[]>(initialGifts);
+  const [freeShipping, setFreeShipping] = useState<boolean>(initialFreeShipping);
 
   return (
     <div className="flex flex-col gap-3.5">
@@ -97,6 +98,18 @@ export function PromoTypeFields({ initialType, initialValue, initialMinimum, ini
           </label>
           <span className="text-[0.6875rem] leading-relaxed text-subtle">Les produits cochés sont ajoutés au panier à 0 € (1 ex. chacun), dans la limite du stock.</span>
         </div>
+      )}
+
+      {/* Frais de livraison offerts : proposé pour tous les types sauf « Livraison » (redondant). */}
+      {type !== "free_shipping" && (
+        <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-paper px-3 py-3">
+          <input type="checkbox" name="freeShipping" checked={freeShipping} onChange={(e) => setFreeShipping(e.target.checked)} className="sr-only" />
+          <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border-[1.5px] border-ink text-[0.625rem] font-extrabold text-white ${freeShipping ? "bg-ink" : "bg-transparent"}`}>{freeShipping ? "✓" : ""}</span>
+          <span className="flex flex-col">
+            <span className="text-[0.8125rem] font-bold text-ink">Offrir aussi les frais de livraison</span>
+            <span className="text-[0.6875rem] text-subtle">En plus de la remise ci-dessus.</span>
+          </span>
+        </label>
       )}
     </div>
   );

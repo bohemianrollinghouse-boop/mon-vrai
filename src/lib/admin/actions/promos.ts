@@ -26,6 +26,7 @@ const Input = z.object({
   endAt: z.string().trim().default(""),
   limit: z.number().int().min(1).optional(),
   active: z.boolean().default(true),
+  freeShipping: z.boolean().default(false),
   gifts: z.array(z.string()).default([]),
   stackWith: z.array(z.string()).default([]),
 });
@@ -41,7 +42,7 @@ export async function savePromoAction(formData: FormData): Promise<AdminResult> 
   const stackWith = formData.getAll("stackWith").map(String).filter(Boolean);
   formData.delete("gifts");
   formData.delete("stackWith");
-  const parsed = parseForm(Input, formData, { numbers: ["limit"], booleans: ["active"] });
+  const parsed = parseForm(Input, formData, { numbers: ["limit"], booleans: ["active", "freeShipping"] });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   // On majuscule les codes, mais pas le marqueur spécial « __influ ».
   const d = { ...parsed.data, gifts, stackWith: stackWith.map((c) => (c.toLowerCase() === "__influ" ? "__influ" : c.toUpperCase())) };
@@ -75,7 +76,9 @@ export async function savePromoAction(formData: FormData): Promise<AdminResult> 
   if (existing?.influencerId) return failed(`${code} est le code d'un influenceur : modifiez-le dans l'onglet Influenceurs.`, { code: "Code influenceur" });
   if (existing && d.originalCode.toUpperCase() !== code) return failed(`Le code ${code} existe déjà.`, { code: "Déjà utilisé" });
 
-  await upsertPromo({ code, description: d.description, type: d.type, amount, minimum, startAt, endAt, limit: d.limit, perCustomer: 1, stackWith: d.stackWith.filter((c) => c !== code), gifts: d.type === "gift" ? gifts : [], active: d.active, influencerId: undefined });
+  // Le type « livraison » offre déjà le port : la case est sans objet pour lui.
+  const freeShipping = d.type === "free_shipping" ? false : d.freeShipping;
+  await upsertPromo({ code, description: d.description, type: d.type, amount, minimum, startAt, endAt, limit: d.limit, perCustomer: 1, stackWith: d.stackWith.filter((c) => c !== code), gifts: d.type === "gift" ? gifts : [], freeShipping, active: d.active, influencerId: undefined });
   if (d.originalCode && d.originalCode.toUpperCase() !== code) await deletePromo(d.originalCode);
   await audit(user.email, existing ? "promo.update" : "promo.create", `promos/${code}`);
   revalidatePath("/admin/codes-promo");

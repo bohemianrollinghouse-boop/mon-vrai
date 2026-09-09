@@ -622,6 +622,8 @@ export const Promo = z.object({
   stackWith: z.array(z.string()).default([]),
   /** Produits offerts (type `gift`), un exemplaire chacun. */
   gifts: z.array(Slug).default([]),
+  /** Offrir en plus les frais de livraison (cumulable avec tout type sauf `free_shipping`). */
+  freeShipping: z.boolean().default(false),
   active: z.boolean().default(true),
   /** Code rattaché à un influenceur : géré depuis l'onglet Influenceurs. */
   influencerId: z.string().optional(),

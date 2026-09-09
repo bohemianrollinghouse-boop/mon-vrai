@@ -101,6 +101,7 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
               initialValue={current && !isNew ? (current.type === "fixed" ? (current.amount / 100).toFixed(2).replace(".", ",") : String(current.amount || 10)) : "10"}
               initialMinimum={current && !isNew && current.minimum ? (current.minimum / 100).toFixed(2).replace(".", ",") : ""}
               initialGifts={current && !isNew ? current.gifts : []}
+              initialFreeShipping={current && !isNew ? current.freeShipping : false}
               products={products}
             />
             <div className="grid grid-cols-2 gap-2.5">
