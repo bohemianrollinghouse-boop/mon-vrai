@@ -10,7 +10,7 @@ import { PromoForm } from "@/components/site/CartLineControls";
 import { RelayPicker, type Relay } from "@/components/checkout/RelayPicker";
 import { AddressAutocomplete } from "@/components/checkout/AddressAutocomplete";
 import { TINT_BG } from "@/components/site/ui";
-import { createPaymentIntentAction, type CheckoutInput } from "@/lib/checkout/actions";
+import { createPaymentIntentAction, placeFreeOrderAction, type CheckoutInput } from "@/lib/checkout/actions";
 import type { Quote } from "@/lib/checkout/quote";
 import { formatEuro } from "@/lib/domain/money";
 
@@ -243,14 +243,36 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
     router.push(`/commande/merci?payment_intent=${encodeURIComponent(intentId)}`);
   }
 
+  // Commande gratuite (total nul) : pas de Stripe, un simple « Commander ».
+  const free = total <= 0;
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (!stripe || !elements) return;
     setError(null);
     if (selectedOption?.relay && !relay) {
-      setError("Choisissez votre point relais sur la carte avant de payer.");
+      setError("Choisissez votre point relais sur la carte avant de commander.");
       return;
     }
+
+    // Chemin gratuit : on crée la commande directement, sans paiement.
+    if (free) {
+      setPending(true);
+      try {
+        const res = await placeFreeOrderAction(input());
+        if (!res.ok) {
+          setError(res.error);
+          return;
+        }
+        router.push(`/commande/merci?order=${encodeURIComponent(res.orderId)}`);
+      } catch (err) {
+        setError((err as Error).message || "Une erreur est survenue.");
+      } finally {
+        setPending(false);
+      }
+      return;
+    }
+
+    if (!stripe || !elements) return;
     setPending(true);
     try {
       const { error: submitError } = await elements.submit();
@@ -444,20 +466,26 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
 
       <Card id="etape-paiement" onFocusCapture={() => onStep("paiement")}>
         <div ref={paymentRef}>
-          <CardHead n={3} title="Paiement" aside="Chiffré et sécurisé" />
+          <CardHead n={3} title="Paiement" aside={free ? "Commande gratuite" : "Chiffré et sécurisé"} />
         </div>
-        <PaymentElement
-          options={{
-            // Liste verticale : logos plus lisibles et rendu plus sobre que les onglets.
-            layout: { type: "accordion", defaultCollapsed: false, radios: "always", spacedAccordionItems: true },
-            // On collecte nous-mêmes la facturation (identique à la livraison ou saisie ci-dessous).
-            fields: { billingDetails: { name: "never", email: "never", phone: "never", address: "never" } },
-            // Apple/Google Pay vivent dans le paiement express au-dessus ; Link n'a pas sa place ici.
-            wallets: { applePay: "never", googlePay: "never", link: "never" },
-            terms: { card: "never" },
-          }}
-          onReady={() => setPaymentReady(true)}
-        />
+        {free ? (
+          <p className="rounded-[14px] bg-tint-green px-5 py-4 text-[0.8125rem] font-semibold text-tint-green-ink">
+            Votre commande est gratuite : aucun paiement n&apos;est nécessaire. Cliquez sur « Commander » pour la valider.
+          </p>
+        ) : (
+          <PaymentElement
+            options={{
+              // Liste verticale : logos plus lisibles et rendu plus sobre que les onglets.
+              layout: { type: "accordion", defaultCollapsed: false, radios: "always", spacedAccordionItems: true },
+              // On collecte nous-mêmes la facturation (identique à la livraison ou saisie ci-dessous).
+              fields: { billingDetails: { name: "never", email: "never", phone: "never", address: "never" } },
+              // Apple/Google Pay vivent dans le paiement express au-dessus ; Link n'a pas sa place ici.
+              wallets: { applePay: "never", googlePay: "never", link: "never" },
+              terms: { card: "never" },
+            }}
+            onReady={() => setPaymentReady(true)}
+          />
+        )}
         <Check checked={billingSame} onChange={setBillingSame} label="Adresse de facturation identique à l'adresse de livraison" />
         {!billingSame && (
           <div className="flex flex-col gap-[1.125rem] border-t border-line pt-[1.125rem]">
@@ -517,13 +545,13 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
         <Link href="/panier" className="border-b border-[#ccc] text-[0.8125rem] font-semibold text-subtle">
           ← Retour au panier
         </Link>
-        <button type="submit" disabled={pending || !stripe || !paymentReady} className="rounded-pill bg-ink px-9 py-5 text-[0.9375rem] font-bold text-white disabled:opacity-60">
-          {pending ? "Paiement en cours…" : `Payer ${formatEuro(total)}`}
+        <button type="submit" disabled={pending || (!free && (!stripe || !paymentReady))} className="rounded-pill bg-ink px-9 py-5 text-[0.9375rem] font-bold text-white disabled:opacity-60">
+          {free ? (pending ? "Validation…" : "Commander") : pending ? "Paiement en cours…" : `Payer ${formatEuro(total)}`}
         </button>
       </div>
       <p className="px-1 text-right text-xs leading-relaxed text-subtle">
         En validant, vous acceptez nos <Link href="/informations/terms-of-sale" className="underline">conditions générales de vente</Link> et notre <Link href="/informations/privacy-policy" className="underline">politique de confidentialité</Link>.
-        {quote.lines.some((l) => l.preorder) && " Précommande : débit immédiat, expédition à la date annoncée."}
+        {quote.lines.some((l) => l.preorder) && (free ? " Précommande : expédition à la date annoncée." : " Précommande : débit immédiat, expédition à la date annoncée.")}
       </p>
     </form>
   );

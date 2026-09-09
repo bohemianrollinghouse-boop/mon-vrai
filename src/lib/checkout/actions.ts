@@ -5,6 +5,10 @@ import { getSessionUser } from "@/lib/auth/session";
 import { getSettings } from "@/lib/db/settings";
 import type Stripe from "stripe";
 import { getStripe, paymentMethodConfig } from "@/lib/stripe/client";
+import { createPaidOrder, type PaidOrderInput } from "@/lib/db/orders";
+import { getProductsBySlugs } from "@/lib/db/products";
+import type { Address, OrderLine } from "@/lib/domain/types";
+import { fulfillOrder } from "./fulfill";
 import { buildQuote, quoteTotal } from "./quote";
 
 /*
@@ -134,4 +138,70 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
 
   if (!intent.client_secret) return { ok: false, error: "Stripe n'a pas renvoyé de secret de paiement." };
   return { ok: true, clientSecret: intent.client_secret, amount: total, intentId: intent.id };
+}
+
+export type FreeOrderResult = { ok: true; orderId: string } | { ok: false; error: string; field?: string };
+
+/*
+ * Commande à 0 € (ex. code −100 % + livraison offerte) : pas de paiement Stripe. On
+ * recalcule le devis côté serveur, on vérifie que le total est réellement nul, puis on
+ * crée la commande directement et on la finalise (facture, e-mail) comme une commande
+ * payée. Idempotent sur le panier pour éviter un double clic.
+ */
+export async function placeFreeOrderAction(raw: CheckoutInput): Promise<FreeOrderResult> {
+  const parsed = Input.safeParse(raw);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    return { ok: false, error: issue?.message ?? "Formulaire incomplet", field: issue?.path.join(".") };
+  }
+  const d = parsed.data;
+
+  const settings = await getSettings();
+  const mode = settings.payments.mode;
+  if (!settings.shipping.countries.includes(d.address.country)) return { ok: false, error: "Nous ne livrons pas encore ce pays.", field: "address.country" };
+
+  const { quote } = await buildQuote(mode, d.email);
+  if (!quote.cartId || quote.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
+  const { shipping, total } = quoteTotal(quote, d.rateId);
+  if (total !== 0) return { ok: false, error: "Cette commande n'est pas gratuite : réglez le paiement." };
+  if (shipping.relay && !d.relay) return { ok: false, error: "Choisissez votre point relais sur la carte.", field: "relay" };
+
+  const user = await getSessionUser();
+  const products = await getProductsBySlugs(quote.lines.map((l) => l.slug));
+  const lines: OrderLine[] = quote.lines.map((l) => {
+    const p = products.get(l.slug);
+    return { productSlug: l.slug, title: p?.title ?? l.title, qty: l.qty, unitPrice: l.unitPrice, image: p?.images[0], preorder: p?.preorder.enabled ?? l.preorder, gift: l.gift };
+  });
+
+  const shippingAddress: Address = {
+    name: `${d.address.firstName} ${d.address.lastName}`.trim(),
+    line1: d.address.line1,
+    line2: d.address.line2 || undefined,
+    postalCode: d.address.postalCode,
+    city: d.address.city,
+    country: d.address.country,
+    phone: d.address.phone || undefined,
+  };
+  const billingAddress: Address | undefined =
+    !d.billingSame && d.billing
+      ? { name: `${d.billing.firstName} ${d.billing.lastName}`.trim(), line1: d.billing.line1, line2: d.billing.line2 || undefined, postalCode: d.billing.postalCode, city: d.billing.city, country: d.billing.country, phone: shippingAddress.phone }
+      : undefined;
+
+  const input: PaidOrderInput = {
+    lines,
+    totals: { subtotal: quote.subtotal, shipping: shipping.price, discount: quote.discount, tax: 0, total, currency: "eur" },
+    email: d.email,
+    customerUid: user?.uid,
+    shippingAddress,
+    billingAddress,
+    delivery: { rateId: shipping.id, rateName: shipping.name, offerCode: shipping.offerCode, relay: shipping.relay && d.relay ? { code: d.relay.code, name: d.relay.name, street: d.relay.street ?? "", postalCode: d.relay.postalCode ?? "", city: d.relay.city ?? "", network: d.relay.network ?? "" } : undefined },
+    promoCodes: quote.applied.map((a) => a.code),
+    attribution: quote.attribution ?? undefined,
+    // Pas de Stripe : clé d'idempotence dérivée du panier (anti double-clic).
+    stripe: { paymentIntentId: `free_${quote.cartId}` },
+  };
+
+  const order = await createPaidOrder({ ...input, livemode: mode === "live" });
+  await fulfillOrder(order, quote.cartId, input, "site");
+  return { ok: true, orderId: order.id };
 }

@@ -1,13 +1,10 @@
 import type Stripe from "stripe";
 import { NextResponse } from "next/server";
-import { clearCart } from "@/lib/db/carts";
-import { addAddress, ensureCustomer } from "@/lib/db/customers";
-import { createPaidOrder, findOrderByCheckoutSession, findOrderByPaymentIntent, getOrder, type PaidOrderInput } from "@/lib/db/orders";
+import { ensureCustomer } from "@/lib/db/customers";
+import { createPaidOrder, findOrderByCheckoutSession, findOrderByPaymentIntent, type PaidOrderInput } from "@/lib/db/orders";
 import { getProductsBySlugs } from "@/lib/db/products";
-import { incrementPromoUses } from "@/lib/db/promos";
 import type { Address, OrderLine } from "@/lib/domain/types";
-import { sendOrderConfirmation } from "@/lib/email/send";
-import { makeConfigured, sendOrderToMake } from "@/lib/make/tiime";
+import { fulfillOrder } from "@/lib/checkout/fulfill";
 import { getStripe, webhookSecret, type PaymentMode } from "@/lib/stripe/client";
 
 /*
@@ -59,23 +56,9 @@ export async function POST(request: Request) {
   return NextResponse.json({ received: true });
 }
 
-/** Suites communes d'une commande créée : vider le panier, facturer, prévenir, mémoriser l'adresse. */
+/** Suites communes d'une commande créée : voir fulfillOrder (panier, facture, e-mail, adresse). */
 async function finish(order: Awaited<ReturnType<typeof createPaidOrder>>, cartId: string | undefined, input: PaidOrderInput) {
-  if (cartId) await clearCart(cartId).catch(() => undefined);
-  if (input.customerUid) await addAddress(input.customerUid, input.shippingAddress).catch(() => undefined);
-  if (input.promoCodes?.length) await incrementPromoUses(input.promoCodes).catch(() => undefined);
-
-  // Facturation Tiime via Make (jamais bloquant) : le scénario crée la facture et renvoie
-  // son PDF, qu'on dépose et rattache à la commande. On facture d'abord, puis on recharge
-  // la commande pour joindre ce PDF à l'e-mail de confirmation. Les commandes de test
-  // partent aussi (drapeau test dans le corps) pour un essai complet.
-  let invoiced = order;
-  if (makeConfigured()) {
-    await sendOrderToMake(order.id, "stripe").catch((err) => console.warn("[stripe] envoi Make/Tiime :", err));
-    invoiced = (await getOrder(order.id)) ?? order;
-  }
-
-  await sendOrderConfirmation(invoiced).catch((err) => console.warn("[stripe] e-mail de confirmation non envoyé :", err));
+  await fulfillOrder(order, cartId, input, "stripe");
   return NextResponse.json({ received: true, order: order.number });
 }
 

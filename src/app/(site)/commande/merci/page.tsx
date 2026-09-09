@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { RefreshUntilOrder } from "@/components/site/RefreshUntilOrder";
 import { PillLink } from "@/components/site/ui";
-import { findOrderByCheckoutSession, findOrderByPaymentIntent } from "@/lib/db/orders";
+import { findOrderByCheckoutSession, findOrderByPaymentIntent, getOrder } from "@/lib/db/orders";
 import { formatEuro } from "@/lib/domain/money";
 import { systemPath } from "@/lib/domain/system-pages";
 
@@ -14,9 +14,15 @@ export const dynamic = "force-dynamic";
  * on le dit calmement — le paiement est bien pris, l'e-mail suivra.
  */
 export default async function ThankYouPage({ searchParams }: PageProps<"/commande/merci">) {
-  const { session_id, payment_intent } = await searchParams;
+  const { session_id, payment_intent, order: orderParam } = await searchParams;
   const order =
-    typeof payment_intent === "string" ? await findOrderByPaymentIntent(payment_intent) : typeof session_id === "string" ? await findOrderByCheckoutSession(session_id) : null;
+    typeof orderParam === "string"
+      ? await getOrder(orderParam)
+      : typeof payment_intent === "string"
+        ? await findOrderByPaymentIntent(payment_intent)
+        : typeof session_id === "string"
+          ? await findOrderByCheckoutSession(session_id)
+          : null;
 
   return (
     <section className="site-wrap py-16">
