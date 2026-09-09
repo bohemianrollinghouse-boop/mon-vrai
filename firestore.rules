@@ -60,6 +60,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Fréquentation : agrégats anonymes et présence, serveur uniquement.
+    match /stats_days/{id} {
+      allow read, write: if false;
+    }
+
+    match /stats_presence/{id} {
+      allow read, write: if false;
+    }
+
     match /audit/{id} {
       allow read: if isAdmin();
       allow write: if false;

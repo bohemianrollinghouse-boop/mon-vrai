@@ -241,9 +241,10 @@ export function Pill({ children, tone = "neutral" }: { children: ReactNode; tone
 }
 
 /** Tuile chiffre du tableau de bord : teinte, libellé, valeur, précision. */
-export function Tile({ label, value, note, tone = "white", href }: { label: string; value: ReactNode; note?: ReactNode; tone?: "white" | "green" | "pink" | "sand" | "blue"; href?: string }) {
+export function Tile({ label, value, note, tone = "white", href }: { label: ReactNode; value: ReactNode; note?: ReactNode; tone?: "white" | "green" | "pink" | "sand" | "blue" | "dark"; href?: string }) {
   const cls = {
     white: "bg-white [&_.lbl]:text-subtle",
+    dark: "bg-ink text-white [&_.lbl]:text-white/70",
     green: "bg-tint-green [&_.lbl]:text-tint-green-ink",
     pink: "bg-tint-pink [&_.lbl]:text-tint-pink-ink",
     sand: "bg-tint-sand [&_.lbl]:text-tint-sand-ink",

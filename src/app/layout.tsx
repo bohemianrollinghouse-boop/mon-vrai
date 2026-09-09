@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
+import { StatsBeacon } from "@/components/site/StatsBeacon";
 import { getSettings } from "@/lib/db/settings";
 import "./globals.css";
 
@@ -31,7 +32,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="fr" className={`${montserrat.variable} h-full`}>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        {children}
+        {/* Fréquentation (pages vues, présence), sans cookie ; ignore /admin de lui-même. */}
+        <StatsBeacon />
+      </body>
     </html>
   );
 }

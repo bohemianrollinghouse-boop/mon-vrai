@@ -8,6 +8,7 @@ import { getProduct } from "@/lib/db/products";
 import { addQty, setLineQty } from "@/lib/domain/cart-math";
 import { Slug } from "@/lib/domain/types";
 import { ensureCartId } from "./cookie";
+import { recordCartAddFromRequest } from "@/lib/stats/record";
 
 /*
  * Actions serveur du panier. Chacune est un point d'entrée public : les entrées sont
@@ -34,6 +35,8 @@ export async function addToCart(formData: FormData): Promise<CartActionResult> {
   const cart = await getCart(id);
   const lines = addQty(cart.lines, product.slug, parsed.data.qty);
   await saveCart(id, { lines, promoCodes: cartCodes(cart) });
+  // Statistiques (parcours d'achat) : jamais bloquant.
+  await recordCartAddFromRequest().catch(() => undefined);
   refresh();
   return { ok: true, count: lines.reduce((n, l) => n + l.qty, 0) };
 }
