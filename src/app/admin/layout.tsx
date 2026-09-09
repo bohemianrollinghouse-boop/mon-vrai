@@ -56,7 +56,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
             </Link>
             <span className="rounded-pill bg-tint-sand px-2 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-sand-ink">Admin</span>
           </div>
-          <ModeToggle mode={snap.settings.payments.mode} />
+          <ModeToggle stripe={snap.settings.payments.mode} boxtal={snap.settings.shipping.boxtalMode} />
         </div>
         <AdminNav primary={primary} secondary={secondary} />
         <div className="mt-auto flex flex-col gap-3 max-[899px]:mt-0">
@@ -79,10 +79,18 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </aside>
 
       <main className="flex min-w-0 flex-col gap-6 px-10 pb-16 pt-8 max-[899px]:px-5">
-        {snap.settings.payments.mode === "test" && (
+        {(snap.settings.payments.mode === "test" || snap.settings.shipping.boxtalMode === "test") && (
           <div className="flex flex-wrap items-center gap-3 rounded-card bg-tint-sand px-5 py-3 text-[0.8125rem] font-semibold text-tint-sand-ink">
             <span>
-              Site en <strong>mode test</strong> : Stripe et Boxtal en bac à sable. Aucun débit réel, aucune étiquette facturée, commandes marquées « Test » (hors chiffre d&apos;affaires). Bascule en haut à gauche.
+              Mode test :{" "}
+              <strong>
+                {snap.settings.payments.mode === "test" && snap.settings.shipping.boxtalMode === "test"
+                  ? "Stripe et Boxtal"
+                  : snap.settings.payments.mode === "test"
+                    ? "Stripe"
+                    : "Boxtal"}
+              </strong>{" "}
+              en bac à sable (aucun débit ni étiquette réels). Réglage par service dans Paramètres, bascule globale en haut à gauche.
             </span>
           </div>
         )}

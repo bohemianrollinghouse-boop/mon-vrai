@@ -251,8 +251,10 @@ export const SiteSettings = z.object({
       rates: z.array(ShippingRate).default(DEFAULT_SHIPPING_RATES),
       parcel: ParcelDefaults.default(DEFAULT_PARCEL),
       sender: Sender.default(EMPTY_SENDER),
+      /** « test » : étiquettes créées dans le bac à sable Boxtal (non facturées). Indépendant de Stripe. */
+      boxtalMode: z.enum(["live", "test"]).default("live"),
     })
-    .default({ freeThreshold: 3000, countries: ["FR", "BE", "LU"], rates: DEFAULT_SHIPPING_RATES, parcel: DEFAULT_PARCEL, sender: EMPTY_SENDER }),
+    .default({ freeThreshold: 3000, countries: ["FR", "BE", "LU"], rates: DEFAULT_SHIPPING_RATES, parcel: DEFAULT_PARCEL, sender: EMPTY_SENDER, boxtalMode: "live" }),
   inventory: z
     .object({
       /** En dessous de ce nombre d'exemplaires, un titre est signalé « stock bas ». */
@@ -427,6 +429,8 @@ export const Order = z.object({
       orderId: z.string(),
       status: z.string().default("PENDING"),
       createdAt: z.number(),
+      /** Environnement Boxtal où l'étiquette a été créée : la synchro doit relire au même endroit. */
+      mode: z.enum(["live", "test"]).optional(),
       /** Étiquette archivée dans le bucket (l'URL Boxtal expire). */
       labelPath: z.string().optional(),
       trackingNumber: z.string().optional(),

@@ -1,5 +1,6 @@
 import { ActionForm } from "@/components/admin/ActionForm";
 import { Button, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
+import { ServiceModeSwitch } from "@/components/admin/ServiceModeSwitch";
 import { saveSettingsAction } from "@/lib/admin/actions/settings";
 import { getSettings } from "@/lib/db/settings";
 import { boxtalConfigured, boxtalMapConfigured } from "@/lib/boxtal/client";
@@ -73,12 +74,7 @@ export default async function SettingsPage() {
                     <span className="rounded-pill bg-tint-pink px-2.5 py-1 text-[0.625rem] font-bold uppercase tracking-[0.1em] text-tint-pink-ink">Clé manquante</span>
                   )}
                 </div>
-                <div className="flex items-center justify-between gap-3 rounded-[14px] bg-paper px-4 py-3 text-[0.8125rem]">
-                  <span className="text-xs text-subtle">
-                    Mode {s.payments.mode === "test" ? "test" : "production"} : bascule globale (Stripe + Boxtal) via le slider en haut de l&apos;admin.
-                  </span>
-                  {s.payments.mode === "test" ? <Pill tone="warn">test</Pill> : <Pill tone="ok">production</Pill>}
-                </div>
+                <ServiceModeSwitch service="stripe" mode={s.payments.mode} label="Stripe (paiements)" />
                 <Switch
                   name="payments.paypal"
                   label={
@@ -101,6 +97,7 @@ export default async function SettingsPage() {
 
           <div className="flex flex-col gap-3">
             <Card title="Livraison proposée au client">
+              <ServiceModeSwitch service="boxtal" mode={s.shipping.boxtalMode} label="Boxtal (étiquettes)" />
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Offerte à partir de (€)" hint="0 = jamais." name="shipping.freeThresholdEuros">
                   <Input name="shipping.freeThresholdEuros" type="number" step="0.01" min="0" defaultValue={(s.shipping.freeThreshold / 100).toString()} className="!font-bold" />

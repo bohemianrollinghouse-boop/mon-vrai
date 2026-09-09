@@ -11,11 +11,12 @@ import { buildShippingOrderRequest } from "./request";
 export { buildShippingOrderRequest, parcelWeightKg, senderAddress } from "./request";
 
 /*
- * L'environnement Boxtal suit le mode de la commande : une commande de test (livemode
- * = false) crée son étiquette dans le bac à sable Boxtal, non facturé. Les documents et
- * le suivi se relisent dans le même environnement que celui où l'étiquette a été créée.
+ * L'environnement Boxtal est un réglage indépendant (Paramètres → Livraison), distinct
+ * du mode Stripe : on peut avoir Stripe en test et Boxtal en production, ou l'inverse.
+ * À la création, on prend le mode réglé et on le mémorise sur la commande ; pour relire
+ * documents et suivi, on reprend ce mode mémorisé (même environnement que la création).
  */
-const boxtalModeOf = (order: Order): BoxtalMode => (order.livemode === false ? "test" : "live");
+const syncModeOf = (order: Order): BoxtalMode => order.boxtal?.mode ?? (order.livemode === false ? "test" : "live");
 
 /*
  * Du côté commande : construire la demande Boxtal à partir de la commande et des
@@ -30,9 +31,10 @@ export async function createLabelForOrder(orderId: string, by: string): Promise<
   if (order.boxtal?.orderId) return order;
   if (!["paid", "preparing"].includes(order.status)) throw new Error(`Une commande ${order.status} ne s'expédie pas.`);
   const settings = await getSettings();
+  const mode = settings.shipping.boxtalMode;
   const req = buildShippingOrderRequest(order, settings);
-  const created = await createShippingOrder(req, boxtalModeOf(order));
-  await setBoxtal(orderId, { orderId: created.id, status: created.status, createdAt: Date.now(), updatedAt: Date.now() });
+  const created = await createShippingOrder(req, mode);
+  await setBoxtal(orderId, { orderId: created.id, status: created.status, mode, createdAt: Date.now(), updatedAt: Date.now() });
   if (order.status === "paid") await transitionOrder(orderId, "preparing", { note: `Étiquette Boxtal demandée (${req.shippingOfferCode}, réf. ${created.id})`, by });
   // L'étiquette et le suivi arrivent souvent tout de suite : on tente, sans dépendre du webhook.
   await syncBoxtal(orderId).catch((err) => console.warn("[boxtal] synchro après création :", err));
@@ -43,7 +45,7 @@ export async function createLabelForOrder(orderId: string, by: string): Promise<
 export async function syncBoxtal(orderId: string): Promise<Order | null> {
   const order = await getOrder(orderId);
   if (!order?.boxtal) return order;
-  const mode = boxtalModeOf(order);
+  const mode = syncModeOf(order);
   const [docs, trackings] = await Promise.all([getShippingDocuments(order.boxtal.orderId, mode).catch(() => []), getShippingTracking(order.boxtal.orderId, mode).catch(() => [])]);
   const patch: NonNullable<Order["boxtal"]> = { ...order.boxtal, updatedAt: Date.now() };
 

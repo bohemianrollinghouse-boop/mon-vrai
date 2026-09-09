@@ -156,16 +156,23 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
 }
 
 /*
- * Slider prod/test en haut de l'admin. Bascule le mode global : Stripe (clés test/live)
- * et Boxtal (étiquettes en bac à sable) suivent tous ce réglage. Action légère et
- * réservée à l'admin, séparée du formulaire de réglages.
+ * Bascule prod/test, par service. Le slider en haut de l'admin envoie service="both"
+ * (Stripe + Boxtal ensemble) ; les interrupteurs des réglages ciblent un seul service,
+ * ce qui permet un état « partiel » (ex. Stripe en test, Boxtal en production).
  */
 export async function setSiteModeAction(formData: FormData): Promise<void> {
   const user = await assertAdmin();
-  const mode = formData.get("mode") === "test" ? "test" : "live";
+  const mode: "live" | "test" = formData.get("mode") === "test" ? "test" : "live";
+  const service = String(formData.get("service") ?? "both");
   const current = await getSettings();
-  if (current.payments.mode === mode) return;
-  await saveSettings({ ...current, payments: { ...current.payments, mode } });
-  await audit(user.email, "settings.mode", "settings/site", `mode → ${mode}`);
+  const touchStripe = service === "stripe" || service === "both";
+  const touchBoxtal = service === "boxtal" || service === "both";
+  const next = {
+    ...current,
+    payments: touchStripe ? { ...current.payments, mode } : current.payments,
+    shipping: touchBoxtal ? { ...current.shipping, boxtalMode: mode } : current.shipping,
+  };
+  await saveSettings(next);
+  await audit(user.email, "settings.mode", "settings/site", `${service} → ${mode}`);
   revalidatePath("/", "layout");
 }

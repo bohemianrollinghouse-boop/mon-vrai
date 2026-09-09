@@ -163,6 +163,7 @@ async function main() {
     shipping: {
       freeThreshold: 3000,
       preorderShipFrom: SHIP_FROM,
+      boxtalMode: "live",
       countries: ["FR", "BE", "LU"],
       rates: DEFAULT_SHIPPING_RATES,
       parcel: DEFAULT_PARCEL,
