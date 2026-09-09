@@ -1,6 +1,6 @@
 import "server-only";
-import { NewsletterContent, NewsletterSubscriber } from "@/lib/domain/types";
-import { col, now, parseDoc, parseQuery } from "./helpers";
+import { NewsletterSubscriber } from "@/lib/domain/types";
+import { col, now, parseQuery } from "./helpers";
 import { listCustomers } from "./customers";
 import { listOrders } from "./orders";
 
@@ -15,14 +15,26 @@ const subs = () => col("newsletter");
 
 export type Subscriber = { email: string; name: string; source: string; subscribedAt: number };
 
-export async function getNewsletterContent(): Promise<NewsletterContent> {
-  return parseDoc(NewsletterContent, await content().doc("newsletter").get()) ?? NewsletterContent.parse({});
+/*
+ * Contenu des modèles : un document `content/newsletter` porte les valeurs éditées de
+ * chaque modèle, sous `values.<idDuModèle>`. Éditer un modèle ne touche pas les autres.
+ */
+type StoredValues = { values?: Record<string, Record<string, string>> };
+
+export async function getTemplateValues(id: string): Promise<Record<string, string>> {
+  const snap = await content().doc("newsletter").get();
+  const data = snap.data() as StoredValues | undefined;
+  return data?.values?.[id] ?? {};
 }
 
-export async function saveNewsletterContent(input: Omit<NewsletterContent, "updatedAt">): Promise<NewsletterContent> {
-  const doc = NewsletterContent.parse({ ...input, updatedAt: now() });
-  await content().doc("newsletter").set(doc);
-  return doc;
+export async function getAllTemplateValues(): Promise<Record<string, Record<string, string>>> {
+  const snap = await content().doc("newsletter").get();
+  const data = snap.data() as StoredValues | undefined;
+  return data?.values ?? {};
+}
+
+export async function saveTemplateValues(id: string, values: Record<string, string>): Promise<void> {
+  await content().doc("newsletter").set({ values: { [id]: values }, updatedAt: now() }, { merge: true });
 }
 
 /** Inscrits, dédupliqués par e-mail : inscriptions directes (opt-in) + clients ayant consenti. */

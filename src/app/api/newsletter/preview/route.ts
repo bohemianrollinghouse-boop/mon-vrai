@@ -1,30 +1,25 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { getSettings } from "@/lib/db/settings";
-import type { NewsletterContent } from "@/lib/domain/types";
-import { newsletterEmail } from "@/lib/email/newsletter";
+import { renderNewsletter } from "@/lib/email/newsletter";
+import { templateById } from "@/lib/newsletter/templates";
 
 /*
- * Aperçu de la newsletter (admin) : rend le vrai gabarit à partir des champs du
- * formulaire, pour l'afficher en direct dans un iframe pendant l'édition. Ne sauvegarde
- * rien. Le lien de désinscription est neutralisé (#) dans l'aperçu.
+ * Aperçu de la newsletter (admin) : rend le modèle choisi à partir des champs du
+ * formulaire, pour l'afficher en direct pendant l'édition. Ne sauvegarde rien ; le lien
+ * de désinscription est neutralisé (#).
  */
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user?.isAdmin) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 
   const form = await request.formData();
-  const s = (k: string) => String(form.get(k) ?? "");
-  const content: NewsletterContent = {
-    subject: s("subject"),
-    eyebrow: s("eyebrow"),
-    heading: s("heading"),
-    body: s("body"),
-    cta: { label: s("cta.label"), href: s("cta.href") },
-    imageUrl: s("imageUrl"),
-    updatedAt: 0,
-  };
+  const templateId = String(form.get("templateId") ?? "");
+  const def = templateById(templateId);
+  const values: Record<string, string> = {};
+  for (const field of def?.fields ?? []) values[field.name] = String(form.get(field.name) ?? "");
+
   const settings = await getSettings();
-  const html = newsletterEmail(content, settings, "#").html;
+  const html = renderNewsletter(templateId, values, settings, "#").html;
   return new NextResponse(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }

@@ -605,19 +605,6 @@ export type ContactMessage = z.infer<typeof ContactMessage>;
 
 /* ---------- Newsletter ---------- */
 
-/** Contenu éditable de la newsletter (le gabarit, lui, est fixe : voir email/newsletter.ts). */
-export const NewsletterContent = z.object({
-  subject: z.string().max(150).default("Des nouvelles de Mon Vrai"),
-  eyebrow: z.string().max(60).default("Newsletter"),
-  heading: z.string().max(120).default(""),
-  /** Corps en texte simple : les lignes vides séparent les paragraphes. */
-  body: z.string().max(8000).default(""),
-  cta: Cta.default({ label: "", href: "" }),
-  imageUrl: z.string().default(""),
-  updatedAt: z.number().default(0),
-});
-export type NewsletterContent = z.infer<typeof NewsletterContent>;
-
 /** Un inscrit de la collection `newsletter` (inscription directe hors compte client). */
 export const NewsletterSubscriber = z.object({
   email: z.email(),
