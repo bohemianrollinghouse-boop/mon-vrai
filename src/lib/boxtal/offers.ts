@@ -15,6 +15,7 @@ export const BOXTAL_OFFERS: BoxtalOffer[] = [
   { code: "POFR-ColissimoAccessInternational", label: "Colissimo - international domicile", carrier: "Colissimo", relay: false, networks: [], europe: true },
   { code: "LPFR-LettreSuivieNational", label: "La Poste - Lettre verte suivie", carrier: "La Poste", relay: false, networks: [] },
   { code: "CHRP-Chrono13", label: "Chronopost - Chrono 13 (domicile J+1)", carrier: "Chronopost", relay: false, networks: [] },
+  { code: "CHRP-ChronoClassic", label: "Chronopost - Chrono Classic (domicile Europe)", carrier: "Chronopost", relay: false, networks: [], europe: true },
   { code: "CHRP-Chrono18", label: "Chronopost - Chrono 18", carrier: "Chronopost", relay: false, networks: [] },
   { code: "CHRP-ChronoRelais", label: "Chronopost - Chrono Relais 13", carrier: "Chronopost", relay: true, networks: ["CHRP_NETWORK"] },
   { code: "CHRP-ChronoShoptoShop", label: "Chronopost - Shop2Shop", carrier: "Chronopost", relay: true, networks: ["CHRP_SHOP_ONLY_NETWORK"] },

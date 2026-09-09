@@ -23,6 +23,12 @@ import { formatEuro } from "@/lib/domain/money";
 
 type Prefill = { email: string; firstName: string; lastName: string; line1: string; line2: string; postalCode: string; city: string; country: string; phone: string };
 
+/** Prix d'un mode de livraison pour un pays de destination (retombe sur la France). */
+function priceOf(o: Quote["shippingOptions"][number] | undefined, country: string): number {
+  if (!o) return 0;
+  return o.pricesByCountry[country as keyof typeof o.pricesByCountry] ?? o.pricesByCountry.FR ?? 0;
+}
+
 type Props = {
   publishableKey: string | null;
   pmcId: string | null;
@@ -83,9 +89,11 @@ export function CheckoutPage(props: Props) {
   const { publishableKey, quote } = props;
   const stripePromise = useMemo(() => (publishableKey ? loadStripe(publishableKey) : null), [publishableKey]);
   const [rateId, setRateId] = useState(quote.shippingOptions[0]?.id ?? "");
+  const [country, setCountry] = useState(props.prefill.country || quote.countries[0] || "FR");
   const [step, setStep] = useState<"livraison" | "paiement">("livraison");
   const shipping = quote.shippingOptions.find((o) => o.id === rateId) ?? quote.shippingOptions[0];
-  const total = Math.max(0, quote.subtotal - quote.discount) + (shipping?.price ?? 0);
+  const shippingPrice = priceOf(shipping, country);
+  const total = Math.max(0, quote.subtotal - quote.discount) + shippingPrice;
   // Stripe Elements refuse un montant nul (ex. code -100 % + port offert) : on initialise
   // l'élément avec un minimum valide pour ne pas planter. Le paiement lui-même reste
   // validé côté serveur (un total réellement inférieur au minimum carte est refusé proprement).
@@ -150,13 +158,13 @@ export function CheckoutPage(props: Props) {
               fonts: [{ cssSrc: "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" }],
             }}
           >
-            <CheckoutForm {...props} rateId={rateId} setRateId={setRateId} total={total} onStep={setStep} />
+            <CheckoutForm {...props} rateId={rateId} setRateId={setRateId} country={country} setCountry={setCountry} total={total} onStep={setStep} />
           </Elements>
         ) : (
           <div className="rounded-card bg-white p-7 text-sm text-muted">Le paiement n'est pas encore activé sur ce site (clé publiable Stripe manquante). Écrivez-nous : {props.contactEmail}.</div>
         )}
 
-        <Summary quote={quote} shipping={shipping} total={total} preorderShipFrom={props.preorderShipFrom} contactEmail={props.contactEmail} vatNote={props.vatNote} />
+        <Summary quote={quote} shipping={shipping} shippingPrice={shippingPrice} total={total} preorderShipFrom={props.preorderShipFrom} contactEmail={props.contactEmail} vatNote={props.vatNote} />
       </div>
 
       <footer className="site-wrap flex flex-wrap justify-between gap-4 border-t border-line-warm py-5 text-xs text-subtle">
@@ -174,9 +182,9 @@ export function CheckoutPage(props: Props) {
 
 /* ---------- Formulaire (dans <Elements>) ---------- */
 
-type FormProps = Props & { rateId: string; setRateId: (id: string) => void; total: number; onStep: (s: "livraison" | "paiement") => void };
+type FormProps = Props & { rateId: string; setRateId: (id: string) => void; country: string; setCountry: (c: string) => void; total: number; onStep: (s: "livraison" | "paiement") => void };
 
-function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total, onStep, mapToken }: FormProps) {
+function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, country, setCountry, total, onStep, mapToken }: FormProps) {
   const selectedOption = quote.shippingOptions.find((o) => o.id === rateId);
   const stripe = useStripe();
   const elements = useElements();
@@ -217,7 +225,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
     shippingUpdates,
     rateId,
     billingSame,
-    address: { firstName: form.firstName, lastName: form.lastName, line1: form.line1, line2: form.line2, postalCode: form.postalCode, city: form.city, country: form.country, phone: form.phone },
+    address: { firstName: form.firstName, lastName: form.lastName, line1: form.line1, line2: form.line2, postalCode: form.postalCode, city: form.city, country, phone: form.phone },
     billing: billingSame ? null : { firstName: billingAddr.firstName, lastName: billingAddr.lastName, line1: billingAddr.line1, line2: billingAddr.line2, postalCode: billingAddr.postalCode, city: billingAddr.city, country: billingAddr.country },
     relay: selectedOption?.relay ? relay : null,
   });
@@ -236,7 +244,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
           name: `${src.firstName} ${src.lastName}`.trim(),
           email: form.email,
           phone: (billingSame ? form.phone : billingAddr.phone) || form.phone || undefined,
-          address: { line1: src.line1, line2: src.line2 || "", postal_code: src.postalCode, city: src.city, state: "", country: src.country },
+          address: { line1: src.line1, line2: src.line2 || "", postal_code: src.postalCode, city: src.city, state: "", country: billingSame ? country : billingAddr.country },
         };
     const result = await stripe.confirmPayment({
       elements,
@@ -308,11 +316,14 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
 
   // Paiement express : Apple Pay / Google Pay / PayPal collectent adresse et livraison eux-mêmes.
   // Apple/Google Pay ne savent pas choisir un point relais : seules les livraisons à domicile.
-  const expressRates = quote.shippingOptions.filter((o) => !o.relay).map((o) => ({ id: o.id, displayName: o.name, amount: o.price, deliveryEstimate: o.description || undefined }));
+  // Le prix dépend du pays : à domicile (pas de relais) et pour le pays fourni par le portefeuille.
+  const expressRatesFor = (dest: string) =>
+    quote.shippingOptions.filter((o) => !o.relay).map((o) => ({ id: o.id, displayName: o.name, amount: priceOf(o, dest), deliveryEstimate: o.description || undefined }));
 
   function onExpressShippingAddress(e: StripeExpressCheckoutElementShippingAddressChangeEvent) {
     if (!quote.countries.includes(e.address.country)) return e.reject();
-    e.resolve({ shippingRates: expressRates });
+    setCountry(e.address.country);
+    e.resolve({ shippingRates: expressRatesFor(e.address.country) });
   }
   function onExpressShippingRate(e: StripeExpressCheckoutElementShippingRateChangeEvent) {
     const option = quote.shippingOptions.find((o) => o.id === e.shippingRate.id);
@@ -358,9 +369,9 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
             phoneNumberRequired: true,
             shippingAddressRequired: true,
             allowedShippingCountries: quote.countries,
-            shippingRates: expressRates,
+            shippingRates: expressRatesFor(country),
           }}
-          onClick={(e) => e.resolve({ emailRequired: true, phoneNumberRequired: true, shippingAddressRequired: true, allowedShippingCountries: quote.countries, shippingRates: expressRates })}
+          onClick={(e) => e.resolve({ emailRequired: true, phoneNumberRequired: true, shippingAddressRequired: true, allowedShippingCountries: quote.countries, shippingRates: expressRatesFor(country) })}
           onShippingAddressChange={onExpressShippingAddress}
           onShippingRateChange={onExpressShippingRate}
           onConfirm={onExpressConfirm}
@@ -397,7 +408,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
         <CardHead n={2} title="Livraison" />
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Pays">
           {quote.countries.map((c) => (
-            <button key={c} type="button" role="radio" aria-checked={form.country === c} onClick={() => setForm({ ...form, country: c })} className={`rounded-pill px-4 py-2.5 text-[0.8125rem] ${form.country === c ? "bg-ink font-bold text-white" : "bg-paper font-semibold hover:opacity-70"}`}>
+            <button key={c} type="button" role="radio" aria-checked={country === c} onClick={() => setCountry(c)} className={`rounded-pill px-4 py-2.5 text-[0.8125rem] ${country === c ? "bg-ink font-bold text-white" : "bg-paper font-semibold hover:opacity-70"}`}>
               {countryName(c)}
             </button>
           ))}
@@ -414,7 +425,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
         </div>
         <AddressAutocomplete
           value={form.line1}
-          country={form.country}
+          country={country}
           fieldClassName={field}
           labelClassName={labelCls}
           onInput={(v) => setForm((f) => ({ ...f, line1: v }))}
@@ -464,7 +475,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
                 <span className="text-sm font-bold">{o.name}</span>
                 {o.description && <span className="text-xs text-muted">{o.description}</span>}
               </span>
-              <span className="text-sm font-extrabold">{o.price === 0 ? "Offerte" : formatEuro(o.price)}</span>
+              <span className="text-sm font-extrabold">{priceOf(o, country) === 0 ? "Offerte" : formatEuro(priceOf(o, country))}</span>
             </button>
           ))}
           <span className="flex items-center gap-1.5 text-[0.6875rem] font-semibold text-faint">
@@ -473,7 +484,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
           </span>
         </div>
         {selectedOption?.relay && (
-          <RelayPicker token={mapToken} networks={selectedOption.networks} address={{ country: form.country, postalCode: form.postalCode, city: form.city, street: form.line1 }} selected={relay} onSelect={setRelay} />
+          <RelayPicker token={mapToken} networks={selectedOption.networks} address={{ country, postalCode: form.postalCode, city: form.city, street: form.line1 }} selected={relay} onSelect={setRelay} />
         )}
       </Card>
 
@@ -577,7 +588,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
 
 /* ---------- Récapitulatif ---------- */
 
-function Summary({ quote, shipping, total, preorderShipFrom, contactEmail, vatNote }: { quote: Quote; shipping?: Quote["shippingOptions"][number]; total: number; preorderShipFrom: string | null; contactEmail: string | null; vatNote: string }) {
+function Summary({ quote, shipping, shippingPrice, total, preorderShipFrom, contactEmail, vatNote }: { quote: Quote; shipping?: Quote["shippingOptions"][number]; shippingPrice: number; total: number; preorderShipFrom: string | null; contactEmail: string | null; vatNote: string }) {
   const hasPreorder = quote.lines.some((l) => l.preorder);
   const shipFrom = preorderShipFrom ? new Date(preorderShipFrom).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
   return (
@@ -626,7 +637,7 @@ function Summary({ quote, shipping, total, preorderShipFrom, contactEmail, vatNo
             ))}
           <div className="flex justify-between gap-3">
             <span className="text-muted">Livraison · {shipping?.name ?? "-"}</span>
-            <span className={quote.freeShipping ? "text-tint-green-ink" : ""}>{shipping ? (shipping.price === 0 ? "Offerte" : formatEuro(shipping.price)) : "-"}</span>
+            <span className={quote.freeShipping ? "text-tint-green-ink" : ""}>{shipping ? (shippingPrice === 0 ? "Offerte" : formatEuro(shippingPrice)) : "-"}</span>
           </div>
         </div>
         <div className="flex items-baseline justify-between border-t border-line pt-4">

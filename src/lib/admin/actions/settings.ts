@@ -52,11 +52,17 @@ const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true
           id: z.string().trim().default(""),
           name: z.string().trim().max(60).default(""),
           description: z.string().trim().max(80).default(""),
-          priceEuros: z.string().trim().default(""),
+          // Prix client (chaînes en euros) par pays et par tranche de poids.
+          prices: z
+            .object({ FR: z.array(z.string()).default([]), BE: z.array(z.string()).default([]), LU: z.array(z.string()).default([]) })
+            .default({ FR: [], BE: [], LU: [] }),
+          // Offre Boxtal par pays (Chrono 13 en FR, Chrono Classic vers BE/LU).
+          offerCodes: z
+            .object({ FR: z.string().trim().default(""), BE: z.string().trim().default(""), LU: z.string().trim().default("") })
+            .default({ FR: "", BE: "", LU: "" }),
           // Dans une liste, une case à cocher arrive en "true"/"false" (champ caché + case), pas en booléen.
           freeAboveThreshold: boolish,
           enabled: boolish,
-          boxtalOfferCode: z.string().trim().default(""),
         }),
       )
       .default([]),
@@ -64,7 +70,7 @@ const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true
       lengthCm: z.number().int().min(1).default(16),
       widthCm: z.number().int().min(1).default(16),
       heightCm: z.number().int().min(1).default(4),
-      unitWeightG: z.number().int().min(1).default(180),
+      unitWeightG: z.number().int().min(1).default(100),
       baseWeightG: z.number().int().min(0).default(60),
       contentCategoryId: z.string().trim().default("content:v1:10150"),
       labelType: z.enum(["PDF_A4", "PDF_10x15"]).default("PDF_10x15"),
@@ -95,11 +101,15 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
 
   const current = await getSettings();
   for (const r of d.shipping.rates) {
-    if (r.name && r.priceEuros) {
-      try {
-        parseEuroToCents(r.priceEuros);
-      } catch {
-        return failed(`Prix invalide pour « ${r.name} »`);
+    if (!r.name) continue;
+    for (const c of ["FR", "BE", "LU"] as const) {
+      for (const e of r.prices[c]) {
+        if (!e.trim()) continue;
+        try {
+          parseEuroToCents(e);
+        } catch {
+          return failed(`Prix invalide pour « ${r.name} » (${c})`);
+        }
       }
     }
   }
@@ -129,18 +139,22 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
       // Une ligne sans nom est une ligne laissée vide : on l'ignore.
       rates: d.shipping.rates
         .filter((r) => r.name)
-        .map((r, i) => ({
-          id: r.id || slugify(r.name) || `tarif-${i + 1}`,
-          name: r.name,
-          description: r.description,
-          price: r.priceEuros ? parseEuroToCents(r.priceEuros) : 0,
-          freeAboveThreshold: r.freeAboveThreshold,
-          enabled: r.enabled,
-          boxtalOfferCode: r.boxtalOfferCode,
-          // Relais et réseaux découlent de l'offre Boxtal choisie.
-          relay: findOffer(r.boxtalOfferCode)?.relay ?? false,
-          networks: findOffer(r.boxtalOfferCode)?.networks ?? [],
-        })),
+        .map((r, i) => {
+          const toCents = (arr: string[]) => arr.map((e) => (e.trim() ? parseEuroToCents(e) : 0));
+          // Relais et réseaux découlent de l'offre Boxtal France (le service est le même pour tous les pays).
+          const offer = findOffer(r.offerCodes.FR);
+          return {
+            id: r.id || slugify(r.name) || `tarif-${i + 1}`,
+            name: r.name,
+            description: r.description,
+            prices: { FR: toCents(r.prices.FR), BE: toCents(r.prices.BE), LU: toCents(r.prices.LU) },
+            offerCodes: { FR: r.offerCodes.FR, BE: r.offerCodes.BE, LU: r.offerCodes.LU },
+            freeAboveThreshold: r.freeAboveThreshold,
+            enabled: r.enabled,
+            relay: offer?.relay ?? false,
+            networks: offer?.networks ?? [],
+          };
+        }),
       parcel: d.shipping.parcel,
       sender: { ...d.shipping.sender, country: d.shipping.sender.country.toUpperCase() || "FR" },
     },

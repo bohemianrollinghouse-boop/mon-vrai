@@ -131,7 +131,7 @@ async function main() {
       descriptionHtml: stripLeadingHeading(body),
       items: extractItems(body),
       price: Math.round(Number(raw.variants[0]?.price ?? "10") * 100),
-      weightG: 250,
+      weightG: 100,
       images: imagesByHandle.get(raw.handle) ?? [],
       badge: BADGES[slug] ?? "none",
       tint: TINTS[slug] ?? "green",

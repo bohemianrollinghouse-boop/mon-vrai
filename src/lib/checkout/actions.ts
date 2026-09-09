@@ -78,7 +78,7 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
 
   const { quote } = await buildQuote(mode, d.email);
   if (!quote.cartId || quote.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
-  const { shipping, total } = quoteTotal(quote, d.rateId);
+  const { shipping, price: shippingPrice, offerCode, total } = quoteTotal(quote, d.rateId, d.address.country);
   if (total < 50) return { ok: false, error: "Montant trop faible pour un paiement par carte." };
   if (shipping.relay && !d.relay) return { ok: false, error: "Choisissez votre point relais sur la carte avant de payer.", field: "relay" };
 
@@ -110,10 +110,10 @@ export async function createPaymentIntentAction(raw: CheckoutInput): Promise<Int
       billing: d.billingSame || !d.billing ? "" : JSON.stringify({ firstName: d.billing.firstName, lastName: d.billing.lastName, line1: d.billing.line1, line2: d.billing.line2, postalCode: d.billing.postalCode, city: d.billing.city, country: d.billing.country }),
       rateId: shipping.id,
       rateName: shipping.name,
-      offerCode: shipping.offerCode,
+      offerCode,
       relay: shipping.relay && d.relay ? JSON.stringify(d.relay) : "",
       subtotal: String(quote.subtotal),
-      shipping: String(shipping.price),
+      shipping: String(shippingPrice),
       discount: String(quote.discount),
       promoCodes: JSON.stringify(quote.applied.map((a) => a.code)),
       attribution: quote.attribution ? JSON.stringify(quote.attribution) : "",
@@ -162,7 +162,7 @@ export async function placeFreeOrderAction(raw: CheckoutInput): Promise<FreeOrde
 
   const { quote } = await buildQuote(mode, d.email);
   if (!quote.cartId || quote.lines.length === 0) return { ok: false, error: "Votre panier est vide." };
-  const { shipping, total } = quoteTotal(quote, d.rateId);
+  const { shipping, price: shippingPrice, offerCode, total } = quoteTotal(quote, d.rateId, d.address.country);
   if (total !== 0) return { ok: false, error: "Cette commande n'est pas gratuite : réglez le paiement." };
   if (shipping.relay && !d.relay) return { ok: false, error: "Choisissez votre point relais sur la carte.", field: "relay" };
 
@@ -189,12 +189,12 @@ export async function placeFreeOrderAction(raw: CheckoutInput): Promise<FreeOrde
 
   const input: PaidOrderInput = {
     lines,
-    totals: { subtotal: quote.subtotal, shipping: shipping.price, discount: quote.discount, tax: 0, total, currency: "eur" },
+    totals: { subtotal: quote.subtotal, shipping: shippingPrice, discount: quote.discount, tax: 0, total, currency: "eur" },
     email: d.email,
     customerUid: user?.uid,
     shippingAddress,
     billingAddress,
-    delivery: { rateId: shipping.id, rateName: shipping.name, offerCode: shipping.offerCode, relay: shipping.relay && d.relay ? { code: d.relay.code, name: d.relay.name, street: d.relay.street ?? "", postalCode: d.relay.postalCode ?? "", city: d.relay.city ?? "", network: d.relay.network ?? "" } : undefined },
+    delivery: { rateId: shipping.id, rateName: shipping.name, offerCode, relay: shipping.relay && d.relay ? { code: d.relay.code, name: d.relay.name, street: d.relay.street ?? "", postalCode: d.relay.postalCode ?? "", city: d.relay.city ?? "", network: d.relay.network ?? "" } : undefined },
     promoCodes: quote.applied.map((a) => a.code),
     attribution: quote.attribution ?? undefined,
     // Pas de Stripe : clé d'idempotence dérivée du panier (anti double-clic).

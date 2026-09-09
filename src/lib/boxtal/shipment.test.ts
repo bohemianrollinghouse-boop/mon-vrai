@@ -28,7 +28,7 @@ const base = {
 
 describe("Boxtal - demande d'expédition", () => {
   it("calcule le poids du colis à partir des livres et de l'emballage", () => {
-    expect(parcelWeightKg(Order.parse(base), settings)).toBeCloseTo(0.6, 3);
+    expect(parcelWeightKg(Order.parse(base), settings)).toBeCloseTo(0.36, 3);
   });
 
   it("construit une commande Boxtal à domicile", () => {
@@ -38,7 +38,7 @@ describe("Boxtal - demande d'expédition", () => {
     expect(req.shipment.pickupPointCode).toBeUndefined();
     expect(req.shipment.toAddress.contact).toMatchObject({ firstName: "Camille", lastName: "Dupont", phone: "0612345678" });
     expect(req.shipment.fromAddress.location.postalCode).toBe("75008");
-    expect(req.shipment.packages[0]).toMatchObject({ type: "PARCEL", weight: 0.6, value: { value: 30, currency: "EUR" }, content: { id: "content:v1:10150" } });
+    expect(req.shipment.packages[0]).toMatchObject({ type: "PARCEL", weight: 0.36, value: { value: 30, currency: "EUR" }, content: { id: "content:v1:10150" } });
   });
 
   it("exige un point relais pour une offre relais, et le transmet", () => {

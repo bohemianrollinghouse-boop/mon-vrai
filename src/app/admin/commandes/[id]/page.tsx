@@ -36,7 +36,8 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
   const shipFrom = settings.shipping.preorderShipFrom ? new Date(settings.shipping.preorderShipFrom).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
   const boxtalOn = boxtalConfigured();
   const rate = settings.shipping.rates.find((r) => r.id === order.delivery?.rateId);
-  const offerCode = order.delivery?.offerCode || rate?.boxtalOfferCode || "";
+  const dest = order.shippingAddress.country as keyof NonNullable<typeof rate>["offerCodes"];
+  const offerCode = order.delivery?.offerCode || rate?.offerCodes[dest] || rate?.offerCodes.FR || "";
   const offer = findOffer(offerCode);
   const books = order.lines.reduce((s, l) => s + l.qty, 0);
   const parcel = settings.shipping.parcel;

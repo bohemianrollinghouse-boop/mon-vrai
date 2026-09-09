@@ -53,7 +53,8 @@ export function senderAddress(settings: SiteSettings): BoxtalAddress {
 
 export function buildShippingOrderRequest(order: Order, settings: SiteSettings): CreateShippingOrderRequest {
   const rate = settings.shipping.rates.find((r) => r.id === order.delivery?.rateId);
-  const offerCode = order.delivery?.offerCode || rate?.boxtalOfferCode || "";
+  const dest = order.shippingAddress.country as "FR" | "BE" | "LU";
+  const offerCode = order.delivery?.offerCode || rate?.offerCodes[dest] || rate?.offerCodes.FR || "";
   if (!offerCode) throw new Error("Aucune offre Boxtal associée au mode de livraison de cette commande (Paramètres → Livraison).");
   const offer = findOffer(offerCode);
   if ((offer?.relay || rate?.relay) && !order.delivery?.relay?.code) throw new Error("Livraison en point relais sans point choisi : impossible de créer l'étiquette.");

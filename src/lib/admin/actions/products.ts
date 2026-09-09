@@ -28,7 +28,7 @@ const Input = z.object({
   items: z.string().default(""),
   price: z.string().trim().min(1, "Le prix est requis"),
   compareAtPrice: z.string().trim().default(""),
-  weightG: z.number().int().min(1).default(250),
+  weightG: z.number().int().min(1).default(100),
   badge: Badge.default("none"),
   tint: Tint.default("green"),
   preorderEnabled: z.boolean().default(false),

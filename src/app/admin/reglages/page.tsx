@@ -4,8 +4,8 @@ import { ServiceModeSwitch } from "@/components/admin/ServiceModeSwitch";
 import { saveSettingsAction } from "@/lib/admin/actions/settings";
 import { getSettings } from "@/lib/db/settings";
 import { boxtalConfigured, boxtalMapConfigured } from "@/lib/boxtal/client";
-import { BOXTAL_OFFERS } from "@/lib/boxtal/offers";
-import { formatEuro } from "@/lib/domain/money";
+import { ShippingRateEditor } from "@/components/admin/ShippingRateEditor";
+import { DEFAULT_SHIPPING_RATES } from "@/lib/domain/types";
 import { stripeConfigured } from "@/lib/stripe/client";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +18,11 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const s = await getSettings();
   const formId = "settings-form";
-  const rates = [...s.shipping.rates];
-  while (rates.length < 4) rates.push({ id: "", name: "", description: "", price: 0, freeAboveThreshold: false, enabled: false, boxtalOfferCode: "", relay: false, networks: [] });
+  // Les trois transporteurs actifs, dans l'ordre : valeurs enregistrées si présentes, sinon les défauts.
+  const rates = DEFAULT_SHIPPING_RATES.map((def) => s.shipping.rates.find((r) => r.id === def.id) ?? def);
   const sender = s.shipping.sender;
   const parcel = s.shipping.parcel;
   const boxtalOn = boxtalConfigured();
-  const euros = (c: number) => (c / 100).toFixed(2).replace(".", ",");
 
   return (
     <>
@@ -106,44 +105,13 @@ export default async function SettingsPage() {
                   <Input name="shipping.countries" defaultValue={s.shipping.countries.join(", ")} className="!font-bold" />
                 </Field>
               </div>
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2.5">
                 {rates.map((r, i) => (
-                  <div key={r.id || i} className="grid grid-cols-[1fr_96px_auto] items-center gap-3 rounded-[14px] bg-paper px-4 py-3 text-[0.8125rem]">
-                    <input type="hidden" name={`shipping.rates[${i}].id`} value={r.id} />
-                    <div className="flex min-w-0 flex-col gap-1">
-                      <input name={`shipping.rates[${i}].name`} defaultValue={r.name} placeholder={i >= s.shipping.rates.length ? "Nouveau mode (ex. Lettre suivie)" : "Nom"} className="w-full bg-transparent font-bold outline-none placeholder:font-medium placeholder:text-faint" />
-                      <input name={`shipping.rates[${i}].description`} defaultValue={r.description} placeholder="Délai, ex. 2 à 3 jours" className="w-full bg-transparent text-xs text-subtle outline-none placeholder:text-faint" />
-                      <select name={`shipping.rates[${i}].boxtalOfferCode`} defaultValue={r.boxtalOfferCode} className="w-full cursor-pointer bg-transparent text-xs font-semibold text-tint-green-ink outline-none" aria-label="Offre Boxtal">
-                        <option value="">Sans Boxtal (suivi saisi à la main)</option>
-                        {BOXTAL_OFFERS.map((o) => (
-                          <option key={o.code} value={o.code}>
-                            {o.label}
-                            {o.relay ? " · relais" : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <label className="flex flex-col items-end gap-0.5">
-                      <span className="text-[0.5625rem] font-bold uppercase tracking-[0.08em] text-faint">Prix</span>
-                      <span className="flex items-center gap-1 rounded-lg bg-white px-2 py-1 font-extrabold">
-                        <input name={`shipping.rates[${i}].priceEuros`} defaultValue={r.name ? euros(r.price) : ""} placeholder="0,00" inputMode="decimal" className="w-14 bg-transparent text-right outline-none placeholder:font-medium placeholder:text-faint" />
-                        €
-                      </span>
-                    </label>
-                    <div className="flex flex-col items-end gap-1">
-                      <input type="hidden" name={`shipping.rates[${i}].enabled`} value="false" />
-                      <Switch name={`shipping.rates[${i}].enabled`} value="true" label={<span className="sr-only">Proposé</span>} defaultChecked={r.enabled} className="!gap-0" />
-                      <label className="flex items-center gap-1.5 text-[0.6875rem] font-semibold text-subtle">
-                        <input type="hidden" name={`shipping.rates[${i}].freeAboveThreshold`} value="false" />
-                        <input type="checkbox" name={`shipping.rates[${i}].freeAboveThreshold`} value="true" defaultChecked={r.freeAboveThreshold} className="h-3.5 w-3.5 accent-ink" />
-                        offert dès {s.shipping.freeThreshold ? formatEuro(s.shipping.freeThreshold) : "le seuil"}
-                      </label>
-                    </div>
-                  </div>
+                  <ShippingRateEditor key={r.id} index={i} rate={r} freeThreshold={s.shipping.freeThreshold} />
                 ))}
               </div>
               <span className="text-[0.6875rem] leading-relaxed text-subtle">
-                Les modes activés sont proposés à la caisse ; le prix affiché au client est celui que vous saisissez ici (Boxtal ne fournit pas de cotation par l'API v3). L'offre Boxtal sert à créer l'étiquette ; une offre « relais » affiche la carte des points relais au client. Une ligne sans nom est ignorée.
+                Le prix facturé au client varie selon le poids du colis et le pays de destination (France, Belgique, Luxembourg). Le coût Boxtal affiché est ce que vous payez réellement (TTC, grille officielle) : fixez un prix client au-dessus. L'offre Boxtal (par pays) sert à créer l'étiquette — Chrono 13 en France, Chrono Classic vers la Belgique et le Luxembourg. Une offre « relais » affiche la carte des points relais au client.
               </span>
             </Card>
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BRACKET_COUNT, SUPPLIER_COST_TTC } from "@/lib/shipping/tariffs";
 
 /*
  * Schémas des documents Firestore. Une seule définition sert à valider ce qui
@@ -69,7 +70,7 @@ export const Product = z.object({
   price: Cents,
   compareAtPrice: Cents.optional(),
   /** Poids unitaire du produit en grammes : sert au calcul du poids du colis (Boxtal). */
-  weightG: z.number().int().min(1).default(250),
+  weightG: z.number().int().min(1).default(100),
   images: z.array(ImageRef).default([]),
   badge: Badge.default("none"),
   tint: Tint.default("green"),
@@ -165,27 +166,91 @@ export type FooterMenu = z.infer<typeof FooterMenu>;
 
 /* ---------- Réglages du site ---------- */
 
-export const ShippingRate = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1).max(60),
-  description: z.string().max(80).default(""),
-  price: Cents,
-  /** Offert quand le panier atteint le seuil de livraison offerte. */
-  freeAboveThreshold: z.boolean().default(false),
-  enabled: z.boolean().default(true),
-  /** Offre Boxtal utilisée pour créer l'étiquette (ex. MONR-CpourToi). Vide : expédition manuelle. */
-  boxtalOfferCode: z.string().max(60).default(""),
-  /** Livraison en point relais : le client choisit un point sur la carte Boxtal. */
-  relay: z.boolean().default(false),
-  /** Réseaux de points relais à afficher sur la carte (ex. MONR_NETWORK). */
-  networks: z.array(z.string()).default([]),
+/*
+ * Prix par pays de destination (FR, BE, LU) : chaque valeur est un tableau parallèle aux
+ * tranches de poids (WEIGHT_BRACKETS), en centimes. Le prix facturé au client varie donc
+ * avec le poids du colis ET le pays.
+ */
+const CountryPrices = z.object({
+  FR: z.array(Cents).default([]),
+  BE: z.array(Cents).default([]),
+  LU: z.array(Cents).default([]),
 });
+export type CountryPrices = z.infer<typeof CountryPrices>;
+
+/** Offre Boxtal par pays : Chrono 13 en France, Chrono Classic vers BE/LU, etc. */
+const CountryCodes = z.object({
+  FR: z.string().max(60).default(""),
+  BE: z.string().max(60).default(""),
+  LU: z.string().max(60).default(""),
+});
+export type CountryCodes = z.infer<typeof CountryCodes>;
+
+const DEFAULT_OFFER_CODES: Record<string, { FR: string; BE: string; LU: string }> = {
+  "mondial-relay": { FR: "MONR-CpourToi", BE: "MONR-CpourToiEurope", LU: "MONR-CpourToiEurope" },
+  colissimo: { FR: "POFR-ColissimoAccess", BE: "POFR-ColissimoAccessInternational", LU: "POFR-ColissimoAccessInternational" },
+  // FR = Chrono 13 ; BE/LU = Chrono Classic (offre différente pour créer l'étiquette).
+  chronopost: { FR: "CHRP-Chrono13", BE: "CHRP-ChronoClassic", LU: "CHRP-ChronoClassic" },
+};
+
+/** Matrice de prix repliée à plat sur toutes les tranches / tous les pays. */
+function flatMatrix(cents: number): { FR: number[]; BE: number[]; LU: number[] } {
+  const row = () => new Array(BRACKET_COUNT).fill(Math.max(0, Math.round(cents)));
+  return { FR: row(), BE: row(), LU: row() };
+}
+
+/*
+ * Migration d'un tarif à l'ancien format (prix unique `price`, `boxtalOfferCode` unique)
+ * vers le nouveau (prix par pays et par tranche, offre par pays). On garde le prix
+ * historique à plat sur toutes les tranches pour ne rien changer au comportement en
+ * production tant que l'admin n'a pas saisi les prix par tranche.
+ */
+function upgradeRate(v: unknown): unknown {
+  if (!v || typeof v !== "object") return v;
+  const r = v as Record<string, unknown>;
+  if (r.prices && typeof r.prices === "object") return v; // déjà au nouveau format
+  const id = typeof r.id === "string" ? r.id : "";
+  const legacyPrice = typeof r.price === "number" ? r.price : 0;
+  const legacyOffer = typeof r.boxtalOfferCode === "string" ? r.boxtalOfferCode : "";
+  const codes = DEFAULT_OFFER_CODES[id];
+  return {
+    ...r,
+    prices: flatMatrix(legacyPrice),
+    offerCodes: { FR: legacyOffer || codes?.FR || "", BE: codes?.BE || "", LU: codes?.LU || "" },
+  };
+}
+
+export const ShippingRate = z.preprocess(
+  upgradeRate,
+  z.object({
+    id: z.string().min(1),
+    name: z.string().min(1).max(60),
+    description: z.string().max(80).default(""),
+    /** Prix facturé au client, par pays et par tranche de poids (centimes). */
+    prices: CountryPrices.default({ FR: [], BE: [], LU: [] }),
+    /** Offre quand le panier atteint le seuil de livraison offerte. */
+    freeAboveThreshold: z.boolean().default(false),
+    enabled: z.boolean().default(true),
+    /** Offre Boxtal pour créer l'étiquette, par pays de destination. Vide : expédition manuelle. */
+    offerCodes: CountryCodes.default({ FR: "", BE: "", LU: "" }),
+    /** Livraison en point relais : le client choisit un point sur la carte Boxtal. */
+    relay: z.boolean().default(false),
+    /** Réseaux de points relais à afficher sur la carte (ex. MONR_NETWORK). */
+    networks: z.array(z.string()).default([]),
+  }),
+);
 export type ShippingRate = z.infer<typeof ShippingRate>;
 
+/** Prix par défaut = coût réel Boxtal (TTC) : point de départ à ajuster dans l'admin. */
+function costMatrix(id: string): { FR: number[]; BE: number[]; LU: number[] } {
+  const c = SUPPLIER_COST_TTC[id];
+  return c ? { FR: [...c.FR], BE: [...c.BE], LU: [...c.LU] } : flatMatrix(0);
+}
+
 export const DEFAULT_SHIPPING_RATES: ShippingRate[] = [
-  { id: "mondial-relay", name: "Mondial Relay - point relais", description: "3 à 5 jours", price: 390, freeAboveThreshold: true, enabled: true, boxtalOfferCode: "MONR-CpourToi", relay: true, networks: ["MONR_NETWORK"] },
-  { id: "colissimo", name: "Colissimo - domicile", description: "2 à 3 jours", price: 590, freeAboveThreshold: false, enabled: true, boxtalOfferCode: "POFR-ColissimoAccess", relay: false, networks: [] },
-  { id: "chronopost", name: "Chronopost - express", description: "J+1", price: 990, freeAboveThreshold: false, enabled: true, boxtalOfferCode: "CHRP-Chrono13", relay: false, networks: [] },
+  { id: "mondial-relay", name: "Mondial Relay - point relais", description: "3 à 5 jours", prices: costMatrix("mondial-relay"), freeAboveThreshold: true, enabled: true, offerCodes: { ...DEFAULT_OFFER_CODES["mondial-relay"] }, relay: true, networks: ["MONR_NETWORK"] },
+  { id: "colissimo", name: "Colissimo - domicile", description: "2 à 3 jours", prices: costMatrix("colissimo"), freeAboveThreshold: false, enabled: true, offerCodes: { ...DEFAULT_OFFER_CODES.colissimo }, relay: false, networks: [] },
+  { id: "chronopost", name: "Chronopost - express", description: "J+1", prices: costMatrix("chronopost"), freeAboveThreshold: false, enabled: true, offerCodes: { ...DEFAULT_OFFER_CODES.chronopost }, relay: false, networks: [] },
 ];
 
 /** Colis par défaut pour Boxtal : un carton de livres 14 × 14 cm. */
@@ -194,7 +259,7 @@ export const ParcelDefaults = z.object({
   widthCm: z.number().int().min(1).default(16),
   heightCm: z.number().int().min(1).default(4),
   /** Poids d'un livre, en grammes. */
-  unitWeightG: z.number().int().min(1).default(180),
+  unitWeightG: z.number().int().min(1).default(100),
   /** Emballage, en grammes. */
   baseWeightG: z.number().int().min(0).default(60),
   /** Catégorie de contenu Boxtal (GET /content-category) ; « Livres ». */
@@ -202,7 +267,7 @@ export const ParcelDefaults = z.object({
   labelType: z.enum(["PDF_A4", "PDF_10x15"]).default("PDF_10x15"),
 });
 export type ParcelDefaults = z.infer<typeof ParcelDefaults>;
-export const DEFAULT_PARCEL: ParcelDefaults = { lengthCm: 16, widthCm: 16, heightCm: 4, unitWeightG: 180, baseWeightG: 60, contentCategoryId: "content:v1:10150", labelType: "PDF_10x15" };
+export const DEFAULT_PARCEL: ParcelDefaults = { lengthCm: 16, widthCm: 16, heightCm: 4, unitWeightG: 100, baseWeightG: 60, contentCategoryId: "content:v1:10150", labelType: "PDF_10x15" };
 
 /** Expéditeur déclaré à Boxtal (adresse de collecte / d'expédition). */
 export const Sender = z.object({
