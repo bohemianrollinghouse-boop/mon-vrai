@@ -80,6 +80,11 @@ env:
   - variable: BOXTAL_WEBHOOK_SECRET
     secret: BOXTAL_WEBHOOK_SECRET
 
+  # Clé de chiffrement stable des Server Actions (recommandé en prod multi-instances) :
+  # évite les incohérences de déchiffrement entre instances d'un même déploiement.
+  - variable: NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+    secret: NEXT_SERVER_ACTIONS_ENCRYPTION_KEY
+
   # Boxtal — environnement de test (bac à sable api.boxtal.build), utilisé quand la
   # boutique est en mode test : étiquettes non facturées. Voir lib/boxtal/client.ts.
   - variable: BOXTAL_ACCESS_KEY_TEST

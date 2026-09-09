@@ -187,6 +187,19 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
   const [billingAddr, setBillingAddr] = useState<Prefill>(prefill);
   const [relay, setRelay] = useState<Relay | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [needsReload, setNeedsReload] = useState(false);
+
+  // Après un déploiement, un onglet ouvert sur l'ancienne version référence une action
+  // serveur qui n'existe plus (« Server Action not found ») : on propose de recharger.
+  function handleActionError(err: unknown) {
+    const message = (err as Error)?.message || "Une erreur est survenue.";
+    if (/server action/i.test(message) && /(not be found|was not found|failed to find)/i.test(message)) {
+      setNeedsReload(true);
+      setError("Le site vient d'être mis à jour. Rechargez la page, puis réessayez.");
+    } else {
+      setError(message);
+    }
+  }
   const [pending, setPending] = useState(false);
   const [paymentReady, setPaymentReady] = useState(false);
   // Masqué tant que Stripe n'a pas confirmé qu'un portefeuille (Apple/Google Pay…) est disponible.
@@ -265,7 +278,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
         }
         router.push(`/commande/merci?order=${encodeURIComponent(res.orderId)}`);
       } catch (err) {
-        setError((err as Error).message || "Une erreur est survenue.");
+        handleActionError(err);
       } finally {
         setPending(false);
       }
@@ -287,7 +300,7 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
       }
       await confirm(res.clientSecret, res.intentId);
     } catch (err) {
-      setError((err as Error).message || "Une erreur est survenue.");
+      handleActionError(err);
     } finally {
       setPending(false);
     }
@@ -536,9 +549,14 @@ function CheckoutForm({ quote, prefill, user, siteUrl, rateId, setRateId, total,
       </Card>
 
       {error && (
-        <p role="alert" className="rounded-[14px] bg-danger-bg px-5 py-3.5 text-sm font-semibold text-danger">
-          {error}
-        </p>
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] bg-danger-bg px-5 py-3.5 text-sm font-semibold text-danger">
+          <span>{error}</span>
+          {needsReload && (
+            <button type="button" onClick={() => window.location.reload()} className="shrink-0 rounded-pill bg-ink px-4 py-2 text-xs font-bold text-white">
+              Recharger la page
+            </button>
+          )}
+        </div>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-5 px-1 py-2">
