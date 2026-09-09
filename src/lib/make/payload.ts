@@ -30,7 +30,10 @@ export type TiimePayload = {
 const euros = (cents: number) => Math.round(cents) / 100;
 
 export function buildTiimePayload(order: Order, customer: Customer | null): TiimePayload {
-  const a = order.shippingAddress;
+  // La facture porte l'adresse de facturation quand elle diffère de la livraison ;
+  // sinon la livraison fait foi. Le téléphone (absent de la facturation) reste celui du contact.
+  const a = order.billingAddress ?? order.shippingAddress;
+  const phone = a.phone ?? order.shippingAddress.phone ?? "";
   const lines: TiimePayload["lines"] = order.lines.map((l) => ({ description: l.title, quantity: l.qty, unit_price: euros(l.unitPrice) }));
   if (order.totals.shipping > 0) lines.push({ description: `Livraison${order.delivery?.rateName ? ` — ${order.delivery.rateName}` : ""}`, quantity: 1, unit_price: euros(order.totals.shipping) });
   if (order.totals.discount > 0) lines.push({ description: "Remise", quantity: 1, unit_price: -euros(order.totals.discount) });
@@ -46,7 +49,7 @@ export function buildTiimePayload(order: Order, customer: Customer | null): Tiim
       zip: a.postalCode,
       city: a.city,
       country: a.country,
-      phone: a.phone ?? "",
+      phone,
     },
     lines,
     total: euros(order.totals.total),

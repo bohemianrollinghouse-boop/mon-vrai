@@ -43,4 +43,18 @@ describe("Make / Tiime — corps de la requête", () => {
     const p = buildTiimePayload(Order.parse({ ...order, customerUid: undefined }), null);
     expect(p.customer.firestore_id).toBe("guest-ord_1");
   });
+
+  it("facture à l'adresse de facturation quand elle diffère de la livraison, en gardant le téléphone du contact", () => {
+    const withBilling = Order.parse({
+      ...order,
+      billingAddress: { name: "SARL Dupont", line1: "5 avenue de la République", postalCode: "75011", city: "Paris", country: "FR" },
+    });
+    const p = buildTiimePayload(withBilling, Customer.parse({ uid: "uid-1", email: "camille@exemple.fr", createdAt: 1 }));
+    expect(p.customer.name).toBe("SARL Dupont");
+    expect(p.customer.address).toBe("5 avenue de la République");
+    expect(p.customer.zip).toBe("75011");
+    expect(p.customer.city).toBe("Paris");
+    // Le téléphone n'existe pas sur la facturation : on garde celui de la livraison.
+    expect(p.customer.phone).toBe("0612345678");
+  });
 });
