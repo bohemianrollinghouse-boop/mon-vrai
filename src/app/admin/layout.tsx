@@ -67,6 +67,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       label: "Ventes",
       items: [
         { href: "/admin/commandes", label: "Commandes", badge: snap.toShip, badgeTone: "sand" },
+        { href: "/admin/revenus", label: "Revenus" },
         { href: "/admin/clients", label: "Clients" },
         { href: "/admin/livraison", label: "Livraison" },
         { href: "/admin/messages", label: "Messages", badge: snap.unread, badgeTone: "blue" },

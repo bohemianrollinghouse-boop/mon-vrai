@@ -72,7 +72,7 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
       </div>
 
       <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">
-        <Tile tone="green" label="Chiffre d'affaires" value={formatEuro(revenue)} note={delta === null ? (period.days ? "pas de période de comparaison" : `${current.length} commandes encaissées`) : `${delta >= 0 ? "+" : "−"}${Math.abs(delta)} % vs ${period.days} jours précédents`} />
+        <Tile tone="green" label="Chiffre d'affaires" value={formatEuro(revenue)} note={delta === null ? (period.days ? "pas de période de comparaison" : `${current.length} commandes encaissées`) : `${delta >= 0 ? "+" : "−"}${Math.abs(delta)} % vs ${period.days} jours précédents`} href="/admin/revenus" />
         <Tile label="Commandes" value={current.length} note={current.length ? `panier moyen ${formatEuro(basket)}` : "aucune sur la période"} href="/admin/commandes" />
         <Tile label="Livres précommandés" value={preorderBooks} note={shipFrom ? `à expédier dès le ${shipFrom}` : "à expédier"} href="/admin/commandes?statut=a-expedier" />
         <Tile tone={snap.lowStock.length ? "pink" : "white"} label="Stock bas" value={`${snap.lowStock.length} titre${snap.lowStock.length > 1 ? "s" : ""}`} note={`sous le seuil de ${settings.inventory.lowThreshold} ex.`} href="/admin/stocks" />

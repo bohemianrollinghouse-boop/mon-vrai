@@ -226,3 +226,46 @@ export async function setSiteModeAction(formData: FormData): Promise<void> {
   await audit(user.email, "settings.mode", "settings/site", `${service} → ${mode}`);
   revalidatePath("/", "layout");
 }
+
+/*
+ * Coûts (page /admin/revenus) : ce qu'une vente coûte vraiment. Saisis en pourcentage et
+ * en euros, stockés en points de base et en centimes. Action séparée, comme la livraison :
+ * elle relit les réglages et ne réécrit que `costs`.
+ */
+const CostsInput = z.object({
+  costs: z.object({
+    urssafPct: z.number().min(0).max(100).default(0),
+    bookCostEuros: z.number().min(0).default(0),
+    packagingCostEuros: z.number().min(0).default(0),
+    stripePct: z.number().min(0).max(100).default(0),
+    stripeFixedEuros: z.number().min(0).default(0),
+  }),
+});
+
+export async function saveCostsAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const parsed = parseForm(CostsInput, formData, {
+    numbers: ["costs.urssafPct", "costs.bookCostEuros", "costs.packagingCostEuros", "costs.stripePct", "costs.stripeFixedEuros"],
+  });
+  if (!parsed.ok) return failed(parsed.error, parsed.issues);
+  const c = parsed.data.costs;
+
+  const current = await getSettings();
+  const next = SiteSettings.safeParse({
+    ...current,
+    costs: {
+      urssafBp: Math.round(c.urssafPct * 100),
+      bookCost: Math.round(c.bookCostEuros * 100),
+      packagingCost: Math.round(c.packagingCostEuros * 100),
+      stripeBp: Math.round(c.stripePct * 100),
+      stripeFixed: Math.round(c.stripeFixedEuros * 100),
+    },
+    updatedAt: Date.now(),
+  });
+  if (!next.success) return failed(next.error.issues[0]?.message ?? "Coûts invalides");
+
+  await saveSettings(next.data);
+  await audit(user.email, "settings.costs", "settings/site");
+  revalidatePath("/admin", "layout");
+  return saved("Coûts enregistrés.");
+}

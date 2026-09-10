@@ -284,6 +284,28 @@ export const Sender = z.object({
 export type Sender = z.infer<typeof Sender>;
 export const EMPTY_SENDER: Sender = { firstName: "", lastName: "", company: "", street: "", postalCode: "", city: "", country: "FR", email: "", phone: "" };
 
+/*
+ * Coûts de l'activité, saisis dans l'admin (page Revenus). Ils servent à calculer le
+ * revenu réel d'une vente : ce qui reste une fois retirés les cotisations, la commission
+ * du paiement, la fabrication des livres, l'emballage et le port réellement payé.
+ *
+ * Les taux sont en points de base (1 230 = 12,30 %) pour rester des entiers, comme les
+ * montants restent des centimes : jamais de flottant sur de l'argent.
+ */
+export const Costs = z.object({
+  /** Cotisations URSSAF (et versement libératoire éventuel) sur le CA encaissé. */
+  urssafBp: z.number().int().min(0).max(10_000).default(1230),
+  /** Fabrication d'un imagier, à l'unité. 0 = pas encore renseigné. */
+  bookCost: Cents.default(0),
+  /** Emballage d'un colis : carton, calage, étiquette. 0 = pas encore renseigné. */
+  packagingCost: Cents.default(0),
+  /** Commission du paiement : part variable (points de base) + part fixe par transaction. */
+  stripeBp: z.number().int().min(0).max(10_000).default(150),
+  stripeFixed: Cents.default(25),
+});
+export type Costs = z.infer<typeof Costs>;
+export const DEFAULT_COSTS: Costs = { urssafBp: 1230, bookCost: 0, packagingCost: 0, stripeBp: 150, stripeFixed: 25 };
+
 export const SiteSettings = z.object({
   shopName: z.string().min(1).default("Mon Vrai"),
   tagline: z.string().default(""),
@@ -328,6 +350,8 @@ export const SiteSettings = z.object({
       lowThreshold: z.number().int().min(0).default(20),
     })
     .default({ lowThreshold: 20 }),
+  /** Ce que coûte une vente : base du calcul des revenus réels (page /admin/revenus). */
+  costs: Costs.default(DEFAULT_COSTS),
   payments: z
     .object({
       /** « test » : clés Stripe de test, commandes marquées, pas de facture. */
