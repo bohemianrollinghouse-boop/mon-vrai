@@ -39,8 +39,14 @@ est dans `PLAN.md` ; ce fichier ne dit que ce qu'il faut savoir pour toucher au 
 ## Ce qui n'est pas encore là
 
 Stripe Tax est prêt mais désactivé (`STRIPE_TAX=0`) ; la vidéo d'accueil est rapatriée
-dans le bucket par le seed. Reste : brancher les vrais projets Firebase/Stripe/Resend
-(voir `.env.example`) et pointer le DNS au go-live. Voir `PLAN.md`.
+dans le bucket par le seed. Voir `PLAN.md`.
+
+**Le site est en ligne** sur https://monvrai.fr (DNS basculé le 2026-09-08, voir
+`apphosting.yaml`). Toute modification de schéma doit donc être précédée d'une
+migration des données de production : `parseDoc` lève sur un document invalide, et
+l'en-tête comme le pied de page sont rendus sur chaque page — un schéma resserré
+avant migration met le site entier hors service. `scripts/migrate-prod.ts` en donne
+le patron : lecture brute, répétition à blanc par défaut, idempotence.
 
 ## Paiement
 
@@ -88,6 +94,59 @@ depuis une page serveur, ni imbriquer deux `ActionForm` (deux `<form>`). Un bout
 d'en-tête soumet un formulaire via `form="id"` + `hideFooter`. Dans une liste, une case
 à cocher se poste en `"true"/"false"` (champ caché + case) : `parseForm` ignore les
 booléens à crochets.
+
+## Pages
+
+Toutes les pages de contenu vivent dans la collection `pages` et se composent en blocs
+(éditeur visuel Puck, `/admin/pages/<slug>`) : pages légales, « Notre histoire »,
+accueil, catalogue, contact. Il n'y a plus de collection `policies`, ni de routes
+statiques pour ces pages — seuls restent `/livres`, `/panier`, `/compte`, `/commande`
+et `/recherche`.
+
+`catalogue` et `contact` sont **épinglées** (`PINNED_SLUGS`) : l'interface du site y
+renvoie en dur (panier vide, fiche livre, page 404), leur adresse ne peut donc pas
+être changée depuis l'admin.
+
+**L'adresse d'une page est son chemin réel** sous la racine : `notre-histoire` est
+servie à `/notre-histoire`, par la route attrape-tout `(site)/[...slug]`. On peut
+imposer un dossier en écrivant `infos/cgv`. Deux conséquences à connaître :
+
+- Une adresse ne peut pas commencer par un segment que le site se réserve
+  (`RESERVED_PATHS` dans `domain/system-pages.ts`) : la route statique gagnerait et la
+  page serait injoignable. Refusé à l'enregistrement, pas seulement à l'affichage.
+- Firestore lit « / » comme un séparateur de chemin : l'identifiant du document
+  transpose les barres obliques (`db/pages.docId`), le champ `slug` reste la référence.
+
+Les anciennes adresses (`/informations/…`, `/pages/…`, et les URL Shopify) redirigent
+en 308 vers la nouvelle (`next.config.ts` + `content/redirects.json`).
+
+- **Catalogue de blocs** : `src/lib/blocks/config.tsx`. Un bloc rend un composant de la
+  charte (`components/site/*`), jamais du style refait à la main. Chaque bloc est une
+  `<section>` portant son propre `site-wrap` — d'où un conteneur en **flux normal** à la
+  racine et dans les colonnes : en `flex`, les marges `auto` de `site-wrap` l'emportent
+  sur `align-self: stretch` et les blocs cessent d'être alignés.
+- **Données du site** (catalogue, tri courant, coordonnées, questions fréquentes,
+  réglages du formulaire de contact) : par les métadonnées Puck, pas par les props —
+  `lib/blocks/metadata.ts` ne charge que ce que les blocs présents réclament, slots
+  compris. Le rendu public et l'éditeur les passent tous les deux. Un composant
+  marchand dans l'aperçu doit être inerte (`puck.isEditing`) : hors du site il n'y a
+  pas de `CartModalProvider`, et le hook lèverait au rendu.
+- Ce qui se règle ailleurs n'est pas recopié dans un bloc : les coordonnées restent
+  dans les réglages, les sujets du formulaire dans `/admin/contenus`, les questions
+  dans `/admin/faq`.
+- **Trois formulaires, trois actions** sur la fiche d'une page — publication, contenu,
+  SEO —, parce que l'éditeur ne peut pas être inclus dans un `<form>` (les boutons de
+  Puck le soumettraient). Chacune relit la page et ne réécrit que ses champs.
+- **Accueil** : la page marquée `home` est servie à la racine (`db/pages.setHomePage`
+  tient l'unicité) ; son adresse propre y redirige. Sans page marquée, `/` retombe sur
+  `content/home`. `content/story` n'est plus affiché mais reste éditable dans
+  `/admin/contenus`.
+- **SEO** : `PageSeo` étend le socle commun pour les pages seulement (partage,
+  indexation, canonique). Les balises sont produites par `domain/page-metadata.ts`,
+  partagé par la racine et l'attrape-tout — les deux routes émettent donc la même
+  chose. Repli assumé : partage → SEO → titre de la page.
+- Reprise d'un ancien corps de texte riche en blocs : `lib/blocks/from-html.ts` ; des
+  contenus structurés : `lib/blocks/from-content.ts` (utilisé par le seed).
 
 FAQ : les questions vivent dans `content/contact.faq.items` (rubrique, masquée) et se
 gèrent dans `/admin/faq`. Tarifs de livraison : `settings.shipping.rates`, proposés à

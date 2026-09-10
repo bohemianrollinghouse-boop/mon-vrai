@@ -10,7 +10,7 @@ export default async function PagesAdmin() {
     <>
       <PageHeader
         title="Pages"
-        subtitle="Pages libres rédigées avec l'éditeur. Ajoutez-les ensuite à un menu pour les rendre accessibles."
+        subtitle="Pages composées en blocs. Ajoutez-les à un menu pour les rendre accessibles ; l'une d'elles peut servir d'accueil."
         actions={
           <ButtonLink href="/admin/pages/nouvelle" tone="primary">
             + Nouvelle page
@@ -28,10 +28,13 @@ export default async function PagesAdmin() {
                   {p.title}
                 </Link>
               </td>
-              <td className="text-subtle">/pages/{p.slug}</td>
+              <td className="text-subtle">{p.home ? "/" : `/pages/${p.slug}`}</td>
               <td className="text-subtle">{new Date(p.updatedAt).toLocaleDateString("fr-FR")}</td>
               <td>
-                <Pill tone={p.status === "published" ? "ok" : "muted"}>{p.status === "published" ? "Publiée" : "Brouillon"}</Pill>
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <Pill tone={p.status === "published" ? "ok" : "muted"}>{p.status === "published" ? "Publiée" : "Brouillon"}</Pill>
+                  {p.home && <Pill tone="blue">Accueil</Pill>}
+                </span>
               </td>
             </tr>
           ))}

@@ -97,7 +97,6 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         { href: "/admin/menus", label: "Menus" },
         { href: "/admin/medias", label: "Médias" },
         { href: "/admin/faq", label: "FAQ" },
-        { href: "/admin/politiques", label: "Pages légales" },
       ],
     },
     {

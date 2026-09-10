@@ -14,12 +14,14 @@ import { DEFAULT_COSTS, DEFAULT_PARCEL, DEFAULT_SHIPPING_RATES, EMPTY_SENDER } f
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import path from "node:path";
 import { adminAuth } from "@/lib/firebase/admin";
-import { saveCatalogueContent, saveContactContent, saveHomeContent, saveStoryContent } from "@/lib/db/content";
+import { getCatalogueContent, getContactContent, getHomeContent, getStoryContent, saveCatalogueContent, saveContactContent, saveHomeContent, saveStoryContent } from "@/lib/db/content";
 import { uploadMedia } from "@/lib/db/media";
 import { saveFooterMenu, saveHeaderMenu } from "@/lib/db/menus";
-import { upsertPolicy } from "@/lib/db/policies";
+import { savePageBlocks, setHomePage, upsertPage } from "@/lib/db/pages";
 import { upsertProduct } from "@/lib/db/products";
 import { saveSettings } from "@/lib/db/settings";
+import { htmlToDocument } from "@/lib/blocks/from-html";
+import { catalogueToBlocks, contactToBlocks, homeToBlocks, storyToBlocks } from "@/lib/blocks/from-content";
 import { extractItems, slugify, splitLegacyTitle } from "@/lib/domain/slug";
 import type { Badge, ImageRef, MenuItem, Tint } from "@/lib/domain/types";
 
@@ -145,11 +147,14 @@ async function main() {
   }
   log(`produits : ${products.length}`);
 
-  /* ---------- Politiques ---------- */
-  for (const [i, p] of policies.entries()) {
-    await upsertPolicy({ handle: p.handle, title: p.title, body: { json: null, html: p.html }, position: i });
+  /* ---------- Pages légales ---------- */
+  /* Elles n'ont plus de collection à part : ce sont des pages libres, en blocs. Le
+     HTML de l'export est découpé aux titres ; il reste en `body` comme filet. */
+  for (const p of policies) {
+    await upsertPage({ slug: p.handle, title: p.title, status: "published", body: { json: null, html: p.html } });
+    await savePageBlocks(p.handle, htmlToDocument(p.html, p.title));
   }
-  log(`politiques : ${policies.length}`);
+  log(`pages légales : ${policies.length}`);
 
   /* ---------- Réglages ---------- */
   await saveSettings({
@@ -192,9 +197,9 @@ async function main() {
   /* ---------- Menus ---------- */
   await saveHeaderMenu([
     item("accueil", "Accueil", { kind: "system", key: "home" }),
-    item("catalogue", "Catalogue", { kind: "system", key: "catalogue" }),
-    item("histoire", "Notre histoire", { kind: "system", key: "story" }),
-    item("contact", "Contact", { kind: "system", key: "contact" }),
+    item("catalogue", "Catalogue", { kind: "page", slug: "catalogue" }),
+    item("histoire", "Notre histoire", { kind: "page", slug: "notre-histoire" }),
+    item("contact", "Contact", { kind: "page", slug: "contact" }),
   ]);
   await saveFooterMenu([
     {
@@ -202,14 +207,14 @@ async function main() {
       heading: "Boutique",
       items: [
         item("f-accueil", "Accueil", { kind: "system", key: "home" }),
-        item("f-catalogue", "Catalogue", { kind: "system", key: "catalogue" }),
-        item("f-contact", "Contact", { kind: "system", key: "contact" }),
+        item("f-catalogue", "Catalogue", { kind: "page", slug: "catalogue" }),
+        item("f-contact", "Contact", { kind: "page", slug: "contact" }),
       ],
     },
     {
       id: "informations",
       heading: "Informations",
-      items: policies.map((p) => item(`f-${p.handle}`, p.title, { kind: "policy", handle: p.handle })),
+      items: policies.map((p) => item(`f-${p.handle}`, p.title, { kind: "page", slug: p.handle })),
     },
   ]);
   log("réglages et menus");
@@ -343,6 +348,34 @@ async function main() {
     },
   });
   log("contenus accueil, notre histoire, contact");
+
+  /* ---------- Pages composées ---------- */
+  /* L'accueil et « Notre histoire » ne sont plus des routes système : ce sont des
+     pages en blocs, dérivées des contenus ci-dessus. `content/home` et
+     `content/story` restent en base — l'accueil y retombe si aucune page n'est
+     désignée, et leur éditeur existe encore dans /admin/contenus. */
+  const home = await getHomeContent();
+  const story = await getStoryContent();
+  const catalogue = await getCatalogueContent();
+  const contact = await getContactContent();
+  if (story) {
+    await upsertPage({ slug: "notre-histoire", title: "Notre histoire", status: "published", body: { json: null, html: "" } });
+    await savePageBlocks("notre-histoire", storyToBlocks(story, home?.newsletter));
+  }
+  if (home) {
+    await upsertPage({ slug: "accueil", title: "Accueil", status: "published", body: { json: null, html: "" } });
+    await savePageBlocks("accueil", homeToBlocks(home));
+    await setHomePage("accueil");
+  }
+  if (catalogue) {
+    await upsertPage({ slug: "catalogue", title: "Catalogue", status: "published", body: { json: null, html: "" } });
+    await savePageBlocks("catalogue", catalogueToBlocks(catalogue, home?.newsletter));
+  }
+  if (contact) {
+    await upsertPage({ slug: "contact", title: "Contact", status: "published", body: { json: null, html: "" } });
+    await savePageBlocks("contact", contactToBlocks(contact, home?.newsletter));
+  }
+  log("pages composées : accueil, notre histoire, catalogue, contact");
 
   /* ---------- Compte administrateur (émulateur uniquement) ---------- */
   const email = process.env.ADMIN_SEED_EMAIL;

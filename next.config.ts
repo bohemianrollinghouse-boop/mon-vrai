@@ -41,12 +41,19 @@ const nextConfig: NextConfig = {
     return [{ source: "/(.*)", headers: SECURITY_HEADERS }];
   },
   /*
-   * Redirections permanentes depuis les URLs de l'ancienne boutique Shopify : produits,
-   * politiques, collections, panier, compte. Générées depuis l'export dans
-   * content/redirects.json — le référencement acquis suit vers les nouvelles adresses.
+   * Redirections permanentes. D'abord les URLs de l'ancienne boutique Shopify
+   * (content/redirects.json, généré depuis l'export) ; ensuite les adresses de ce
+   * site qui ont bougé quand les pages légales et « Notre histoire » sont devenues
+   * des pages libres. Le référencement acquis suit dans les deux cas.
    */
   async redirects() {
-    return legacyRedirects.map((r) => ({ ...r, permanent: true }));
+    return [
+      ...legacyRedirects.map((r) => ({ ...r, permanent: true })),
+      { source: "/informations", destination: "/privacy-policy", permanent: true },
+      { source: "/informations/:handle", destination: "/:handle", permanent: true },
+      // Les pages libres ont quitté /pages/ pour la racine ; l'ancien préfixe suit.
+      { source: "/pages/:slug*", destination: "/:slug*", permanent: true },
+    ];
   },
   images: {
     // Next refuse par défaut les images servies depuis une IP privée (anti-SSRF). En

@@ -16,10 +16,13 @@ const useEmulators = process.env.NEXT_PUBLIC_USE_EMULATORS === "1";
 function app(): FirebaseApp {
   const existing = getApps()[0];
   if (existing) return existing;
+  // `||` et non `??` : une variable d'environnement absente arrive en chaîne vide,
+  // pas en undefined. Avec `??`, la clé restait vide et getAuth() levait
+  // « auth/invalid-api-key » avant même de joindre l'émulateur.
   return initializeApp({
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? "demo-api-key",
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? "mon-vrai-dev",
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "demo-api-key",
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || undefined,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "mon-vrai-dev",
   });
 }
 

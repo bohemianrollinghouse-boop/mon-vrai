@@ -9,14 +9,14 @@ import { SYSTEM_PAGES } from "@/lib/domain/system-pages";
 
 /*
  * Éditeur de menus. Deux formes : une liste plate (en-tête) ou des colonnes titrées
- * (pied de page). Chaque entrée a un libellé et une cible : page système, page libre,
- * page légale ou URL. La structure est envoyée en JSON à l'action serveur, qui la
- * revalide avec les schémas du domaine.
+ * (pied de page). Chaque entrée a un libellé et une cible : page système, page libre
+ * ou URL. Les pages légales et « Notre histoire » sont désormais des pages libres.
+ * La structure est envoyée en JSON à l'action serveur, qui la revalide avec les
+ * schémas du domaine.
  */
 
 export type TargetOptions = {
   pages: { slug: string; title: string }[];
-  policies: { handle: string; title: string }[];
 };
 
 type Kind = MenuTarget["kind"];
@@ -27,8 +27,6 @@ function defaultTarget(kind: Kind, opts: TargetOptions): MenuTarget {
       return { kind, key: "home" };
     case "page":
       return { kind, slug: opts.pages[0]?.slug ?? "" };
-    case "policy":
-      return { kind, handle: opts.policies[0]?.handle ?? "" };
     case "url":
       return { kind, href: "https://", newTab: true };
   }
@@ -46,7 +44,6 @@ function ItemRow({ item, opts, onChange, onRemove, onMove }: { item: MenuItem; o
       <Select value={t.kind} onChange={(e) => onChange({ ...item, target: defaultTarget(e.target.value as Kind, opts) })} aria-label="Type de cible">
         <option value="system">Page système</option>
         <option value="page">Page libre</option>
-        <option value="policy">Page légale</option>
         <option value="url">URL</option>
       </Select>
       {t.kind === "system" && (
@@ -63,15 +60,6 @@ function ItemRow({ item, opts, onChange, onRemove, onMove }: { item: MenuItem; o
           {opts.pages.length === 0 && <option value="">(aucune page publiée)</option>}
           {opts.pages.map((p) => (
             <option key={p.slug} value={p.slug}>
-              {p.title}
-            </option>
-          ))}
-        </Select>
-      )}
-      {t.kind === "policy" && (
-        <Select value={t.handle} onChange={(e) => onChange({ ...item, target: { kind: "policy", handle: e.target.value } })} aria-label="Page légale">
-          {opts.policies.map((p) => (
-            <option key={p.handle} value={p.handle}>
               {p.title}
             </option>
           ))}

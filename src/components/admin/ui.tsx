@@ -25,7 +25,24 @@ export function PageHeader({ title, subtitle, actions, back }: { title: ReactNod
   );
 }
 
-export function Card({ title, aside, children, className = "", tone = "white" }: { title?: ReactNode; aside?: ReactNode; children: ReactNode; className?: string; tone?: "white" | "dark" | "green" | "sand" | "pink" | "blue" }) {
+export function Card({
+  title,
+  aside,
+  children,
+  className = "",
+  tone = "white",
+  collapsible = false,
+  defaultOpen = false,
+}: {
+  title?: ReactNode;
+  aside?: ReactNode;
+  children: ReactNode;
+  className?: string;
+  tone?: "white" | "dark" | "green" | "sand" | "pink" | "blue";
+  /** Carte repliable, fermée par défaut : pour les réglages qu'on ne touche pas à chaque passage. */
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+}) {
   const bg = {
     white: "bg-surface",
     dark: "bg-deep text-on-deep",
@@ -34,6 +51,29 @@ export function Card({ title, aside, children, className = "", tone = "white" }:
     pink: "bg-tint-pink text-tint-pink-ink",
     blue: "bg-tint-blue text-tint-blue-ink",
   }[tone];
+
+  /*
+   * <details> plutôt qu'un état React : rien à hydrater, le clavier et les lecteurs
+   * d'écran fonctionnent d'eux-mêmes, et le contenu reste dans le DOM une fois replié
+   * — un formulaire qu'on referme sans enregistrer garde donc sa saisie.
+   */
+  if (collapsible) {
+    return (
+      <details open={defaultOpen} className={`group flex flex-col rounded-card p-6 ${bg} ${className}`}>
+        <summary className="flex cursor-pointer list-none items-baseline justify-between gap-3 [&::-webkit-details-marker]:hidden">
+          <span className="flex items-baseline gap-2">
+            {title && <h2 className="text-base font-extrabold">{title}</h2>}
+            <span aria-hidden="true" className="text-xs text-subtle transition-transform group-open:rotate-90">
+              ▶
+            </span>
+          </span>
+          {aside}
+        </summary>
+        <div className="flex flex-col gap-3.5 pt-3.5">{children}</div>
+      </details>
+    );
+  }
+
   return (
     <section className={`flex flex-col gap-3.5 rounded-card p-6 ${bg} ${className}`}>
       {(title || aside) && (

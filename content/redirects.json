@@ -37,31 +37,31 @@
   },
   {
     "source": "/policies/privacy-policy",
-    "destination": "/informations/privacy-policy"
+    "destination": "/privacy-policy"
   },
   {
     "source": "/policies/refund-policy",
-    "destination": "/informations/refund-policy"
+    "destination": "/refund-policy"
   },
   {
     "source": "/policies/terms-of-service",
-    "destination": "/informations/terms-of-service"
+    "destination": "/terms-of-service"
   },
   {
     "source": "/policies/shipping-policy",
-    "destination": "/informations/shipping-policy"
+    "destination": "/shipping-policy"
   },
   {
     "source": "/policies/legal-notice",
-    "destination": "/informations/legal-notice"
+    "destination": "/legal-notice"
   },
   {
     "source": "/policies/contact-information",
-    "destination": "/informations/contact-information"
+    "destination": "/contact-information"
   },
   {
     "source": "/policies/terms-of-sale",
-    "destination": "/informations/terms-of-sale"
+    "destination": "/terms-of-sale"
   },
   {
     "source": "/collections/:path*",
@@ -89,6 +89,6 @@
   },
   {
     "source": "/policies",
-    "destination": "/informations"
+    "destination": "/privacy-policy"
   }
 ]

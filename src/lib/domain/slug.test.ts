@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractItems, slugify, splitLegacyTitle } from "./slug";
+import { extractItems, slugify, slugifyPath, splitLegacyTitle } from "./slug";
 
 describe("slugify", () => {
   it("retire accents, casse et ponctuation", () => {
@@ -34,5 +34,23 @@ describe("extractItems", () => {
   it("renvoie une liste vide quand la forme n'est pas reconnue", () => {
     expect(extractItems("<p>Un livre sans liste.</p>")).toEqual([]);
     expect(extractItems("")).toEqual([]);
+  });
+});
+
+describe("slugifyPath", () => {
+  it("normalise chaque segment et garde les barres obliques", () => {
+    expect(slugifyPath("pages/Presse & co")).toBe("pages/presse-co");
+  });
+
+  it("se comporte comme slugify sur un segment unique", () => {
+    expect(slugifyPath("Notre Histoire")).toBe("notre-histoire");
+  });
+
+  it("supprime les segments vides et les barres en trop", () => {
+    expect(slugifyPath("/a//b/")).toBe("a/b");
+  });
+
+  it("retire les accents et les apostrophes", () => {
+    expect(slugifyPath("Conditions d'utilisation")).toBe("conditions-d-utilisation");
   });
 });

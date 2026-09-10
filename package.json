@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@boxtal/parcel-point-map": "^0.0.9",
+    "@puckeditor/core": "^0.23.0",
     "@stripe/react-stripe-js": "^6.9.0",
     "@stripe/stripe-js": "^9.15.0",
     "@tiptap/extension-image": "^3.31.3",

@@ -3,6 +3,19 @@
  */
 
 /** « Les Animaux de la forêt » → « les-animaux-de-la-foret ». */
+/*
+ * Adresse d'une page : chaque segment est normalisé séparément, les barres obliques
+ * survivent. « Notre Histoire » donne « notre-histoire », « pages/Presse & co » donne
+ * « pages/presse-co ». Fonction pure, testée (slug.test.ts).
+ */
+export function slugifyPath(input: string): string {
+  return input
+    .split("/")
+    .map((segment) => slugify(segment))
+    .filter(Boolean)
+    .join("/");
+}
+
 export function slugify(input: string): string {
   return input
     .normalize("NFD")

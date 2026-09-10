@@ -1,18 +1,40 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { HomeHero, Split, Tiles } from "@/components/site/home-sections";
 import { Newsletter } from "@/components/site/Newsletter";
 import { ProductCard } from "@/components/site/ProductCard";
+import { Render } from "@puckeditor/core/rsc";
+import { blockConfig, toBlockData } from "@/lib/blocks/config";
+import { buildBlockMetadata } from "@/lib/blocks/metadata";
 import { getHomeContent } from "@/lib/db/content";
+import { getHomePage } from "@/lib/db/pages";
+import { pageMetadata } from "@/lib/domain/page-metadata";
 import { listPublishedProducts } from "@/lib/db/products";
 import { systemPath } from "@/lib/domain/system-pages";
 
 /*
- * Page d'accueil (maquette 2a). Le contenu vient du document `content/home`, les
- * livres du catalogue publié. Sans contenu, on affiche un état vide explicite plutôt
- * qu'une page cassée : c'est ce que voit un site tout neuf avant le seed.
+ * Racine du site. Elle est servie par la page désignée comme accueil dans l'admin
+ * (Pages → carte Publication), composée en blocs. À défaut, on retombe sur l'accueil
+ * historique bâti depuis `content/home` (maquette 2a) — c'est ce que voit un site
+ * tout neuf, avant qu'une page ne soit désignée.
  */
+/** La racine hérite du bloc SEO de la page désignée comme accueil. */
+export async function generateMetadata(): Promise<Metadata> {
+  const page = await getHomePage();
+  return page ? pageMetadata(page) : {};
+}
+
 export default async function HomePage() {
-  const [content, products] = await Promise.all([getHomeContent(), listPublishedProducts()]);
+  const [homePage, content, products] = await Promise.all([getHomePage(), getHomeContent(), listPublishedProducts()]);
+
+  if (homePage?.blocks) {
+    const metadata = await buildBlockMetadata(homePage.blocks);
+    return (
+      <article className="pb-16">
+        <Render config={blockConfig} data={toBlockData(homePage.blocks)} metadata={metadata} />
+      </article>
+    );
+  }
 
   if (!content) {
     return (

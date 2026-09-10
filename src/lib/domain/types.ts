@@ -13,6 +13,18 @@ export const Slug = z
   .max(120)
   .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "slug : minuscules, chiffres et tirets");
 
+/*
+ * Adresse d'une page libre : son chemin réel sous la racine, sans slash initial.
+ * « notre-histoire » donne /notre-histoire ; on peut imposer un dossier en écrivant
+ * « pages/presse ». Les segments réservés (routes du site) sont refusés à l'écriture,
+ * voir RESERVED_PATHS dans domain/system-pages.
+ */
+export const PagePath = z
+  .string()
+  .min(1)
+  .max(160)
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*(?:\/[a-z0-9]+(?:-[a-z0-9]+)*)*$/, "adresse : minuscules, chiffres, tirets et barres obliques");
+
 export const Cents = z.number().int().nonnegative();
 
 export const Status = z.enum(["draft", "published"]);
@@ -103,12 +115,58 @@ export const RichBody = z.object({
 });
 export type RichBody = z.infer<typeof RichBody>;
 
+/*
+ * Document de blocs (Puck). Les props d'un bloc dépendent de son type, déclaré dans
+ * `lib/blocks/config.tsx` : on valide la forme de l'enveloppe (un type, des props, des
+ * blocs imbriqués dans les slots) et on laisse Puck traiter le détail. Un bloc dont le
+ * type a disparu du catalogue est simplement ignoré au rendu.
+ */
+const BlockNode = z.object({
+  type: z.string().min(1),
+  props: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const BlockDocument = z.object({
+  root: z.object({ props: z.record(z.string(), z.unknown()).default({}) }).default({ props: {} }),
+  content: z.array(BlockNode).default([]),
+  zones: z.record(z.string(), z.array(BlockNode)).optional(),
+});
+export type BlockDocument = z.infer<typeof BlockDocument>;
+
+/*
+ * Référencement d'une page libre. Reprend le socle commun (titre, description) et y
+ * ajoute ce qui n'a de sens que pour une page : partage sur les réseaux, indexation,
+ * adresse canonique. Les champs de partage vides retombent sur le titre et la
+ * description SEO, eux-mêmes retombant sur le titre de la page — un seul champ suffit
+ * donc pour une page ordinaire.
+ */
+export const PageSeo = Seo.extend({
+  /** Image de partage (Open Graph). 1200×630 est le format attendu partout. */
+  image: ImageRef.optional(),
+  /** Titre et description de partage, s'ils doivent différer du SEO. */
+  shareTitle: z.string().max(90).optional(),
+  shareDescription: z.string().max(300).optional(),
+  /** Adresse canonique absolue, si la page fait doublon avec une autre. */
+  canonical: z.url().optional(),
+  /** Demander aux moteurs de ne pas indexer la page (elle reste accessible). */
+  noindex: z.boolean().default(false),
+});
+export type PageSeo = z.infer<typeof PageSeo>;
+
 export const Page = z.object({
-  slug: Slug,
+  slug: PagePath,
   title: z.string().min(1).max(120),
+  /*
+   * Les pages libres se composent en blocs. `body` est l'ancien corps de texte riche :
+   * il n'est plus édité, seulement servi tant qu'une page n'a pas été enregistrée
+   * depuis l'éditeur de blocs (elle est alors reprise telle quelle, voir from-html).
+   */
   body: RichBody,
+  blocks: BlockDocument.optional(),
+  /** Page servie à la racine du site. Une seule à la fois (voir db/pages.setHomePage). */
+  home: z.boolean().default(false),
   status: Status.default("draft"),
-  seo: Seo.default({}),
+  seo: PageSeo.default({ noindex: false }),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
@@ -123,18 +181,35 @@ export const SystemPageKey = z.enum([
   "cart",
   "account",
   "contact",
-  "policies",
-  "story",
 ]);
 export type SystemPageKey = z.infer<typeof SystemPageKey>;
 
 /** Une entrée de menu pointe vers une page système, une page libre ou une URL. */
-export const MenuTarget = z.discriminatedUnion("kind", [
+const MenuTargetShape = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("system"), key: SystemPageKey }),
-  z.object({ kind: z.literal("page"), slug: Slug }),
-  z.object({ kind: z.literal("policy"), handle: z.string().min(1) }),
+  z.object({ kind: z.literal("page"), slug: PagePath }),
   z.object({ kind: z.literal("url"), href: z.string().min(1), newTab: z.boolean().default(false) }),
 ]);
+
+/*
+ * Compatibilité avec les menus enregistrés avant que les pages légales et « Notre
+ * histoire » ne deviennent des pages libres. Sans ce rattrapage, un menu resté en
+ * base ferait échouer sa lecture — et `parseDoc` lève, alors que l'en-tête et le
+ * pied de page sont rendus sur chaque page : le site entier tomberait.
+ *
+ * À retirer une fois `scripts/migrate-prod.ts --menus` passé partout.
+ */
+const LEGACY_SYSTEM_KEYS: Record<string, string> = { story: "notre-histoire", policies: "privacy-policy" };
+
+export const MenuTarget = z.preprocess((value) => {
+  if (!value || typeof value !== "object") return value;
+  const t = value as { kind?: unknown; key?: unknown; handle?: unknown };
+  if (t.kind === "policy" && typeof t.handle === "string") return { kind: "page", slug: t.handle };
+  if (t.kind === "system" && typeof t.key === "string" && t.key in LEGACY_SYSTEM_KEYS) {
+    return { kind: "page", slug: LEGACY_SYSTEM_KEYS[t.key] };
+  }
+  return value;
+}, MenuTargetShape);
 export type MenuTarget = z.infer<typeof MenuTarget>;
 
 export const MenuItem = z.object({
@@ -390,14 +465,6 @@ export type SiteSettings = z.infer<typeof SiteSettings>;
 
 /* ---------- Politiques (pages légales) ---------- */
 
-export const Policy = z.object({
-  handle: Slug,
-  title: z.string().min(1).max(120),
-  body: RichBody,
-  position: z.number().int().default(0),
-  updatedAt: z.number(),
-});
-export type Policy = z.infer<typeof Policy>;
 
 /* ---------- Panier ---------- */
 

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { formatEuroShort } from "@/lib/domain/money";
 import { productPath } from "@/lib/domain/system-pages";
 import type { Product } from "@/lib/domain/types";
-import { AddToCartButton } from "./AddToCartButton";
+import { AddToCartButton, AddToCartPlaceholder } from "./AddToCartButton";
 import { TINT_BG } from "./ui";
 
 /*
@@ -24,7 +24,11 @@ export function ctaLabel(product: Product): string {
   return product.preorder.enabled ? "Précommander" : "Ajouter au panier";
 }
 
-export function ProductCard({ product, variant = "detailed" }: { product: Product; variant?: "compact" | "detailed" }) {
+/**
+ * @param preview Carte non marchande : le bouton est figé. Pour l'aperçu de l'éditeur
+ *                de blocs, hors du site et donc sans contexte de panier.
+ */
+export function ProductCard({ product, variant = "detailed", preview = false }: { product: Product; variant?: "compact" | "detailed"; preview?: boolean }) {
   const image = product.images[0];
   const badge = BADGE_LABEL[product.badge];
   const detailed = variant === "detailed";
@@ -59,10 +63,18 @@ export function ProductCard({ product, variant = "detailed" }: { product: Produc
       {detailed ? (
         <div className="mt-auto flex items-center justify-between gap-4">
           <span className="font-extrabold">{formatEuroShort(product.price)}</span>
-          <AddToCartButton slug={product.slug} label={ctaLabel(product)} price={product.price} variant="detailed" disabled={soldOut} />
+          {preview ? (
+            <AddToCartPlaceholder label={ctaLabel(product)} price={product.price} variant="detailed" dimmed={soldOut} />
+          ) : (
+            <AddToCartButton slug={product.slug} label={ctaLabel(product)} price={product.price} variant="detailed" disabled={soldOut} />
+          )}
         </div>
       ) : (
-        <AddToCartButton slug={product.slug} label={ctaLabel(product)} price={product.price} variant="compact" disabled={soldOut} />
+        preview ? (
+          <AddToCartPlaceholder label={ctaLabel(product)} price={product.price} variant="compact" dimmed={soldOut} />
+        ) : (
+          <AddToCartButton slug={product.slug} label={ctaLabel(product)} price={product.price} variant="compact" disabled={soldOut} />
+        )
       )}
     </div>
   );

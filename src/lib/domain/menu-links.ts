@@ -1,4 +1,4 @@
-import { pagePath, policyPath, systemPath } from "./system-pages";
+import { pagePath, systemPath } from "./system-pages";
 import type { MenuTarget } from "./types";
 
 /*
@@ -11,8 +11,6 @@ export function resolveTarget(target: MenuTarget): { href: string; external: boo
       return { href: systemPath(target.key), external: false, newTab: false };
     case "page":
       return { href: pagePath(target.slug), external: false, newTab: false };
-    case "policy":
-      return { href: policyPath(target.handle), external: false, newTab: false };
     case "url": {
       const external = /^https?:\/\//i.test(target.href);
       return { href: target.href, external, newTab: target.newTab };

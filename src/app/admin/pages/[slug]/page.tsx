@@ -1,80 +1,144 @@
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/admin/ActionForm";
-import { RichEditor } from "@/components/admin/RichEditor";
-import { ButtonLink, Card, Field, Input, PageHeader, Select, Textarea } from "@/components/admin/ui";
-import { deletePageAction, savePageAction } from "@/lib/admin/actions/pages";
+import { BlockEditor } from "@/components/admin/BlockEditor";
+import { SeoFields } from "@/components/admin/SeoFields";
+import { ButtonLink, Card, Field, Input, Notice, PageHeader, Pill, Select } from "@/components/admin/ui";
+import { deletePageAction, savePageAction, savePageBlocksAction, savePageSeoAction, setHomePageAction } from "@/lib/admin/actions/pages";
+import { toBlockData } from "@/lib/blocks/config";
+import { htmlToDocument } from "@/lib/blocks/from-html";
+import { listMedia } from "@/lib/db/media";
 import { getPage } from "@/lib/db/pages";
+import type { Page } from "@/lib/domain/types";
+import { siteUrl } from "@/lib/domain/page-metadata";
+import { PINNED_SLUGS } from "@/lib/domain/system-pages";
+import { buildBlockMetadata } from "@/lib/blocks/metadata";
 
 export const dynamic = "force-dynamic";
 
+/*
+ * Édition d'une page libre, de haut en bas : la publication, le contenu en blocs, le
+ * référencement, la suppression. Trois enregistrements distincts — chacun n'écrit que
+ * ce qu'il porte —, d'où trois boutons explicitement nommés. L'éditeur de blocs ne
+ * peut pas être inclus dans un <form> (les boutons de Puck le soumettraient), c'est
+ * ce qui impose de séparer publication et SEO de part et d'autre.
+ *
+ * Une page créée avant l'éditeur de blocs n'a qu'un corps de texte riche : il est
+ * découpé en blocs à l'ouverture (htmlToDocument) et rien n'est réécrit en base tant
+ * que le contenu n'a pas été enregistré.
+ */
 export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug]">) {
   const { slug } = await params;
   const isNew = slug === "nouvelle";
-  const page = isNew ? null : await getPage(slug);
+  const [page, media] = await Promise.all([isNew ? null : getPage(slug), isNew ? [] : listMedia(300)]);
   if (!isNew && !page) notFound();
+
+  const metadata = page?.blocks ? await buildBlockMetadata(page.blocks) : {};
+  const imported = !isNew && page !== null && !page.blocks && page.body.html.trim() !== "";
+  const initial = page?.blocks ?? (page ? htmlToDocument(page.body.html, page.title) : { root: { props: {} }, content: [] });
 
   return (
     <>
-      <PageHeader title={page ? page.title : "Nouvelle page"} subtitle={page ? `/pages/${page.slug}` : "Ex. : Livraison & retours, Qui sommes-nous, Presse…"} />
-      <ActionForm
-        action={savePageAction}
-        submitLabel={page ? "Enregistrer" : "Créer la page"}
-        secondary={
-          <>
-            <ButtonLink href="/admin/pages" tone="ghost">
-              Retour à la liste
-            </ButtonLink>
-            {page?.status === "published" && (
-              <ButtonLink href={`/pages/${page.slug}`} tone="ghost" target="_blank">
-                Voir sur le site ↗
-              </ButtonLink>
-            )}
-          </>
+      <PageHeader
+        title={page ? page.title : "Nouvelle page"}
+        subtitle={
+          page ? (
+            <span className="flex items-center gap-2">
+              {page.home ? "/ (racine du site)" : `/pages/${page.slug}`}
+              {page.home && <Pill tone="ok">Accueil</Pill>}
+            </span>
+          ) : (
+            "Ex. : Livraison & retours, Qui sommes-nous, Presse…"
+          )
         }
-      >
-        <div className="grid grid-cols-[2fr_1fr] gap-6 max-[899px]:grid-cols-1">
-          <input type="hidden" name="originalSlug" value={page?.slug ?? ""} />
-          <div className="flex flex-col gap-6">
-            <Card title="Contenu">
-              <div className="flex flex-col gap-4">
-                <Field label="Titre" name="title">
-                  <Input name="title" defaultValue={page?.title ?? ""} required maxLength={120} />
-                </Field>
-                <RichEditor name="body" initialHtml={page?.body.html ?? ""} initialJson={page?.body.json ?? undefined} />
-              </div>
-            </Card>
+        back={{ href: "/admin/pages", label: "Toutes les pages" }}
+        actions={
+          page?.status === "published" ? (
+            <ButtonLink href={page.home ? "/" : `/pages/${page.slug}`} tone="ghost" target="_blank">
+              Voir sur le site ↗
+            </ButtonLink>
+          ) : undefined
+        }
+      />
+
+      <ActionForm action={savePageAction} submitLabel={page ? "Enregistrer la publication" : "Créer la page"}>
+        <input type="hidden" name="originalSlug" value={page?.slug ?? ""} />
+        <Card title="Publication">
+          <div className="grid grid-cols-[2fr_1fr_2fr] items-start gap-3 max-[899px]:grid-cols-1">
+            <Field label="Titre" name="title">
+              <Input name="title" defaultValue={page?.title ?? ""} required maxLength={120} className="!font-bold" />
+            </Field>
+            <Field label="Statut" name="status">
+              <Select name="status" defaultValue={page?.status ?? "draft"}>
+                <option value="draft">Brouillon</option>
+                <option value="published">Publiée</option>
+              </Select>
+            </Field>
+            <Field
+              label="Adresse"
+              hint={
+                page?.home
+                  ? "Cette page est servie à la racine du site."
+                  : page && PINNED_SLUGS.has(page.slug)
+                    ? "Adresse imposée : le site y renvoie en dur (panier, page 404, fiches livre)."
+                    : "Chemin réel : « notre-histoire » donne /notre-histoire. Vide = depuis le titre."
+              }
+              name="slug"
+            >
+              <Input name="slug" defaultValue={page?.slug ?? ""} placeholder="livraison-et-retours" />
+            </Field>
           </div>
-          <div className="flex flex-col gap-6">
-            <Card title="Publication">
-              <div className="flex flex-col gap-4">
-                <Field label="Statut">
-                  <Select name="status" defaultValue={page?.status ?? "draft"}>
-                    <option value="draft">Brouillon</option>
-                    <option value="published">Publiée</option>
-                  </Select>
-                </Field>
-                <Field label="Adresse (slug)" hint="Vide = générée depuis le titre." name="slug">
-                  <Input name="slug" defaultValue={page?.slug ?? ""} placeholder="livraison-et-retours" />
-                </Field>
-              </div>
-            </Card>
-            <Card title="SEO">
-              <div className="flex flex-col gap-4">
-                <Field label="Titre" name="seoTitle">
-                  <Input name="seoTitle" defaultValue={page?.seo.title ?? ""} maxLength={70} />
-                </Field>
-                <Field label="Description" name="seoDescription">
-                  <Textarea name="seoDescription" defaultValue={page?.seo.description ?? ""} maxLength={200} rows={3} />
-                </Field>
-              </div>
-            </Card>
-          </div>
-        </div>
+        </Card>
       </ActionForm>
 
       {page && (
+        <ActionForm
+          action={setHomePageAction}
+          submitLabel={page.home ? "Ne plus servir à la racine" : "Faire de cette page l'accueil"}
+          submitTone="outline"
+          className="mt-3"
+          confirm={page.home ? undefined : "Cette page remplacera l'accueil actuel du site. Continuer ?"}
+        >
+          <input type="hidden" name="slug" value={page.slug} />
+          <input type="hidden" name="home" value={page.home ? "false" : "true"} />
+          <p className="text-sm text-muted">
+            {page.home
+              ? "Cette page est servie à la racine du site ; son adresse /pages/… y redirige."
+              : "Servir cette page à la racine du site. Une seule page à la fois : celle qui l'est aujourd'hui sera libérée."}
+          </p>
+        </ActionForm>
+      )}
+
+      {page && (
+        <div className="mt-6 flex flex-col gap-3">
+          <h2 className="text-sm font-bold uppercase tracking-[0.1em] text-subtle">Contenu</h2>
+          {imported && (
+            <Notice tone="info">
+              Cette page était rédigée avec l'ancien éditeur de texte. Son contenu a été repris en blocs — vérifiez le
+              découpage, puis enregistrez le contenu pour le figer.
+            </Notice>
+          )}
+          <BlockEditor slug={page.slug} title={page.title} initialData={toBlockData(initial)} media={media} metadata={metadata} save={savePageBlocksAction} />
+        </div>
+      )}
+
+      {/* Repliée par défaut : une page ordinaire n'a pas besoin qu'on y touche. */}
+      {page && (
+        <Card
+          title="Référencement et partage"
+          collapsible
+          className="mt-6"
+          aside={<span className="text-xs font-semibold text-subtle">{seoSummary(page)}</span>}
+        >
+          <ActionForm action={savePageSeoAction} submitLabel="Enregistrer le référencement">
+            <input type="hidden" name="slug" value={page.slug} />
+            <SeoFields seo={page.seo} pageTitle={page.title} url={`${siteUrl()}${page.home ? "" : `/${page.slug}`}`} media={media} />
+          </ActionForm>
+        </Card>
+      )}
+
+      {page && (
         <Card title="Zone dangereuse" className="mt-8 border border-danger-bg">
-          <ActionForm action={deletePageAction} submitLabel="Supprimer la page" confirm={`Supprimer « ${page.title} » ?`}>
+          <ActionForm action={deletePageAction} submitLabel="Supprimer la page" submitTone="danger" confirm={`Supprimer « ${page.title} » ?`}>
             <input type="hidden" name="slug" value={page.slug} />
             <p className="text-sm text-muted">Les menus qui pointent vers cette page afficheront un lien mort : pensez à les mettre à jour.</p>
           </ActionForm>
@@ -82,4 +146,14 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
       )}
     </>
   );
+}
+
+/** Ce que la carte repliée doit dire d'elle-même, sans qu'on l'ouvre. */
+function seoSummary(page: Page): string {
+  const parts: string[] = [];
+  if (page.seo.title || page.seo.description) parts.push("titre et description personnalisés");
+  if (page.seo.image) parts.push("image de partage");
+  if (page.seo.noindex) parts.push("non indexée");
+  if (page.seo.canonical) parts.push("canonique définie");
+  return parts.length ? parts.join(" · ") : "réglages par défaut";
 }
