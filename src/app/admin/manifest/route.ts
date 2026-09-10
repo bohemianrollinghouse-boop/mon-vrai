@@ -18,9 +18,9 @@ export function GET() {
     theme_color: "#111111",
     lang: "fr",
     icons: [
-      { src: "/admin/app-icon/192", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/admin/app-icon/512", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/admin/app-icon/512", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/pwa/admin-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/pwa/admin-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/pwa/admin-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
   return NextResponse.json(manifest, {

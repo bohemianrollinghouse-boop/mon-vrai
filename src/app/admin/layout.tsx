@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   title: { default: "Mon Vrai Admin", template: "%s · Mon Vrai Admin" },
   manifest: "/admin/manifest",
   appleWebApp: { capable: true, title: "Mon Vrai Admin", statusBarStyle: "default" },
-  icons: { apple: "/admin/app-icon/180" },
+  icons: { apple: "/pwa/admin-180.png" },
 };
 
 /*

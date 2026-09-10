@@ -45,8 +45,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Mon Vrai";
   const options = {
     body: data.body || "",
-    icon: "/admin/app-icon/192",
-    badge: "/admin/app-icon/192",
+    icon: "/pwa/admin-192.png",
+    badge: "/pwa/admin-192.png",
     tag: data.tag || undefined,
     data: { url: data.url || "/admin/commandes" },
   };
