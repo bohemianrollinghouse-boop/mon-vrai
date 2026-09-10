@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, GridTable, Pill, Tile } from "@/components/admin/ui";
 import { adminSnapshot } from "@/lib/admin/counts";
+import { orderRevenue, sumRevenue } from "@/lib/admin/revenue";
 import { ADMIN_STATUS_LABELS, COUNTED, STATUS_TONE, TO_SHIP, capitalize, longDate, shortDate } from "@/lib/admin/order-ui";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatEuro } from "@/lib/domain/money";
@@ -12,6 +13,11 @@ export const dynamic = "force-dynamic";
  * Tableau de bord, d'après la maquette : bonjour + date, période (7 j / 30 j / depuis
  * le début), quatre tuiles, dernières commandes, ventes par titre, liste « à faire ».
  * Les commandes de test et les commandes annulées/remboursées ne comptent pas.
+ *
+ * La tuile du chiffre d'affaires bascule entre brut (encaissé) et net (ce qu'il reste
+ * après cotisations, commission, fabrication, emballage et port réel) : même calcul que
+ * /admin/revenus, via lib/admin/revenue.ts. L'état vit dans l'URL (?revenu=net), comme
+ * la période — pas de composant client pour deux liens.
  */
 
 const PERIODS = [
@@ -21,8 +27,9 @@ const PERIODS = [
 ] as const;
 
 export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
-  const { periode } = await searchParams;
+  const { periode, revenu } = await searchParams;
   const period = PERIODS.find((p) => p.key === periode) ?? PERIODS[0];
+  const netView = revenu === "net";
   const [user, snap] = await Promise.all([requireAdmin(), adminSnapshot()]);
   const { orders, products, settings, now } = snap;
 
@@ -36,6 +43,21 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
   const prevRevenue = previous.reduce((s, o) => s + o.totals.total, 0);
   const delta = prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : null;
   const basket = current.length ? Math.round(revenue / current.length) : 0;
+
+  // Revenu net de la période (et de la précédente, pour l'évolution) : mêmes règles que
+  // la page Revenus. Un coût unitaire laissé à zéro dans les réglages surévalue le net,
+  // ce que la précision de la tuile signale plutôt que de le taire.
+  const net = sumRevenue(current.map((o) => orderRevenue(o, settings)));
+  const prevNet = sumRevenue(previous.map((o) => orderRevenue(o, settings)));
+  const netDelta = prevNet.net > 0 ? Math.round(((net.net - prevNet.net) / prevNet.net) * 100) : null;
+  const costsIncomplete = !settings.costs.bookCost || !settings.costs.packagingCost;
+  /** Lien vers le tableau de bord en conservant l'autre réglage (période / brut-net). */
+  const dash = (p: string, r: boolean) => {
+    const q = new URLSearchParams();
+    if (p !== "7") q.set("periode", p);
+    if (r) q.set("revenu", "net");
+    return q.size ? `/admin?${q}` : "/admin";
+  };
 
   const preorderBooks = orders.filter((o) => o.livemode && TO_SHIP.includes(o.status)).reduce((s, o) => s + o.lines.filter((l) => l.preorder).reduce((a, l) => a + l.qty, 0), 0);
   const shipFrom = settings.shipping.preorderShipFrom ? new Date(settings.shipping.preorderShipFrom).toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) : null;
@@ -64,7 +86,7 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
         </div>
         <nav className="flex gap-1.5 rounded-pill bg-surface p-1.5 text-xs font-bold" aria-label="Période">
           {PERIODS.map((p) => (
-            <Link key={p.key} href={p.key === "7" ? "/admin" : `/admin?periode=${p.key}`} className={`rounded-pill px-3.5 py-2 ${p.key === period.key ? "bg-ink text-on-ink" : "hover:opacity-70"}`}>
+            <Link key={p.key} href={dash(p.key, netView)} className={`rounded-pill px-3.5 py-2 ${p.key === period.key ? "bg-ink text-on-ink" : "hover:opacity-70"}`}>
               {p.label}
             </Link>
           ))}
@@ -72,7 +94,44 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
       </div>
 
       <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">
-        <Tile tone="green" label="Chiffre d'affaires" value={formatEuro(revenue)} note={delta === null ? (period.days ? "pas de période de comparaison" : `${current.length} commandes encaissées`) : `${delta >= 0 ? "+" : "−"}${Math.abs(delta)} % vs ${period.days} jours précédents`} href="/admin/revenus" />
+        {/*
+          Pas de `href` sur la tuile : elle porte deux liens (brut / net) et un <a> ne
+          s'imbrique pas dans un autre. Le nombre lui-même mène à Revenus — des liens
+          frères, donc du HTML valide.
+        */}
+        <Tile
+          tone="green"
+          label={
+            <span className="flex items-center justify-between gap-2">
+              <span>Chiffre d'affaires</span>
+              <span className="flex gap-0.5 rounded-pill bg-tint-green-ink/15 p-0.5 text-[0.6875rem] font-bold" role="group" aria-label="Chiffre d'affaires brut ou net">
+                {[false, true].map((r) => (
+                  <Link key={String(r)} href={dash(period.key, r)} aria-current={r === netView ? "true" : undefined} className={`rounded-pill px-2.5 py-[3px] ${r === netView ? "bg-tint-green-ink text-tint-green" : "hover:opacity-70"}`}>
+                    {r ? "Net" : "Brut"}
+                  </Link>
+                ))}
+              </span>
+            </span>
+          }
+          value={
+            <Link href="/admin/revenus" className="hover:opacity-70">
+              {formatEuro(netView ? net.net : revenue)}
+            </Link>
+          }
+          note={
+            netView
+              ? costsIncomplete
+                ? "coûts unitaires à compléter dans Revenus"
+                : netDelta === null
+                  ? "après cotisations, coûts et port réel"
+                  : `${netDelta >= 0 ? "+" : "−"}${Math.abs(netDelta)} % vs ${period.days} jours précédents`
+              : delta === null
+                ? period.days
+                  ? "pas de période de comparaison"
+                  : `${current.length} commandes encaissées`
+                : `${delta >= 0 ? "+" : "−"}${Math.abs(delta)} % vs ${period.days} jours précédents`
+          }
+        />
         <Tile label="Commandes" value={current.length} note={current.length ? `panier moyen ${formatEuro(basket)}` : "aucune sur la période"} href="/admin/commandes" />
         <Tile label="Livres précommandés" value={preorderBooks} note={shipFrom ? `à expédier dès le ${shipFrom}` : "à expédier"} href="/admin/commandes?statut=a-expedier" />
         <Tile tone={snap.lowStock.length ? "pink" : "white"} label="Stock bas" value={`${snap.lowStock.length} titre${snap.lowStock.length > 1 ? "s" : ""}`} note={`sous le seuil de ${settings.inventory.lowThreshold} ex.`} href="/admin/stocks" />
