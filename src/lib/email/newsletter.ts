@@ -12,10 +12,12 @@ import { type Brand, type RenderCtx, templateById, toPlainText, wrapEmail } from
  */
 
 export function brandFromSettings(settings: SiteSettings, base: string): Brand {
+  // Adresse de contact des réglages ; à défaut, l'adresse légale du vendeur (celle des factures).
+  const address = (settings.contact.addressLines.some(Boolean) ? settings.contact.addressLines : settings.legal.sellerAddressLines).filter(Boolean).join(", ");
   return {
     shopName: settings.shopName,
     logoUrl: `${base}/email-logo.png`,
-    address: settings.contact.addressLines.filter(Boolean).join(", "),
+    address,
     instagram: settings.socials.instagram,
     tiktok: settings.socials.tiktok,
     facebook: settings.socials.facebook,

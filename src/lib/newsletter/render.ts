@@ -130,13 +130,26 @@ function topbar(c: RenderCtx, key: string, def: string): string {
 
 const logo = (c: RenderCtx) => `<div style="padding:20px 32px 8px;text-align:center"><img src="${esc(c.brand.logoUrl)}" alt="${esc(c.brand.shopName)}" style="height:30px;border:0"></div>`;
 
+/*
+ * Pied de page : seuls les réseaux renseignés dans les réglages apparaissent (aucun :
+ * pas de ligne), et l'adresse n'est affichée que si elle est connue — jamais de texte
+ * de remplacement dans un e-mail réel.
+ */
 function footer(c: RenderCtx): string {
-  const link = (href: string | undefined, label: string) => (href ? `<a href="${esc(href)}" style="color:${INK};text-decoration:none">${label}</a>` : `<span>${label}</span>`);
-  const socials = [link(c.brand.instagram, "Instagram"), link(c.brand.tiktok, "TikTok"), link(c.brand.facebook, "Facebook")].join("");
-  const addr = c.brand.address ? esc(c.brand.address) : "[adresse]";
+  const socials = (
+    [
+      [c.brand.instagram, "Instagram"],
+      [c.brand.tiktok, "TikTok"],
+      [c.brand.facebook, "Facebook"],
+    ] as const
+  )
+    .filter(([href]) => Boolean(href))
+    .map(([href, label]) => `<a href="${esc(href as string)}" style="color:${INK};text-decoration:none">${label}</a>`)
+    .join("");
+  const socialsRow = socials ? `<div style="display:flex;gap:16px;justify-content:center;font-weight:700;color:${INK};font-size:12px;margin-bottom:10px">${socials}</div>\n` : "";
+  const line = [esc(c.brand.shopName), c.brand.address ? esc(c.brand.address) : "", `<a href="${esc(c.unsub)}" style="color:${SUBTLE};text-decoration:underline">Se désinscrire</a>`].filter(Boolean).join(" · ");
   return `<div style="padding:40px 40px 32px;text-align:center;font-size:11px;color:${SUBTLE};line-height:1.6">
-<div style="display:flex;gap:16px;justify-content:center;font-weight:700;color:${INK};font-size:12px;margin-bottom:10px">${socials}</div>
-<span>${esc(c.brand.shopName)} · ${addr} · <a href="${esc(c.unsub)}" style="color:${SUBTLE};text-decoration:underline">Se désinscrire</a></span></div>`;
+${socialsRow}<span>${line}</span></div>`;
 }
 
 /** Cible d'un bouton : la valeur éditée (« href:clé ») sinon celle du modèle ; un chemin relatif est résolu sur le site. */

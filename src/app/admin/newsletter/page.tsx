@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { buyerEmailsByProduct, getAllTemplateValues, listSubscribers } from "@/lib/db/newsletter";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
-import type { Brand } from "@/lib/newsletter/render";
+import { brandFromSettings } from "@/lib/email/newsletter";
 
 export const dynamic = "force-dynamic";
 
@@ -23,14 +23,8 @@ export default async function NewsletterPage() {
   const counts = { all: subscribers.length, buyers: buyers.size };
 
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
-  const brand: Brand = {
-    shopName: settings.shopName,
-    logoUrl: `${base}/email-logo.png`,
-    address: settings.contact.addressLines.filter(Boolean).join(", "),
-    instagram: settings.socials.instagram,
-    tiktok: settings.socials.tiktok,
-    facebook: settings.socials.facebook,
-  };
+  // Même marque que les envois réels : l'aperçu montre exactement le pied de page qui partira.
+  const brand = brandFromSettings(settings, base);
 
   return (
     <>

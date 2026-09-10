@@ -43,3 +43,22 @@ describe("resolveHref / isValidHref", () => {
     expect(isValidHref("monvrai.fr")).toBe(false);
   });
 });
+
+describe("pied de page", () => {
+  const withBrand = (brand: Partial<RenderCtx["brand"]>): RenderCtx => ({ ...ctx("email"), brand: { ...ctx("email").brand, ...brand } });
+
+  it("n'affiche que les réseaux renseignés, et rien si aucun", () => {
+    const html = renderTemplateBody("lancement", withBrand({ instagram: "https://instagram.com/monvrai" }));
+    expect(html).toContain('href="https://instagram.com/monvrai"');
+    expect(html).not.toContain("Facebook");
+    expect(html).not.toContain("TikTok");
+    expect(renderTemplateBody("lancement", withBrand({}))).not.toContain("Instagram");
+  });
+
+  it("affiche l'adresse configurée, sans texte de remplacement quand elle manque", () => {
+    expect(renderTemplateBody("lancement", withBrand({ address: "78 avenue des Champs-Élysées, 75008 Paris" }))).toContain("Mon Vrai · 78 avenue des Champs-Élysées, 75008 Paris · ");
+    const html = renderTemplateBody("lancement", withBrand({ address: "" }));
+    expect(html).not.toContain("[adresse]");
+    expect(html).toContain("Mon Vrai · <a href=");
+  });
+});
