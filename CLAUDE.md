@@ -93,6 +93,11 @@ FAQ : les questions vivent dans `content/contact.faq.items` (rubrique, masquée)
 gèrent dans `/admin/faq`. Tarifs de livraison : `settings.shipping.rates`, proposés à
 la caisse Stripe. Stock : décrémenté au paiement ; « réservé » = payé non expédié.
 
+Les réglages sont éclatés en deux pages, donc en deux actions (`actions/settings.ts`) :
+`/admin/reglages` (`saveSettingsAction`) et `/admin/livraison` (`saveShippingAction`,
+tarifs + expéditeur/colis Boxtal). Chacune relit `getSettings()` et ne réécrit que ses
+propres champs — sans quoi l'autre page serait remise à ses valeurs par défaut.
+
 ## Ports locaux
 
 Firestore émulé sur **8180** (8080 est pris par OrbStack sur cette machine) ;

@@ -68,6 +68,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       items: [
         { href: "/admin/commandes", label: "Commandes", badge: snap.toShip, badgeTone: "sand" },
         { href: "/admin/clients", label: "Clients" },
+        { href: "/admin/livraison", label: "Livraison" },
         { href: "/admin/messages", label: "Messages", badge: snap.unread, badgeTone: "blue" },
       ],
     },
@@ -159,7 +160,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
                     ? "Stripe"
                     : "Boxtal"}
               </strong>{" "}
-              en bac à sable (aucun débit ni étiquette réels). Réglage par service dans Paramètres, bascule globale en haut à gauche.
+              en bac à sable (aucun débit ni étiquette réels). Réglage par service dans Paramètres (Stripe) et Livraison (Boxtal), bascule globale en haut à gauche.
             </span>
           </div>
         )}

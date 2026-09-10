@@ -13,9 +13,11 @@ import { slugify } from "@/lib/domain/slug";
 import { SiteSettings } from "@/lib/domain/types";
 
 /*
- * Réglages du site. Le formulaire envoie les champs en chemin (`announcement.text`…) ;
+ * Réglages du site, en deux formulaires : les réglages généraux (/admin/reglages) et la
+ * livraison (/admin/livraison). Les champs arrivent en chemin (`announcement.text`…) et
  * le schéma SiteSettings valide l'ensemble. L'adresse postale arrive en texte multi-ligne
  * et le seuil de livraison en euros : les deux sont convertis ici, jamais dans la vue.
+ * Chaque action relit les réglages courants et ne réécrit que ses propres champs.
  */
 
 const boolish = z.union([z.boolean(), z.string()]).default(false).transform((v) => v === true || v === "true" || v === "on");
@@ -42,9 +44,63 @@ const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true
     tiktok: z.string().trim().default(""),
     facebook: z.string().trim().default(""),
   }),
+  // La livraison a sa propre page (/admin/livraison) et sa propre action : ici, seule
+  // la date d'expédition annoncée, qui vit dans la carte « Boutique ».
+  shipping: z.object({ preorderShipFrom: z.string().default("") }),
+  inventory: z.object({ lowThreshold: z.number().int().min(0).default(20) }),
+});
+
+export async function saveSettingsAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const parsed = parseForm(Input, formData, {
+    booleans: ["announcement.enabled", "payments.paypal"],
+    numbers: ["inventory.lowThreshold"],
+  });
+  if (!parsed.ok) return failed(parsed.error, parsed.issues);
+  const d = parsed.data;
+
+  const current = await getSettings();
+  const next = SiteSettings.safeParse({
+    ...current,
+    ...d,
+    contact: {
+      email: d.contact.email || undefined,
+      phone: d.contact.phone || undefined,
+      addressLines: d.contact.address.split("\n").map((l) => l.trim()).filter(Boolean),
+    },
+    socials: {
+      instagram: d.socials.instagram || undefined,
+      tiktok: d.socials.tiktok || undefined,
+      facebook: d.socials.facebook || undefined,
+    },
+    // Le mode reste piloté par le slider : on préserve la valeur actuelle.
+    payments: { mode: current.payments.mode, paypal: d.payments.paypal },
+    legal: {
+      ...d.legal,
+      sellerAddressLines: d.legal.sellerAddress.split("\n").map((l) => l.trim()).filter(Boolean),
+    },
+    // Ce formulaire ne porte que la date de précommande : le reste de la livraison
+    // vient de /admin/livraison et doit survivre à un enregistrement des réglages.
+    shipping: { ...current.shipping, preorderShipFrom: d.shipping.preorderShipFrom || undefined },
+    inventory: d.inventory,
+    updatedAt: Date.now(),
+  });
+  if (!next.success) return failed(next.error.issues[0]?.message ?? "Réglages invalides");
+
+  await saveSettings(next.data);
+  await audit(user.email, "settings.save", "settings/site");
+  revalidatePath("/", "layout");
+  return saved("Réglages enregistrés.");
+}
+
+/*
+ * Livraison (page /admin/livraison) : tarifs proposés au client, adresse d'expédition
+ * et colis par défaut Boxtal. Action séparée des réglages généraux — chaque formulaire
+ * ne réécrit que ses propres champs, jamais ceux de l'autre page.
+ */
+const ShippingInput = z.object({
   shipping: z.object({
     freeThresholdEuros: z.number().min(0).default(0),
-    preorderShipFrom: z.string().default(""),
     countries: z.string().default("FR, BE, LU"),
     rates: z
       .array(
@@ -87,14 +143,12 @@ const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true
       phone: z.string().trim().default(""),
     }),
   }),
-  inventory: z.object({ lowThreshold: z.number().int().min(0).default(20) }),
 });
 
-export async function saveSettingsAction(formData: FormData): Promise<AdminResult> {
+export async function saveShippingAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
-  const parsed = parseForm(Input, formData, {
-    booleans: ["announcement.enabled", "payments.paypal"],
-    numbers: ["shipping.freeThresholdEuros", "inventory.lowThreshold", "shipping.parcel.lengthCm", "shipping.parcel.widthCm", "shipping.parcel.heightCm", "shipping.parcel.unitWeightG", "shipping.parcel.baseWeightG"],
+  const parsed = parseForm(ShippingInput, formData, {
+    numbers: ["shipping.freeThresholdEuros", "shipping.parcel.lengthCm", "shipping.parcel.widthCm", "shipping.parcel.heightCm", "shipping.parcel.unitWeightG", "shipping.parcel.baseWeightG"],
   });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
@@ -115,26 +169,9 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
   }
   const next = SiteSettings.safeParse({
     ...current,
-    ...d,
-    contact: {
-      email: d.contact.email || undefined,
-      phone: d.contact.phone || undefined,
-      addressLines: d.contact.address.split("\n").map((l) => l.trim()).filter(Boolean),
-    },
-    socials: {
-      instagram: d.socials.instagram || undefined,
-      tiktok: d.socials.tiktok || undefined,
-      facebook: d.socials.facebook || undefined,
-    },
-    // Le mode reste piloté par le slider : on préserve la valeur actuelle.
-    payments: { mode: current.payments.mode, paypal: d.payments.paypal },
-    legal: {
-      ...d.legal,
-      sellerAddressLines: d.legal.sellerAddress.split("\n").map((l) => l.trim()).filter(Boolean),
-    },
     shipping: {
+      ...current.shipping,
       freeThreshold: Math.round(d.shipping.freeThresholdEuros * 100),
-      preorderShipFrom: d.shipping.preorderShipFrom || undefined,
       countries: d.shipping.countries.split(",").map((c) => c.trim().toUpperCase()).filter((c) => /^[A-Z]{2}$/.test(c)),
       // Une ligne sans nom est une ligne laissée vide : on l'ignore.
       rates: d.shipping.rates
@@ -158,15 +195,14 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
       parcel: d.shipping.parcel,
       sender: { ...d.shipping.sender, country: d.shipping.sender.country.toUpperCase() || "FR" },
     },
-    inventory: d.inventory,
     updatedAt: Date.now(),
   });
-  if (!next.success) return failed(next.error.issues[0]?.message ?? "Réglages invalides");
+  if (!next.success) return failed(next.error.issues[0]?.message ?? "Réglages de livraison invalides");
 
   await saveSettings(next.data);
-  await audit(user.email, "settings.save", "settings/site");
+  await audit(user.email, "settings.shipping", "settings/site");
   revalidatePath("/", "layout");
-  return saved("Réglages enregistrés.");
+  return saved("Livraison enregistrée.");
 }
 
 /*
