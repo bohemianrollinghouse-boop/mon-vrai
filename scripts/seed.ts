@@ -22,7 +22,7 @@ import { upsertProduct } from "@/lib/db/products";
 import { saveSettings } from "@/lib/db/settings";
 import { legalToDocument } from "@/lib/blocks/from-html";
 import { catalogueToBlocks, contactToBlocks, homeToBlocks, proToBlocks } from "@/lib/blocks/from-content";
-import { conceptBlocks, storyBlocks } from "@/lib/blocks/editorial-pages";
+import { EDITORIAL_PHOTOS, conceptBlocks, storyBlocks } from "@/lib/blocks/editorial-pages";
 import { extractItems, slugify, splitLegacyTitle } from "@/lib/domain/slug";
 import type { Badge, ImageRef, MenuItem, Tint } from "@/lib/domain/types";
 
@@ -72,25 +72,6 @@ const TINTS: Record<string, Tint> = {
   "les-vetements": "pink",
 };
 const SHIP_FROM = "2026-12-25";
-
-/*
- * Photos attendues par « Notre histoire » et « Le concept », à déposer dans
- * content/editorial/. Le seed se débrouille sans elles — une photo d'ambiance prend le
- * relais — et elles se remplacent ensuite bloc par bloc dans l'éditeur de pages.
- */
-const EDITORIAL_PHOTOS = [
-  "histoire-bebe-livre.jpg",
-  "histoire-main-savon.jpg",
-  "histoire-lapin-reel.jpg",
-  "histoire-cinq-imagiers.jpg",
-  "histoire-valise-rangement.jpg",
-  "histoire-pomme-reelle.jpg",
-  "histoire-chien-figurine.jpg",
-  "histoire-bebe-vetements.jpg",
-  "histoire-double-page.jpg",
-  "concept-couvertures.jpg",
-  "concept-collection.jpg",
-];
 
 async function main() {
   if (!process.env.FIRESTORE_EMULATOR_HOST && !process.argv.includes("--force")) {

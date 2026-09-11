@@ -19,6 +19,25 @@ import type { Emphasis } from "@/components/site/editorial";
 type Photo = (name: string) => ImageRef | undefined;
 
 /*
+ * Les photos de ces pages, par nom de fichier. Elles vivent dans content/editorial/
+ * pour le seed, et se retrouvent dans la médiathèque par le même nom en production.
+ * Une seule liste, pour que le seed, la migration et l'admin parlent des mêmes.
+ */
+export const EDITORIAL_PHOTOS = [
+  "histoire-bebe-livre.jpg",
+  "histoire-main-savon.jpg",
+  "histoire-lapin-reel.jpg",
+  "histoire-cinq-imagiers.jpg",
+  "histoire-valise-rangement.jpg",
+  "histoire-pomme-reelle.jpg",
+  "histoire-chien-figurine.jpg",
+  "histoire-bebe-vetements.jpg",
+  "histoire-double-page.jpg",
+  "concept-couvertures.jpg",
+  "concept-collection.jpg",
+];
+
+/*
  * `import type { Props }` est effacé à l'exécution : on profite du typage du catalogue
  * sans tirer les composants (et leur `server-only`) dans ce module. Le nom du bloc et
  * ses props sont donc vérifiés à la compilation.
@@ -396,3 +415,13 @@ export function conceptBlocks(photo: Photo): BlockDocument {
     ],
   };
 }
+
+/*
+ * Les pages dont le premier contenu est écrit ici. L'admin s'en sert pour proposer,
+ * sur ces deux pages seulement, de reprendre le texte rédigé — c'est le seul moyen
+ * de les poser en production sans passer par la ligne de commande.
+ */
+export const EDITORIAL_PAGES: Record<string, { title: string; build: (photo: Photo, newsletter?: HomeContent["newsletter"]) => BlockDocument }> = {
+  "notre-histoire": { title: "Notre histoire", build: storyBlocks },
+  "le-concept": { title: "Le concept", build: (photo) => conceptBlocks(photo) },
+};

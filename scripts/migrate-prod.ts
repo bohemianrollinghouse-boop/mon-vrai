@@ -68,7 +68,7 @@ async function ensurePage(slug: string, title: string, blocks: BlockDocument, ht
 
 /*
  * Les photos des pages rédigées, retrouvées dans la médiathèque par leur nom de
- * fichier (voir EDITORIAL_PHOTOS dans le seed). Celles qui manquent laissent le bloc
+ * fichier (EDITORIAL_PHOTOS, dans blocks/editorial-pages.ts). Celles qui manquent laissent le bloc
  * sans image — elle se choisit alors dans l'éditeur, ce qui est sans risque.
  */
 async function editorialPhoto(): Promise<(name: string) => ImageRef | undefined> {
