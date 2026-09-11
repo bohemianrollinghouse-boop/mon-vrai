@@ -221,27 +221,45 @@ async function main() {
     }
   }
 
-  /* 3 ter. Les réglages du formulaire de contact descendent dans son bloc. Idempotent :
+  /* 3 ter. Les réglages du formulaire de contact descendent dans son bloc. Le bloc est
+     niché dans un slot (colonne de droite), d'où le parcours récursif. Idempotent :
      un bloc déjà rempli n'est pas réécrit, c'est lui qui fait foi. */
   if (CONTACT_FORM && contact) {
     const page = await getPage("contact");
     const blocks = page?.blocks;
-    const target = blocks?.content.find((b) => b.type === "FormulaireContact");
-    if (!blocks || !target) {
-      note("· contact : aucun bloc « Formulaire de contact » — rien à recopier");
-    } else if ((target.props.sujets as unknown[] | undefined)?.length) {
-      note("= contact : sujets déjà dans le bloc");
+    let found = 0;
+    let already = 0;
+
+    /* Un slot est une prop dont la valeur est un tableau de blocs : on descend dedans. */
+    const fill = (nodes: BlockDocument["content"]): BlockDocument["content"] =>
+      nodes.map((node) => {
+        const props: Record<string, unknown> = { ...node.props };
+        for (const [key, value] of Object.entries(props)) {
+          if (Array.isArray(value) && value.every((v) => v && typeof v === "object" && "type" in v && "props" in v)) {
+            props[key] = fill(value as BlockDocument["content"]);
+          }
+        }
+        if (node.type !== "FormulaireContact") return { ...node, props };
+        found += 1;
+        if ((props.sujets as unknown[] | undefined)?.length) {
+          already += 1;
+          return { ...node, props };
+        }
+        return {
+          ...node,
+          props: { ...props, sujets: contact.subjects.map((texte) => ({ texte })), mentionLegale: contact.legal, messageConfirmation: contact.successText },
+        };
+      });
+
+    if (!blocks) {
+      note("· contact : page sans blocs — rien à recopier");
     } else {
-      note(`~ contact : ${contact.subjects.length} sujets recopiés dans le bloc`);
-      if (APPLY) {
-        await savePageBlocks("contact", {
-          root: blocks.root,
-          content: blocks.content.map((b) =>
-            b.type === "FormulaireContact"
-              ? { ...b, props: { ...b.props, sujets: contact.subjects.map((texte) => ({ texte })), mentionLegale: contact.legal, messageConfirmation: contact.successText } }
-              : b,
-          ),
-        });
+      const content = fill(blocks.content);
+      if (found === 0) note("· contact : aucun bloc « Formulaire de contact » — rien à recopier");
+      else if (already === found) note("= contact : sujets déjà dans le bloc");
+      else {
+        note(`~ contact : ${contact.subjects.length} sujets recopiés dans le bloc`);
+        if (APPLY) await savePageBlocks("contact", { root: blocks.root, content });
       }
     }
   } else if (!CONTACT_FORM) {
