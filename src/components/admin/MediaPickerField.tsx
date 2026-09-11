@@ -166,7 +166,14 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
                 Aucune image. Importez-en ci-dessus, ou déposez un fichier ici.
               </p>
             ) : (
-              <div className="grid grid-cols-5 gap-2 overflow-y-auto max-[899px]:grid-cols-3">
+              /*
+                `min-h-0` et `flex-1` : sans eux, un enfant de colonne flex ne descend
+                jamais sous la hauteur de son contenu (`min-height: auto`), le défilement
+                ne s'enclenche pas, et c'est la grille qui se comprime — les vignettes
+                rapetissaient à mesure que la médiathèque grossissait. `content-start`
+                et `auto-rows-max` empêchent en plus les rangées de s'étirer.
+              */
+              <div className="grid min-h-0 flex-1 auto-rows-max content-start grid-cols-5 gap-2 overflow-y-auto max-[899px]:grid-cols-3">
                 {shown.map((m) => (
                   <button
                     key={m.id}
@@ -176,10 +183,10 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
                       onChange({ url: m.url, alt: value?.alt || m.alt, width: m.width, height: m.height });
                       setOpen(false);
                     }}
-                    className={`overflow-hidden rounded-[10px] bg-paper ring-offset-2 hover:opacity-80 ${value?.url === m.url ? "ring-2 ring-ink" : ""}`}
+                    className={`aspect-square overflow-hidden rounded-[10px] bg-paper ring-offset-2 hover:opacity-80 ${value?.url === m.url ? "ring-2 ring-ink" : ""}`}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element -- vignette admin */}
-                    <img src={m.url} alt={m.alt} loading="lazy" className="aspect-square w-full object-cover" />
+                    <img src={m.url} alt={m.alt} loading="lazy" className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>
