@@ -21,6 +21,14 @@ import type { ImageRef } from "@/lib/domain/types";
 
 type Value = ImageRef | undefined;
 
+/*
+ * Formats réellement acceptés par la médiathèque (voir ALLOWED dans db/media.ts). On
+ * ne met pas `image/*` : la photothèque d'un iPhone proposerait alors des HEIC, que le
+ * serveur refuse ensuite — mieux vaut ne pas les laisser choisir.
+ */
+const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/avif"];
+const ACCEPT = ACCEPTED.join(",");
+
 export function MediaPickerField({ value, onChange, readOnly }: { value: Value; onChange: (v: Value) => void; readOnly?: boolean }) {
   const { media, add } = useMediaLibrary();
   const [open, setOpen] = useState(false);
@@ -38,9 +46,10 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
   }, [images, query]);
 
   async function upload(files: FileList | File[] | null) {
-    const chosen = Array.from(files ?? []).filter((f) => f.type.startsWith("image/"));
+    const all = Array.from(files ?? []);
+    const chosen = all.filter((f) => ACCEPTED.includes(f.type));
     if (chosen.length === 0) {
-      setError("Seules les images peuvent être envoyées ici.");
+      setError(all.length ? "Format non accepté : envoyez du JPG, PNG, WebP ou AVIF." : "Aucun fichier à envoyer.");
       return;
     }
     setBusy(true);
@@ -131,7 +140,7 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
               <input
                 ref={fileInput}
                 type="file"
-                accept="image/*"
+                accept={ACCEPT}
                 multiple
                 className="sr-only"
                 onChange={(e) => {
