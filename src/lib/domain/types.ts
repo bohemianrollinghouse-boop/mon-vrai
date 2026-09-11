@@ -465,6 +465,15 @@ export const SiteSettings = z.object({
     })
     .default({ footerLine: "", sellerName: "", sellerAddressLines: [], siret: "", vatNumber: "", vatNote: "TVA non applicable, art. 293 B du CGI" }),
   seo: Seo.default({}),
+  /*
+   * Kit de communication des partenaires : des fichiers déjà déposés dans la
+   * médiathèque, présentés dans leur espace. On ne stocke que le nécessaire pour les
+   * lister — pas de second espace de stockage à tenir.
+   */
+  partnerKit: z
+    .array(z.object({ name: z.string().trim().max(80), meta: z.string().trim().max(120).default(""), url: z.string().trim() }))
+    .max(12)
+    .default([]),
   updatedAt: z.number(),
 });
 export type SiteSettings = z.infer<typeof SiteSettings>;
@@ -844,10 +853,65 @@ export const Influencer = z.object({
   endAt: z.number().optional(),
   active: z.boolean().default(true),
   clicks: z.number().int().min(0).default(0),
+  /*
+   * Commission facultative, et fermée par défaut. Quand elle est absente, l'espace
+   * partenaire n'affiche ni chiffre ni relevé, et ne mentionne nulle part qu'une
+   * commission puisse exister : `rate` n'est lu que si ce drapeau est vrai.
+   */
+  commission: z.boolean().default(false),
+  /** Contact du partenaire, et accès à son espace. */
+  email: z.string().trim().default(""),
+  /** Compte Firebase Auth, créé quand le partenaire choisit son mot de passe. */
+  uid: z.string().default(""),
+  invitedAt: z.number().optional(),
+  activatedAt: z.number().optional(),
+  /*
+   * Invitation à usage unique. Stockée sur la fiche plutôt que signée : elle se révoque
+   * en la réécrivant, et l'admin voit d'un coup d'œil si elle est encore ouverte.
+   */
+  inviteToken: z.string().default(""),
+  inviteExpiresAt: z.number().optional(),
+  /*
+   * Coordonnées bancaires du virement. Firestore chiffre au repos et rien n'est lu
+   * depuis le navigateur (pas de SDK client hors authentification) : la donnée ne
+   * sort que par le serveur, pour le partenaire lui-même ou un administrateur.
+   */
+  iban: z.string().trim().max(34).default(""),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
 export type Influencer = z.infer<typeof Influencer>;
+
+/*
+ * Relevé mensuel de commission : une ligne par partenaire et par mois, figée à la
+ * clôture. Les montants ne sont pas recalculés après coup — un relevé payé doit
+ * rester le reflet de ce qui a été versé.
+ */
+export const InfluencerStatement = z.object({
+  /** `<influencerId>_<AAAA-MM>`. */
+  id: z.string(),
+  influencerId: z.string(),
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  orders: z.number().int().min(0).default(0),
+  /** CA attribué (livres seuls, hors port), en centimes. */
+  revenue: Cents.default(0),
+  /*
+   * Commission due, en centimes. Peut être NÉGATIVE : un mois qui ne fait qu'absorber
+   * la reprise d'une commande remboursée après versement se solde en négatif.
+   */
+  commission: z.number().int().default(0),
+  status: z.enum(["pending", "paid"]).default("pending"),
+  paidAt: z.number().optional(),
+  /** Taux appliqué au moment du versement : il peut changer ensuite. */
+  rate: z.number().int().min(0).max(100).default(0),
+  /*
+   * Commandes remboursées dont la commission a déjà été reprise sur ce relevé. Sans
+   * cette mémoire, une reprise serait redéduite à chaque mois suivant.
+   */
+  clawedBack: z.array(z.string()).default([]),
+  updatedAt: z.number(),
+});
+export type InfluencerStatement = z.infer<typeof InfluencerStatement>;
 
 /** Compteur de clics par jour : document `refClicks/<influencerId>_<AAAA-MM-JJ>`. */
 export const RefClicks = z.object({ influencerId: z.string(), day: z.string(), count: z.number().int().min(0) });

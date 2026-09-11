@@ -14,10 +14,15 @@ export async function getSettings(): Promise<SiteSettings> {
   return existing ?? SiteSettings.parse({ updatedAt: 0 });
 }
 
-export type SettingsInput = Omit<SiteSettings, "updatedAt">;
+/*
+ * Le kit partenaire n'a pas sa place dans le grand formulaire des réglages : il se
+ * gère dans l'onglet Influenceurs. Facultatif ici, préservé à l'écriture.
+ */
+export type SettingsInput = Omit<SiteSettings, "updatedAt" | "partnerKit"> & { partnerKit?: SiteSettings["partnerKit"] };
 
 export async function saveSettings(input: SettingsInput): Promise<SiteSettings> {
-  const doc = SiteSettings.parse({ ...input, updatedAt: now() });
+  const existing = await getSettings().catch(() => null);
+  const doc = SiteSettings.parse({ ...input, partnerKit: input.partnerKit ?? existing?.partnerKit ?? [], updatedAt: now() });
   await ref().set(doc);
   return doc;
 }

@@ -21,7 +21,7 @@ import { savePageBlocks, setHomePage, upsertPage } from "@/lib/db/pages";
 import { upsertProduct } from "@/lib/db/products";
 import { saveSettings } from "@/lib/db/settings";
 import { legalToDocument } from "@/lib/blocks/from-html";
-import { catalogueToBlocks, contactToBlocks, homeToBlocks } from "@/lib/blocks/from-content";
+import { catalogueToBlocks, contactToBlocks, homeToBlocks, proToBlocks } from "@/lib/blocks/from-content";
 import { conceptBlocks, storyBlocks } from "@/lib/blocks/editorial-pages";
 import { extractItems, slugify, splitLegacyTitle } from "@/lib/domain/slug";
 import type { Badge, ImageRef, MenuItem, Tint } from "@/lib/domain/types";
@@ -224,6 +224,7 @@ async function main() {
     item("histoire", "Notre histoire", { kind: "page", slug: "notre-histoire" }),
     item("concept", "Le concept", { kind: "page", slug: "le-concept" }),
     item("contact", "Contact", { kind: "page", slug: "contact" }),
+    item("pro", "Vous êtes pro ?", { kind: "page", slug: "pro" }),
   ]);
   await saveFooterMenu([
     {
@@ -233,6 +234,7 @@ async function main() {
         item("f-accueil", "Accueil", { kind: "system", key: "home" }),
         item("f-catalogue", "Catalogue", { kind: "page", slug: "catalogue" }),
         item("f-contact", "Contact", { kind: "page", slug: "contact" }),
+        item("f-pro", "Vous êtes pro ?", { kind: "page", slug: "pro" }),
       ],
     },
     {
@@ -406,7 +408,9 @@ async function main() {
     await upsertPage({ category: "Vitrine", slug: "contact", title: "Contact", status: "published", body: { json: null, html: "" } });
     await savePageBlocks("contact", contactToBlocks(contact, home?.newsletter));
   }
-  log("pages composées : accueil, notre histoire, le concept, catalogue, contact");
+  await upsertPage({ category: "Vitrine", slug: "pro", title: "Espace professionnels", status: "published", body: { json: null, html: "" } });
+  await savePageBlocks("pro", proToBlocks());
+  log("pages composées : accueil, notre histoire, le concept, catalogue, contact, pro");
 
   /* ---------- Compte administrateur (émulateur uniquement) ---------- */
   const email = process.env.ADMIN_SEED_EMAIL;

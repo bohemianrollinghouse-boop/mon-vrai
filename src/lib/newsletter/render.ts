@@ -182,6 +182,15 @@ const btn = (c: RenderCtx, key: string, def: string, href: string, dark = true) 
 const eyebrow = (c: RenderCtx, key: string, def: string, color: string) =>
   T(c, key, def, `font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${color}`, "div");
 
+/*
+ * Pied de page transactionnel : même habillage, sans lien de désinscription. Une
+ * invitation n'est pas un envoi marketing — il n'y a rien à quitter.
+ */
+function footerPlain(c: RenderCtx): string {
+  const line = [esc(c.brand.shopName), c.brand.address ? esc(c.brand.address) : ""].filter(Boolean).join(" · ");
+  return `<div style="padding:40px 40px 32px;text-align:center;font-size:11px;color:${SUBTLE};line-height:1.6"><span>${line}</span></div>`;
+}
+
 /* ---------- Modèles ---------- */
 
 function tplLancement(c: RenderCtx): string {
@@ -270,7 +279,36 @@ function tplCoulisses(c: RenderCtx): string {
 ${footer(c)}`);
 }
 
+/** Identifiant du gabarit d'invitation. Absent de NEWSLETTER_TEMPLATES : il ne se
+ *  compose pas dans l'onglet Newsletter mais dans l'onglet Influenceurs. */
+export const PARTNER_WELCOME_ID = "partenaire-bienvenue";
+
+/*
+ * Invitation d'un partenaire à ouvrir son espace.
+ *
+ * Deux règles tiennent ce gabarit : pas un mot sur une commission — elle est
+ * facultative, et un partenaire qui n'en a pas ne doit apprendre nulle part qu'elle
+ * existe —, et pas de lien de désinscription, puisque l'envoi est transactionnel.
+ *
+ * Le bouton mène à un lien personnel, différent à chaque envoi : sa cible est injectée
+ * au rendu et n'est donc pas modifiable ici, contrairement aux textes.
+ */
+function tplPartenaireBienvenue(c: RenderCtx): string {
+  const href = c.values.__activation || "#";
+  return card(`${topbar(c, "topnote", "Espace partenaire")}${logo(c)}
+<div style="padding:32px 40px 0;text-align:center">${eyebrow(c, "eyebrow", "Bienvenue", PINK_INK)}${T(c, "title", "Votre espace partenaire est prêt", "margin:12px 0;font-size:34px;line-height:1.06;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Vous y retrouverez votre code, votre lien de suivi et les commandes qui vous sont attribuées, mises à jour chaque heure.", "margin:0 auto;font-size:15px;line-height:1.6;color:#555;max-width:440px;display:block", "p")}</div>
+<div style="padding:28px 40px 0;text-align:center"><a href="${esc(href)}" style="display:inline-block;background:${INK};color:#fff;padding:16px 28px;border-radius:999px;font-size:14px;font-weight:700;text-decoration:none">${T(c, "cta", "Accéder à mon compte", "")}</a></div>
+<div style="padding:20px 40px 0;text-align:center">${T(c, "note", "Au premier accès, vous choisirez votre mot de passe. Ce lien est personnel et valable deux semaines.", `margin:0;font-size:13px;line-height:1.6;color:${SUBTLE};display:block`, "p")}</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:28px 24px 0">
+<div style="background:${GREEN};border-radius:20px;padding:22px">${T(c, "s1t", "Votre code", "font-size:18px;font-weight:800;display:block;margin-bottom:6px")}${T(c, "s1d", "Une remise pour votre communauté, appliquée automatiquement.", `font-size:12px;font-weight:600;line-height:1.45;color:${GREEN_INK}`)}</div>
+<div style="background:${BLUE};border-radius:20px;padding:22px">${T(c, "s2t", "Votre lien", "font-size:18px;font-weight:800;display:block;margin-bottom:6px")}${T(c, "s2d", "À coller en bio ou en story : les commandes vous sont attribuées 30 jours.", `font-size:12px;font-weight:600;line-height:1.45;color:${BLUE_INK}`)}</div>
+</div>
+<div style="padding:28px 40px 0;text-align:center">${T(c, "outro", "Une question ? Répondez simplement à cet e-mail, une vraie personne vous lira.", "margin:0;font-size:14px;line-height:1.6;color:#555;display:block", "p")}</div>
+${footerPlain(c)}`);
+}
+
 const BUILDERS: Record<string, (c: RenderCtx) => string> = {
+  [PARTNER_WELCOME_ID]: tplPartenaireBienvenue,
   lancement: tplLancement,
   "nouveau-livre": tplNouveauLivre,
   "nouveau-produit": tplNouveauProduit,

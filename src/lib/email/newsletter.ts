@@ -1,7 +1,7 @@
 import "server-only";
 import type { SiteSettings } from "@/lib/domain/types";
 import type { BuiltEmail } from "./templates";
-import { type Brand, type RenderCtx, templateById, toPlainText, wrapEmail } from "@/lib/newsletter/render";
+import { PARTNER_WELCOME_ID, type Brand, type RenderCtx, templateById, toPlainText, wrapEmail } from "@/lib/newsletter/render";
 
 /*
  * Rendu d'une newsletter « Mon Vrai » à partir d'un des huit modèles riches (voir
@@ -32,4 +32,23 @@ export function renderNewsletter(id: string, values: Record<string, string>, set
   const html = wrapEmail(id, ctx, subject);
   const text = toPlainText(html, unsubscribeUrl);
   return { subject, html, text };
+}
+
+/*
+ * Invitation d'un partenaire. Mêmes textes pour tous (édités dans l'onglet
+ * Influenceurs), mais un lien personnel par destinataire : il est injecté ici plutôt
+ * que stocké, pour qu'aucun enregistrement du gabarit ne puisse le figer.
+ */
+export function renderPartnerWelcome(values: Record<string, string>, settings: SiteSettings, activationUrl: string): BuiltEmail {
+  const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
+  const ctx: RenderCtx = {
+    mode: "email",
+    base,
+    unsub: "",
+    brand: brandFromSettings(settings, base),
+    values: { ...values, __activation: activationUrl },
+  };
+  const subject = values.subject?.trim() || `Votre espace partenaire ${settings.shopName}`;
+  const html = wrapEmail(PARTNER_WELCOME_ID, ctx, values.intro?.slice(0, 120) || "Votre espace partenaire est prêt.");
+  return { subject, html, text: toPlainText(html, "") };
 }

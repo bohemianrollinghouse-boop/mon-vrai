@@ -120,3 +120,48 @@ export function contactToBlocks(c: ContactContent, newsletter?: HomeContent["new
   }
   return { root: { props: {} }, content };
 }
+
+/*
+ * Espace professionnels (maquette 11a). Contrairement aux autres pages composées, elle
+ * ne dérive d'aucun contenu existant : ses textes viennent de la maquette et se
+ * modifient ensuite dans l'éditeur, comme n'importe quelle page.
+ */
+export function proToBlocks(): BlockDocument {
+  seq = 0;
+  return {
+    root: { props: {} },
+    content: [
+      block("HerosPro", {
+        surtitre: "Espace professionnels",
+        titre: "Du vrai, dans vos mains expertes.",
+        texte:
+          "Crèches, assistantes maternelles, PMI, librairies, orthophonistes : vous accompagnez les tout-petits chaque jour. Travaillons ensemble pour mettre nos imagiers entre leurs mains.",
+        teinte: "blue",
+        ctaLabel: "Nous écrire",
+        ctaHref: "#demande",
+        cta2Label: "Voir les imagiers",
+        cta2Href: "/catalogue",
+      }),
+      block("FormulairePro", {
+        titre: "Dites-nous qui vous êtes, on s'occupe du reste.",
+        texte: "Réponse sous 48 h ouvrées avec une proposition adaptée : tarif, quantités, délais. Pas de devis automatique, une vraie personne.",
+        emailLabel: "E-mail direct",
+        email: "pro@monvrai.fr",
+        docsLabel: "Documents",
+        docs: [],
+        mentionLegale: "En envoyant ce formulaire, vous acceptez notre politique de confidentialité. Aucune newsletter sans votre accord.",
+      }),
+      block("Temoignage", {
+        titre: "Ils travaillent déjà avec nous",
+        citation:
+          "Les photos changent tout : les enfants reconnaissent la cuillère de la cantine, le chat de la voisine. On les sort à chaque temps calme.",
+        auteur: "Directrice de micro-crèche, Lyon 3ᵉ",
+      }),
+      block("Encadre", {
+        teinte: "sand",
+        contenu:
+          "<h2>Bon à savoir</h2><ul><li>Facturation avec SIRET et mandat administratif possible</li><li>Livraison groupée en un seul colis, France, Belgique, Luxembourg</li><li>Livres imprimés en France, encres végétales, coins arrondis</li></ul>",
+      }),
+    ],
+  };
+}

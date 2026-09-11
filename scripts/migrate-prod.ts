@@ -27,7 +27,7 @@
  * les blocs du récit (Chapitre, Frise, Panneau…) pour savoir les rendre.
  */
 import { legalToDocument } from "@/lib/blocks/from-html";
-import { catalogueToBlocks, contactToBlocks, homeToBlocks, storyToBlocks } from "@/lib/blocks/from-content";
+import { catalogueToBlocks, contactToBlocks, homeToBlocks, proToBlocks, storyToBlocks } from "@/lib/blocks/from-content";
 import { conceptBlocks, storyBlocks } from "@/lib/blocks/editorial-pages";
 import { getCatalogueContent, getContactContent, getHomeContent, getStoryContent } from "@/lib/db/content";
 import { listMedia } from "@/lib/db/media";
@@ -121,6 +121,8 @@ async function main() {
      donc ensurePage la laisse tranquille — --editorial passe outre, délibérément. */
   const photo = await editorialPhoto();
   await ensurePage("le-concept", "Le concept", conceptBlocks(photo));
+  // L'espace professionnels : nouvelle aussi, donc simplement créée.
+  await ensurePage("pro", "Espace professionnels", proToBlocks());
   if (EDITORIAL) {
     const blocks = storyBlocks(photo, home?.newsletter);
     note(`~ ${"notre-histoire".padEnd(22)} récit rédigé · ${blocks.content.length} blocs (--editorial)`);

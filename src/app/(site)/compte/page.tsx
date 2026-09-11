@@ -52,6 +52,12 @@ export default async function AccountPage({ searchParams }: PageProps<"/compte">
       <div className="flex flex-wrap items-baseline justify-between gap-4">
         <h1 className="text-[clamp(2rem,3.5vw,2.75rem)] font-extrabold leading-[1.04] tracking-[-0.02em]">Bonjour {firstName || "vous"}</h1>
         <div className="flex items-center gap-4">
+          {/* Un partenaire retrouve son espace depuis son compte, comme un admin son administration. */}
+          {user.influencerId && (
+            <PillLink href="/partenaire" variant="dark" size="sm">
+              Espace partenaire
+            </PillLink>
+          )}
           {user.isAdmin && (
             <Link href="/admin" className="text-[0.8125rem] font-semibold text-subtle underline">
               Administration

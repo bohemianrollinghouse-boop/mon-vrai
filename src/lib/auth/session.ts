@@ -26,6 +26,8 @@ export type SessionUser = {
    */
   emailVerified: boolean;
   isAdmin: boolean;
+  /** Identifiant du partenaire, s'il en est un. Ouvre /partenaire. */
+  influencerId: string;
 };
 
 export async function createSession(idToken: string): Promise<void> {
@@ -56,6 +58,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       name: (decoded.name as string | undefined) ?? "",
       emailVerified: decoded.email_verified === true,
       isAdmin: decoded.admin === true,
+      influencerId: typeof decoded.influencer === "string" ? decoded.influencer : "",
     };
   } catch {
     return null;
@@ -82,6 +85,29 @@ export async function assertAdmin(): Promise<SessionUser> {
   return user;
 }
 
+/*
+ * Les rôles vivent dans les mêmes custom claims : les écrire sans fusionner effacerait
+ * l'autre. Un administrateur peut être partenaire, et inversement.
+ */
+async function mergeClaims(uid: string, patch: Record<string, unknown>): Promise<void> {
+  const auth = adminAuth();
+  const current = (await auth.getUser(uid)).customClaims ?? {};
+  await auth.setCustomUserClaims(uid, { ...current, ...patch });
+}
+
 export async function setAdminClaim(uid: string, isAdmin: boolean): Promise<void> {
-  await adminAuth().setCustomUserClaims(uid, { admin: isAdmin });
+  await mergeClaims(uid, { admin: isAdmin });
+}
+
+/** Marque (ou démarque) le compte comme partenaire, en conservant les autres rôles. */
+export async function setInfluencerClaim(uid: string, influencerId: string): Promise<void> {
+  await mergeClaims(uid, { influencer: influencerId || null });
+}
+
+/** Réservé à l'espace partenaire : redirige si le compte n'en est pas un. */
+export async function requireInfluencer(): Promise<SessionUser & { influencerId: string }> {
+  const user = await getSessionUser();
+  if (!user) redirect("/compte/connexion?retour=/partenaire");
+  if (!user.influencerId) redirect("/compte");
+  return user as SessionUser & { influencerId: string };
 }

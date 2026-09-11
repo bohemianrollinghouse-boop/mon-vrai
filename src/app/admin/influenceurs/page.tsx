@@ -2,8 +2,17 @@ import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { AutoSubmitSwitch } from "@/components/admin/AutoSubmitSwitch";
 import { CodeInput, CopyButton } from "@/components/admin/CodeInput";
+import { CommissionField } from "@/components/admin/CommissionField";
 import { ButtonLink, Card, Field, GridTable, Input, PageHeader, Pill, Select, Tile } from "@/components/admin/ui";
-import { deleteInfluencerAction, saveInfluencerAction, toggleInfluencerAction } from "@/lib/admin/actions/influencers";
+import { deleteInfluencerAction, markStatementPaidAction, savePartnerKitAction, savePartnerWelcomeAction, saveInfluencerAction, sendInfluencerWelcomeAction, toggleInfluencerAction } from "@/lib/admin/actions/influencers";
+import { PartnerKitEditor } from "@/components/admin/PartnerKitEditor";
+import { listStatements } from "@/lib/db/statements";
+import { statementRows, monthLabel } from "@/lib/promos/statements";
+import { PartnerWelcomeEditor } from "@/components/admin/PartnerWelcomeEditor";
+import { getAllTemplateValues } from "@/lib/db/newsletter";
+import { getSettings } from "@/lib/db/settings";
+import { brandFromSettings } from "@/lib/email/newsletter";
+import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { listInfluencers, listRefClicksSince } from "@/lib/db/promos";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
@@ -29,7 +38,7 @@ const PLATFORM_TONE: Record<string, { bg: string; fg: string }> = {
 export default async function InfluencersPage({ searchParams }: PageProps<"/admin/influenceurs">) {
   const sp = await searchParams;
   const selectedId = typeof sp.id === "string" ? sp.id : "";
-  const [influencers, snap] = await Promise.all([listInfluencers(), adminSnapshot()]);
+  const [influencers, snap, templateValues, settings] = await Promise.all([listInfluencers(), adminSnapshot(), getAllTemplateValues(), getSettings()]);
   const now = snap.now;
   const since = new Date(now - 30 * 86_400_000).toISOString().slice(0, 10);
   const clicks = await listRefClicksSince(since).catch(() => []);
@@ -37,7 +46,10 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
   const isNew = selectedId === "nouveau";
   const current = !isNew ? rows.find((r) => r.influencer.id === selectedId) ?? (selectedId ? undefined : rows[0]) : undefined;
   const inf = current?.influencer;
+  const stored = inf?.commission ? await listStatements(inf.id) : [];
+  const rows_ = inf?.commission ? statementRows(inf, snap.orders, stored, snap.now) : [];
   const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/^https?:\/\//, "");
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
   const pct = (x: number) => `${(x * 100).toFixed(1).replace(".", ",")} %`;
   const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join("");
   const maxSpark = Math.max(1, ...(current?.spark.map((d) => d.code + d.link) ?? [1]));
@@ -127,6 +139,9 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
                   <Input name="handle" defaultValue={inf && !isNew ? inf.handle : ""} placeholder="@mariepetitpas" className="!rounded-xl !py-3 !text-[0.8125rem]" />
                 </Field>
               </div>
+              <Field label="E-mail" hint="Sert au mot de passe de l'espace partenaire." name="email">
+                <Input name="email" type="email" defaultValue={inf && !isNew ? inf.email : ""} placeholder="marie@exemple.fr" className="!rounded-xl !py-3 !text-[0.8125rem]" />
+              </Field>
               <Field label="Plateforme" name="platform">
                 <Select name="platform" defaultValue={inf && !isNew ? inf.platform : "Instagram"} className="!rounded-xl !py-3 !text-[0.8125rem]">
                   {Platform.options.map((p) => (
@@ -159,18 +174,71 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
                 <span className="text-[0.6875rem] text-subtle">Cookie d'attribution 30 jours. La remise du code s'applique automatiquement au panier via le lien.</span>
               </div>
               <div className="grid grid-cols-2 gap-2.5">
-                <label className="flex flex-col gap-1.5 text-xs font-semibold text-subtle">
-                  <span>Commission</span>
-                  <span className="flex items-center rounded-xl bg-paper px-3">
-                    <input name="rate" type="number" min={0} max={100} defaultValue={inf && !isNew ? inf.rate : 10} className="min-w-0 flex-1 bg-transparent py-3 text-[0.8125rem] font-bold text-ink outline-none" />
-                    <span className="whitespace-nowrap text-xs font-bold text-ink">% du CA HT</span>
-                  </span>
-                </label>
+                {/*
+                  Commission facultative : sans elle, l'espace partenaire n'en montre
+                  rien et n'y fait aucune allusion. Le taux reste saisissable pour
+                  qu'on puisse le préparer, mais il n'est lu que si la case est cochée.
+                */}
+                <CommissionField enabled={inf && !isNew ? inf.commission : false} rate={inf && !isNew ? inf.rate : 10} />
                 <Field label="Fin de campagne" hint="Vide : sans fin." name="endAt">
                   <Input name="endAt" type="date" defaultValue={inf?.endAt && !isNew ? new Date(inf.endAt).toISOString().slice(0, 10) : ""} className="!rounded-xl !py-3 !text-[0.8125rem]" />
                 </Field>
               </div>
             </ActionForm>
+            {inf && !isNew && (
+              <ActionForm
+                action={sendInfluencerWelcomeAction}
+                submitLabel={inf.activatedAt ? "Renvoyer l'invitation" : "Envoyer l'e-mail de bienvenue"}
+                submitTone="outline"
+                className="border-t border-line-soft pt-3"
+                confirm={inf.activatedAt ? "Renvoyer une invitation ? Le partenaire devra choisir un nouveau mot de passe, et l'ancien lien cessera de fonctionner." : undefined}
+              >
+                <input type="hidden" name="id" value={inf.id} />
+                <p className="text-[0.6875rem] leading-relaxed text-subtle">
+                  {inf.activatedAt
+                    ? `Espace actif depuis le ${new Date(inf.activatedAt).toLocaleDateString("fr-FR")}.`
+                    : inf.invitedAt
+                      ? `Invitation envoyée le ${new Date(inf.invitedAt).toLocaleDateString("fr-FR")}, en attente de son mot de passe.`
+                      : "Lui envoie un lien personnel pour choisir son mot de passe et ouvrir son espace."}
+                </p>
+              </ActionForm>
+            )}
+            {inf && !isNew && inf.commission && rows_.length > 0 && (
+              <div className="flex flex-col gap-2 border-t border-line-soft pt-3">
+                <span className="text-xs font-semibold text-subtle">Relevés de commission</span>
+                {rows_.slice(0, 6).map((st) => (
+                  <div key={st.month} className="flex items-center justify-between gap-2 text-[0.8125rem]">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="truncate font-semibold capitalize">{monthLabel(st.month)}</span>
+                      <span className="text-[0.6875rem] text-subtle">
+                        {st.orders} vente{st.orders > 1 ? "s" : ""} · {formatEuro(st.revenue)}
+                        {st.clawbacks.length > 0 && ` · reprise ${formatEuro(st.clawbacks.reduce((a, c) => a + c.amount, 0))}`}
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-2">
+                      <span className="whitespace-nowrap font-extrabold">{formatEuro(st.commission)}</span>
+                      {st.status === "current" ? (
+                        <Pill tone="warn">En cours</Pill>
+                      ) : (
+                        <ActionForm
+                          action={markStatementPaidAction}
+                          submitLabel={st.status === "paid" ? "Annuler" : "Marquer versée"}
+                          submitTone={st.status === "paid" ? "ghost" : "secondary"}
+                          className="!gap-0 [&>div:last-child]:justify-end [&_button]:!px-2 [&_button]:!py-1 [&_button]:!text-[0.6875rem]"
+                        >
+                          <input type="hidden" name="id" value={inf.id} />
+                          <input type="hidden" name="month" value={st.month} />
+                          <input type="hidden" name="undo" value={st.status === "paid" ? "true" : "false"} />
+                        </ActionForm>
+                      )}
+                    </span>
+                  </div>
+                ))}
+                <span className="text-[0.6875rem] leading-relaxed text-subtle">
+                  Les montants sont figés au moment du marquage : un remboursement ultérieur ne réécrit pas un relevé versé.
+                </span>
+              </div>
+            )}
             {inf && !isNew && (
               <ActionForm action={deleteInfluencerAction} submitLabel="Supprimer" submitTone="ghost" confirm={`Supprimer ${inf.name} ? Son code et son lien cesseront de fonctionner ; les ventes passées restent attribuées.`} className="!gap-0 border-t border-line-soft pt-3 [&>div:last-child]:justify-start [&_button]:!px-0 [&_button]:text-xs [&_button]:text-accent">
                 <input type="hidden" name="id" value={inf.id} />
@@ -211,6 +279,22 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
           )}
         </div>
       </div>
+      <Card title="Kit de communication" className="mt-4">
+        <PartnerKitEditor initial={settings.partnerKit} action={savePartnerKitAction} />
+      </Card>
+
+      <Card title="E-mail d'invitation" className="mt-4">
+        <p className="-mt-1 text-[0.8125rem] leading-relaxed text-subtle">
+          Envoyé depuis la fiche d'un partenaire, avec son lien personnel. Les mêmes textes servent à tous.
+        </p>
+        <PartnerWelcomeEditor
+          saved={templateValues[PARTNER_WELCOME_ID] ?? {}}
+          brand={brandFromSettings(settings, siteUrl)}
+          base={siteUrl}
+          action={savePartnerWelcomeAction}
+        />
+      </Card>
+
     </>
   );
 }

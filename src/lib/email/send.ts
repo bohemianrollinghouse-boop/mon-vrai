@@ -3,6 +3,9 @@ import { getSettings } from "@/lib/db/settings";
 import type { Order } from "@/lib/domain/types";
 import { storage } from "@/lib/firebase/admin";
 import { contactForwardEmail, orderConfirmationEmail, shippingNoticeEmail, type BuiltEmail } from "./templates";
+import { renderPartnerWelcome } from "./newsletter";
+import { getAllTemplateValues } from "@/lib/db/newsletter";
+import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
 
 /*
  * Envoi des e-mails transactionnels, habillés (voir templates.ts). Sans clé Resend, on
@@ -101,4 +104,13 @@ export async function sendContactForward(message: { name: string; email: string;
   if (!to) return;
   const settings = await getSettings();
   await deliver({ to, replyTo: message.email, ...contactForwardEmail(message, settings) });
+}
+
+/*
+ * Invitation d'un partenaire. Les textes viennent de l'admin (onglet Influenceurs) ;
+ * seul le lien d'activation change d'un destinataire à l'autre.
+ */
+export async function sendInfluencerWelcome(to: string, activationUrl: string): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
+  const [settings, all] = await Promise.all([getSettings(), getAllTemplateValues()]);
+  return deliver({ to, ...renderPartnerWelcome(all[PARTNER_WELCOME_ID] ?? {}, settings, activationUrl) });
 }

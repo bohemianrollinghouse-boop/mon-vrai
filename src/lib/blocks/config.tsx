@@ -5,6 +5,7 @@ import { MediaPickerField } from "@/components/admin/MediaPickerField";
 import { CollectionOfferButton } from "@/components/site/CollectionOfferButton";
 import { ContactForm } from "@/components/site/ContactForm";
 import { CenteredProse, Chapter, Contents, DarkPanel, EditorialPanel, Figures, Timeline, TintBanner } from "@/components/site/editorial";
+import { ProRequestForm } from "@/components/site/ProRequestForm";
 import { CtaBand, HomeHero, Split, Tiles } from "@/components/site/home-sections";
 import { SortSelect } from "@/components/site/SortSelect";
 import Link from "next/link";
@@ -143,6 +144,9 @@ export type Props = {
   PanneauSombre: { disposition: "cards" | "columns"; surtitre: string; titre: string; texte: string; paragraphes: { texte: string }[]; cartes: { titre: string; texte: string }[] };
   ProseCentree: { surtitre: string; titre: string; paragraphes: { texte: string }[]; pastilles: { texte: string }[]; teintePastilles: Tint; texteFin: string; image: ImageRef | undefined };
   BandeauTeinte: { surtitre: string; titre: string; texte: string; ctaLabel: string; ctaHref: string; cta2Label: string; cta2Href: string; teinte: Tint };
+  HerosPro: { surtitre: string; titre: string; texte: string; teinte: Tint; ctaLabel: string; ctaHref: string; cta2Label: string; cta2Href: string };
+  FormulairePro: { titre: string; texte: string; emailLabel: string; email: string; docsLabel: string; docs: { nom: string; url: string }[]; mentionLegale: string };
+  Temoignage: { citation: string; auteur: string; titre: string };
   Titre: { texte: string; niveau: "2" | "3"; surtitre: string; alignement: "left" | "center" };
   Texte: { contenu: RichText };
   Prose: { titre: string; paragraphes: { texte: string }[] };
@@ -173,8 +177,8 @@ export const blockConfig: Config<Props> = {
     entete: { title: "En-tête", components: ["HerosAccueil", "Heros", "Titre"] },
     texte: { title: "Texte", components: ["Texte", "Prose", "ProseCentree", "Chapitre", "Sommaire", "Encadre", "Bouton"] },
     media: { title: "Médias", components: ["Illustration", "Galerie", "ImageTexte", "Panneau"] },
-    mise_en_page: { title: "Mise en page", components: ["Colonnes", "Principes", "Tuiles", "Chiffres", "Frise", "PanneauSombre", "Bandeau", "BandeauTeinte", "Infolettre", "Espace"] },
-    donnees: { title: "Données du site", components: ["Catalogue", "HerosCatalogue", "GrilleCatalogue", "Specs", "HerosContact", "FormulaireContact", "FAQ", "GabaritLegal"] },
+    mise_en_page: { title: "Mise en page", components: ["Colonnes", "Principes", "Tuiles", "Chiffres", "Frise", "PanneauSombre", "Bandeau", "BandeauTeinte", "Infolettre", "Espace", "Temoignage"] },
+    donnees: { title: "Données du site", components: ["Catalogue", "HerosCatalogue", "GrilleCatalogue", "Specs", "HerosContact", "FormulaireContact", "FAQ", "GabaritLegal", "HerosPro", "FormulairePro"] },
   },
   components: {
     /** Héro pleine largeur de l'accueil : vidéo ou affiche, texte calé en bas. */
@@ -582,6 +586,144 @@ export const blockConfig: Config<Props> = {
      * l'image en bandeau sous un panneau pleine largeur (« Le concept »), quand le
      * titre est long et mérite toute la largeur.
      */
+    /** Héro de l'espace professionnels : panneau teinté pleine largeur, deux boutons. */
+    HerosPro: {
+      label: "Héro pro",
+      fields: {
+        surtitre: { type: "text", label: "Surtitre" },
+        titre: { type: "text", label: "Titre" },
+        texte: { type: "textarea", label: "Texte" },
+        teinte: { type: "select", label: "Teinte", options: TINT_OPTIONS },
+        ctaLabel: { type: "text", label: "Bouton — libellé" },
+        ctaHref: { type: "text", label: "Bouton — lien" },
+        cta2Label: { type: "text", label: "Bouton secondaire — libellé" },
+        cta2Href: { type: "text", label: "Bouton secondaire — lien" },
+      },
+      defaultProps: {
+        surtitre: "Espace professionnels",
+        titre: "Du vrai, dans vos mains expertes.",
+        texte: "",
+        teinte: "blue",
+        ctaLabel: "Nous écrire",
+        ctaHref: "#demande",
+        cta2Label: "Voir les imagiers",
+        cta2Href: "/catalogue",
+      },
+      render: ({ surtitre, titre, texte, teinte, ctaLabel, ctaHref, cta2Label, cta2Href }) => (
+        <section className="site-wrap pt-2">
+          <div className={`flex flex-col gap-5 rounded-panel p-16 max-[899px]:p-9 ${TINT_BG[teinte]}`}>
+            {surtitre && <Eyebrow className={TINT_INK[teinte]}>{surtitre}</Eyebrow>}
+            <h1 className="display-1 text-[clamp(2rem,4.4vw,3.25rem)]">{titre}</h1>
+            {texte && <p className={`max-w-[44rem] text-[1.0625rem] leading-relaxed ${TINT_INK[teinte]}`}>{texte}</p>}
+            <div className="flex flex-wrap gap-3">
+              {ctaLabel && (
+                <PillLink href={ctaHref || "#demande"} variant="dark">
+                  {ctaLabel}
+                </PillLink>
+              )}
+              {cta2Label && (
+                <PillLink href={cta2Href || "/catalogue"} variant="light">
+                  {cta2Label}
+                </PillLink>
+              )}
+            </div>
+          </div>
+        </section>
+      ),
+    },
+
+    /*
+     * Demande professionnelle : coordonnées et documents à gauche, formulaire à droite.
+     * Les demandes arrivent dans la même boîte de réception que les messages de contact
+     * (voir lib/contact/pro.ts) — un second endroit à surveiller serait oublié.
+     */
+    FormulairePro: {
+      label: "Demande pro",
+      fields: {
+        titre: { type: "text", label: "Titre" },
+        texte: { type: "textarea", label: "Texte" },
+        emailLabel: { type: "text", label: "Intitulé de l'e-mail" },
+        email: { type: "text", label: "Adresse e-mail" },
+        docsLabel: { type: "text", label: "Intitulé des documents" },
+        docs: {
+          type: "array",
+          label: "Documents",
+          arrayFields: { nom: { type: "text", label: "Nom" }, url: { type: "text", label: "Adresse" } },
+          getItemSummary: (item) => item.nom || "Document",
+        },
+        mentionLegale: { type: "textarea", label: "Mention sous le bouton" },
+      },
+      defaultProps: {
+        titre: "Dites-nous qui vous êtes, on s'occupe du reste.",
+        texte: "Réponse sous 48 h ouvrées avec une proposition adaptée : tarif, quantités, délais. Pas de devis automatique, une vraie personne.",
+        emailLabel: "E-mail direct",
+        email: "pro@monvrai.fr",
+        docsLabel: "Documents",
+        docs: [],
+        mentionLegale: "En envoyant ce formulaire, vous acceptez notre politique de confidentialité. Aucune newsletter sans votre accord.",
+      },
+      render: ({ titre, texte, emailLabel, email, docsLabel, docs, mentionLegale }) => (
+        <section id="demande" className="site-wrap grid grid-cols-[1fr_1.3fr] items-start gap-4 pt-10 max-[899px]:grid-cols-1">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
+              <Eyebrow className="text-muted">Parlons-en</Eyebrow>
+              <h2 className="display-2">{titre}</h2>
+              {texte && <p className="text-[0.9375rem] leading-relaxed text-muted">{texte}</p>}
+            </div>
+            <div className="flex flex-col gap-5 rounded-card bg-white p-8">
+              {email && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-faint">{emailLabel}</span>
+                  <a href={`mailto:${email}`} className="w-fit font-bold">
+                    {email}
+                  </a>
+                </div>
+              )}
+              {docs.filter((d) => d.nom && d.url).length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-faint">{docsLabel}</span>
+                  <div className="flex flex-wrap gap-2">
+                    {docs
+                      .filter((d) => d.nom && d.url)
+                      .map((d) => (
+                        <a key={d.url} href={d.url} target="_blank" rel="noopener" className="rounded-pill bg-paper px-3.5 py-2 text-[0.8125rem] font-semibold hover:opacity-70">
+                          {d.nom} ↓
+                        </a>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+          <ProRequestForm legal={mentionLegale} />
+        </section>
+      ),
+    },
+
+    /** Témoignage d'un professionnel ou d'un lecteur. */
+    Temoignage: {
+      label: "Témoignage",
+      fields: {
+        titre: { type: "text", label: "Surtitre" },
+        citation: { type: "textarea", label: "Citation" },
+        auteur: { type: "text", label: "Signature" },
+      },
+      defaultProps: { titre: "Ils travaillent déjà avec nous", citation: "", auteur: "" },
+      render: ({ titre, citation, auteur }) =>
+        citation ? (
+          <section className="site-wrap pt-10">
+            <div className="flex flex-col gap-4 rounded-panel bg-white p-12 max-[749px]:p-8">
+              {titre && <Eyebrow className="text-muted">{titre}</Eyebrow>}
+              <blockquote className="max-w-[48rem] text-[1.25rem] font-semibold leading-relaxed">« {citation} »</blockquote>
+              {auteur && <span className="text-[0.8125rem] font-semibold text-subtle">{auteur}</span>}
+            </div>
+          </section>
+        ) : (
+          <></>
+        ),
+    },
+
+    /** Héro bicolore de « Notre histoire » : panneau teinté à gauche, image à droite. */
     Heros: {
       label: "Héro bicolore",
       fields: {

@@ -84,14 +84,41 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
   return map;
 }
 
-export type InfluencerInput = Omit<Influencer, "id" | "createdAt" | "updatedAt" | "clicks"> & { id?: string };
+/*
+ * Ce que le formulaire de l'admin porte. Le compte du partenaire (uid, dates
+ * d'invitation et d'activation) et ses coordonnées bancaires vivent leur propre vie :
+ * ils sont facultatifs ici et préservés à l'enregistrement, pour qu'un passage dans
+ * la fiche ne déconnecte pas un partenaire déjà installé.
+ */
+export type InfluencerInput = Omit<
+  Influencer,
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt"
+> & {
+  id?: string;
+  uid?: string;
+  invitedAt?: number;
+  activatedAt?: number;
+  iban?: string;
+};
 
 /** Crée ou met à jour l'influenceur et son code promo (remise en pourcentage, cumulable avec rien par défaut). */
 export async function upsertInfluencer(input: InfluencerInput): Promise<Influencer> {
   const id = input.id ?? newId("inf");
   const ref = influencers().doc(id);
   const existing = parseDoc(Influencer, await ref.get());
-  const doc = Influencer.parse({ ...input, id, clicks: existing?.clicks ?? 0, createdAt: existing?.createdAt ?? now(), updatedAt: now() });
+  const doc = Influencer.parse({
+    ...input,
+    id,
+    clicks: existing?.clicks ?? 0,
+    uid: input.uid ?? existing?.uid ?? "",
+    invitedAt: input.invitedAt ?? existing?.invitedAt,
+    activatedAt: input.activatedAt ?? existing?.activatedAt,
+    iban: input.iban ?? existing?.iban ?? "",
+    inviteToken: existing?.inviteToken ?? "",
+    inviteExpiresAt: existing?.inviteExpiresAt,
+    createdAt: existing?.createdAt ?? now(),
+    updatedAt: now(),
+  });
   await ref.set(doc);
 
   // Le code de l'influenceur est un code promo comme un autre, marqué de son id.
@@ -137,4 +164,49 @@ export async function recordRefClick(influencerId: string, at = now()): Promise<
 
 export async function listRefClicksSince(sinceDay: string): Promise<RefClicks[]> {
   return parseQuery(RefClicks, clicks().where("day", ">=", sinceDay));
+}
+
+/* ---------- Accès à l'espace partenaire ---------- */
+
+const INVITE_DAYS = 14;
+
+/*
+ * Ouvre (ou renouvelle) une invitation. Le jeton est tiré au hasard, à usage unique,
+ * et périme au bout de deux semaines : une adresse qui traîne dans une boîte mail ne
+ * doit pas rester une porte ouverte indéfiniment.
+ */
+export async function issueInfluencerInvite(id: string): Promise<{ influencer: Influencer; token: string } | null> {
+  const ref = influencers().doc(id);
+  const existing = parseDoc(Influencer, await ref.get());
+  if (!existing) return null;
+  const token = `${newId("inv")}${newId("")}`.replace(/-/g, "");
+  const doc = Influencer.parse({ ...existing, inviteToken: token, inviteExpiresAt: now() + INVITE_DAYS * 86_400_000, invitedAt: now(), updatedAt: now() });
+  await ref.set(doc);
+  return { influencer: doc, token };
+}
+
+/** Le partenaire visé par une invitation encore valable, sinon null. */
+export async function getInfluencerByInvite(token: string): Promise<Influencer | null> {
+  if (!token) return null;
+  const snap = await influencers().where("inviteToken", "==", token).limit(1).get();
+  const found = snap.docs[0] ? parseDoc(Influencer, snap.docs[0]) : null;
+  if (!found || !found.inviteExpiresAt || found.inviteExpiresAt < now()) return null;
+  return found;
+}
+
+/** Rattache le compte Firebase au partenaire et ferme l'invitation. */
+export async function activateInfluencer(id: string, uid: string): Promise<Influencer | null> {
+  const ref = influencers().doc(id);
+  const existing = parseDoc(Influencer, await ref.get());
+  if (!existing) return null;
+  const doc = Influencer.parse({ ...existing, uid, activatedAt: now(), inviteToken: "", inviteExpiresAt: undefined, updatedAt: now() });
+  await ref.set(doc);
+  return doc;
+}
+
+/** Le partenaire rattaché à un compte, pour l'espace et la page compte. */
+export async function getInfluencerByUid(uid: string): Promise<Influencer | null> {
+  if (!uid) return null;
+  const snap = await influencers().where("uid", "==", uid).limit(1).get();
+  return snap.docs[0] ? parseDoc(Influencer, snap.docs[0]) : null;
 }
