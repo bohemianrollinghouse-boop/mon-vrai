@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
@@ -181,6 +182,8 @@ export async function regenerateInvoicePdfAction(formData: FormData): Promise<Ad
 export async function deleteOrderAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const id = String(formData.get("id") ?? "");
+  // Identifiant vide : Firestore refuse un chemin de document vide, on s'arrête avant.
+  if (!id) return failed("Commande inconnue");
   const order = await getOrder(id);
   if (!order) return failed("Commande introuvable");
 
@@ -191,5 +194,10 @@ export async function deleteOrderAction(formData: FormData): Promise<AdminResult
   }
   await audit(user.email, "order.delete", `orders/${id}`, `${order.number} · ${order.shippingAddress.name}`);
   revalidatePath("/admin/commandes");
-  return { ok: true, message: `Commande ${order.number} supprimée.`, redirectTo: "/admin/commandes" };
+  /*
+   * Redirection côté serveur, et non `redirectTo` : une action serveur invalide la
+   * route courante, qui est ici la fiche qu'on vient de supprimer — elle se rendait
+   * en 404 avant que la redirection n'aboutisse. `redirect()` coupe court.
+   */
+  redirect("/admin/commandes");
 }

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
@@ -92,7 +93,12 @@ export async function deleteInfluencerAction(formData: FormData): Promise<AdminR
   await deleteInfluencer(id);
   await audit(user.email, "influencer.delete", `influencers/${id}`, inf.name);
   revalidatePath("/admin/influenceurs");
-  return { ok: true, message: `${inf.name} supprimé (les ventes passées restent attribuées).`, redirectTo: "/admin/influenceurs" };
+  /*
+   * Redirection côté serveur, et non `redirectTo` : une action serveur invalide la
+   * route courante, qui est ici la fiche qu'on vient de supprimer — elle se rendait
+   * en 404 avant que la redirection n'aboutisse. `redirect()` coupe court.
+   */
+  redirect("/admin/influenceurs");
 }
 
 /*

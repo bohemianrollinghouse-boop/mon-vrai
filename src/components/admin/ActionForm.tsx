@@ -35,9 +35,16 @@ export function ActionForm({ action, children, submitLabel = "Enregistrer", clas
   const router = useRouter();
   const [state, formAction, pending] = useActionState<AdminResult | null, FormData>(async (_prev, fd) => action(fd), null);
 
+  /*
+   * Redirection OU rafraîchissement, jamais les deux. `router.refresh()` relit la route
+   * COURANTE : après une suppression, c'est la fiche qu'on vient d'effacer, et la page
+   * répondait 404 le temps que la redirection aboutisse. `replace` évite en plus de
+   * laisser la page morte dans l'historique, où le bouton Retour la retrouverait.
+   */
   useEffect(() => {
-    if (state?.ok && state.redirectTo) router.push(state.redirectTo);
-    if (state?.ok) router.refresh();
+    if (!state?.ok) return;
+    if (state.redirectTo) router.replace(state.redirectTo);
+    else router.refresh();
   }, [state, router]);
 
   const issues = state && !state.ok ? state.issues ?? {} : {};
