@@ -11,12 +11,12 @@ const ctx = (mode: RenderCtx["mode"], values: Record<string, string> = {}): Rend
 
 describe("boutons de newsletter", () => {
   it("garde la cible du modèle par défaut, en e-mail comme en édition", () => {
-    expect(renderTemplateBody("lancement", ctx("email"))).toContain('<a href="https://monvrai.fr" style=');
-    expect(renderTemplateBody("lancement", ctx("edit"))).toContain('data-href-k="cta"');
+    expect(renderTemplateBody("on-revient", ctx("email"))).toContain('<a href="https://monvrai.fr/catalogue" style=');
+    expect(renderTemplateBody("on-revient", ctx("edit"))).toContain('data-href-k="cta"');
   });
 
   it("applique le lien édité et résout un chemin du site", () => {
-    const html = renderTemplateBody("lancement", ctx("email", { "href:cta": "/livres/le-visage", cta: "Voir le livre" }));
+    const html = renderTemplateBody("on-revient", ctx("email", { "href:cta": "/livres/le-visage", cta: "Voir le livre" }));
     expect(html).toContain('<a href="https://monvrai.fr/livres/le-visage"');
     expect(html).toContain("Voir le livre");
     expect(html).not.toContain("nl-linkbtn");
@@ -48,16 +48,16 @@ describe("pied de page", () => {
   const withBrand = (brand: Partial<RenderCtx["brand"]>): RenderCtx => ({ ...ctx("email"), brand: { ...ctx("email").brand, ...brand } });
 
   it("n'affiche que les réseaux renseignés, et rien si aucun", () => {
-    const html = renderTemplateBody("lancement", withBrand({ instagram: "https://instagram.com/monvrai" }));
+    const html = renderTemplateBody("on-revient", withBrand({ instagram: "https://instagram.com/monvrai" }));
     expect(html).toContain('href="https://instagram.com/monvrai"');
     expect(html).not.toContain("Facebook");
     expect(html).not.toContain("TikTok");
-    expect(renderTemplateBody("lancement", withBrand({}))).not.toContain("Instagram");
+    expect(renderTemplateBody("on-revient", withBrand({}))).not.toContain("Instagram");
   });
 
   it("affiche l'adresse configurée, sans texte de remplacement quand elle manque", () => {
-    expect(renderTemplateBody("lancement", withBrand({ address: "78 avenue des Champs-Élysées, 75008 Paris" }))).toContain("Mon Vrai · 78 avenue des Champs-Élysées, 75008 Paris · ");
-    const html = renderTemplateBody("lancement", withBrand({ address: "" }));
+    expect(renderTemplateBody("on-revient", withBrand({ address: "78 avenue des Champs-Élysées, 75008 Paris" }))).toContain("Mon Vrai · 78 avenue des Champs-Élysées, 75008 Paris · ");
+    const html = renderTemplateBody("on-revient", withBrand({ address: "" }));
     expect(html).not.toContain("[adresse]");
     expect(html).toContain("Mon Vrai · <a href=");
   });

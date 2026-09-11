@@ -52,7 +52,7 @@ const FONT = "'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica
 const PIX = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 
 export const NEWSLETTER_TEMPLATES: NewsletterTemplate[] = [
-  { id: "lancement", label: "Lancement du site", description: "Ouverture de la boutique", subject: "Le monde, en vrai, dans de petites mains — monvrai.fr est ouvert" },
+  { id: "on-revient", label: "On revient", description: "Retour aux inscrits de la première heure", subject: "Vous nous aviez laissé votre adresse. Voilà la suite." },
   { id: "nouveau-livre", label: "Nouveau livre", description: "Sortie d'un titre", subject: "Un chien, un chat, un lapin — nouveau : Les Animaux de compagnie" },
   { id: "nouveau-produit", label: "Nouveau produit", description: "Un produit autre qu'un livre", subject: "La valise Mon Vrai — pour ranger, emporter, offrir" },
   { id: "nouvelle-categorie", label: "Nouvelle catégorie", description: "Une nouvelle série", subject: "Nouvelle série « Moi » — le visage, les vêtements" },
@@ -213,17 +213,26 @@ function footerPlain(c: RenderCtx): string {
 
 /* ---------- Modèles ---------- */
 
-function tplLancement(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €", "lancement")}${logo(c)}
-<div style="margin:16px 24px 0;border-radius:28px;overflow:hidden;position:relative;height:560px;background:${TINTP}">${imgFill(c, "hero", "", "50% 40%")}<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%)"></div><div style="position:absolute;left:32px;right:32px;bottom:32px;display:flex;flex-direction:column;gap:12px;color:#fff">${T(c, "badge", "C'est ouvert", "align-self:flex-start;background:#fff;color:#111;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700")}${T(c, "title", "Le monde, en vrai, dans de petites mains.", "font-size:40px;line-height:1.02;font-weight:800;letter-spacing:-.02em", "span")}</div></div>
-<div style="padding:32px 40px 8px;text-align:center">${T(c, "intro", "Bonjour, et bienvenue. Aujourd'hui, monvrai.fr ouvre ses portes avec neuf imagiers cartonnés pour les 6–18 mois : une illustration réaliste par double-page, sur fond blanc, sans texte ni décor. Pour nommer le monde, simplement.", `margin:0 0 14px;font-size:16px;line-height:1.6;color:#444;display:block`, "p")}${btn(c, "cta", "Découvrir les 9 imagiers", c.base)}</div>
-<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:32px 24px 0">
-<div style="background:${GREEN};border-radius:20px;padding:20px">${T(c, "s1t", "1 image", "font-size:20px;font-weight:800;display:block;margin-bottom:6px")}${T(c, "s1d", "par double-page, réaliste, sur fond blanc", `font-size:12px;font-weight:600;line-height:1.4;color:${GREEN_INK}`)}</div>
-<div style="background:${BLUE};border-radius:20px;padding:20px">${T(c, "s2t", "14 × 14 cm", "font-size:20px;font-weight:800;display:block;margin-bottom:6px")}${T(c, "s2d", "cartonné, coins arrondis, finition mate", `font-size:12px;font-weight:600;line-height:1.4;color:${BLUE_INK}`)}</div>
-<div style="background:${PINK};border-radius:20px;padding:20px">${T(c, "s3t", "10 €", "font-size:20px;font-weight:800;display:block;margin-bottom:6px")}${T(c, "s3d", "FSC, encre de soja, conforme EN 71", `font-size:12px;font-weight:600;line-height:1.4;color:${PINK_INK}`)}</div>
-</div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 24px 0">${imgBox(c, "g1", "", "height:260px;border-radius:20px")}${imgBox(c, "g2", "", "height:260px;border-radius:20px")}</div>
-<div style="margin:10px 24px 0;background:#fff;border-radius:24px;padding:28px 32px">${eyebrow(c, "promoEy", "Pour fêter ça", SUBTLE)}${T(c, "promoTitle", "−10 % sur votre première commande", "font-size:22px;font-weight:800;letter-spacing:-.01em;display:block;margin:10px 0")}${T(c, "promoText", "Avec le code BIENVENUE10, valable jusqu'au 30 septembre. Expédition à partir du 25 décembre, tous vos livres dans un seul colis.", `font-size:14px;color:#555;line-height:1.5`)}</div>
+/*
+ * Retour aux inscrits de la première heure : ceux qui avaient laissé leur adresse quand
+ * les 500 premiers livres sont partis. Une lettre signée plutôt qu'une annonce — d'où le
+ * bloc de remerciement avant les produits, et la signature de la fondatrice à la fin.
+ */
+function tplOnRevient(c: RenderCtx): string {
+  const theme = (k: string, def: string) => `<div style="background:#fff;border-radius:14px;padding:14px 16px">${T(c, k, def, `font-size:14px;font-weight:700;color:${INK}`)}</div>`;
+  const produit = (n: number, def: string, name: string, price: string, desc: string) =>
+    `<div style="background:#fff;border-radius:20px;padding:20px"><div style="margin-bottom:12px">${imgBox(c, `p${n}`, def, "aspect-ratio:1;border-radius:14px")}</div><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">${T(c, `p${n}t`, name, "font-size:15px;font-weight:700")}${T(c, `p${n}p`, price, "font-size:13px;font-weight:700;color:#666")}</div>${T(c, `p${n}d`, desc, "font-size:12px;color:#666;line-height:1.5")}</div>`;
+
+  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €", "on-revient")}${logo(c)}
+<div style="margin:16px 24px 0;border-radius:28px;overflow:hidden;position:relative;height:520px;background:${TINTP}">${imgFill(c, "hero", "", "50% 40%")}<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%)"></div><div style="position:absolute;left:32px;right:32px;bottom:32px;display:flex;flex-direction:column;gap:12px;color:#fff">${T(c, "badge", "Vous étiez là au début", "align-self:flex-start;background:#fff;color:#111;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700")}${T(c, "title", "Vous nous aviez laissé votre adresse. Voilà la suite.", "font-size:40px;line-height:1.02;font-weight:800;letter-spacing:-.02em", "span")}</div></div>
+<div style="padding:32px 40px 0;text-align:center">${T(c, "intro", "Les nouveaux imagiers existent. Ils sont en précommande, et ce sont les vôtres avant d'être les nôtres.", "margin:0;font-size:16px;line-height:1.6;color:#444;display:block", "p")}</div>
+<div style="margin:24px 24px 0;background:${PINK};border-radius:28px;padding:36px 32px">${eyebrow(c, "thanksEy", "Merci d'avoir attendu", PINK_INK)}${T(c, "thanks1", "Quand les 500 premiers livres sont partis, vous avez été nombreux à laisser votre adresse pour savoir s'il y aurait une suite. Je n'avais pas de réponse à vous donner à ce moment-là. Il a fallu du temps, une pause, puis tout reprendre : une vraie identité, une vraie maison, un vrai site.", `margin:14px 0 12px;font-size:15px;line-height:1.65;color:${PINK_INK};display:block`, "p")}${T(c, "thanks2", "Vous avez attendu sans rien demander. C'est ce mail que je voulais pouvoir vous écrire.", `margin:0;font-size:15px;line-height:1.65;font-weight:700;color:${PINK_INK};display:block`, "p")}</div>
+<div style="margin:10px 24px 0;background:${GREEN};border-radius:28px;padding:36px 32px">${eyebrow(c, "pollEy", "Ce que vous avez choisi", GREEN_INK)}${T(c, "pollTitle", "128 réponses. Quatre thèmes en sont sortis.", "margin:14px 0 10px;font-size:26px;line-height:1.1;font-weight:800;letter-spacing:-.02em;display:block", "h2")}${T(c, "pollText", "Vous nous avez dit quels imagiers vous manquaient vraiment. Nous n'en avons pas choisi d'autres : les quatre nouveautés sont exactement celles que vous avez demandées le plus souvent.", `margin:0;font-size:14px;line-height:1.6;color:${GREEN_INK};display:block`, "p")}
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px">${theme("t1", "Les Animaux de la ferme")}${theme("t2", "Les Véhicules")}${theme("t3", "Le Visage")}${theme("t4", "Les Animaux de la forêt")}</div></div>
+<div style="padding:32px 40px 0;text-align:center">${eyebrow(c, "newEy", "Les quatre nouveautés · 6–18 mois", SUBTLE)}${T(c, "newText", "Toujours six illustrations réalistes, une par double-page, sur fond blanc, sans texte.", "margin:10px 0 0;font-size:14px;line-height:1.6;color:#555;display:block", "p")}</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px 24px 0">${produit(1, "", "Les Animaux de la ferme", "10 €", "La vache, le mouton, la poule, le cochon, le cheval, la chèvre")}${produit(2, "", "Les Véhicules", "10 €", "La voiture, le bus, le tracteur, le camion, le vélo, le train")}${produit(3, "https://mon-vrai-2.myshopify.com/cdn/shop/files/A44725D9-D4D4-4C97-90C9-B3D403673526.png?v=1788625380&width=400", "Le Visage", "10 €", "Les yeux, le nez, la bouche, les oreilles, les cheveux, les mains")}${produit(4, "", "Les Animaux de la forêt", "10 €", "Le renard, le cerf, le hérisson, l'écureuil, le sanglier, le hibou")}</div>
+<div style="padding:28px 40px 0;text-align:center">${btn(c, "cta", "Précommander sur monvrai.fr", `${c.base}/catalogue`)}<div style="margin-top:10px">${T(c, "ctaNote", "Précommande · expédition dès le 25 décembre, tout dans un seul colis", `font-size:12px;color:${SUBTLE};font-weight:600`)}</div></div>
+<div style="margin:32px 24px 0;background:${SAND};border-radius:24px;padding:32px">${T(c, "signWords", "Mon Vrai est né pour mes enfants. Il grandit aujourd'hui pour les vôtres, et un peu grâce à vous.", `margin:0 0 18px;font-size:17px;line-height:1.6;color:${SAND_INK};display:block`, "p")}${T(c, "signName", "Myenndine", "font-size:14px;font-weight:800;display:block;margin-bottom:4px")}${T(c, "signRole", "Fondatrice de Mon Vrai", `font-size:12px;font-weight:600;color:${SUBTLE}`)}</div>
 ${footer(c)}`);
 }
 
@@ -329,7 +338,7 @@ ${footerPlain(c)}`);
 
 const BUILDERS: Record<string, (c: RenderCtx) => string> = {
   [PARTNER_WELCOME_ID]: tplPartenaireBienvenue,
-  lancement: tplLancement,
+  "on-revient": tplOnRevient,
   "nouveau-livre": tplNouveauLivre,
   "nouveau-produit": tplNouveauProduit,
   "nouvelle-categorie": tplNouvelleCategorie,
@@ -341,7 +350,7 @@ const BUILDERS: Record<string, (c: RenderCtx) => string> = {
 
 /** Corps du modèle (carte 600 px), en mode « email » (propre) ou « edit » (éditable). */
 export function renderTemplateBody(id: string, ctx: RenderCtx): string {
-  const build = BUILDERS[id] ?? BUILDERS.lancement;
+  const build = BUILDERS[id] ?? BUILDERS["on-revient"];
   return build(ctx);
 }
 
