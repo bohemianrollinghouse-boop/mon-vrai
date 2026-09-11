@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AccountIcon, CartIcon, SearchIcon } from "./ActionIcons";
 import { isCurrent } from "@/lib/domain/menu-links";
 
 /*
@@ -35,23 +36,48 @@ export function SiteNav({ links }: { links: NavLink[] }) {
 }
 
 /** Actions de droite (recherche, compte, panier) : le compte est en noir quand on y est. */
-export function SiteActions({ actions }: { actions: { href: string; label: string; dark: boolean }[] }) {
+/*
+ * Actions de l'en-tête, en icônes (maquette 11a) : une pastille ronde de 42 px par
+ * action. Elle passe en sombre sur la page correspondante, comme une entrée de menu
+ * active — et le compteur du panier passe alors au vert pour rester lisible dessus.
+ *
+ * L'icône seule ne dit rien à un lecteur d'écran : chaque lien porte son intitulé en
+ * `aria-label`, et le compteur est annoncé avec.
+ */
+export type SiteAction = { href: string; label: string; icon: "search" | "account" | "cart"; count?: number };
+
+const ICONS = { search: SearchIcon, account: AccountIcon, cart: CartIcon };
+
+export function SiteActions({ actions }: { actions: SiteAction[] }) {
   const pathname = usePathname();
   return (
-    <div className="hidden gap-2.5 min-[1100px]:flex">
+    <div className="hidden gap-2 min-[1100px]:flex">
       {actions.map((a) => {
         const current = isCurrent(a.href, pathname);
+        const Icon = ICONS[a.icon];
+        const badge = a.count && a.count > 0 ? a.count : null;
         return (
           <Link
             key={a.href}
             href={a.href}
             aria-current={current ? "page" : undefined}
-            className={`whitespace-nowrap rounded-pill px-[1.125rem] py-3 text-[0.8125rem] font-semibold leading-tight transition-colors ${a.dark || current ? "bg-ink text-white" : "bg-white text-ink"}`}
+            aria-label={badge ? `${a.label} · ${badge}` : a.label}
+            title={a.label}
+            className={`relative flex h-[42px] w-[42px] items-center justify-center rounded-pill transition-colors ${current ? "bg-ink text-white" : "bg-white text-ink hover:opacity-70"}`}
           >
-            {a.label}
+            <Icon />
+            {badge && (
+              <span
+                aria-hidden="true"
+                className={`absolute -top-1 -right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-pill px-1.5 text-[0.625rem] font-extrabold ${current ? "bg-tint-green text-ink" : "bg-ink text-white"}`}
+              >
+                {badge}
+              </span>
+            )}
           </Link>
         );
       })}
     </div>
   );
 }
+

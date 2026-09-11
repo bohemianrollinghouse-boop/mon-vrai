@@ -108,7 +108,7 @@ function panel(bg: string, ink: string, html: string): string {
 export function orderConfirmationEmail(order: Order, settings: SiteSettings, siteUrl: string): BuiltEmail {
   const preorder = order.lines.some((l) => l.preorder && !l.gift);
   const shipFrom = settings.shipping.preorderShipFrom ? new Date(settings.shipping.preorderShipFrom).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : null;
-  const content = `${eyebrow("Commande confirmée")}${h1(`Merci ${esc(order.shippingAddress.name.split(" ")[0] || "")} !`)}
+  const content = `${eyebrow("Commande confirmée")}${h1(`Merci ${esc(order.shippingAddress.name || "")} !`)}
 <p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:${MUTED}">Votre commande <strong style="color:${INK}">${esc(order.number)}</strong> est bien enregistrée${order.invoice ? ` et votre facture ${esc(order.invoice.number)} est en pièce jointe` : ""}.</p>
 ${itemsTable(order)}
 <div style="margin-top:22px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${SUBTLE}">Livraison</div>

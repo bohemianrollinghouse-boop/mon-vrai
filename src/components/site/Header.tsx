@@ -5,7 +5,8 @@ import { loadCartCount } from "@/lib/cart/read";
 import { getHeaderMenu } from "@/lib/db/menus";
 import { getSettings } from "@/lib/db/settings";
 import { resolveTarget } from "@/lib/domain/menu-links";
-import { SiteActions, SiteNav } from "./SiteNav";
+import { SiteActions, SiteNav, type SiteAction } from "./SiteNav";
+import { CartIcon } from "./ActionIcons";
 import { MobileMenu } from "./MobileMenu";
 import { systemPath } from "@/lib/domain/system-pages";
 
@@ -24,12 +25,15 @@ export async function Header() {
     return { id: item.id, label: item.label, href, external, newTab };
   });
 
-  // Connecté : la pastille porte le prénom, comme dans la maquette.
-  const firstName = user?.name?.split(" ")[0];
-  const actions = [
-    { href: systemPath("search"), label: "Rechercher", dark: false },
-    { href: systemPath("account"), label: user ? firstName || "Mon compte" : "Compte", dark: false },
-    { href: systemPath("cart"), label: count > 0 ? `Panier · ${count}` : "Panier", dark: true },
+  /*
+   * Trois icônes, sans libellé visible (maquette 11a). L'intitulé du compte suit l'état
+   * de la session : il n'est plus affiché, mais il est annoncé aux lecteurs d'écran et
+   * sert d'infobulle.
+   */
+  const actions: SiteAction[] = [
+    { href: systemPath("search"), label: "Rechercher", icon: "search" },
+    { href: systemPath("account"), label: user ? user.name || "Mon compte" : "Se connecter", icon: "account" },
+    { href: systemPath("cart"), label: "Panier", icon: "cart", count },
   ];
 
   return (
@@ -44,12 +48,20 @@ export async function Header() {
 
         {/* Mobile : le panier reste visible à côté du burger ; le reste va dans le menu. */}
         <div className="flex items-center gap-2 min-[1100px]:hidden">
+          {/* Même icône que sur bureau : un libellé d'un côté et une icône de l'autre
+              se lirait comme deux interfaces différentes. */}
           <Link
             href={systemPath("cart")}
             aria-label={count > 0 ? `Panier · ${count}` : "Panier"}
-            className="whitespace-nowrap rounded-pill bg-ink px-4 py-2.5 text-[0.8125rem] font-semibold leading-tight text-white"
+            title="Panier"
+            className="relative flex h-[42px] w-[42px] items-center justify-center rounded-pill bg-white text-ink"
           >
-            {count > 0 ? `Panier · ${count}` : "Panier"}
+            <CartIcon />
+            {count > 0 && (
+              <span aria-hidden="true" className="absolute -top-1 -right-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-pill bg-ink px-1.5 text-[0.625rem] font-extrabold text-white">
+                {count}
+              </span>
+            )}
           </Link>
 
           <MobileMenu

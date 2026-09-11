@@ -41,7 +41,13 @@ export default async function AccountPage({ searchParams }: PageProps<"/compte">
   const tab: Tab = TABS.some((t) => t.key === onglet) ? (onglet as Tab) : "commandes";
   const user = await requireUser();
   const [orders, customer, products, settings] = await Promise.all([listOrdersForUser(user.uid, user.emailVerified ? user.email : undefined), getCustomer(user.uid), listPublishedProducts(), getSettings()]);
-  const firstName = (customer?.name || user.name || "").split(" ")[0];
+  /*
+   * Le nom complet sert à saluer : un compte peut porter un nom de marque (« Les Trois
+   * Vagabonds »), dont le premier mot n'est pas un prénom. Le formulaire, lui, a deux
+   * champs distincts — ce découpage-là est explicite et modifiable par le client.
+   */
+  const displayName = customer?.name || user.name || "";
+  const [firstName = "", ...restOfName] = displayName.split(" ");
   const current = orders.find((o) => ACTIVE.includes(o.status));
   const previous = orders.filter((o) => o !== current);
   const owned = new Set(orders.filter((o) => o.status !== "cancelled" && o.status !== "refunded").flatMap((o) => o.lines.map((l) => l.productSlug)));
@@ -50,7 +56,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/compte">
   return (
     <section className="site-wrap flex flex-col gap-6 py-6 pb-[4.5rem]">
       <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <h1 className="text-[clamp(2rem,3.5vw,2.75rem)] font-extrabold leading-[1.04] tracking-[-0.02em]">Bonjour {firstName || "vous"}</h1>
+        <h1 className="text-[clamp(2rem,3.5vw,2.75rem)] font-extrabold leading-[1.04] tracking-[-0.02em]">Bonjour {displayName || "vous"}</h1>
         <div className="flex items-center gap-4">
           {/* Un partenaire retrouve son espace depuis son compte, comme un admin son administration. */}
           {user.influencerId && (
@@ -204,7 +210,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/compte">
                 <AccountForm action={updateProfileAction} submitLabel="Enregistrer">
                   <div className="grid grid-cols-2 gap-4 max-[599px]:grid-cols-1">
                     <Field label="Prénom" name="firstName" defaultValue={firstName} />
-                    <Field label="Nom" name="lastName" defaultValue={(customer?.name || user.name || "").split(" ").slice(1).join(" ")} required={false} />
+                    <Field label="Nom" name="lastName" defaultValue={restOfName.join(" ")} required={false} />
                     <label className="col-span-2 flex flex-col gap-2 text-[0.8125rem] font-bold max-[599px]:col-span-1">
                       <span>E-mail</span>
                       <input value={user.email} readOnly className="rounded-[14px] bg-paper px-[1.125rem] py-4 text-sm font-semibold text-muted outline-none" />
