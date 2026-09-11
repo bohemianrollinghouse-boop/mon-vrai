@@ -141,7 +141,7 @@ export type Props = {
   Specs: { items: { titre: string; texte: string }[] };
   HerosContact: { surtitre: string; titre: string; texte: string; teinte: Tint; proLabel: string; proTexte: string };
   FormulaireContact: Record<string, never>;
-  FAQ: { titre: string; note: string };
+  FAQ: { titre: string; note: string; source: "partagee" | "propres"; questions: { q: string; a: string }[] };
   GabaritLegal: { resume: string; aideTitre: string; aideTexte: string; aideCtaLabel: string; aideCtaHref: string; contenu: Slot };
   Heros: { surtitre: string; titre: string; texte: string; image: ImageRef | undefined; teinte: Tint; disposition: "cote" | "dessous" };
   Chapitre: { surtitre: string; titre: string; ancre: string; paragraphes: { texte: string; relief: Emphasis }[]; pastilles: { texte: string }[]; teintePastilles: Tint; image: ImageRef | undefined };
@@ -458,17 +458,53 @@ export const blockConfig: Config<Props> = {
       },
     },
 
-    /** Questions fréquentes. Les questions se gèrent dans /admin/faq. */
+    /*
+     * Questions fréquentes, de deux provenances au choix.
+     *
+     * « Partagées » reprend la liste de /admin/faq — celle de la page Contact, avec ses
+     * rubriques et ses questions masquées. « Propres à cette page » les écrit ici même :
+     * une page pro ou un gabarit légal n'a pas les mêmes questions que le contact, et
+     * sans cela le bloc ne servait à rien ailleurs.
+     *
+     * Un bloc enregistré avant ce choix n'a pas de `source` : il reste sur la liste
+     * partagée, et rien ne bouge sur les pages en ligne. Basculer sur « propres »
+     * recopie la liste partagée dans le bloc, pour partir de quelque chose plutôt que
+     * d'une page blanche.
+     */
     FAQ: {
       label: "Questions fréquentes",
       fields: {
         titre: { type: "text", label: "Titre" },
         note: { type: "text", label: "Mention à droite" },
+        source: {
+          type: "radio",
+          label: "Questions",
+          options: [
+            { label: "Partagées (FAQ)", value: "partagee" },
+            { label: "Propres à cette page", value: "propres" },
+          ],
+        },
+        questions: {
+          type: "array",
+          label: "Questions de cette page",
+          arrayFields: { q: { type: "text", label: "Question" }, a: { type: "textarea", label: "Réponse" } },
+          getItemSummary: (item) => item.q || "Question",
+        },
       },
-      defaultProps: { titre: "Questions fréquentes", note: "" },
-      render: ({ titre, note, puck }) => {
-        const items = (puck.metadata as BlockMetadata).faq ?? [];
-        if (items.length === 0) return <></>;
+      defaultProps: { titre: "Questions fréquentes", note: "", source: "partagee", questions: [] },
+      /* Le tableau des questions ne s'affiche que s'il sert : sinon il ferait croire qu'on l'édite. */
+      resolveFields: (data, { fields }) => ({ ...fields, questions: { ...fields.questions, visible: data.props.source === "propres" } }),
+      resolveData: ({ props }, { changed, metadata }) => {
+        // Au basculement seulement : on ne réécrit pas une liste que l'auteur a vidée exprès.
+        if (!changed.source || props.source !== "propres" || props.questions.length > 0) return { props };
+        return { props: { ...props, questions: ((metadata as BlockMetadata).faq ?? []).map((f) => ({ q: f.q, a: f.a })) } };
+      },
+      render: ({ titre, note, source, questions, puck }) => {
+        const items = source === "propres" ? questions : (puck.metadata as BlockMetadata).faq ?? [];
+        if (items.length === 0) {
+          // Dans l'éditeur, un bloc vide doit se voir et se dire — sur le site, il s'efface.
+          return puck.isEditing ? <section className="site-wrap pt-[4.5rem] text-sm text-[#555]">Aucune question : ajoutez-en dans le panneau de droite, ou reprenez celles de la FAQ.</section> : <></>;
+        }
         return (
           <section id="faq" className="site-wrap flex flex-col gap-7 pt-[4.5rem]">
             <div className="flex flex-wrap items-baseline justify-between gap-6">

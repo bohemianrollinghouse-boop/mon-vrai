@@ -113,7 +113,7 @@ export function contactToBlocks(c: ContactContent, newsletter?: HomeContent["new
       centre: [],
       droite: [block("FormulaireContact", {})],
     }),
-    block("FAQ", { titre: c.faq.heading, note: c.faq.note }),
+    block("FAQ", { titre: c.faq.heading, note: c.faq.note, source: "partagee", questions: [] }),
   ];
   if (newsletter) {
     content.push(block("Infolettre", { titre: newsletter.heading, texte: newsletter.text, placeholder: newsletter.placeholder, bouton: newsletter.button }));

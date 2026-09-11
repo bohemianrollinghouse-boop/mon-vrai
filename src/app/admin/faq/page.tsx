@@ -29,7 +29,7 @@ export default async function FaqPage({ searchParams }: PageProps<"/admin/faq">)
     <>
       <PageHeader
         title="FAQ"
-        subtitle={`${visible} question${visible > 1 ? "s" : ""} affichée${visible > 1 ? "s" : ""} sur la page Contact · ${items.length - visible} masquée${items.length - visible > 1 ? "s" : ""}`}
+        subtitle={`${visible} question${visible > 1 ? "s" : ""} affichée${visible > 1 ? "s" : ""} sur la page Contact · ${items.length - visible} masquée${items.length - visible > 1 ? "s" : ""} · une page peut aussi porter ses propres questions, dans son bloc`}
         actions={
           <>
             <ButtonLink href="/admin/contenus?onglet=contact" tone="secondary">
