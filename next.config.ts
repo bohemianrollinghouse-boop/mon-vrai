@@ -44,13 +44,6 @@ const nextConfig: NextConfig = {
    * acceptable pour un chemin réservé à l'administration.
    */
   experimental: { serverActions: { bodySizeLimit: "45mb" } },
-  /*
-   * Les photos des pages rédigées sont lues sur le disque par l'action « Reprendre le
-   * contenu rédigé » (voir actions/pages.ts), et non importées : le traçage de Next ne
-   * les emporterait donc pas dans le paquet déployé. On les déclare ici. Sans elles,
-   * l'action se contente de signaler les photos manquantes — rien ne casse.
-   */
-  outputFileTracingIncludes: { "/admin/pages/[slug]": ["./content/editorial/**"] },
   // Ne pas annoncer la pile technique.
   poweredByHeader: false,
   async headers() {

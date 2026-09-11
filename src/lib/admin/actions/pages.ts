@@ -1,16 +1,11 @@
 "use server";
 
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { EDITORIAL_PAGES, EDITORIAL_PHOTOS } from "@/lib/blocks/editorial-pages";
-import { getHomeContent } from "@/lib/db/content";
-import { listMedia, uploadMedia } from "@/lib/db/media";
 import { deletePage, getPage, savePageBlocks, savePageSeo, setHomePage, upsertPage } from "@/lib/db/pages";
 import { slugifyPath } from "@/lib/domain/slug";
 import { BlockDocument, ImageRef, PagePath, Status } from "@/lib/domain/types";
@@ -105,79 +100,6 @@ export async function savePageBlocksAction(slug: string, data: unknown): Promise
   return { ok: true, message: "Contenu enregistré." };
 }
 
-
-/*
- * Repose une page rédigée (« Notre histoire », « Le concept ») sur le texte de
- * lib/blocks/editorial-pages.ts. C'est le pendant en ligne de `migrate-prod
- * --editorial` : sans lui, poser ces pages en production demanderait la ligne de
- * commande et une clé de compte de service.
- *
- * Les photos sont retrouvées dans la médiathèque par leur nom de fichier ; celles qui
- * manquent laissent simplement le bloc sans image. Le contenu actuel est remplacé —
- * d'où la confirmation côté formulaire.
- */
-export async function restoreEditorialPageAction(formData: FormData): Promise<AdminResult> {
-  const user = await assertAdmin();
-  const slug = String(formData.get("slug") ?? "");
-  const recipe = EDITORIAL_PAGES[slug];
-  if (!recipe) return failed("Cette page n'a pas de contenu rédigé.");
-
-  const [media, home, page] = await Promise.all([listMedia(500), getHomeContent(), getPage(slug)]);
-  if (!page) return failed("Page inconnue");
-
-  const images = media.filter((m) => m.mime.startsWith("image/"));
-  const found = new Map<string, ImageRef>();
-  for (const name of EDITORIAL_PHOTOS) {
-    const m = images.find((x) => x.path.endsWith(`/${name}`));
-    if (m) found.set(name, { url: m.url, alt: m.alt, width: m.width, height: m.height });
-  }
-
-  /*
-   * Les photos absentes de la médiathèque sont envoyées depuis content/editorial/,
-   * livré avec l'application (voir outputFileTracingIncludes). C'est ce qui rend ce
-   * bouton suffisant à lui seul : pas d'envoi manuel préalable. Si le fichier n'est
-   * pas là, on n'insiste pas — le bloc reste sans image et le message le dit.
-   */
-  const added = await uploadMissingPhotos([...EDITORIAL_PHOTOS].filter((n) => !found.has(n)), user.email);
-  for (const [name, ref] of added) found.set(name, ref);
-
-  const photo = (name: string): ImageRef | undefined => found.get(name);
-  const blocks = recipe.build(photo, home?.newsletter);
-  await savePageBlocks(slug, blocks);
-  await audit(user.email, "page.restore", `pages/${slug}`, `${blocks.content.length} blocs`);
-  revalidatePath("/", "layout");
-
-  const missing = EDITORIAL_PHOTOS.filter((n) => !found.has(n)).length;
-  const envoyees = added.size ? ` ${added.size} photo${added.size > 1 ? "s" : ""} ajoutée${added.size > 1 ? "s" : ""} à la médiathèque.` : "";
-  return {
-    ok: true,
-    message: missing
-      ? `Contenu repris : ${blocks.content.length} blocs.${envoyees} ${missing} photo${missing > 1 ? "s" : ""} introuvable${missing > 1 ? "s" : ""} — les blocs concernés sont sans image, à compléter dans l'éditeur.`
-      : `Contenu repris : ${blocks.content.length} blocs, toutes les photos en place.${envoyees}`,
-  };
-}
-
-/*
- * Envoie dans la médiathèque les photos livrées avec l'application. Lecture disque
- * tolérante : un fichier absent du paquet déployé est simplement sauté, sans faire
- * échouer la reprise du contenu.
- */
-async function uploadMissingPhotos(names: string[], by: string): Promise<Map<string, ImageRef>> {
-  const out = new Map<string, ImageRef>();
-  if (names.length === 0) return out;
-  const dir = path.join(process.cwd(), "content", "editorial");
-  for (const name of names) {
-    try {
-      const bytes = await readFile(path.join(dir, name));
-      const m = await uploadMedia({ bytes, mime: "image/jpeg", filename: name, alt: "" });
-      await audit(by, "media.upload", `media/${m.id}`, name);
-      out.set(name, { url: m.url, alt: m.alt, width: m.width, height: m.height });
-    } catch {
-      // Fichier absent ou illisible : on laisse le bloc sans image.
-    }
-  }
-  return out;
-}
 
 /** Référencement de la page : son propre formulaire, sous le contenu. */
 export async function savePageSeoAction(formData: FormData): Promise<AdminResult> {
