@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CopyValue } from "@/components/site/CopyValue";
 import { IbanForm } from "@/components/site/IbanForm";
+import { PartnerKitBlock } from "@/components/site/PartnerKitBlock";
 import { TrackingLink } from "@/components/site/TrackingLink";
 import { savePartnerIbanAction } from "@/lib/auth/partner-actions";
 import { maskIban, monthLabel } from "@/lib/promos/statements";
@@ -82,6 +83,10 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
           </div>
         </div>
       </div>
+
+      {/* ---------- Kit de bienvenue ---------- */}
+      {/* Bon de commande tant qu'il n'a pas été commandé, suivi ensuite. */}
+      <PartnerKitBlock kit={kit} />
 
       {/* ---------- Résultats ---------- */}
       <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
@@ -182,7 +187,7 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
       </div>
 
       {/* ---------- Relevés et kit ---------- */}
-      <div className="grid grid-cols-2 items-start gap-4 max-[899px]:grid-cols-1">
+      <div className="grid grid-cols-1 items-start gap-4">
         {/* Les relevés n'existent que pour un partenaire commissionné. */}
         {view.commission !== null && (
           <div className="flex flex-col gap-3.5 rounded-card bg-white p-7">
@@ -225,32 +230,6 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
           </div>
         )}
 
-        {kit.length > 0 && (
-          <div className={`flex flex-col gap-3.5 rounded-card bg-tint-sand p-7 ${view.commission === null ? "col-span-2 max-[899px]:col-span-1" : ""}`}>
-            <span className="text-base font-extrabold">Kit de communication</span>
-            <div className="flex flex-col gap-2">
-              {kit.map((k) => (
-                <a
-                  key={k.url}
-                  href={k.url}
-                  target="_blank"
-                  rel="noopener"
-                  className="flex items-center justify-between gap-3 rounded-[14px] bg-white px-4 py-3 text-[0.8125rem] font-bold hover:opacity-70"
-                >
-                  <span className="flex min-w-0 flex-col">
-                    <span className="truncate">{k.name}</span>
-                    {k.meta && <span className="truncate text-xs font-medium text-subtle">{k.meta}</span>}
-                  </span>
-                  <span aria-hidden="true">↓</span>
-                </a>
-              ))}
-            </div>
-            <span className="text-xs leading-relaxed text-tint-sand-ink">
-              Pensez à la mention <strong>#collaboration</strong> ou « partenariat rémunéré » sur chaque publication
-              (loi du 9 juin 2023).
-            </span>
-          </div>
-        )}
       </div>
 
       {/* ---------- Contact ---------- */}

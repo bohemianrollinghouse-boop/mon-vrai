@@ -3,9 +3,11 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { AutoSubmitSwitch } from "@/components/admin/AutoSubmitSwitch";
 import { CodeInput, CopyButton } from "@/components/admin/CodeInput";
 import { CommissionField } from "@/components/admin/CommissionField";
-import { ButtonLink, Card, Field, GridTable, Input, PageHeader, Pill, Select, Tile } from "@/components/admin/ui";
+import { ButtonLink, Card, Field, GridTable, Input, PageHeader, Pill, Select, Switch, Textarea, Tile } from "@/components/admin/ui";
 import { deleteInfluencerAction, markStatementPaidAction, savePartnerKitAction, savePartnerWelcomeAction, saveInfluencerAction, sendInfluencerWelcomeAction, toggleInfluencerAction } from "@/lib/admin/actions/influencers";
-import { PartnerKitEditor } from "@/components/admin/PartnerKitEditor";
+import { WelcomeKitEditor } from "@/components/admin/WelcomeKitEditor";
+import { listAllProducts } from "@/lib/db/products";
+import { findKitOrder } from "@/lib/db/orders";
 import { listStatements } from "@/lib/db/statements";
 import { statementRows, monthLabel } from "@/lib/promos/statements";
 import { PartnerWelcomeEditor } from "@/components/admin/PartnerWelcomeEditor";
@@ -38,7 +40,7 @@ const PLATFORM_TONE: Record<string, { bg: string; fg: string }> = {
 export default async function InfluencersPage({ searchParams }: PageProps<"/admin/influenceurs">) {
   const sp = await searchParams;
   const selectedId = typeof sp.id === "string" ? sp.id : "";
-  const [influencers, snap, templateValues, settings] = await Promise.all([listInfluencers(), adminSnapshot(), getAllTemplateValues(), getSettings()]);
+  const [influencers, snap, templateValues, settings, products] = await Promise.all([listInfluencers(), adminSnapshot(), getAllTemplateValues(), getSettings(), listAllProducts()]);
   const now = snap.now;
   const since = new Date(now - 30 * 86_400_000).toISOString().slice(0, 10);
   const clicks = await listRefClicksSince(since).catch(() => []);
@@ -47,6 +49,7 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
   const current = !isNew ? rows.find((r) => r.influencer.id === selectedId) ?? (selectedId ? undefined : rows[0]) : undefined;
   const inf = current?.influencer;
   const stored = inf?.commission ? await listStatements(inf.id) : [];
+  const kitOrder = inf ? await findKitOrder(inf.id) : null;
   const rows_ = inf?.commission ? statementRows(inf, snap.orders, stored, snap.now) : [];
   const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/^https?:\/\//, "");
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
@@ -239,6 +242,25 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
                 </span>
               </div>
             )}
+            {inf && !isNew && settings.welcomeKit.enabled && (
+              <div className="flex flex-col gap-1.5 border-t border-line-soft pt-3">
+                <span className="text-xs font-semibold text-subtle">Kit de bienvenue</span>
+                {kitOrder ? (
+                  <>
+                    <Link href={`/admin/commandes/${kitOrder.id}`} className="text-[0.8125rem] font-bold hover:opacity-70">
+                      Commandé · {kitOrder.number} →
+                    </Link>
+                    <span className="text-[0.6875rem] leading-relaxed text-subtle">
+                      {kitOrder.tracking || kitOrder.boxtal?.trackingNumber
+                        ? `Suivi ${kitOrder.tracking?.number ?? kitOrder.boxtal?.trackingNumber} — visible dans son espace.`
+                        : "Créez l'étiquette Boxtal depuis la commande, ou saisissez-y un suivi à la main : il apparaîtra dans son espace."}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-[0.6875rem] leading-relaxed text-subtle">Pas encore commandé. Il le commande lui-même depuis son espace.</span>
+                )}
+              </div>
+            )}
             {inf && !isNew && (
               <ActionForm action={deleteInfluencerAction} submitLabel="Supprimer" submitTone="ghost" confirm={`Supprimer ${inf.name} ? Son code et son lien cesseront de fonctionner ; les ventes passées restent attribuées.`} className="!gap-0 border-t border-line-soft pt-3 [&>div:last-child]:justify-start [&_button]:!px-0 [&_button]:text-xs [&_button]:text-accent">
                 <input type="hidden" name="id" value={inf.id} />
@@ -279,8 +301,24 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
           )}
         </div>
       </div>
-      <Card title="Kit de communication" className="mt-4">
-        <PartnerKitEditor initial={settings.partnerKit} action={savePartnerKitAction} />
+      <Card title="Kit de bienvenue" className="mt-4">
+        <p className="-mt-1 text-[0.8125rem] leading-relaxed text-subtle">
+          Les livres offerts à chaque nouveau partenaire. Il les commande lui-même depuis son espace, en donnant son
+          adresse ou un point relais ; la commande arrive dans « À expédier » et s'expédie par Boxtal comme les autres.
+        </p>
+        <ActionForm action={savePartnerKitAction} submitLabel="Enregistrer le kit">
+          <Switch name="enabled" label="Proposer le kit dans l'espace partenaire" defaultChecked={settings.welcomeKit.enabled} />
+          <Field label="Titre de l'encart" name="title">
+            <Input name="title" defaultValue={settings.welcomeKit.title} placeholder="Votre kit de bienvenue" />
+          </Field>
+          <Field label="Texte" hint="Deux phrases au plus : ce qu'il reçoit et sous quel délai." name="text">
+            <Textarea name="text" defaultValue={settings.welcomeKit.text} placeholder="Trois imagiers à découvrir, à filmer, à offrir. Expédié sous 48 h." />
+          </Field>
+          <WelcomeKitEditor
+            products={products.map((p) => ({ slug: p.slug, title: p.title, image: p.images[0]?.url, tint: p.tint, stock: p.stock }))}
+            initial={settings.welcomeKit.lines}
+          />
+        </ActionForm>
       </Card>
 
       <Card title="E-mail d'invitation" className="mt-4">

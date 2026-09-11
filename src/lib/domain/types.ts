@@ -452,6 +452,20 @@ export const SiteSettings = z.object({
       collectionOffer: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
     })
     .default({ collectionOffer: { enabled: false } }),
+  /*
+   * Kit de bienvenue des partenaires. Les livres viennent d'un stock à part, réservé
+   * aux influenceurs : la commande qui en naît ne décrémente aucun stock de vente et
+   * n'est jamais facturée. La sélection est la même pour tout le monde, et chaque
+   * partenaire ne peut la commander qu'une fois depuis son espace.
+   */
+  welcomeKit: z
+    .object({
+      enabled: z.boolean().default(false),
+      title: z.string().max(80).default("Votre kit de bienvenue"),
+      text: z.string().max(400).default(""),
+      lines: z.array(z.object({ slug: Slug, qty: z.number().int().min(1).max(20).default(1) })).default([]),
+    })
+    .default({ enabled: false, title: "Votre kit de bienvenue", text: "", lines: [] }),
   legal: z
     .object({
       footerLine: z.string().default(""),
@@ -465,15 +479,6 @@ export const SiteSettings = z.object({
     })
     .default({ footerLine: "", sellerName: "", sellerAddressLines: [], siret: "", vatNumber: "", vatNote: "TVA non applicable, art. 293 B du CGI" }),
   seo: Seo.default({}),
-  /*
-   * Kit de communication des partenaires : des fichiers déjà déposés dans la
-   * médiathèque, présentés dans leur espace. On ne stocke que le nécessaire pour les
-   * lister — pas de second espace de stockage à tenir.
-   */
-  partnerKit: z
-    .array(z.object({ name: z.string().trim().max(80), meta: z.string().trim().max(120).default(""), url: z.string().trim() }))
-    .max(12)
-    .default([]),
   updatedAt: z.number(),
 });
 export type SiteSettings = z.infer<typeof SiteSettings>;
@@ -605,6 +610,8 @@ export const Order = z.object({
     .optional(),
   /** Codes promo appliqués à cette commande. */
   promoCodes: z.array(z.string()).default([]),
+  /** Kit de bienvenue d'un partenaire : offert, pris sur le stock influenceurs, jamais facturé. */
+  kit: z.object({ influencerId: z.string() }).optional(),
   /** Vente attribuée à un influenceur : par son code, ou par son lien (cookie 30 jours). */
   attribution: z.object({ influencerId: z.string(), via: z.enum(["code", "link"]) }).optional(),
   /** Facturation Tiime (via Make) : identifiants renvoyés par le scénario. */
@@ -877,6 +884,8 @@ export const Influencer = z.object({
    * sort que par le serveur, pour le partenaire lui-même ou un administrateur.
    */
   iban: z.string().trim().max(34).default(""),
+  /** Kit de bienvenue déjà commandé : identifiant de la commande, vide sinon. */
+  kitOrderId: z.string().default(""),
   createdAt: z.number(),
   updatedAt: z.number(),
 });

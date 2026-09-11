@@ -10,8 +10,8 @@ import { deleteInfluencer, getInfluencer, getInfluencerBySlug, getPromo, issueIn
 import { sendInfluencerWelcome } from "@/lib/email/send";
 import { saveTemplateValues } from "@/lib/db/newsletter";
 import { listStatements, markStatementPaid, unmarkStatement } from "@/lib/db/statements";
-import { getSettings, saveSettings } from "@/lib/db/settings";
 import { listOrders } from "@/lib/db/orders";
+import { getSettings, saveSettings } from "@/lib/db/settings";
 import { statementRows } from "@/lib/promos/statements";
 import { now } from "@/lib/db/helpers";
 import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
@@ -181,23 +181,41 @@ export async function markStatementPaidAction(formData: FormData): Promise<Admin
   return saved(`Relevé de ${month} marqué comme versé.`);
 }
 
-/** Kit de communication : des fichiers de la médiathèque, listés dans l'espace partenaire. */
+
+const KitInput = z.object({
+  enabled: z.boolean().default(false),
+  title: z.string().trim().max(80).default("Votre kit de bienvenue"),
+  text: z.string().trim().max(400).default(""),
+  /** Sélection sérialisée par l'éditeur : `slug:quantité`, séparés par des virgules. */
+  lines: z.string().default(""),
+});
+
+/*
+ * Sélection des livres du kit de bienvenue. La même pour tous les partenaires : ils
+ * sont choisis en amont, pris sur un stock à part, et la commande qui en naît ne
+ * décrémente aucun stock de vente.
+ */
 export async function savePartnerKitAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
-  const raw = String(formData.get("kit") ?? "[]");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return failed("Kit illisible");
-  }
-  const Kit = z.array(z.object({ name: z.string().trim().max(80), meta: z.string().trim().max(120).default(""), url: z.string().trim().url("Adresse invalide") })).max(12);
-  const kit = Kit.safeParse(parsed);
-  if (!kit.success) return failed(kit.error.issues[0]?.message ?? "Kit invalide");
+  const parsed = parseForm(KitInput, formData, { booleans: ["enabled"] });
+  if (!parsed.ok) return failed(parsed.error, parsed.issues);
+  const d = parsed.data;
+
+  const lines = d.lines
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const [slug, qty] = part.split(":");
+      return { slug: slug.trim(), qty: Math.min(20, Math.max(1, Number(qty) || 1)) };
+    })
+    .filter((l) => l.slug);
+  if (d.enabled && lines.length === 0) return failed("Choisissez au moins un livre avant d'activer le kit.", { lines: "Sélection vide" });
 
   const settings = await getSettings();
-  await saveSettings({ ...settings, partnerKit: kit.data.filter((k) => k.name && k.url) });
-  await audit(user.email, "settings.partner-kit", "settings/site", `${kit.data.length} fichiers`);
+  await saveSettings({ ...settings, welcomeKit: { enabled: d.enabled, title: d.title, text: d.text, lines } });
+  await audit(user.email, "influencer.kit", "settings/site", `${lines.length} titre${lines.length > 1 ? "s" : ""}${d.enabled ? "" : " (inactif)"}`);
   revalidatePath("/admin/influenceurs");
-  return saved("Kit de communication enregistré.");
+  revalidatePath("/partenaire");
+  return saved(d.enabled ? "Kit de bienvenue enregistré et proposé aux partenaires." : "Kit de bienvenue enregistré (non proposé).");
 }

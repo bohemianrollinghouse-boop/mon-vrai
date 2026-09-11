@@ -172,6 +172,73 @@ export async function createPaidOrder(input: PaidOrderInput): Promise<Order> {
   });
 }
 
+export type KitOrderInput = {
+  influencerId: string;
+  lines: OrderLine[];
+  email: string;
+  shippingAddress: Address;
+  delivery?: Order["delivery"];
+  livemode?: boolean;
+  note?: string;
+};
+
+/*
+ * Commande du kit de bienvenue d'un partenaire. C'est une commande comme une autre —
+ * même collection, même numérotation, même passage chez Boxtal — à trois différences
+ * près : elle naît « payée » sans passer par Stripe, elle ne décrémente aucun stock
+ * (les livres du kit viennent d'un stock à part), et elle n'est jamais facturée.
+ *
+ * Idempotente sur l'influenceur : un double clic ne crée pas deux kits.
+ */
+export async function createKitOrder(input: KitOrderInput): Promise<Order> {
+  const existing = await findKitOrder(input.influencerId);
+  if (existing) return existing;
+
+  const id = newId("ord");
+  const createdAt = now();
+
+  return db().runTransaction(async (tx) => {
+    const dup = await tx.get(orders().where("kit.influencerId", "==", input.influencerId).limit(1));
+    const dupDoc = dup.docs[0];
+    if (dupDoc) {
+      const found = parseDoc(Order, dupDoc);
+      if (found) return found;
+    }
+
+    const counterRef = counters().doc("orders");
+    const counterSnap = await tx.get(counterRef);
+    const seq = ((counterSnap.data()?.seq as number | undefined) ?? 0) + 1;
+
+    const order = Order.parse({
+      id,
+      number: formatOrderNumber(seq, createdAt),
+      status: "paid",
+      lines: input.lines,
+      totals: { subtotal: 0, shipping: 0, discount: 0, tax: 0, total: 0, currency: "eur" },
+      email: input.email.trim().toLowerCase(),
+      shippingAddress: input.shippingAddress,
+      livemode: input.livemode ?? true,
+      delivery: input.delivery,
+      kit: { influencerId: input.influencerId },
+      stripe: {},
+      timeline: [{ at: createdAt, status: "paid", note: input.note ?? "Kit de bienvenue partenaire", by: "partenaire" }],
+      createdAt,
+      updatedAt: createdAt,
+    });
+
+    tx.set(counterRef, { seq }, { merge: true });
+    tx.set(orders().doc(id), order);
+    return order;
+  });
+}
+
+/** La commande de kit d'un partenaire, s'il l'a déjà commandé. */
+export async function findKitOrder(influencerId: string): Promise<Order | null> {
+  const snap = await orders().where("kit.influencerId", "==", influencerId).limit(1).get();
+  const doc = snap.docs[0];
+  return doc ? parseDoc(Order, doc) : null;
+}
+
 /** Change le statut en respectant la machine à états, et rend le stock si l'on annule après paiement. */
 export async function transitionOrder(id: string, to: OrderStatus, opts: { note?: string; by?: string } = {}): Promise<Order> {
   return db().runTransaction(async (tx) => {
@@ -180,7 +247,8 @@ export async function transitionOrder(id: string, to: OrderStatus, opts: { note?
     if (!order) throw new Error(`Commande ${id} introuvable`);
     assertTransition(order.status, to);
 
-    const releasing = stockIsReserved(order.status) && !stockIsReserved(to);
+    // Un kit n'a rien décrémenté : l'annuler ne doit rien rendre au stock de vente.
+    const releasing = !order.kit && stockIsReserved(order.status) && !stockIsReserved(to);
     if (releasing) {
       // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
       const prefs = order.lines.map((line) => col("products").doc(line.productSlug));

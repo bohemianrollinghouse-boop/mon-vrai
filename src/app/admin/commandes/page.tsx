@@ -52,6 +52,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/com
             <span key="s" className="flex flex-wrap gap-1.5">
               <Pill tone={STATUS_TONE[o.status]}>{ADMIN_STATUS_LABELS[o.status]}</Pill>
               {!o.livemode && <Pill tone="muted">Test</Pill>}
+              {o.kit && <Pill tone="ok">Kit</Pill>}
             </span>,
             <span key="l" className="truncate font-semibold text-muted">{o.tracking?.carrier ?? "-"}</span>,
             <span key="d" className="text-subtle">{shortDate(o.createdAt)}</span>,

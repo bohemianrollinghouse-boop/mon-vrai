@@ -88,6 +88,8 @@ export default async function AccountOrderPage({ params }: PageProps<"/compte/co
               <a href={`/api/factures/${order.id}`} target="_blank" rel="noreferrer" className="w-fit rounded-pill bg-paper px-4 py-2.5 text-xs font-bold">
                 Facture {order.invoice.number} (PDF)
               </a>
+            ) : order.kit ? (
+              <span className="text-xs text-subtle">Kit de bienvenue, offert : il n'y a rien à facturer.</span>
             ) : (
               <span className="text-xs text-subtle">La facture apparaît ici dès son émission.</span>
             )}

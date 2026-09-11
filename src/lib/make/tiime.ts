@@ -25,6 +25,8 @@ export async function sendOrderToMake(orderId: string, by = "système"): Promise
 
   const order = await getOrder(orderId);
   if (!order) return { ok: false, error: "Commande introuvable" };
+  // Un kit de bienvenue est offert : rien à facturer, donc rien à envoyer en compta.
+  if (order.kit) return { ok: false, error: "Kit de bienvenue : commande offerte, sans facture" };
   const customer = order.customerUid ? await getCustomer(order.customerUid) : null;
   const payload = buildTiimePayload(order, customer);
 

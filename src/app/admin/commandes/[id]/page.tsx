@@ -55,9 +55,10 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
             Commande {order.number}
             <Pill tone={STATUS_TONE[order.status]}>{ADMIN_STATUS_LABELS[order.status]}</Pill>
             {!order.livemode && <Pill tone="muted">Test</Pill>}
+            {order.kit && <Pill tone="ok">Kit partenaire</Pill>}
           </span>
         }
-        subtitle={`${longDate(order.createdAt)} · payée par carte · ${a.name}`}
+        subtitle={`${longDate(order.createdAt)} · ${order.kit ? "kit de bienvenue, offert" : "payée par carte"} · ${a.name}`}
         actions={
           <>
             {refundable && (
@@ -333,7 +334,9 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
               )}
             </Block>
             <Block label="Facture Tiime">
-              {order.invoice ? (
+              {order.kit ? (
+                "Kit de bienvenue : commande offerte, jamais facturée"
+              ) : order.invoice ? (
                 <a href={`/api/factures/${order.id}`} target="_blank" className="underline">
                   {order.invoice.number} (PDF)
                 </a>
@@ -372,7 +375,7 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
             </Card>
           )}
 
-          {makeConfigured() && paidOrder && (
+          {makeConfigured() && paidOrder && !order.kit && (
             <Card title={<span className="text-sm">Tiime (via Make)</span>} className="!gap-2">
               {order.tiime?.invoiceId ? (
                 <p className="text-xs text-subtle">

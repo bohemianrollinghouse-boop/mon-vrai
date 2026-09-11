@@ -29,7 +29,8 @@ export function lowStockProducts(products: Product[], settings: SiteSettings): P
 export function reservedBySlug(orders: Order[]): Map<string, number> {
   const m = new Map<string, number>();
   for (const o of orders) {
-    if (!TO_SHIP.includes(o.status)) continue;
+    // Un kit de bienvenue vient d'un stock à part : il ne réserve aucun exemplaire de vente.
+    if (o.kit || !TO_SHIP.includes(o.status)) continue;
     for (const l of o.lines) m.set(l.productSlug, (m.get(l.productSlug) ?? 0) + l.qty);
   }
   return m;

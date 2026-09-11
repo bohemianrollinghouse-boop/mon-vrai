@@ -92,13 +92,14 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId"
 > & {
   id?: string;
   uid?: string;
   invitedAt?: number;
   activatedAt?: number;
   iban?: string;
+  kitOrderId?: string;
 };
 
 /** Crée ou met à jour l'influenceur et son code promo (remise en pourcentage, cumulable avec rien par défaut). */
@@ -114,6 +115,7 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     invitedAt: input.invitedAt ?? existing?.invitedAt,
     activatedAt: input.activatedAt ?? existing?.activatedAt,
     iban: input.iban ?? existing?.iban ?? "",
+    kitOrderId: input.kitOrderId ?? existing?.kitOrderId ?? "",
     inviteToken: existing?.inviteToken ?? "",
     inviteExpiresAt: existing?.inviteExpiresAt,
     createdAt: existing?.createdAt ?? now(),
