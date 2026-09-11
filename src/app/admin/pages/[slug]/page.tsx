@@ -164,7 +164,7 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
               découpage, puis enregistrez le contenu pour le figer.
             </Notice>
           )}
-          <BlockEditor slug={page.slug} title={page.title} path={page.home ? "/" : pagePath(page.slug)} initialData={toBlockData(initial)} media={media} metadata={metadata} save={savePageBlocksAction} />
+          <BlockEditor slug={page.slug} title={page.title} path={page.home ? "/" : pagePath(page.slug)} initialData={toBlockData(initial)} media={media} metadata={metadata} version={page.updatedAt} save={savePageBlocksAction} />
         </div>
       )}
 
