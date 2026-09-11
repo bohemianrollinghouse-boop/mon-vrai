@@ -18,6 +18,23 @@ export function parcelWeightKg(order: Order, settings: SiteSettings): number {
   return Math.max(0.05, (settings.shipping.parcel.baseWeightG + items) / 1000);
 }
 
+/*
+ * Valeur déclarée du colis, en centimes : ce que valent les livres, et non ce que le
+ * client a payé. C'est elle qui sert d'indemnité en cas de perte — une commande remisée,
+ * un livre offert par un code promo ou un kit partenaire valent leur prix, pas zéro.
+ *
+ * Le prix unitaire figé à la commande fait foi ; quand il est nul (article offert), on
+ * reprend le prix courant du catalogue, que l'appelant fournit. À défaut de tout, le
+ * plancher est 1 € : Boxtal refuse une valeur nulle.
+ */
+export function declaredValueCents(order: Order, catalogPrices?: Map<string, number>): number {
+  const total = order.lines.reduce((sum, l) => {
+    const unit = l.unitPrice || catalogPrices?.get(l.productSlug) || 0;
+    return sum + unit * l.qty;
+  }, 0);
+  return Math.max(100, total);
+}
+
 function splitName(full: string): { firstName: string; lastName: string } {
   const parts = full.trim().split(/\s+/);
   if (parts.length <= 1) return { firstName: parts[0] || "Client", lastName: parts[0] || "Client" };
@@ -51,7 +68,7 @@ export function senderAddress(settings: SiteSettings): BoxtalAddress {
   return addr;
 }
 
-export function buildShippingOrderRequest(order: Order, settings: SiteSettings): CreateShippingOrderRequest {
+export function buildShippingOrderRequest(order: Order, settings: SiteSettings, catalogPrices?: Map<string, number>): CreateShippingOrderRequest {
   const rate = settings.shipping.rates.find((r) => r.id === order.delivery?.rateId);
   const dest = order.shippingAddress.country as "FR" | "BE" | "LU";
   const offerCode = order.delivery?.offerCode || rate?.offerCodes[dest] || rate?.offerCodes.FR || "";
@@ -69,7 +86,7 @@ export function buildShippingOrderRequest(order: Order, settings: SiteSettings):
   if (!to.contact.phone) throw new Error("Le transporteur exige un numéro de téléphone du destinataire ; ajoutez-le dans la commande.");
 
   const p = settings.shipping.parcel;
-  const value = Math.max(1, Math.round(order.totals.subtotal - order.totals.discount) / 100);
+  const value = declaredValueCents(order, catalogPrices) / 100;
   return {
     shippingOfferCode: offerCode,
     labelType: p.labelType,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildShippingOrderRequest, parcelWeightKg } from "./request";
+import { buildShippingOrderRequest, declaredValueCents, parcelWeightKg } from "./request";
 import { DEFAULT_PARCEL, DEFAULT_SHIPPING_RATES, EMPTY_SENDER, Order, SiteSettings } from "@/lib/domain/types";
 
 const settings = SiteSettings.parse({
@@ -46,6 +46,27 @@ describe("Boxtal - demande d'expédition", () => {
     expect(() => buildShippingOrderRequest(Order.parse(relayOrder), settings)).toThrow(/point relais/);
     const withRelay = Order.parse({ ...relayOrder, delivery: { ...relayOrder.delivery, relay: { code: "22731", name: "LOCKER DELIPOP", street: "34 RUE DE LABORDE", postalCode: "75008", city: "PARIS", network: "MONR_NETWORK" } } });
     expect(buildShippingOrderRequest(withRelay, settings).shipment.pickupPointCode).toBe("22731");
+  });
+
+  /*
+   * La valeur déclarée sert d'indemnité en cas de perte : c'est celle des livres, pas
+   * la somme encaissée. Une remise, un livre offert ou un kit partenaire ne la réduisent
+   * donc pas à zéro.
+   */
+  it("déclare la valeur des livres, sans retrancher la remise", () => {
+    const remisé = Order.parse({ ...base, totals: { ...base.totals, discount: 1000, total: 2000 }, delivery: { rateId: "colissimo", rateName: "Colissimo", offerCode: "POFR-ColissimoAccess" } });
+    expect(buildShippingOrderRequest(remisé, settings).shipment.packages[0].value).toEqual({ value: 30, currency: "EUR" });
+  });
+
+  it("valorise un article offert au prix courant du catalogue", () => {
+    const offert = Order.parse({
+      ...base,
+      lines: [{ productSlug: "les-fruits", title: "Les fruits", qty: 2, unitPrice: 0, gift: true }],
+      totals: { subtotal: 0, shipping: 0, discount: 0, tax: 0, total: 0, currency: "eur" },
+    });
+    expect(declaredValueCents(offert, new Map([["les-fruits", 1400]]))).toBe(2800);
+    // Sans catalogue sous la main, le plancher de Boxtal : 1 €.
+    expect(declaredValueCents(offert)).toBe(100);
   });
 
   it("refuse une adresse d'expédition incomplète", () => {

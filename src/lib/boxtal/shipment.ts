@@ -2,13 +2,14 @@ import "server-only";
 import { storage } from "@/lib/firebase/admin";
 import { getOrder, setBoxtal, setTracking, transitionOrder } from "@/lib/db/orders";
 import { getSettings } from "@/lib/db/settings";
+import { getProductsBySlugs } from "@/lib/db/products";
 import type { Order } from "@/lib/domain/types";
 import { sendShippingNotice } from "@/lib/email/send";
 import { carrierOf } from "./offers";
 import { createShippingOrder, getShippingDocuments, getShippingTracking, type BoxtalMode, type PackageTracking } from "./client";
 import { buildShippingOrderRequest } from "./request";
 
-export { buildShippingOrderRequest, parcelWeightKg, senderAddress } from "./request";
+export { buildShippingOrderRequest, declaredValueCents, parcelWeightKg, senderAddress } from "./request";
 
 /*
  * L'environnement Boxtal est un réglage indépendant (Paramètres → Livraison), distinct
@@ -32,7 +33,10 @@ export async function createLabelForOrder(orderId: string, by: string): Promise<
   if (!["paid", "preparing"].includes(order.status)) throw new Error(`Une commande ${order.status} ne s'expédie pas.`);
   const settings = await getSettings();
   const mode = settings.shipping.boxtalMode;
-  const req = buildShippingOrderRequest(order, settings);
+  // Prix courants du catalogue : ils valorisent les articles offerts (code promo, kit),
+  // dont le prix figé à la commande est nul, pour déclarer la vraie valeur du colis.
+  const catalog = await getProductsBySlugs(order.lines.map((l) => l.productSlug)).catch(() => new Map());
+  const req = buildShippingOrderRequest(order, settings, new Map([...catalog].map(([slug, p]) => [slug, p.price])));
   const created = await createShippingOrder(req, mode);
   await setBoxtal(orderId, { orderId: created.id, status: created.status, mode, createdAt: Date.now(), updatedAt: Date.now() });
   if (order.status === "paid") await transitionOrder(orderId, "preparing", { note: `Étiquette Boxtal demandée (${req.shippingOfferCode}, réf. ${created.id})`, by });
