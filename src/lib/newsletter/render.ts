@@ -124,8 +124,28 @@ function imgProduct(c: RenderCtx, key: string, def: string, style: string): stri
 
 const card = (inner: string) => `<div style="background:${PAPER};box-shadow:0 20px 60px rgba(0,0,0,.12);border-radius:2px">${inner}</div>`;
 
-function topbar(c: RenderCtx, key: string, def: string): string {
-  return `<div style="display:flex;justify-content:space-between;padding:12px 32px;font-size:11px;color:${SUBTLE};font-weight:600"><span>Voir dans le navigateur</span>${T(c, key, def, "")}</div>`;
+/*
+ * Barre haute d'une newsletter : « Voir dans le navigateur » à gauche, une note à
+ * droite. Le lien pointe vers la version web du modèle (/newsletter/<id>) — c'était
+ * auparavant un simple texte, donc un bouton mort dans toutes les newsletters.
+ *
+ * En mode édition, il ne navigue pas : l'aperçu de l'admin n'est pas un site.
+ */
+function topbar(c: RenderCtx, key: string, def: string, id: string): string {
+  const href = `${c.base}/newsletter/${id}`;
+  const left =
+    c.mode === "email"
+      ? `<a href="${esc(href)}" style="color:${SUBTLE};text-decoration:underline">Voir dans le navigateur</a>`
+      : `<span style="text-decoration:underline">Voir dans le navigateur</span>`;
+  return `<div style="display:flex;justify-content:space-between;padding:12px 32px;font-size:11px;color:${SUBTLE};font-weight:600">${left}${T(c, key, def, "")}</div>`;
+}
+
+/*
+ * Barre haute d'un envoi transactionnel : une note, et rien qui ressemble à un bouton.
+ * Pas de version web — l'e-mail est personnel, il n'a pas d'équivalent public.
+ */
+function topbarPlain(c: RenderCtx, key: string, def: string): string {
+  return `<div style="display:flex;justify-content:flex-end;padding:12px 32px;font-size:11px;color:${SUBTLE};font-weight:600">${T(c, key, def, "")}</div>`;
 }
 
 const logo = (c: RenderCtx) => `<div style="padding:20px 32px 8px;text-align:center"><img src="${esc(c.brand.logoUrl)}" alt="${esc(c.brand.shopName)}" style="height:30px;border:0"></div>`;
@@ -194,7 +214,7 @@ function footerPlain(c: RenderCtx): string {
 /* ---------- Modèles ---------- */
 
 function tplLancement(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €")}${logo(c)}
+  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €", "lancement")}${logo(c)}
 <div style="margin:16px 24px 0;border-radius:28px;overflow:hidden;position:relative;height:560px;background:${TINTP}">${imgFill(c, "hero", "", "50% 40%")}<div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.6),rgba(0,0,0,0) 55%)"></div><div style="position:absolute;left:32px;right:32px;bottom:32px;display:flex;flex-direction:column;gap:12px;color:#fff">${T(c, "badge", "C'est ouvert", "align-self:flex-start;background:#fff;color:#111;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700")}${T(c, "title", "Le monde, en vrai, dans de petites mains.", "font-size:40px;line-height:1.02;font-weight:800;letter-spacing:-.02em", "span")}</div></div>
 <div style="padding:32px 40px 8px;text-align:center">${T(c, "intro", "Bonjour, et bienvenue. Aujourd'hui, monvrai.fr ouvre ses portes avec neuf imagiers cartonnés pour les 6–18 mois : une illustration réaliste par double-page, sur fond blanc, sans texte ni décor. Pour nommer le monde, simplement.", `margin:0 0 14px;font-size:16px;line-height:1.6;color:#444;display:block`, "p")}${btn(c, "cta", "Découvrir les 9 imagiers", c.base)}</div>
 <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:32px 24px 0">
@@ -208,7 +228,7 @@ ${footer(c)}`);
 }
 
 function tplNouveauLivre(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €")}${logo(c)}
+  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €", "nouveau-livre")}${logo(c)}
 <div style="padding:24px 40px 0;text-align:center">${eyebrow(c, "eyebrow", "Nouveau titre", GREEN_INK)}${T(c, "title", "Les Animaux de compagnie", "margin:12px 0;font-size:36px;line-height:1.05;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Le chien, le chat, le lapin, le poisson, le hamster, la tortue. Six illustrations réalistes de ceux qu'on croise tous les jours à la maison.", "margin:0 auto;font-size:15px;line-height:1.6;color:#555;max-width:440px;display:block", "p")}</div>
 <div style="margin:24px 24px 0;background:${GREEN};border-radius:28px;padding:32px;text-align:center">${imgProduct(c, "product", "https://mon-vrai-2.myshopify.com/cdn/shop/files/E7356459-D918-4329-A6A0-06A35F014BAE_6e4ac200-f7f9-4748-b1fd-e9b256c7db21.png?v=1788625340&width=600", "width:260px;border-radius:10px;box-shadow:0 24px 50px rgba(0,0,0,.18)")}</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 24px 0">${imgBox(c, "g1", "", "height:300px;border-radius:20px")}${imgBox(c, "g2", "", "height:300px;border-radius:20px", "50% 70%")}</div>
@@ -217,7 +237,7 @@ ${footer(c)}`);
 }
 
 function tplNouveauProduit(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €")}${logo(c)}
+  return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €", "nouveau-produit")}${logo(c)}
 <div style="margin:24px 24px 0;border-radius:28px;overflow:hidden;height:520px;position:relative;background:${TINTP}">${imgFill(c, "hero", "", "50% 60%")}</div>
 <div style="padding:32px 40px 0">${eyebrow(c, "eyebrow", "Nouveau produit", SAND_INK)}${T(c, "title", "La valise en palmier tressé", "margin:12px 0;font-size:36px;line-height:1.05;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Tressée à la main, elle accueille les neuf imagiers et se ferme d'un lien. Pour ranger la collection, l'emporter chez les grands-parents, ou l'offrir toute prête.", "margin:0;font-size:15px;line-height:1.6;color:#555;display:block", "p")}</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:24px 24px 0;align-items:stretch">${imgBox(c, "g1", "", "min-height:280px;border-radius:20px")}<div style="background:${SAND};border-radius:20px;padding:24px;display:flex;flex-direction:column;justify-content:space-between;gap:16px"><div style="display:flex;flex-direction:column;gap:12px;font-size:13px;font-weight:600;color:${SAND_INK};line-height:1.5">${T(c, "f1", "Palmier naturel, tressé main", "")}${T(c, "f2", "32 × 22 × 12 cm — les 9 livres à plat", "")}${T(c, "f3", "Lien de fermeture, sans métal ni plastique", "")}</div><div>${T(c, "priceNote", "[Prix à confirmer]", `font-size:11px;color:${SAND_INK};font-weight:700;display:block;margin-bottom:4px`)}${T(c, "price", "29 €", "font-size:26px;font-weight:800;letter-spacing:-.02em")}</div></div></div>
@@ -226,7 +246,7 @@ ${footer(c)}`);
 }
 
 function tplNouvelleCategorie(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €")}${logo(c)}
+  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €", "nouvelle-categorie")}${logo(c)}
 <div style="margin:24px 24px 0;background:${PINK};border-radius:28px;padding:40px 36px">${eyebrow(c, "eyebrow", "Nouvelle série", PINK_INK)}${T(c, "title", "« Moi » : ce qu'il porte, ce qu'il est.", "margin:14px 0;font-size:44px;line-height:1.02;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Après les animaux et l'alimentation, une série sur l'enfant lui-même : son visage, ses vêtements. Les mots qu'il entend le plus au quotidien.", `margin:0;font-size:15px;line-height:1.6;color:${PINK_INK};display:block`, "p")}</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 24px 0">${imgBox(c, "g1", "", "height:360px;border-radius:20px")}${imgBox(c, "g2", "", "height:360px;border-radius:20px")}</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px 24px 0">
@@ -238,7 +258,7 @@ ${footer(c)}`);
 }
 
 function tplPrecommande(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €")}${logo(c)}
+  return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €", "precommande")}${logo(c)}
 <div style="margin:24px 24px 0;background:${INK};color:#fff;border-radius:28px;padding:40px 36px;text-align:center">${eyebrow(c, "eyebrow", "Précommandes ouvertes", GREEN)}${T(c, "title", "Réservez vos imagiers, on s'occupe du reste.", "margin:16px 0;font-size:42px;line-height:1.02;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Les neuf titres sont en fabrication. Précommandez aujourd'hui, nous expédions tout dans un seul colis à partir du 25 décembre.", "margin:0 auto 16px;font-size:15px;line-height:1.6;color:#BBB;max-width:440px;display:block", "p")}${btn(c, "cta", "Précommander", c.base, false)}</div>
 <div style="margin:10px 24px 0;border-radius:28px;overflow:hidden;height:420px;position:relative;background:${TINTP}">${imgFill(c, "hero", "", "50% 65%")}</div>
 <div style="margin:10px 24px 0;background:#fff;border-radius:24px;padding:28px">${T(c, "stepsTitle", "Comment ça marche", "font-size:16px;font-weight:800;display:block;margin-bottom:16px")}
@@ -252,7 +272,7 @@ ${footer(c)}`);
 }
 
 function tplOffre(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Offre valable jusqu'au dimanche 21 septembre")}${logo(c)}
+  return card(`${topbar(c, "topnote", "Offre valable jusqu'au dimanche 21 septembre", "offre")}${logo(c)}
 <div style="margin:24px 24px 0;border-radius:28px;overflow:hidden;position:relative;height:440px;background:${TINTP}">${imgFill(c, "hero", "", "50% 60%")}</div>
 <div style="margin:-60px 40px 0;position:relative;background:${SAND};border-radius:24px;padding:32px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,.12)">${eyebrow(c, "eyebrow", "Offre collection", SAND_INK)}${T(c, "title", "Les 9 imagiers,<br>Le Visage offert.", "margin:12px 0;font-size:38px;line-height:1.02;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Complétez la collection : dès 80 € dans le panier, le neuvième livre est ajouté gratuitement.", `margin:0 auto;font-size:14px;line-height:1.55;color:${SAND_INK};max-width:400px;display:block`, "p")}<div style="margin-top:14px">${T(c, "codeLabel", "Votre code", `font-size:11px;font-weight:700;color:${SAND_INK};display:block;margin-bottom:6px`)}${T(c, "code", "COLLECTION", "background:#fff;padding:14px 28px;border-radius:14px;font-size:22px;font-weight:800;letter-spacing:.12em;display:inline-block")}</div><div style="margin-top:14px">${btn(c, "cta", "J'en profite", c.base)}</div></div>
 <div style="padding:32px 40px 0;text-align:center">${T(c, "body", "Neuf thèmes, six illustrations réalistes chacun : les animaux, les fruits et légumes, les objets de la maison, les véhicules, le visage et les vêtements. De quoi nommer presque tout le quotidien d'un enfant de 6 à 18 mois.", "margin:0 0 12px;font-size:14px;line-height:1.6;color:#555;display:block", "p")}${T(c, "terms", "Cumulable avec la livraison offerte. Jusqu'au 21 septembre, 23h59.", `font-size:12px;color:${SUBTLE};font-weight:600`)}</div>
@@ -261,7 +281,7 @@ ${footer(c)}`);
 }
 
 function tplRetourStock(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €")}${logo(c)}
+  return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €", "retour-stock")}${logo(c)}
 <div style="padding:24px 40px 0;text-align:center">${T(c, "badge", "De retour en stock", `background:${GREEN};color:${GREEN_INK};border-radius:999px;padding:8px 14px;font-size:12px;font-weight:700;display:inline-block`)}${T(c, "title", "Les Légumes sont revenus.", "margin:12px 0;font-size:38px;line-height:1.04;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Épuisé en trois semaines, le titre préféré des mangeurs de chou-fleur est réimprimé. Cette fois, on a vu plus large.", "margin:0 auto;font-size:15px;line-height:1.6;color:#555;max-width:440px;display:block", "p")}</div>
 <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:10px;padding:28px 24px 0">${imgBox(c, "g1", "", "height:400px;border-radius:24px")}<div style="display:flex;flex-direction:column;gap:10px">${imgBox(c, "g2", "", "height:195px;border-radius:20px", "50% 80%")}<div style="background:${SAND};border-radius:20px;padding:20px;flex:1;display:flex;flex-direction:column;justify-content:center">${T(c, "insideLabel", "Dedans", `font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${SAND_INK};display:block;margin-bottom:6px`)}${T(c, "inside", "Les haricots, le poireau, la courge, le chou-fleur, le brocoli, la carotte", `font-size:13px;font-weight:600;line-height:1.5;color:${SAND_INK}`)}</div></div></div>
 <div style="margin:10px 24px 0;background:#fff;border-radius:24px;padding:24px 28px;display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center"><div style="width:72px;height:72px;border-radius:16px;background:${SAND};display:flex;align-items:center;justify-content:center">${imgProduct(c, "product", "https://mon-vrai-2.myshopify.com/cdn/shop/files/7235B3F0-A987-4357-B101-FAEAA1DCB73E.png?v=1788622635&width=200", "width:60%;border-radius:4px;box-shadow:0 6px 14px rgba(0,0,0,.12)")}</div><div>${T(c, "prodName", "Les Légumes", "font-size:16px;font-weight:800;display:block;margin-bottom:4px")}${T(c, "prodMeta", "6–18 mois · 14 × 14 cm · en stock, expédié sous 48 h", `font-size:12px;color:${SUBTLE};font-weight:600`)}</div><div style="text-align:right">${T(c, "price", "10 €", "font-size:20px;font-weight:800;display:block;margin-bottom:8px")}${btn(c, "cta", "Commander", c.base)}</div></div>
@@ -270,7 +290,7 @@ ${footer(c)}`);
 }
 
 function tplCoulisses(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Coulisses · n° 1")}${logo(c)}
+  return card(`${topbar(c, "topnote", "Coulisses · n° 1", "coulisses")}${logo(c)}
 <div style="margin:24px 24px 0;border-radius:28px;overflow:hidden;height:440px;position:relative;background:${TINTP}">${imgFill(c, "hero", "")}</div>
 <div style="padding:32px 48px 0">${eyebrow(c, "eyebrow", "Coulisses", SUBTLE)}${T(c, "title", "Pourquoi une pomme, une vraie.", "margin:14px 0 18px;font-size:36px;line-height:1.08;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "p1", "Tout a commencé par une pomme posée à côté d'un livre. Sur la page, une pomme dessinée, rouge, brillante, avec un sourire. Dans la main, une pomme un peu jaune, un peu tachée. L'enfant regardait l'une, puis l'autre, et ne faisait pas le lien.", "margin:0 0 18px;font-size:16px;line-height:1.7;color:#444;display:block", "p")}${T(c, "p2", "On a voulu un livre où ce lien se fait tout seul. Une illustration réaliste, isolée sur fond blanc, sans texte ni décor. Rien qui détourne le regard. Juste la chose, et son nom, dit par vous.", "margin:0;font-size:16px;line-height:1.7;color:#444;display:block", "p")}</div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:28px 24px 0">${imgBox(c, "g1", "", "height:320px;border-radius:20px")}${imgBox(c, "g2", "", "height:320px;border-radius:20px")}</div>
@@ -295,7 +315,7 @@ export const PARTNER_WELCOME_ID = "partenaire-bienvenue";
  */
 function tplPartenaireBienvenue(c: RenderCtx): string {
   const href = c.values.__activation || "#";
-  return card(`${topbar(c, "topnote", "Espace partenaire")}${logo(c)}
+  return card(`${topbarPlain(c, "topnote", "Invitation personnelle")}${logo(c)}
 <div style="padding:32px 40px 0;text-align:center">${eyebrow(c, "eyebrow", "Bienvenue", PINK_INK)}${T(c, "title", "Votre espace partenaire est prêt", "margin:12px 0;font-size:34px;line-height:1.06;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Vous y retrouverez votre code, votre lien de suivi et les commandes qui vous sont attribuées, mises à jour chaque heure.", "margin:0 auto;font-size:15px;line-height:1.6;color:#555;max-width:440px;display:block", "p")}</div>
 <div style="padding:28px 40px 0;text-align:center"><a href="${esc(href)}" style="display:inline-block;background:${INK};color:#fff;padding:16px 28px;border-radius:999px;font-size:14px;font-weight:700;text-decoration:none">${T(c, "cta", "Accéder à mon compte", "")}</a></div>
 <div style="padding:20px 40px 0;text-align:center">${T(c, "note", "Au premier accès, vous choisirez votre mot de passe. Ce lien est personnel et valable deux semaines.", `margin:0;font-size:13px;line-height:1.6;color:${SUBTLE};display:block`, "p")}</div>

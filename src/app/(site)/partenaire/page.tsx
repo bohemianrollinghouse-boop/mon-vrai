@@ -37,7 +37,6 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   const trackingUrl = `https://${site}/?ref=${influencer.slug}`;
   const maxBar = Math.max(1, ...view.days.map((d) => d.code + d.link));
   const endAt = influencer.endAt ? new Date(influencer.endAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : null;
-  const first = influencer.name.split(" ")[0];
 
   return (
     <section className="site-wrap flex flex-col gap-4 py-4 pb-20">
@@ -45,7 +44,8 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
       <div className="grid grid-cols-[1.1fr_1fr] items-stretch gap-4 max-[899px]:grid-cols-1">
         <div className="flex flex-col justify-center gap-4 rounded-panel bg-tint-pink p-12 max-[749px]:p-8">
           <Eyebrow className="text-tint-pink-ink">Campagne en cours</Eyebrow>
-          <h1 className="display-1 text-[clamp(1.875rem,4vw,2.75rem)]">Bonjour {first}, merci de faire grandir du vrai.</h1>
+          {/* Le nom en entier : un partenaire peut être une marque, sans prénom à extraire. */}
+          <h1 className="display-1 text-[clamp(1.875rem,4vw,2.75rem)]">Bonjour {influencer.name}, merci de faire grandir du vrai.</h1>
           <p className="text-[0.9375rem] leading-relaxed text-tint-pink-ink">
             Chaque commande passée avec votre code, ou dans les 30 jours suivant un clic sur votre lien, vous est
             attribuée.
