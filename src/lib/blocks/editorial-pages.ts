@@ -440,3 +440,13 @@ export function conceptBlocks(photo: Photo): BlockDocument {
     ],
   };
 }
+
+/*
+ * Les pages dont le premier contenu est écrit ici. L'admin s'en sert pour proposer,
+ * sur ces deux pages seulement, de reprendre le texte rédigé — c'est le seul moyen
+ * de les poser en production sans passer par la ligne de commande.
+ */
+export const EDITORIAL_PAGES: Record<string, { title: string; build: (photo: Photo, newsletter?: HomeContent["newsletter"]) => BlockDocument }> = {
+  "notre-histoire": { title: "Notre histoire", build: storyBlocks },
+  "le-concept": { title: "Le concept", build: (photo) => conceptBlocks(photo) },
+};

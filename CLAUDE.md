@@ -151,10 +151,14 @@ en 308 vers la nouvelle (`next.config.ts` + `content/redirects.json`).
 - Reprise d'un ancien corps de texte riche en blocs : `lib/blocks/from-html.ts` ; des
   contenus structurés : `lib/blocks/from-content.ts` (utilisé par le seed).
 - **Pages rédigées** : « Notre histoire » et « Le concept » ne sont converties de rien
-  — leur premier contenu est écrit dans `lib/blocks/editorial-pages.ts`, qui sert au
-  seed et à `migrate-prod.ts --editorial`. Une fois la page enregistrée depuis
-  l'éditeur, c'est la base qui fait foi et ce fichier ne la rattrape plus. Leurs blocs
-  de récit
+  — leur premier contenu est écrit dans `lib/blocks/editorial-pages.ts` (registre
+  `EDITORIAL_PAGES`), qui sert au seed, à `migrate-prod.ts --editorial`, et au bouton
+  **« Reprendre le contenu rédigé »** de `/admin/pages/<slug>`. Ce bouton est le seul
+  moyen de poser ces pages en production sans ligne de commande ni clé de compte de
+  service : il rebâtit les blocs et envoie au passage les photos manquantes depuis
+  `content/editorial/` (livré au runtime par `outputFileTracingIncludes`). Une fois la
+  page enregistrée depuis l'éditeur, c'est la base qui fait foi et ce fichier ne la
+  rattrape plus — le bouton, lui, écrase. Leurs blocs de récit
   (`Chapitre`, `Sommaire`, `Chiffres`, `Panneau`, `Frise`, `PanneauSombre`,
   `ProseCentree`, `BandeauTeinte`) rendent `components/site/editorial.tsx`, comme les
   blocs de l'accueil rendent `home-sections.tsx`. Le sommaire pointe sur l'`ancre` des

@@ -1,10 +1,12 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { BlockEditor } from "@/components/admin/BlockEditor";
 import { SeoFields } from "@/components/admin/SeoFields";
 import { ButtonLink, Card, Field, Input, Notice, PageHeader, Pill, Select } from "@/components/admin/ui";
-import { deletePageAction, savePageAction, savePageBlocksAction, savePageSeoAction, setHomePageAction } from "@/lib/admin/actions/pages";
+import { deletePageAction, restoreEditorialPageAction, savePageAction, savePageBlocksAction, savePageSeoAction, setHomePageAction } from "@/lib/admin/actions/pages";
 import { toBlockData } from "@/lib/blocks/config";
+import { EDITORIAL_PAGES, EDITORIAL_PHOTOS } from "@/lib/blocks/editorial-pages";
 import { htmlToDocument } from "@/lib/blocks/from-html";
 import { listMedia } from "@/lib/db/media";
 import { getPage, listPages } from "@/lib/db/pages";
@@ -33,6 +35,10 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
   // Les catégories déjà en usage, proposées en saisie : on en crée une en l'écrivant.
   const categories = [...new Set(all.map((x) => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
   if (!isNew && !page) notFound();
+
+  /* Page dont le premier contenu est écrit dans le code, et photos qui lui manquent. */
+  const editorial = page ? EDITORIAL_PAGES[page.slug] : undefined;
+  const missingPhotos = editorial ? EDITORIAL_PHOTOS.filter((n) => !media.some((m) => m.path.endsWith(`/${n}`))) : [];
 
   const metadata = page?.blocks ? await buildBlockMetadata(page) : {};
   const imported = !isNew && page !== null && !page.blocks && page.body.html.trim() !== "";
@@ -118,6 +124,35 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
               : "Servir cette page à la racine du site. Une seule page à la fois : celle qui l'est aujourd'hui sera libérée."}
           </p>
         </ActionForm>
+      )}
+
+      {/*
+        Les deux pages dont le texte est rédigé dans le code : on peut les reposer
+        d'un bouton. Sans cela, les mettre en ligne demanderait la ligne de commande.
+      */}
+      {page && editorial && (
+        <Card title={`Contenu rédigé de « ${editorial.title} »`} className="mt-6">
+          <ActionForm
+            action={restoreEditorialPageAction}
+            submitLabel="Reprendre le contenu rédigé"
+            submitTone="outline"
+            confirm={`Remplacer tout le contenu de « ${page.title} » par le texte rédigé ? Les blocs actuels seront perdus.`}
+            footerNote={
+              missingPhotos.length === 0
+                ? "Toutes les photos sont déjà dans la médiathèque."
+                : `${missingPhotos.length} photo${missingPhotos.length > 1 ? "s" : ""} seront ajoutées à la médiathèque au passage.`
+            }
+          >
+            <input type="hidden" name="slug" value={page.slug} />
+            <p className="text-sm leading-relaxed text-muted">
+              Repose cette page sur le texte et la mise en page d'origine, <strong className="text-ink">photos comprises</strong> :
+              celles qui manquent sont envoyées dans la{" "}
+              <Link href="/admin/medias" className="font-bold underline">médiathèque</Link> automatiquement. Rien à préparer.
+              À utiliser pour poser la page la première fois, ou pour revenir au texte d'origine après des essais.
+              <strong className="text-ink"> Ce que vous avez modifié ici sera remplacé.</strong>
+            </p>
+          </ActionForm>
+        </Card>
       )}
 
       {page && (
