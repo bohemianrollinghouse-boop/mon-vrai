@@ -147,6 +147,17 @@ en 308 vers la nouvelle (`next.config.ts` + `content/redirects.json`).
   chose. Repli assumé : partage → SEO → titre de la page.
 - Reprise d'un ancien corps de texte riche en blocs : `lib/blocks/from-html.ts` ; des
   contenus structurés : `lib/blocks/from-content.ts` (utilisé par le seed).
+- **Pages rédigées** : « Notre histoire » et « Le concept » ne sont converties de rien
+  — leur premier contenu est écrit dans `lib/blocks/editorial-pages.ts`, qui sert au
+  seed et à `migrate-prod.ts --editorial`. Une fois la page enregistrée depuis l'admin,
+  c'est la base qui fait foi et ce fichier ne la rattrape plus. Leurs blocs de récit
+  (`Chapitre`, `Sommaire`, `Chiffres`, `Panneau`, `Frise`, `PanneauSombre`,
+  `ProseCentree`, `BandeauTeinte`) rendent `components/site/editorial.tsx`, comme les
+  blocs de l'accueil rendent `home-sections.tsx`. Le sommaire pointe sur l'`ancre` des
+  chapitres : un bloc ne voit pas ses voisins, il se saisit donc à la main.
+- Les photos de ces deux pages se déposent dans `content/editorial/` (voir son README
+  et `EDITORIAL_PHOTOS` dans le seed) ; celles qui manquent reprennent une photo
+  d'ambiance, à remplacer dans l'éditeur.
 
 FAQ : les questions vivent dans `content/contact.faq.items` (rubrique, masquée) et se
 gèrent dans `/admin/faq`. Tarifs de livraison : `settings.shipping.rates`, proposés à

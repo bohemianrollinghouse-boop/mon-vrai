@@ -21,13 +21,19 @@
  *
  * Idempotent : une page déjà composée en blocs n'est pas réécrite (sauf --force),
  * pour ne pas effacer une retouche faite depuis l'admin.
+ *
+ * --editorial réécrit « Notre histoire » avec le récit rédigé (editorial-pages.ts) et
+ * crée « Le concept ». À passer APRÈS le déploiement : le code en ligne doit connaître
+ * les blocs du récit (Chapitre, Frise, Panneau…) pour savoir les rendre.
  */
 import { legalToDocument } from "@/lib/blocks/from-html";
 import { catalogueToBlocks, contactToBlocks, homeToBlocks, storyToBlocks } from "@/lib/blocks/from-content";
+import { conceptBlocks, storyBlocks } from "@/lib/blocks/editorial-pages";
 import { getCatalogueContent, getContactContent, getHomeContent, getStoryContent } from "@/lib/db/content";
+import { listMedia } from "@/lib/db/media";
 import { getPage, savePageBlocks, setHomePage, upsertPage } from "@/lib/db/pages";
 import { db } from "@/lib/firebase/admin";
-import type { BlockDocument } from "@/lib/domain/types";
+import type { BlockDocument, ImageRef } from "@/lib/domain/types";
 
 const APPLY = process.argv.includes("--apply");
 /* Les menus ne bougent qu'à la demande : les repointer avant le déploiement casserait
@@ -37,6 +43,9 @@ const MENUS = process.argv.includes("--menus");
    déploiement : le code en ligne doit connaître le bloc pour savoir le rendre. */
 const WRAP_LEGAL = process.argv.includes("--wrap-legal");
 const FORCE = process.argv.includes("--force");
+/* Réécrit « Notre histoire » avec le récit rédigé. Explicite, parce que la page existe
+   déjà en blocs : la réécrire efface ce qui aurait été retouché depuis l'admin. */
+const EDITORIAL = process.argv.includes("--editorial");
 
 /* Une page « sœur » est une page libre, pas une page système ni une URL. */
 const isPageSlug = (slug: string) => /^[a-z0-9-]+(\/[a-z0-9-]+)*$/.test(slug);
@@ -55,6 +64,19 @@ async function ensurePage(slug: string, title: string, blocks: BlockDocument, ht
   if (!APPLY) return;
   await upsertPage({ slug, title, status: "published", body: { json: null, html } });
   await savePageBlocks(slug, blocks);
+}
+
+/*
+ * Les photos des pages rédigées, retrouvées dans la médiathèque par leur nom de
+ * fichier (voir EDITORIAL_PHOTOS dans le seed). Celles qui manquent laissent le bloc
+ * sans image — elle se choisit alors dans l'éditeur, ce qui est sans risque.
+ */
+async function editorialPhoto(): Promise<(name: string) => ImageRef | undefined> {
+  const media = (await listMedia(500)).filter((m) => m.mime.startsWith("image/"));
+  return (name) => {
+    const found = media.find((m) => m.path.endsWith(`/${name}`));
+    return found ? { url: found.url, alt: found.alt, width: found.width, height: found.height } : undefined;
+  };
 }
 
 type RawTarget = { kind?: string; key?: string; handle?: string; slug?: string; href?: string; newTab?: boolean };
@@ -93,6 +115,23 @@ async function main() {
   if (catalogue) await ensurePage("catalogue", "Catalogue", catalogueToBlocks(catalogue, home?.newsletter));
   if (contact) await ensurePage("contact", "Contact", contactToBlocks(contact, home?.newsletter));
   if (home) await ensurePage("accueil", "Accueil", homeToBlocks(home));
+
+  /* 2 bis. Les deux pages rédigées (lib/blocks/editorial-pages.ts). « Le concept » est
+     nouvelle : elle est simplement créée. « Notre histoire » existe déjà en blocs,
+     donc ensurePage la laisse tranquille — --editorial passe outre, délibérément. */
+  const photo = await editorialPhoto();
+  await ensurePage("le-concept", "Le concept", conceptBlocks(photo));
+  if (EDITORIAL) {
+    const blocks = storyBlocks(photo, home?.newsletter);
+    note(`~ ${"notre-histoire".padEnd(22)} récit rédigé · ${blocks.content.length} blocs (--editorial)`);
+    if (APPLY) {
+      await upsertPage({ slug: "notre-histoire", title: "Notre histoire", status: "published" });
+      await savePageBlocks("notre-histoire", blocks);
+    }
+  } else {
+    note("· notre-histoire         laissée telle quelle — la réécrire avec --editorial");
+  }
+  note("· menu : ajouter « Le concept » dans /admin/menus une fois la page vérifiée");
 
   /* 3. Les menus suivent. Lecture brute, pour la même raison qu'au point 1. */
   const slugs = new Set<string>();

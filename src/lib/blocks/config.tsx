@@ -4,6 +4,7 @@ import type { Config, RichText, Slot } from "@puckeditor/core";
 import { MediaPickerField } from "@/components/admin/MediaPickerField";
 import { CollectionOfferButton } from "@/components/site/CollectionOfferButton";
 import { ContactForm } from "@/components/site/ContactForm";
+import { CenteredProse, Chapter, Contents, DarkPanel, EditorialPanel, Figures, Timeline, TintBanner } from "@/components/site/editorial";
 import { CtaBand, HomeHero, Split, Tiles } from "@/components/site/home-sections";
 import { SortSelect } from "@/components/site/SortSelect";
 import Link from "next/link";
@@ -118,7 +119,12 @@ function Rich({ value, className = "" }: { value: RichText; className?: string }
   return <div className={className}>{value}</div>;
 }
 
-type Props = {
+/*
+ * Les props de chaque bloc. Exporté pour que ce qui écrit un document de blocs à la
+ * main (editorial-pages.ts) soit vérifié à la compilation : un type inexistant ou une
+ * prop mal nommée ne rendrait rien, sans rien casser ailleurs.
+ */
+export type Props = {
   HerosAccueil: { badge: string; titre: string; texte: string; video: ImageRef | undefined; affiche: ImageRef | undefined; ctaLabel: string; ctaHref: string; cta2Label: string; cta2Href: string };
   Catalogue: { titre: string; lienLabel: string; nombre: number };
   HerosCatalogue: { surtitre: string; titre: string; texte: string; teinte: Tint; offreActive: boolean; offreTitre: string; offrePrixBarre: string; offrePrix: string; offreNote: string; offreCtaLabel: string };
@@ -128,7 +134,15 @@ type Props = {
   FormulaireContact: Record<string, never>;
   FAQ: { titre: string; note: string };
   GabaritLegal: { resume: string; aideTitre: string; aideTexte: string; aideCtaLabel: string; aideCtaHref: string; contenu: Slot };
-  Heros: { surtitre: string; titre: string; texte: string; image: ImageRef | undefined; teinte: Tint };
+  Heros: { surtitre: string; titre: string; texte: string; image: ImageRef | undefined; teinte: Tint; disposition: "cote" | "dessous" };
+  Chapitre: { surtitre: string; titre: string; ancre: string; paragraphes: { texte: string }[]; pastilles: { texte: string }[]; teintePastilles: Tint; image: ImageRef | undefined };
+  Sommaire: { intitule: string; entrees: { numero: string; label: string; lien: string }[] };
+  Chiffres: { items: { valeur: string; texte: string }[]; taille: "lg" | "md"; largeurMin: number };
+  Panneau: { surtitre: string; titre: string; texte: string; citation: string; texte2: string; puces: { signe: string; texte: string }[]; image: ImageRef | undefined; cote: "left" | "right"; teinte: "" | Tint };
+  Frise: { surtitre: string; titre: string; texte: string; items: { label: string; texte: string }[]; teinte: "" | Tint };
+  PanneauSombre: { disposition: "cards" | "columns"; surtitre: string; titre: string; texte: string; paragraphes: { texte: string }[]; cartes: { titre: string; texte: string }[] };
+  ProseCentree: { surtitre: string; titre: string; paragraphes: { texte: string }[]; pastilles: { texte: string }[]; teintePastilles: Tint; texteFin: string; image: ImageRef | undefined };
+  BandeauTeinte: { surtitre: string; titre: string; texte: string; ctaLabel: string; ctaHref: string; cta2Label: string; cta2Href: string; teinte: Tint };
   Titre: { texte: string; niveau: "2" | "3"; surtitre: string; alignement: "left" | "center" };
   Texte: { contenu: RichText };
   Prose: { titre: string; paragraphes: { texte: string }[] };
@@ -157,9 +171,9 @@ export const blockConfig: Config<Props> = {
   },
   categories: {
     entete: { title: "En-tête", components: ["HerosAccueil", "Heros", "Titre"] },
-    texte: { title: "Texte", components: ["Texte", "Prose", "Encadre", "Bouton"] },
-    media: { title: "Médias", components: ["Illustration", "Galerie", "ImageTexte"] },
-    mise_en_page: { title: "Mise en page", components: ["Colonnes", "Principes", "Tuiles", "Bandeau", "Infolettre", "Espace"] },
+    texte: { title: "Texte", components: ["Texte", "Prose", "ProseCentree", "Chapitre", "Sommaire", "Encadre", "Bouton"] },
+    media: { title: "Médias", components: ["Illustration", "Galerie", "ImageTexte", "Panneau"] },
+    mise_en_page: { title: "Mise en page", components: ["Colonnes", "Principes", "Tuiles", "Chiffres", "Frise", "PanneauSombre", "Bandeau", "BandeauTeinte", "Infolettre", "Espace"] },
     donnees: { title: "Données du site", components: ["Catalogue", "HerosCatalogue", "GrilleCatalogue", "Specs", "HerosContact", "FormulaireContact", "FAQ", "GabaritLegal"] },
   },
   components: {
@@ -563,7 +577,11 @@ export const blockConfig: Config<Props> = {
       },
     },
 
-    /** Héro bicolore de « Notre histoire » : panneau teinté à gauche, image à droite. */
+    /*
+     * Héro bicolore : panneau teinté et image. Côte à côte (« Notre histoire ») ou
+     * l'image en bandeau sous un panneau pleine largeur (« Le concept »), quand le
+     * titre est long et mérite toute la largeur.
+     */
     Heros: {
       label: "Héro bicolore",
       fields: {
@@ -572,28 +590,279 @@ export const blockConfig: Config<Props> = {
         texte: { type: "textarea", label: "Texte" },
         image: imageField("Image"),
         teinte: { type: "select", label: "Teinte du panneau", options: TINT_OPTIONS },
+        disposition: { type: "radio", label: "Image", options: [{ label: "À côté", value: "cote" }, { label: "En dessous", value: "dessous" }] },
       },
-      defaultProps: { surtitre: "Notre histoire", titre: "Un titre", texte: "", image: undefined, teinte: "pink" },
-      render: ({ surtitre, titre, texte, image, teinte }) => (
-        <section className="site-wrap pt-2">
-          <div className="grid grid-cols-2 gap-4 max-[899px]:grid-cols-1">
-            <div className={`flex flex-col justify-center gap-5 rounded-panel p-16 max-[899px]:p-8 ${TINT_BG[teinte]}`}>
-              {surtitre && <Eyebrow className={TINT_INK[teinte]}>{surtitre}</Eyebrow>}
-              <h1 className="display-1 text-[clamp(2rem,4.6vw,3.375rem)]">{titre}</h1>
-              {texte && <p className={`text-[1.0625rem] leading-relaxed ${TINT_INK[teinte]}`}>{texte}</p>}
+      defaultProps: { surtitre: "Notre histoire", titre: "Un titre", texte: "", image: undefined, teinte: "pink", disposition: "cote" },
+      render: ({ surtitre, titre, texte, image, teinte, disposition }) => {
+        const dessous = disposition === "dessous";
+        return (
+          <section className="site-wrap pt-2">
+            <div className={dessous ? "flex flex-col gap-4" : "grid grid-cols-2 gap-4 max-[899px]:grid-cols-1"}>
+              <div className={`flex flex-col justify-center gap-5 rounded-panel p-16 max-[899px]:p-8 ${TINT_BG[teinte]}`}>
+                {surtitre && <Eyebrow className={TINT_INK[teinte]}>{surtitre}</Eyebrow>}
+                <h1 className={`display-1 text-[clamp(2rem,4.6vw,3.375rem)] ${dessous ? "max-w-[900px]" : ""}`}>{titre}</h1>
+                {texte && <p className={`text-[1.0625rem] leading-relaxed ${dessous ? "max-w-[760px]" : ""} ${TINT_INK[teinte]}`}>{texte}</p>}
+              </div>
+              {image && (
+                <Image
+                  src={image.url}
+                  alt={image.alt}
+                  width={image.width ?? 1200}
+                  height={image.height ?? 900}
+                  sizes={dessous ? "100vw" : "(min-width: 900px) 50vw, 100vw"}
+                  className={`w-full rounded-panel object-cover max-[899px]:h-72 ${dessous ? "h-[380px]" : "h-[520px]"}`}
+                />
+              )}
             </div>
-            {image && (
-              <Image
-                src={image.url}
-                alt={image.alt}
-                width={image.width ?? 1200}
-                height={image.height ?? 900}
-                sizes="(min-width: 900px) 50vw, 100vw"
-                className="h-[520px] w-full rounded-panel object-cover max-[899px]:h-72"
-              />
-            )}
-          </div>
-        </section>
+          </section>
+        );
+      },
+    },
+
+    /*
+     * Un chapitre du récit : surtitre et titre sur un tiers, texte au fil sur deux
+     * tiers. L'ancre sert de cible au sommaire — la laisser vide retire le chapitre
+     * des liens, sans le retirer de la page.
+     */
+    Chapitre: {
+      label: "Chapitre",
+      fields: {
+        surtitre: { type: "text", label: "Surtitre" },
+        titre: { type: "text", label: "Titre" },
+        ancre: { type: "text", label: "Ancre", },
+        paragraphes: {
+          type: "array",
+          label: "Paragraphes",
+          arrayFields: { texte: { type: "textarea", label: "Paragraphe" } },
+          getItemSummary: (item, i) => item.texte?.slice(0, 40) || `Paragraphe ${(i ?? 0) + 1}`,
+        },
+        pastilles: {
+          type: "array",
+          label: "Pastilles",
+          arrayFields: { texte: { type: "text", label: "Texte" } },
+          getItemSummary: (item, i) => item.texte || `Pastille ${(i ?? 0) + 1}`,
+        },
+        teintePastilles: { type: "select", label: "Teinte des pastilles", options: TINT_OPTIONS },
+        image: imageField("Image de fin de chapitre"),
+      },
+      defaultProps: { surtitre: "", titre: "Un chapitre", ancre: "", paragraphes: [{ texte: "" }], pastilles: [], teintePastilles: "green", image: undefined },
+      render: ({ surtitre, titre, ancre, paragraphes, pastilles, teintePastilles, image }) => (
+        <Chapter
+          eyebrow={surtitre}
+          heading={titre}
+          anchor={ancre}
+          paragraphs={paragraphes.map((p) => p.texte).filter(Boolean)}
+          chips={pastilles.map((c) => c.texte).filter(Boolean)}
+          chipTint={teintePastilles}
+          image={image}
+        />
+      ),
+    },
+
+    /*
+     * Sommaire ancré. Les entrées sont écrites à la main : un bloc ne voit pas ses
+     * voisins, et deviner les chapitres depuis la page en ferait un sommaire qu'on ne
+     * pourrait plus ni trier ni raccourcir.
+     */
+    Sommaire: {
+      label: "Sommaire",
+      fields: {
+        intitule: { type: "text", label: "Intitulé" },
+        entrees: {
+          type: "array",
+          label: "Entrées",
+          arrayFields: {
+            numero: { type: "text", label: "Numéro" },
+            label: { type: "text", label: "Libellé" },
+            lien: { type: "text", label: "Lien" },
+          },
+          getItemSummary: (item, i) => item.label || `Entrée ${(i ?? 0) + 1}`,
+        },
+      },
+      defaultProps: { intitule: "Au sommaire", entrees: [] },
+      render: ({ intitule, entrees }) => (
+        <Contents label={intitule} items={entrees.map((e) => ({ number: e.numero, label: e.label, href: e.lien }))} />
+      ),
+    },
+
+    /** Tuiles blanches « chiffre + légende » : repères d'un récit, caractéristiques d'un produit. */
+    Chiffres: {
+      label: "Chiffres",
+      fields: {
+        items: {
+          type: "array",
+          label: "Tuiles",
+          arrayFields: { valeur: { type: "text", label: "Chiffre" }, texte: { type: "textarea", label: "Légende" } },
+          getItemSummary: (item) => item.valeur || "Tuile",
+        },
+        taille: { type: "radio", label: "Taille du chiffre", options: [{ label: "Grande", value: "lg" }, { label: "Moyenne", value: "md" }] },
+        largeurMin: { type: "number", label: "Largeur minimale (px)", min: 120, max: 400 },
+      },
+      defaultProps: { items: [], taille: "lg", largeurMin: 180 },
+      render: ({ items, taille, largeurMin }) => (
+        <Figures items={items.map((f) => ({ value: f.valeur, text: f.texte }))} size={taille} min={largeurMin} />
+      ),
+    },
+
+    /*
+     * Panneau image + carte, plus riche que « Image + texte » : une phrase mise en
+     * avant, une liste à puces, un second paragraphe. Sans titre ni texte, il ne reste
+     * que la phrase — c'est l'intermède en citation de « Notre histoire ».
+     */
+    Panneau: {
+      label: "Panneau image + carte",
+      fields: {
+        surtitre: { type: "text", label: "Surtitre" },
+        titre: { type: "text", label: "Titre" },
+        texte: { type: "textarea", label: "Texte" },
+        puces: {
+          type: "array",
+          label: "Liste à puces",
+          arrayFields: { signe: { type: "text", label: "Signe" }, texte: { type: "text", label: "Texte" } },
+          getItemSummary: (item, i) => item.texte || `Puce ${(i ?? 0) + 1}`,
+        },
+        citation: { type: "textarea", label: "Phrase mise en avant" },
+        texte2: { type: "textarea", label: "Texte de fin" },
+        image: imageField("Image"),
+        cote: { type: "radio", label: "Image à", options: [{ label: "Gauche", value: "left" }, { label: "Droite", value: "right" }] },
+        teinte: { type: "select", label: "Fond de la carte", options: [{ label: "Aucun (blanc)", value: "" }, ...TINT_OPTIONS] },
+      },
+      defaultProps: { surtitre: "", titre: "Un titre", texte: "", puces: [], citation: "", texte2: "", image: undefined, cote: "right", teinte: "" },
+      render: ({ surtitre, titre, texte, puces, citation, texte2, image, cote, teinte }) => (
+        <EditorialPanel
+          eyebrow={surtitre}
+          heading={titre}
+          text={texte}
+          bullets={puces.map((b) => ({ mark: b.signe, text: b.texte }))}
+          quote={citation}
+          text2={texte2}
+          image={image}
+          side={cote}
+          tint={teinte || undefined}
+        />
+      ),
+    },
+
+    /** Frise : la chronologie d'une marque, ou les étapes d'un usage. */
+    Frise: {
+      label: "Frise",
+      fields: {
+        surtitre: { type: "text", label: "Surtitre" },
+        titre: { type: "text", label: "Titre" },
+        texte: { type: "textarea", label: "Texte d'introduction" },
+        items: {
+          type: "array",
+          label: "Jalons",
+          arrayFields: { label: { type: "text", label: "Libellé" }, texte: { type: "textarea", label: "Texte" } },
+          getItemSummary: (item, i) => item.label || `Jalon ${(i ?? 0) + 1}`,
+        },
+        teinte: { type: "select", label: "Fond du panneau", options: [{ label: "Aucun (blanc)", value: "" }, ...TINT_OPTIONS] },
+      },
+      defaultProps: { surtitre: "", titre: "", texte: "", items: [], teinte: "" },
+      render: ({ surtitre, titre, texte, items, teinte }) => (
+        <Timeline
+          eyebrow={surtitre}
+          heading={titre}
+          text={texte}
+          items={items.map((s) => ({ label: s.label, text: s.texte }))}
+          tint={teinte || undefined}
+        />
+      ),
+    },
+
+    /** Panneau sombre : des cartes de valeurs, ou deux colonnes titre / texte. */
+    PanneauSombre: {
+      label: "Panneau sombre",
+      fields: {
+        disposition: { type: "radio", label: "Disposition", options: [{ label: "Cartes", value: "cards" }, { label: "Deux colonnes", value: "columns" }] },
+        surtitre: { type: "text", label: "Surtitre" },
+        titre: { type: "text", label: "Titre" },
+        texte: { type: "textarea", label: "Texte d'introduction (cartes)" },
+        cartes: {
+          type: "array",
+          label: "Cartes",
+          arrayFields: { titre: { type: "text", label: "Titre" }, texte: { type: "textarea", label: "Texte" } },
+          getItemSummary: (item) => item.titre || "Carte",
+        },
+        paragraphes: {
+          type: "array",
+          label: "Paragraphes (deux colonnes)",
+          arrayFields: { texte: { type: "textarea", label: "Paragraphe" } },
+          getItemSummary: (item, i) => item.texte?.slice(0, 40) || `Paragraphe ${(i ?? 0) + 1}`,
+        },
+      },
+      defaultProps: { disposition: "cards", surtitre: "", titre: "Un titre", texte: "", cartes: [], paragraphes: [] },
+      render: ({ disposition, surtitre, titre, texte, cartes, paragraphes }) => (
+        <DarkPanel
+          layout={disposition}
+          eyebrow={surtitre}
+          heading={titre}
+          text={texte}
+          cards={cartes.map((c) => ({ title: c.titre, text: c.texte }))}
+          paragraphs={paragraphes.map((p) => p.texte).filter(Boolean)}
+        />
+      ),
+    },
+
+    /** Colonne de lecture centrée : la respiration entre deux panneaux. */
+    ProseCentree: {
+      label: "Prose centrée",
+      fields: {
+        surtitre: { type: "text", label: "Surtitre" },
+        titre: { type: "text", label: "Titre" },
+        paragraphes: {
+          type: "array",
+          label: "Paragraphes",
+          arrayFields: { texte: { type: "textarea", label: "Paragraphe" } },
+          getItemSummary: (item, i) => item.texte?.slice(0, 40) || `Paragraphe ${(i ?? 0) + 1}`,
+        },
+        pastilles: {
+          type: "array",
+          label: "Pastilles",
+          arrayFields: { texte: { type: "text", label: "Texte" } },
+          getItemSummary: (item, i) => item.texte || `Pastille ${(i ?? 0) + 1}`,
+        },
+        teintePastilles: { type: "select", label: "Teinte des pastilles", options: TINT_OPTIONS },
+        texteFin: { type: "textarea", label: "Texte après les pastilles" },
+        image: imageField("Image"),
+      },
+      defaultProps: { surtitre: "", titre: "", paragraphes: [{ texte: "" }], pastilles: [], teintePastilles: "green", texteFin: "", image: undefined },
+      render: ({ surtitre, titre, paragraphes, pastilles, teintePastilles, texteFin, image }) => (
+        <CenteredProse
+          eyebrow={surtitre}
+          heading={titre}
+          paragraphs={paragraphes.map((p) => p.texte).filter(Boolean)}
+          chips={pastilles.map((c) => c.texte).filter(Boolean)}
+          chipTint={teintePastilles}
+          closing={texteFin}
+          image={image}
+        />
+      ),
+    },
+
+    /** Bandeau teinté centré, avec ses deux boutons : la chute d'une page. */
+    BandeauTeinte: {
+      label: "Bandeau teinté",
+      fields: {
+        surtitre: { type: "text", label: "Surtitre" },
+        titre: { type: "textarea", label: "Phrase principale" },
+        texte: { type: "textarea", label: "Texte" },
+        ctaLabel: { type: "text", label: "Bouton principal — libellé" },
+        ctaHref: { type: "text", label: "Bouton principal — lien" },
+        cta2Label: { type: "text", label: "Bouton secondaire — libellé" },
+        cta2Href: { type: "text", label: "Bouton secondaire — lien" },
+        teinte: { type: "select", label: "Teinte", options: TINT_OPTIONS },
+      },
+      defaultProps: { surtitre: "", titre: "Une phrase de fin", texte: "", ctaLabel: "", ctaHref: "", cta2Label: "", cta2Href: "", teinte: "green" },
+      render: ({ surtitre, titre, texte, ctaLabel, ctaHref, cta2Label, cta2Href, teinte }) => (
+        <TintBanner
+          eyebrow={surtitre}
+          heading={titre}
+          text={texte}
+          primary={{ label: ctaLabel, href: ctaHref }}
+          secondary={{ label: cta2Label, href: cta2Href }}
+          tint={teinte}
+        />
       ),
     },
 

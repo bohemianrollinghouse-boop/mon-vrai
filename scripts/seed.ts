@@ -14,14 +14,15 @@ import { DEFAULT_COSTS, DEFAULT_PARCEL, DEFAULT_SHIPPING_RATES, EMPTY_SENDER } f
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import path from "node:path";
 import { adminAuth } from "@/lib/firebase/admin";
-import { getCatalogueContent, getContactContent, getHomeContent, getStoryContent, saveCatalogueContent, saveContactContent, saveHomeContent, saveStoryContent } from "@/lib/db/content";
+import { getCatalogueContent, getContactContent, getHomeContent, saveCatalogueContent, saveContactContent, saveHomeContent, saveStoryContent } from "@/lib/db/content";
 import { uploadMedia } from "@/lib/db/media";
 import { saveFooterMenu, saveHeaderMenu } from "@/lib/db/menus";
 import { savePageBlocks, setHomePage, upsertPage } from "@/lib/db/pages";
 import { upsertProduct } from "@/lib/db/products";
 import { saveSettings } from "@/lib/db/settings";
 import { legalToDocument } from "@/lib/blocks/from-html";
-import { catalogueToBlocks, contactToBlocks, homeToBlocks, storyToBlocks } from "@/lib/blocks/from-content";
+import { catalogueToBlocks, contactToBlocks, homeToBlocks } from "@/lib/blocks/from-content";
+import { conceptBlocks, storyBlocks } from "@/lib/blocks/editorial-pages";
 import { extractItems, slugify, splitLegacyTitle } from "@/lib/domain/slug";
 import type { Badge, ImageRef, MenuItem, Tint } from "@/lib/domain/types";
 
@@ -72,6 +73,25 @@ const TINTS: Record<string, Tint> = {
 };
 const SHIP_FROM = "2026-12-25";
 
+/*
+ * Photos attendues par « Notre histoire » et « Le concept », à déposer dans
+ * content/editorial/. Le seed se débrouille sans elles — une photo d'ambiance prend le
+ * relais — et elles se remplacent ensuite bloc par bloc dans l'éditeur de pages.
+ */
+const EDITORIAL_PHOTOS = [
+  "histoire-bebe-livre.jpg",
+  "histoire-main-savon.jpg",
+  "histoire-lapin-reel.jpg",
+  "histoire-cinq-imagiers.jpg",
+  "histoire-valise-rangement.jpg",
+  "histoire-pomme-reelle.jpg",
+  "histoire-chien-figurine.jpg",
+  "histoire-bebe-vetements.jpg",
+  "histoire-double-page.jpg",
+  "concept-couvertures.jpg",
+  "concept-collection.jpg",
+];
+
 async function main() {
   if (!process.env.FIRESTORE_EMULATOR_HOST && !process.argv.includes("--force")) {
     throw new Error("Aucun émulateur détecté (FIRESTORE_EMULATOR_HOST). Ajoute --force pour viser une vraie base.");
@@ -106,6 +126,9 @@ async function main() {
     "IMG_7450.jpg?v=1785704349",
     "IMG_20260106_184225.jpg?v=1788650205",
   ]);
+
+  /* ---------- Médias : photos des pages éditoriales ---------- */
+  const pic = await uploadEditorial(EDITORIAL_PHOTOS, ambiance);
 
   /* ---------- Vidéo d'accueil : rapatriée du CDN Shopify, servie par Storage ---------- */
   const heroVideo = await uploadMedia({
@@ -199,6 +222,7 @@ async function main() {
     item("accueil", "Accueil", { kind: "system", key: "home" }),
     item("catalogue", "Catalogue", { kind: "page", slug: "catalogue" }),
     item("histoire", "Notre histoire", { kind: "page", slug: "notre-histoire" }),
+    item("concept", "Le concept", { kind: "page", slug: "le-concept" }),
     item("contact", "Contact", { kind: "page", slug: "contact" }),
   ]);
   await saveFooterMenu([
@@ -214,7 +238,11 @@ async function main() {
     {
       id: "informations",
       heading: "Informations",
-      items: policies.map((p) => item(`f-${p.handle}`, p.title, { kind: "page", slug: p.handle })),
+      items: [
+        item("f-histoire", "Notre histoire", { kind: "page", slug: "notre-histoire" }),
+        item("f-concept", "Le concept", { kind: "page", slug: "le-concept" }),
+        ...policies.map((p) => item(`f-${p.handle}`, p.title, { kind: "page", slug: p.handle })),
+      ],
     },
   ]);
   log("réglages et menus");
@@ -355,13 +383,16 @@ async function main() {
      `content/story` restent en base — l'accueil y retombe si aucune page n'est
      désignée, et leur éditeur existe encore dans /admin/contenus. */
   const home = await getHomeContent();
-  const story = await getStoryContent();
   const catalogue = await getCatalogueContent();
   const contact = await getContactContent();
-  if (story) {
-    await upsertPage({ category: "Vitrine", slug: "notre-histoire", title: "Notre histoire", status: "published", body: { json: null, html: "" } });
-    await savePageBlocks("notre-histoire", storyToBlocks(story, home?.newsletter));
-  }
+
+  /* « Notre histoire » et « Le concept » sont rédigées, pas converties : leur contenu
+     vient de lib/blocks/editorial-pages.ts. */
+  await upsertPage({ category: "Vitrine", slug: "notre-histoire", title: "Notre histoire", status: "published", body: { json: null, html: "" } });
+  await savePageBlocks("notre-histoire", storyBlocks(pic, home?.newsletter));
+  await upsertPage({ category: "Vitrine", slug: "le-concept", title: "Le concept", status: "published", body: { json: null, html: "" } });
+  await savePageBlocks("le-concept", conceptBlocks(pic));
+
   if (home) {
     await upsertPage({ category: "Vitrine", slug: "accueil", title: "Accueil", status: "published", body: { json: null, html: "" } });
     await savePageBlocks("accueil", homeToBlocks(home));
@@ -375,7 +406,7 @@ async function main() {
     await upsertPage({ category: "Vitrine", slug: "contact", title: "Contact", status: "published", body: { json: null, html: "" } });
     await savePageBlocks("contact", contactToBlocks(contact, home?.newsletter));
   }
-  log("pages composées : accueil, notre histoire, catalogue, contact");
+  log("pages composées : accueil, notre histoire, le concept, catalogue, contact");
 
   /* ---------- Compte administrateur (émulateur uniquement) ---------- */
   const email = process.env.ADMIN_SEED_EMAIL;
@@ -421,6 +452,24 @@ function subtitleFrom(html: string): string {
   const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
   const m = text.match(/(Un imagier réaliste[^:]*?)\s*:/i);
   return m ? m[1].trim() : "";
+}
+
+/**
+ * Photos des pages éditoriales : lues dans content/editorial/ et envoyées dans la
+ * médiathèque. Celles qui manquent reprennent une photo d'ambiance, pour que la page
+ * ait quand même une allure — la bonne photo se choisit ensuite dans l'éditeur.
+ */
+async function uploadEditorial(names: string[], fallback: ImageRef[]): Promise<(name: string) => ImageRef | undefined> {
+  const dir = path.join(ROOT, "content/editorial");
+  const found = new Map<string, ImageRef>();
+  for (const name of names) {
+    const local = path.join(dir, name);
+    if (!(await exists(local))) continue;
+    const media = await uploadMedia({ bytes: await readFile(local), mime: mimeFor(name), filename: name });
+    found.set(name, { url: media.url, alt: "", width: media.width, height: media.height });
+  }
+  log(`photos éditoriales : ${found.size} sur ${names.length} (les autres reprennent une photo d'ambiance)`);
+  return (name) => found.get(name) ?? fallback[Math.max(0, names.indexOf(name)) % fallback.length];
 }
 
 /**

@@ -39,6 +39,7 @@ const PAGE_LABELS: Record<string, string> = {
   "/contact": "Contact",
   "/informations": "Informations",
   "/notre-histoire": "Notre histoire",
+  "/le-concept": "Le concept",
   [OTHER_PAGE]: "Autres / introuvables",
 };
 const DEVICE_LABELS: Record<DeviceKind, string> = { mobile: "Mobile", ordinateur: "Ordinateur", tablette: "Tablette" };

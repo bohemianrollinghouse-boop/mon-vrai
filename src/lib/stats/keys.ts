@@ -31,7 +31,7 @@ export function lastDays(now: number, n: number): string[] {
 export const OTHER_PAGE = "(autre)";
 
 const SLUG = "[a-z0-9]+(?:-[a-z0-9]+)*";
-const EXACT = new Set(["/", "/catalogue", "/recherche", "/panier", "/compte", "/compte/connexion", "/contact", "/informations", "/notre-histoire", "/commande", "/commande/merci"]);
+const EXACT = new Set(["/", "/catalogue", "/recherche", "/panier", "/compte", "/compte/connexion", "/contact", "/informations", "/notre-histoire", "/le-concept", "/commande", "/commande/merci"]);
 const PATTERNS = [new RegExp(`^/livres/${SLUG}$`), new RegExp(`^/pages/${SLUG}$`), new RegExp(`^/informations/${SLUG}$`)];
 
 /**
