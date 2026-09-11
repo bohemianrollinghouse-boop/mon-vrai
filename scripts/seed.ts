@@ -151,7 +151,7 @@ async function main() {
   /* Elles n'ont plus de collection à part : ce sont des pages libres, en blocs. Le
      HTML de l'export est découpé aux titres ; il reste en `body` comme filet. */
   for (const p of policies) {
-    await upsertPage({ slug: p.handle, title: p.title, status: "published", body: { json: null, html: p.html } });
+    await upsertPage({ slug: p.handle, title: p.title, status: "published", category: "Pages légales", body: { json: null, html: p.html } });
     await savePageBlocks(p.handle, legalToDocument(p.html, p.title));
   }
   log(`pages légales : ${policies.length}`);
@@ -359,20 +359,20 @@ async function main() {
   const catalogue = await getCatalogueContent();
   const contact = await getContactContent();
   if (story) {
-    await upsertPage({ slug: "notre-histoire", title: "Notre histoire", status: "published", body: { json: null, html: "" } });
+    await upsertPage({ category: "Vitrine", slug: "notre-histoire", title: "Notre histoire", status: "published", body: { json: null, html: "" } });
     await savePageBlocks("notre-histoire", storyToBlocks(story, home?.newsletter));
   }
   if (home) {
-    await upsertPage({ slug: "accueil", title: "Accueil", status: "published", body: { json: null, html: "" } });
+    await upsertPage({ category: "Vitrine", slug: "accueil", title: "Accueil", status: "published", body: { json: null, html: "" } });
     await savePageBlocks("accueil", homeToBlocks(home));
     await setHomePage("accueil");
   }
   if (catalogue) {
-    await upsertPage({ slug: "catalogue", title: "Catalogue", status: "published", body: { json: null, html: "" } });
+    await upsertPage({ category: "Vitrine", slug: "catalogue", title: "Catalogue", status: "published", body: { json: null, html: "" } });
     await savePageBlocks("catalogue", catalogueToBlocks(catalogue, home?.newsletter));
   }
   if (contact) {
-    await upsertPage({ slug: "contact", title: "Contact", status: "published", body: { json: null, html: "" } });
+    await upsertPage({ category: "Vitrine", slug: "contact", title: "Contact", status: "published", body: { json: null, html: "" } });
     await savePageBlocks("contact", contactToBlocks(contact, home?.newsletter));
   }
   log("pages composées : accueil, notre histoire, catalogue, contact");

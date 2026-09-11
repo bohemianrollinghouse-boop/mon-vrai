@@ -165,6 +165,12 @@ export const Page = z.object({
   blocks: BlockDocument.optional(),
   /** Page servie à la racine du site. Une seule à la fois (voir db/pages.setHomePage). */
   home: z.boolean().default(false),
+  /*
+   * Regroupement dans la liste de l'admin. Texte libre plutôt que liste fermée : les
+   * rubriques d'un petit site se créent et disparaissent au fil de l'eau, et une
+   * catégorie vide cesse d'exister d'elle-même. Sans effet sur le site public.
+   */
+  category: z.string().trim().max(40).default(""),
   status: Status.default("draft"),
   seo: PageSeo.default({ noindex: false }),
   createdAt: z.number(),

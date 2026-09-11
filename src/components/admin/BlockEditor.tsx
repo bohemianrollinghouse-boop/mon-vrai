@@ -27,12 +27,14 @@ type Props = {
   initialData: Partial<BlockData>;
   /** Médiathèque chargée côté serveur : le champ image l'ouvre sans nouvel aller-retour. */
   media: Media[];
+  /** Adresse publique de la page, affichée dans la barre de l'éditeur. */
+  path: string;
   /** Données du site que certains blocs affichent (catalogue) : l'aperçu reste fidèle. */
   metadata: BlockMetadata;
   save: (slug: string, data: Data) => Promise<AdminResult>;
 };
 
-export function BlockEditor({ slug, title, initialData, media, metadata, save }: Props) {
+export function BlockEditor({ slug, title, path, initialData, media, metadata, save }: Props) {
   const router = useRouter();
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,7 +66,7 @@ export function BlockEditor({ slug, title, initialData, media, metadata, save }:
             dictionary={frDictionary}
             metadata={metadata}
             headerTitle={title}
-            headerPath={`/pages/${slug}`}
+            headerPath={path}
             iframe={{ enabled: false }}
             height="calc(100vh - 14rem)"
           />

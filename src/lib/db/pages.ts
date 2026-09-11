@@ -59,6 +59,7 @@ export type PageInput = {
   slug: string;
   title: string;
   status: Status;
+  category?: string;
   /** Uniquement à la création : ensuite le SEO a son propre formulaire. */
   seo?: PageSeo;
   /** Uniquement à la création ou à l'import : l'édition passe par savePageBlocks(). */
@@ -73,6 +74,7 @@ export async function upsertPage(input: PageInput): Promise<Page> {
     // Ce formulaire ne porte que la publication : contenu, corps hérité et SEO restent.
     body: input.body ?? existing?.body ?? { json: null, html: "" },
     blocks: existing?.blocks,
+    category: input.category ?? existing?.category ?? "",
     seo: input.seo ?? existing?.seo ?? {},
     createdAt: existing?.createdAt ?? now(),
     updatedAt: now(),

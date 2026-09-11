@@ -7,10 +7,10 @@ import { deletePageAction, savePageAction, savePageBlocksAction, savePageSeoActi
 import { toBlockData } from "@/lib/blocks/config";
 import { htmlToDocument } from "@/lib/blocks/from-html";
 import { listMedia } from "@/lib/db/media";
-import { getPage } from "@/lib/db/pages";
+import { getPage, listPages } from "@/lib/db/pages";
 import type { Page } from "@/lib/domain/types";
 import { siteUrl } from "@/lib/domain/page-metadata";
-import { PINNED_SLUGS } from "@/lib/domain/system-pages";
+import { PINNED_SLUGS, pagePath } from "@/lib/domain/system-pages";
 import { buildBlockMetadata } from "@/lib/blocks/metadata";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +29,9 @@ export const dynamic = "force-dynamic";
 export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug]">) {
   const { slug } = await params;
   const isNew = slug === "nouvelle";
-  const [page, media] = await Promise.all([isNew ? null : getPage(slug), isNew ? [] : listMedia(300)]);
+  const [page, media, all] = await Promise.all([isNew ? null : getPage(slug), isNew ? [] : listMedia(300), listPages()]);
+  // Les catégories déjà en usage, proposées en saisie : on en crée une en l'écrivant.
+  const categories = [...new Set(all.map((x) => x.category).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
   if (!isNew && !page) notFound();
 
   const metadata = page?.blocks ? await buildBlockMetadata(page) : {};
@@ -43,7 +45,7 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
         subtitle={
           page ? (
             <span className="flex items-center gap-2">
-              {page.home ? "/ (racine du site)" : `/pages/${page.slug}`}
+              {page.home ? "/ (racine du site)" : pagePath(page.slug)}
               {page.home && <Pill tone="ok">Accueil</Pill>}
             </span>
           ) : (
@@ -53,7 +55,7 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
         back={{ href: "/admin/pages", label: "Toutes les pages" }}
         actions={
           page?.status === "published" ? (
-            <ButtonLink href={page.home ? "/" : `/pages/${page.slug}`} tone="ghost" target="_blank">
+            <ButtonLink href={page.home ? "/" : pagePath(page.slug)} tone="ghost" target="_blank">
               Voir sur le site ↗
             </ButtonLink>
           ) : undefined
@@ -63,9 +65,19 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
       <ActionForm action={savePageAction} submitLabel={page ? "Enregistrer la publication" : "Créer la page"}>
         <input type="hidden" name="originalSlug" value={page?.slug ?? ""} />
         <Card title="Publication">
-          <div className="grid grid-cols-[2fr_1fr_2fr] items-start gap-3 max-[899px]:grid-cols-1">
+          <div className="grid grid-cols-[2fr_1fr_1fr_2fr] items-start gap-3 max-[1099px]:grid-cols-2 max-[749px]:grid-cols-1">
             <Field label="Titre" name="title">
               <Input name="title" defaultValue={page?.title ?? ""} required maxLength={120} className="!font-bold" />
+            </Field>
+            <Field label="Catégorie" hint="Regroupe la page dans la liste. Vide = « Sans catégorie »." name="category">
+              <>
+                <Input name="category" defaultValue={page?.category ?? ""} list="page-categories" maxLength={40} placeholder="Pages légales" />
+                <datalist id="page-categories">
+                  {categories.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+              </>
             </Field>
             <Field label="Statut" name="status">
               <Select name="status" defaultValue={page?.status ?? "draft"}>
@@ -117,7 +129,7 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
               découpage, puis enregistrez le contenu pour le figer.
             </Notice>
           )}
-          <BlockEditor slug={page.slug} title={page.title} initialData={toBlockData(initial)} media={media} metadata={metadata} save={savePageBlocksAction} />
+          <BlockEditor slug={page.slug} title={page.title} path={page.home ? "/" : pagePath(page.slug)} initialData={toBlockData(initial)} media={media} metadata={metadata} save={savePageBlocksAction} />
         </div>
       )}
 
@@ -131,7 +143,7 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
         >
           <ActionForm action={savePageSeoAction} submitLabel="Enregistrer le référencement">
             <input type="hidden" name="slug" value={page.slug} />
-            <SeoFields seo={page.seo} pageTitle={page.title} url={`${siteUrl()}${page.home ? "" : `/${page.slug}`}`} media={media} />
+            <SeoFields seo={page.seo} pageTitle={page.title} url={`${siteUrl()}${page.home ? "/" : pagePath(page.slug)}`} media={media} />
           </ActionForm>
         </Card>
       )}

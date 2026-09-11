@@ -23,6 +23,7 @@ const Input = z.object({
   slug: z.string().trim().default(""),
   title: z.string().trim().min(1, "Le titre est requis").max(120),
   status: Status.default("draft"),
+  category: z.string().trim().max(40).default(""),
 });
 
 const SeoInput = z.object({
@@ -62,6 +63,7 @@ export async function savePageAction(formData: FormData): Promise<AdminResult> {
     slug,
     title: d.title,
     status: d.status,
+    category: d.category,
   });
   if (existing && d.originalSlug !== slug) await deletePage(d.originalSlug);
 
