@@ -35,6 +35,15 @@ const SECURITY_HEADERS = [
 const nextConfig: NextConfig = {
   // Inlinés au build : lus via process.env dans l'admin (voir components/admin, layout).
   env: { BUILD_TIME, BUILD_COMMIT },
+  /*
+   * Les envois de fichiers de l'admin (photos produit, médiathèque) passent par des
+   * actions serveur, dont le corps est plafonné à 1 Mo par défaut — moins qu'une photo
+   * de téléphone. La requête échouait alors avant d'entrer dans l'action, donnant une
+   * erreur serveur nue. On aligne le plafond sur la taille annoncée par la médiathèque
+   * (40 Mo), marge comprise. Ce corps est tamponné en mémoire : c'est la contrepartie,
+   * acceptable pour un chemin réservé à l'administration.
+   */
+  experimental: { serverActions: { bodySizeLimit: "45mb" } },
   // Ne pas annoncer la pile technique.
   poweredByHeader: false,
   async headers() {

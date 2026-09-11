@@ -68,13 +68,25 @@ export async function saveProductAction(formData: FormData): Promise<AdminResult
     return failed((e as Error).message, { price: "Montant invalide" });
   }
 
-  const kept = z.array(ImageRef).safeParse(JSON.parse(d.imagesJson || "[]"));
+  let parsedImages: unknown;
+  try {
+    parsedImages = JSON.parse(d.imagesJson || "[]");
+  } catch {
+    return failed("Liste d'images illisible");
+  }
+  const kept = z.array(ImageRef).safeParse(parsedImages);
   if (!kept.success) return failed("Liste d'images invalide");
   const images = [...kept.data];
   for (const file of formData.getAll("newImages")) {
     if (!(file instanceof File) || file.size === 0) continue;
-    const media = await uploadMedia({ bytes: Buffer.from(await file.arrayBuffer()), mime: file.type, filename: file.name, alt: d.title });
-    images.push({ url: media.url, alt: media.alt, width: media.width, height: media.height });
+    // uploadMedia refuse un type ou une taille : c'est une erreur de saisie, pas une
+    // panne — elle doit revenir dans le formulaire, pas en erreur serveur.
+    try {
+      const media = await uploadMedia({ bytes: Buffer.from(await file.arrayBuffer()), mime: file.type, filename: file.name, alt: d.title });
+      images.push({ url: media.url, alt: media.alt, width: media.width, height: media.height });
+    } catch (e) {
+      return failed(`${file.name} : ${(e as Error).message}`, { newImages: "Photo refusée" });
+    }
   }
 
   const existing = d.originalSlug ? await getProduct(d.originalSlug) : null;

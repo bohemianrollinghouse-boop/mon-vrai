@@ -11,6 +11,10 @@ import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
 const media = () => col("media");
 
+/*
+ * Types acceptés. HEIC en est volontairement absent : aucun navigateur ne l'affiche,
+ * mieux vaut le refuser clairement à l'envoi que publier une image invisible.
+ */
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", "image/svg+xml", "image/gif", "video/mp4", "video/webm", "application/pdf"]);
 const MAX_BYTES = 40 * 1024 * 1024;
 
@@ -33,7 +37,7 @@ export type UploadInput = {
 
 export async function uploadMedia(input: UploadInput): Promise<Media> {
   if (!ALLOWED.has(input.mime)) throw new Error(`Type de fichier refusé : ${input.mime}`);
-  if (input.bytes.byteLength > MAX_BYTES) throw new Error("Fichier trop volumineux (12 Mo maximum)");
+  if (input.bytes.byteLength > MAX_BYTES) throw new Error(`Fichier trop volumineux (${Math.round(MAX_BYTES / 1024 / 1024)} Mo maximum)`);
 
   const id = newId("med");
   const safeName = input.filename.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
