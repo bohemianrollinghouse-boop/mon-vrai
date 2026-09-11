@@ -4,7 +4,7 @@ import type { Config, RichText, Slot } from "@puckeditor/core";
 import { MediaPickerField } from "@/components/admin/MediaPickerField";
 import { CollectionOfferButton } from "@/components/site/CollectionOfferButton";
 import { ContactForm } from "@/components/site/ContactForm";
-import { CenteredProse, Chapter, Contents, DarkPanel, EditorialPanel, Figures, Timeline, TintBanner } from "@/components/site/editorial";
+import { CenteredProse, Chapter, Contents, DarkPanel, EditorialPanel, Figures, Timeline, TintBanner, type Emphasis } from "@/components/site/editorial";
 import { ProRequestForm } from "@/components/site/ProRequestForm";
 import { CtaBand, HomeHero, Split, Tiles } from "@/components/site/home-sections";
 import { SortSelect } from "@/components/site/SortSelect";
@@ -61,6 +61,14 @@ const TINT_OPTIONS = [
 const ALIGN_OPTIONS = [
   { label: "Gauche", value: "left" },
   { label: "Centré", value: "center" },
+];
+
+/** Le relief d'un paragraphe de récit (voir components/site/editorial.tsx). */
+const EMPHASIS_OPTIONS = [
+  { label: "Normal", value: "normal" },
+  { label: "Chute (demi-gras)", value: "chute" },
+  { label: "Phrase forte", value: "forte" },
+  { label: "Citation (filet vert)", value: "citation" },
 ];
 
 /** Champ image : ouvre la médiathèque plutôt que de réclamer une URL au clavier. */
@@ -136,7 +144,7 @@ export type Props = {
   FAQ: { titre: string; note: string };
   GabaritLegal: { resume: string; aideTitre: string; aideTexte: string; aideCtaLabel: string; aideCtaHref: string; contenu: Slot };
   Heros: { surtitre: string; titre: string; texte: string; image: ImageRef | undefined; teinte: Tint; disposition: "cote" | "dessous" };
-  Chapitre: { surtitre: string; titre: string; ancre: string; paragraphes: { texte: string }[]; pastilles: { texte: string }[]; teintePastilles: Tint; image: ImageRef | undefined };
+  Chapitre: { surtitre: string; titre: string; ancre: string; paragraphes: { texte: string; relief: Emphasis }[]; pastilles: { texte: string }[]; teintePastilles: Tint; image: ImageRef | undefined };
   Sommaire: { intitule: string; entrees: { numero: string; label: string; lien: string }[] };
   Chiffres: { items: { valeur: string; texte: string }[]; taille: "lg" | "md"; largeurMin: number };
   Panneau: { surtitre: string; titre: string; texte: string; citation: string; texte2: string; puces: { signe: string; texte: string }[]; image: ImageRef | undefined; cote: "left" | "right"; teinte: "" | Tint };
@@ -775,7 +783,10 @@ export const blockConfig: Config<Props> = {
         paragraphes: {
           type: "array",
           label: "Paragraphes",
-          arrayFields: { texte: { type: "textarea", label: "Paragraphe" } },
+          arrayFields: {
+            texte: { type: "textarea", label: "Paragraphe" },
+            relief: { type: "select", label: "Relief", options: EMPHASIS_OPTIONS },
+          },
           getItemSummary: (item, i) => item.texte?.slice(0, 40) || `Paragraphe ${(i ?? 0) + 1}`,
         },
         pastilles: {
@@ -787,13 +798,13 @@ export const blockConfig: Config<Props> = {
         teintePastilles: { type: "select", label: "Teinte des pastilles", options: TINT_OPTIONS },
         image: imageField("Image de fin de chapitre"),
       },
-      defaultProps: { surtitre: "", titre: "Un chapitre", ancre: "", paragraphes: [{ texte: "" }], pastilles: [], teintePastilles: "green", image: undefined },
+      defaultProps: { surtitre: "", titre: "Un chapitre", ancre: "", paragraphes: [{ texte: "", relief: "normal" }], pastilles: [], teintePastilles: "green", image: undefined },
       render: ({ surtitre, titre, ancre, paragraphes, pastilles, teintePastilles, image }) => (
         <Chapter
           eyebrow={surtitre}
           heading={titre}
           anchor={ancre}
-          paragraphs={paragraphes.map((p) => p.texte).filter(Boolean)}
+          lines={paragraphes.filter((p) => p.texte).map((p) => ({ text: p.texte, emphasis: p.relief }))}
           chips={pastilles.map((c) => c.texte).filter(Boolean)}
           chipTint={teintePastilles}
           image={image}

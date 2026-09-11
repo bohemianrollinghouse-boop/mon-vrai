@@ -19,6 +19,23 @@ export type Bullet = { mark: string; text: string };
 export type Card = { title: string; text: string };
 export type TocEntry = { number: string; label: string; href: string };
 
+/*
+ * Le relief d'un paragraphe de récit, tel que la maquette le pratique : la chute d'un
+ * chapitre en demi-gras, une phrase qui claque en plus gros, et la question centrale
+ * détachée par un filet vert. Il se choisit paragraphe par paragraphe — une chute
+ * déduite de la position tomberait au mauvais endroit dès qu'un chapitre se termine
+ * sur une phrase ordinaire.
+ */
+export type Emphasis = "normal" | "chute" | "forte" | "citation";
+export type Line = { text: string; emphasis?: Emphasis };
+
+const EMPHASIS: Record<Emphasis, string> = {
+  normal: "",
+  chute: "font-semibold text-ink",
+  forte: "text-[clamp(1.125rem,2vw,1.375rem)] font-bold leading-[1.4] text-ink",
+  citation: "border-l-[3px] border-tint-green pl-5 text-[clamp(1.0625rem,2vw,1.25rem)] font-bold leading-[1.5] text-ink",
+};
+
 /** Texte au fil ; la chute est mise en avant, comme dans la maquette. */
 function Flow({ items, strong = "font-semibold text-ink" }: { items: string[]; strong?: string }) {
   return (
@@ -53,7 +70,7 @@ function Picture({ image, className, sizes }: { image: ImageRef; className: stri
 export function Chapter({
   eyebrow,
   heading,
-  paragraphs,
+  lines,
   chips = [],
   image,
   anchor,
@@ -61,7 +78,7 @@ export function Chapter({
 }: {
   eyebrow?: string;
   heading: string;
-  paragraphs: string[];
+  lines: Line[];
   chips?: string[];
   image?: ImageRef;
   anchor?: string;
@@ -75,7 +92,11 @@ export function Chapter({
           <h2 className="display-2">{heading}</h2>
         </div>
         <div className="col-span-2 flex flex-col gap-5 text-[1.0625rem] leading-[1.65] text-prose">
-          <Flow items={paragraphs} />
+          {lines.map((l, i) => (
+            <p key={i} className={EMPHASIS[l.emphasis ?? "normal"]}>
+              {l.text}
+            </p>
+          ))}
           {chips.length > 0 && <Chips items={chips} tint={chipTint} />}
           {image && <Picture image={image} sizes="(min-width: 900px) 66vw, 100vw" className="h-[420px] rounded-card max-[899px]:h-60" />}
         </div>
