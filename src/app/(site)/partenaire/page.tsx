@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CopyValue } from "@/components/site/CopyValue";
 import { IbanForm } from "@/components/site/IbanForm";
+import { TrackingLink } from "@/components/site/TrackingLink";
 import { savePartnerIbanAction } from "@/lib/auth/partner-actions";
 import { maskIban, monthLabel } from "@/lib/promos/statements";
 import { Eyebrow, PillLink } from "@/components/site/ui";
@@ -33,8 +34,9 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   const period = (PARTNER_PERIODS.some((p) => p.key === sp.periode) ? sp.periode : "30") as PartnerPeriod;
   const { view, statements, kit } = await partnerSnapshot(influencer, period);
 
-  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const trackingUrl = `https://${site}/?ref=${influencer.slug}`;
+  // L'origine configurée, pas un protocole deviné : en local le site n'est pas en https.
+  const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
+  const trackingUrl = `${origin}/?ref=${influencer.slug}`;
   const maxBar = Math.max(1, ...view.days.map((d) => d.code + d.link));
   const endAt = influencer.endAt ? new Date(influencer.endAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : null;
 
@@ -76,11 +78,7 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
               <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-faint">Votre lien de suivi</span>
               <span className="text-xs font-semibold text-subtle">attribution 30 jours</span>
             </div>
-            <CopyValue value={trackingUrl} label="Copier le lien" display="link" />
-            <span className="text-xs leading-relaxed text-subtle">
-              À coller en bio, en story ou en description. Ajoutez un suffixe pour distinguer vos publications :{" "}
-              <span className="font-bold text-ink">?ref={influencer.slug}&amp;src=story</span>
-            </span>
+            <TrackingLink url={trackingUrl} />
           </div>
         </div>
       </div>
