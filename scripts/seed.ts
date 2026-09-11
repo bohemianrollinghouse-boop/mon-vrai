@@ -20,7 +20,7 @@ import { saveFooterMenu, saveHeaderMenu } from "@/lib/db/menus";
 import { savePageBlocks, setHomePage, upsertPage } from "@/lib/db/pages";
 import { upsertProduct } from "@/lib/db/products";
 import { saveSettings } from "@/lib/db/settings";
-import { htmlToDocument } from "@/lib/blocks/from-html";
+import { legalToDocument } from "@/lib/blocks/from-html";
 import { catalogueToBlocks, contactToBlocks, homeToBlocks, storyToBlocks } from "@/lib/blocks/from-content";
 import { extractItems, slugify, splitLegacyTitle } from "@/lib/domain/slug";
 import type { Badge, ImageRef, MenuItem, Tint } from "@/lib/domain/types";
@@ -152,7 +152,7 @@ async function main() {
      HTML de l'export est découpé aux titres ; il reste en `body` comme filet. */
   for (const p of policies) {
     await upsertPage({ slug: p.handle, title: p.title, status: "published", body: { json: null, html: p.html } });
-    await savePageBlocks(p.handle, htmlToDocument(p.html, p.title));
+    await savePageBlocks(p.handle, legalToDocument(p.html, p.title));
   }
   log(`pages légales : ${policies.length}`);
 

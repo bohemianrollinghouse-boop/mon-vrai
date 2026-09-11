@@ -22,7 +22,7 @@
  * Idempotent : une page déjà composée en blocs n'est pas réécrite (sauf --force),
  * pour ne pas effacer une retouche faite depuis l'admin.
  */
-import { htmlToDocument } from "@/lib/blocks/from-html";
+import { legalToDocument } from "@/lib/blocks/from-html";
 import { catalogueToBlocks, contactToBlocks, homeToBlocks, storyToBlocks } from "@/lib/blocks/from-content";
 import { getCatalogueContent, getContactContent, getHomeContent, getStoryContent } from "@/lib/db/content";
 import { getPage, savePageBlocks, setHomePage, upsertPage } from "@/lib/db/pages";
@@ -33,7 +33,13 @@ const APPLY = process.argv.includes("--apply");
 /* Les menus ne bougent qu'à la demande : les repointer avant le déploiement casserait
    la navigation du site en ligne, qui résout une cible page vers /pages/<slug>. */
 const MENUS = process.argv.includes("--menus");
+/* Enveloppe les pages légales existantes dans le gabarit 7c. À passer APRÈS le
+   déploiement : le code en ligne doit connaître le bloc pour savoir le rendre. */
+const WRAP_LEGAL = process.argv.includes("--wrap-legal");
 const FORCE = process.argv.includes("--force");
+
+/* Une page « sœur » est une page libre, pas une page système ni une URL. */
+const isPageSlug = (slug: string) => /^[a-z0-9-]+(\/[a-z0-9-]+)*$/.test(slug);
 
 const plan: string[] = [];
 const note = (s: string) => plan.push(s);
@@ -77,7 +83,7 @@ async function main() {
   for (const d of policies.docs) {
     const raw = d.data() as { title?: string; body?: { html?: string } };
     const title = raw.title ?? d.id;
-    await ensurePage(d.id, title, htmlToDocument(raw.body?.html ?? "", title), raw.body?.html ?? "");
+    await ensurePage(d.id, title, legalToDocument(raw.body?.html ?? "", title), raw.body?.html ?? "");
   }
   note(`  ${policies.size} politiques examinées`);
 
@@ -112,6 +118,58 @@ async function main() {
   }
 
   if (!MENUS) note("· menus laissés tels quels — les repointer avec --menus APRÈS le déploiement");
+
+  /* 3 bis. Le gabarit des pages légales : sommaire à gauche, contenu à droite. Les
+     blocs déjà en place sont déplacés dans le slot, jamais régénérés — une retouche
+     faite depuis l'admin survit. */
+  if (WRAP_LEGAL) {
+    const footerDoc = await db().collection("menus").doc("footer").get();
+    const columns = (footerDoc.data()?.columns ?? []) as { items?: { target?: { kind?: string; slug?: string } }[] }[];
+    const candidates = new Set<string>();
+    for (const c of columns) {
+      for (const i of c.items ?? []) {
+        const sl = i.target?.slug;
+        if (typeof sl === "string" && isPageSlug(sl)) candidates.add(sl);
+      }
+    }
+    for (const slug of candidates) {
+      const page = await getPage(slug);
+      if (!page?.blocks) continue;
+      const content = page.blocks.content;
+      if (content.length === 1 && content[0].type === "GabaritLegal") {
+        note(`= ${slug.padEnd(22)} déjà dans le gabarit`);
+        continue;
+      }
+      /*
+       * Seule une page de texte entre dans le gabarit. Le critère est ce qu'elle
+       * contient, pas la colonne où elle est rangée : « Boutique » liste aussi le
+       * catalogue et le contact, qui ont leur propre mise en page.
+       */
+      if (!content.every((b) => b.type === "Titre" || b.type === "Texte")) {
+        note(`· ${slug.padEnd(22)} mise en page propre, laissée de côté`);
+        continue;
+      }
+      note(`~ ${slug.padEnd(22)} ${content.length} blocs déplacés dans le gabarit`);
+      if (!APPLY) continue;
+      await savePageBlocks(slug, {
+        root: page.blocks.root,
+        content: [
+          {
+            type: "GabaritLegal",
+            props: {
+              id: "GabaritLegal-1",
+              resume: "",
+              aideTitre: "Une question ?",
+              aideTexte: "Nous répondons sous 48 h ouvrées.",
+              aideCtaLabel: "Nous contacter",
+              aideCtaHref: "/contact",
+              contenu: content,
+            },
+          },
+        ],
+      });
+    }
+  }
 
   /* 4. La racine est servie par une page — seulement si aucune ne l'est déjà. */
   const flagged = await db().collection("pages").where("home", "==", true).limit(1).get();

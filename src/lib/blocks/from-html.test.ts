@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { htmlToBlocks, htmlToDocument } from "./from-html";
+import { htmlToBlocks, htmlToDocument, legalToDocument } from "./from-html";
 
 describe("htmlToBlocks", () => {
   it("découpe aux titres et garde le texte entre eux", () => {
@@ -54,5 +54,29 @@ describe("htmlToDocument", () => {
 
   it("rend un document valide même sans contenu", () => {
     expect(htmlToDocument("")).toEqual({ root: { props: {} }, content: [] });
+  });
+});
+
+describe("legalToDocument", () => {
+  it("pose le contenu dans le gabarit, en un seul bloc de tête", () => {
+    const doc = legalToDocument("<h2>Un</h2><p>Texte</p>", "Mentions légales");
+    expect(doc.content).toHaveLength(1);
+    expect(doc.content[0].type).toBe("GabaritLegal");
+  });
+
+  it("le contenu découpé vit dans le slot", () => {
+    const doc = legalToDocument("<h2>Un</h2><p>Texte</p>", "Mentions légales");
+    const inner = doc.content[0].props.contenu as { type: string }[];
+    expect(inner.map((b) => b.type)).toEqual(["Titre", "Texte"]);
+  });
+
+  it("retire le titre de tête qui répète celui de la page", () => {
+    const doc = legalToDocument("<h1>Mentions légales</h1><p>Corps</p>", "Mentions légales");
+    const inner = doc.content[0].props.contenu as { type: string }[];
+    expect(inner.map((b) => b.type)).toEqual(["Texte"]);
+  });
+
+  it("le résumé est vide par défaut, donc la carte est masquée", () => {
+    expect(legalToDocument("<p>a</p>", "T").content[0].props.resume).toBe("");
   });
 });

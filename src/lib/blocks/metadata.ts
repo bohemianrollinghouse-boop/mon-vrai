@@ -1,8 +1,9 @@
 import "server-only";
 import { getContactContent } from "@/lib/db/content";
+import { getFooterMenu } from "@/lib/db/menus";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
-import type { BlockDocument } from "@/lib/domain/types";
+import type { Page } from "@/lib/domain/types";
 import { CATALOGUE_SORTS, type BlockMetadata } from "./config";
 
 /*
@@ -17,9 +18,10 @@ import { CATALOGUE_SORTS, type BlockMetadata } from "./config";
 const NEEDS_PRODUCTS = new Set(["Catalogue", "GrilleCatalogue", "HerosCatalogue"]);
 const NEEDS_SETTINGS = new Set(["HerosContact", "HerosCatalogue"]);
 const NEEDS_CONTACT = new Set(["HerosContact", "FormulaireContact", "FAQ"]);
+const NEEDS_SIBLINGS = new Set(["GabaritLegal"]);
 
 /** Tous les types de blocs du document, y compris ceux imbriqués dans les slots. */
-export function blockTypes(doc: BlockDocument): Set<string> {
+export function blockTypes(doc: Page["blocks"] & object): Set<string> {
   const found = new Set<string>();
   const walk = (value: unknown): void => {
     if (Array.isArray(value)) {
@@ -37,14 +39,17 @@ export function blockTypes(doc: BlockDocument): Set<string> {
   return found;
 }
 
-export async function buildBlockMetadata(doc: BlockDocument, sort?: string): Promise<BlockMetadata> {
+export async function buildBlockMetadata(page: Page, sort?: string): Promise<BlockMetadata> {
+  const doc = page.blocks;
+  if (!doc) return {};
   const types = blockTypes(doc);
   const wants = (set: Set<string>) => [...types].some((t) => set.has(t));
 
-  const [products, settings, contact] = await Promise.all([
+  const [products, settings, contact, footer] = await Promise.all([
     wants(NEEDS_PRODUCTS) ? listPublishedProducts() : undefined,
     wants(NEEDS_SETTINGS) ? getSettings() : undefined,
     wants(NEEDS_CONTACT) ? getContactContent() : undefined,
+    wants(NEEDS_SIBLINGS) ? getFooterMenu() : undefined,
   ]);
 
   const metadata: BlockMetadata = {};
@@ -62,6 +67,25 @@ export async function buildBlockMetadata(doc: BlockDocument, sort?: string): Pro
         { label: "Facebook", href: settings.socials.facebook },
       ].filter((s): s is { label: string; href: string } => Boolean(s.href)),
     };
+  }
+  if (footer) {
+    /*
+     * Les pages sœurs du sommaire sont celles de la colonne de pied qui contient la
+     * page courante. Pas de nouvelle notion à tenir : ranger une page dans la colonne
+     * « Informations » suffit à la faire apparaître dans le menu de gauche.
+     */
+    const column = footer.columns.find((c) => c.items.some((i) => i.target.kind === "page" && i.target.slug === page.slug));
+    if (column) {
+      metadata.legal = {
+        heading: column.heading,
+        current: page.slug,
+        title: page.title,
+        updatedAt: page.updatedAt,
+        siblings: column.items
+          .map((i) => (i.target.kind === "page" ? { slug: i.target.slug, title: i.label } : null))
+          .filter((x): x is { slug: string; title: string } => x !== null),
+      };
+    }
   }
   if (contact) {
     metadata.contactForm = { subjects: contact.subjects, legal: contact.legal, successText: contact.successText };

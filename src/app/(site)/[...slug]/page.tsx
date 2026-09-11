@@ -48,7 +48,7 @@ export default async function FreePage({ params, searchParams }: PageProps<"/[..
    */
   if (page.blocks) {
     // Données ambiantes : chargées seulement pour les blocs présents sur la page.
-    const metadata = await buildBlockMetadata(page.blocks, typeof query.tri === "string" ? query.tri : undefined);
+    const metadata = await buildBlockMetadata(page, typeof query.tri === "string" ? query.tri : undefined);
     return (
       <article className="pb-16">
         <Render config={blockConfig} data={toBlockData(page.blocks)} metadata={metadata} />

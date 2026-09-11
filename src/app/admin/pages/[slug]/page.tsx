@@ -32,7 +32,7 @@ export default async function PageEdit({ params }: PageProps<"/admin/pages/[slug
   const [page, media] = await Promise.all([isNew ? null : getPage(slug), isNew ? [] : listMedia(300)]);
   if (!isNew && !page) notFound();
 
-  const metadata = page?.blocks ? await buildBlockMetadata(page.blocks) : {};
+  const metadata = page?.blocks ? await buildBlockMetadata(page) : {};
   const imported = !isNew && page !== null && !page.blocks && page.body.html.trim() !== "";
   const initial = page?.blocks ?? (page ? htmlToDocument(page.body.html, page.title) : { root: { props: {} }, content: [] });
 

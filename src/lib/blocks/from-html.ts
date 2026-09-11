@@ -75,3 +75,29 @@ export function htmlToDocument(html: string, title?: string): BlockDocument {
     content: htmlToBlocks(html, title).map((b, i) => ({ type: b.type, props: { id: `${b.type}-${i + 1}`, ...b.props } })),
   };
 }
+
+/*
+ * Page légale : le contenu découpé, posé dans le gabarit 7c (fil d'Ariane, titre,
+ * sommaire des pages sœurs à gauche, panneau blanc à droite). Le sommaire n'est pas
+ * dans le document : il se déduit de la colonne de pied au rendu.
+ */
+export function legalToDocument(html: string, title: string, resume = ""): BlockDocument {
+  const inner = htmlToBlocks(html, title).map((b, i) => ({ type: b.type, props: { id: `${b.type}-${i + 1}`, ...b.props } }));
+  return {
+    root: { props: {} },
+    content: [
+      {
+        type: "GabaritLegal",
+        props: {
+          id: "GabaritLegal-1",
+          resume,
+          aideTitre: "Une question ?",
+          aideTexte: "Nous répondons sous 48 h ouvrées.",
+          aideCtaLabel: "Nous contacter",
+          aideCtaHref: "/contact",
+          contenu: inner,
+        },
+      },
+    ],
+  };
+}

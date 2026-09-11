@@ -28,7 +28,7 @@ export default async function HomePage() {
   const [homePage, content, products] = await Promise.all([getHomePage(), getHomeContent(), listPublishedProducts()]);
 
   if (homePage?.blocks) {
-    const metadata = await buildBlockMetadata(homePage.blocks);
+    const metadata = await buildBlockMetadata(homePage);
     return (
       <article className="pb-16">
         <Render config={blockConfig} data={toBlockData(homePage.blocks)} metadata={metadata} />

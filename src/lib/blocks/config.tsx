@@ -45,6 +45,8 @@ export type BlockMetadata = {
   /** Réglages du formulaire de contact et questions fréquentes (Contenus, FAQ). */
   contactForm?: { subjects: string[]; legal: string; successText: string };
   faq?: { q: string; a: string }[];
+  /** Sommaire des pages sœurs, pour le gabarit des pages légales. */
+  legal?: { heading: string; current: string; title: string; updatedAt: number; siblings: { slug: string; title: string }[] };
 };
 
 const TINT_OPTIONS = [
@@ -75,6 +77,15 @@ const imageField = (label: string) =>
  * second `site-wrap` imbriqué ajouterait un retrait et un plafond de largeur.
  */
 const SLOT = "[&>.site-wrap]:max-w-none [&>.site-wrap]:px-0";
+
+/*
+ * Contenu du panneau des pages légales. Les blocs déposés perdent leur gouttière et
+ * leurs marges verticales (l'espacement vient du `gap` du panneau), et un titre de
+ * section descend à l'échelle du panneau — 20 px, comme les h2 de `prose-mv`, et non
+ * les 30-36 px d'un titre de page.
+ */
+const LEGAL_SLOT =
+  "flex flex-col gap-9 [&>.site-wrap]:max-w-none [&>.site-wrap]:!px-0 [&>.site-wrap]:!py-0 [&_.display-2]:text-xl [&_.display-2]:leading-[1.3] [&_.display-2]:tracking-[-0.01em]";
 
 /** Les tris proposés au catalogue, et leur application. Le tri courant vient de l'URL. */
 export const CATALOGUE_SORTS = [
@@ -116,6 +127,7 @@ type Props = {
   HerosContact: { surtitre: string; titre: string; texte: string; teinte: Tint; proLabel: string; proTexte: string };
   FormulaireContact: Record<string, never>;
   FAQ: { titre: string; note: string };
+  GabaritLegal: { resume: string; aideTitre: string; aideTexte: string; aideCtaLabel: string; aideCtaHref: string; contenu: Slot };
   Heros: { surtitre: string; titre: string; texte: string; image: ImageRef | undefined; teinte: Tint };
   Titre: { texte: string; niveau: "2" | "3"; surtitre: string; alignement: "left" | "center" };
   Texte: { contenu: RichText };
@@ -148,7 +160,7 @@ export const blockConfig: Config<Props> = {
     texte: { title: "Texte", components: ["Texte", "Prose", "Encadre", "Bouton"] },
     media: { title: "Médias", components: ["Illustration", "Galerie", "ImageTexte"] },
     mise_en_page: { title: "Mise en page", components: ["Colonnes", "Principes", "Tuiles", "Bandeau", "Infolettre", "Espace"] },
-    donnees: { title: "Données du site", components: ["Catalogue", "HerosCatalogue", "GrilleCatalogue", "Specs", "HerosContact", "FormulaireContact", "FAQ"] },
+    donnees: { title: "Données du site", components: ["Catalogue", "HerosCatalogue", "GrilleCatalogue", "Specs", "HerosContact", "FormulaireContact", "FAQ", "GabaritLegal"] },
   },
   components: {
     /** Héro pleine largeur de l'accueil : vidéo ou affiche, texte calé en bas. */
@@ -444,6 +456,107 @@ export const blockConfig: Config<Props> = {
                   <span className="text-sm leading-relaxed text-[#555]">{f.a}</span>
                 </div>
               ))}
+            </div>
+          </section>
+        );
+      },
+    },
+
+    /*
+     * Gabarit des pages légales (maquette 7c) : fil d'Ariane, titre, date de mise à
+     * jour, puis deux colonnes — sommaire collant à gauche, contenu à droite.
+     *
+     * Le sommaire n'est pas ressaisi : il liste les pages de la colonne de pied qui
+     * contient la page courante. Ranger une page dans « Informations » suffit donc à
+     * l'y faire apparaître, et à la retirer du menu la retire du sommaire.
+     */
+    GabaritLegal: {
+      label: "Gabarit page légale",
+      fields: {
+        resume: { type: "textarea", label: "En résumé", },
+        aideTitre: { type: "text", label: "Encart d'aide — titre" },
+        aideTexte: { type: "textarea", label: "Encart d'aide — texte" },
+        aideCtaLabel: { type: "text", label: "Encart d'aide — bouton" },
+        aideCtaHref: { type: "text", label: "Encart d'aide — lien" },
+        contenu: { type: "slot", label: "Contenu de la page" },
+      },
+      defaultProps: {
+        resume: "",
+        aideTitre: "Une question ?",
+        aideTexte: "Nous répondons sous 48 h ouvrées.",
+        aideCtaLabel: "Nous contacter",
+        aideCtaHref: "/contact",
+        contenu: [],
+      },
+      render: ({ resume, aideTitre, aideTexte, aideCtaLabel, aideCtaHref, contenu: Contenu, puck }) => {
+        const legal = (puck.metadata as BlockMetadata).legal;
+        const title = legal?.title ?? "";
+        const updated = legal?.updatedAt
+          ? new Date(legal.updatedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
+          : "";
+        return (
+          <section className="site-wrap py-6 pb-[4.5rem]">
+            <div className="flex flex-col gap-3">
+              <nav aria-label="Fil d'Ariane" className="flex flex-wrap gap-1.5 text-xs font-semibold text-subtle">
+                <Link href="/">Accueil</Link>
+                <span aria-hidden="true">›</span>
+                <span>{legal?.heading ?? "Informations"}</span>
+                <span aria-hidden="true">›</span>
+                <span className="text-ink">{title}</span>
+              </nav>
+              <h1 className="display-1 text-[clamp(1.875rem,4vw,2.75rem)]">{title}</h1>
+              {updated && <span className="text-[0.8125rem] font-semibold text-subtle">Dernière mise à jour : {updated}</span>}
+            </div>
+
+            <div className="mt-8 grid grid-cols-[280px_1fr] items-start gap-5 max-[899px]:grid-cols-1">
+              <aside className="sticky top-24 flex flex-col gap-3 max-[899px]:static">
+                {legal && legal.siblings.length > 0 && (
+                  <nav aria-label={legal.heading} className="flex flex-col gap-1 rounded-card bg-white p-3 text-sm font-semibold">
+                    {legal.siblings.map((l) => {
+                      const current = l.slug === legal.current;
+                      return (
+                        <Link
+                          key={l.slug}
+                          href={`/${l.slug}`}
+                          aria-current={current ? "page" : undefined}
+                          className={`rounded-2xl px-[1.125rem] py-[0.8125rem] leading-snug ${current ? "bg-ink text-white" : "hover:bg-paper"}`}
+                        >
+                          {l.title}
+                        </Link>
+                      );
+                    })}
+                  </nav>
+                )}
+                {aideTitre && (
+                  <div className="flex flex-col gap-2.5 rounded-card bg-tint-green p-6">
+                    <span className="text-sm font-bold text-tint-green-ink">{aideTitre}</span>
+                    {aideTexte && <span className="text-[0.8125rem] leading-relaxed text-tint-green-ink">{aideTexte}</span>}
+                    {aideCtaLabel && (
+                      <PillLink href={aideCtaHref || "/contact"} variant="dark" size="sm" className="w-fit">
+                        {aideCtaLabel}
+                      </PillLink>
+                    )}
+                  </div>
+                )}
+              </aside>
+
+              <div className="flex flex-col gap-4">
+                {resume && (
+                  <div className="flex flex-col gap-1.5 rounded-card bg-tint-sand px-7 py-6">
+                    <Eyebrow className="text-tint-sand-ink">En résumé</Eyebrow>
+                    <span className="text-[0.9375rem] font-semibold leading-relaxed text-tint-sand-ink">{resume}</span>
+                  </div>
+                )}
+                <div className="flex flex-col gap-9 rounded-panel bg-white px-14 py-12 max-[899px]:px-6 max-[899px]:py-8">
+                  <Contenu className={LEGAL_SLOT} />
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6 text-[0.8125rem] font-semibold text-subtle">
+                    <span>Mon Vrai — {title}</span>
+                    <a href="#contenu" className="border-b-[1.5px] border-ink text-ink">
+                      Retour en haut
+                    </a>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
         );
