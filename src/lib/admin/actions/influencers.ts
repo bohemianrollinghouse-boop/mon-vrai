@@ -11,7 +11,6 @@ import { sendInfluencerWelcome } from "@/lib/email/send";
 import { saveTemplateValues } from "@/lib/db/newsletter";
 import { listStatements, markStatementPaid, unmarkStatement } from "@/lib/db/statements";
 import { listOrders } from "@/lib/db/orders";
-import { getSettings, saveSettings } from "@/lib/db/settings";
 import { statementRows } from "@/lib/promos/statements";
 import { now } from "@/lib/db/helpers";
 import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
@@ -68,8 +67,9 @@ export async function saveInfluencerAction(formData: FormData): Promise<AdminRes
   });
   await audit(user.email, existing ? "influencer.update" : "influencer.create", `influencers/${saved_.id}`, `${saved_.name} · ${code}`);
   revalidatePath("/admin/influenceurs");
+  revalidatePath(`/admin/influenceurs/${saved_.id}`);
   revalidatePath("/admin/codes-promo");
-  return { ok: true, message: `${saved_.name} enregistré${existing ? "" : " · code " + code + " actif"}.`, redirectTo: `/admin/influenceurs?id=${saved_.id}` };
+  return { ok: true, message: `${saved_.name} enregistré${existing ? "" : " · code " + code + " actif"}.`, redirectTo: `/admin/influenceurs/${saved_.id}` };
 }
 
 export async function toggleInfluencerAction(formData: FormData): Promise<AdminResult> {
@@ -80,6 +80,7 @@ export async function toggleInfluencerAction(formData: FormData): Promise<AdminR
   await upsertInfluencer({ ...inf, active: !inf.active });
   await audit(user.email, inf.active ? "influencer.pause" : "influencer.activate", `influencers/${id}`);
   revalidatePath("/admin/influenceurs");
+  revalidatePath(`/admin/influenceurs/${id}`);
   return saved(inf.active ? `${inf.name} en pause : code et lien inactifs.` : `${inf.name} réactivé.`);
 }
 
@@ -117,7 +118,7 @@ export async function sendInfluencerWelcomeAction(formData: FormData): Promise<A
   if (!result.ok && !result.skipped) return failed(`L'envoi a échoué : ${result.error ?? "erreur inconnue"}`);
 
   await audit(user.email, "influencer.invite", `influencers/${id}`, influencer.email);
-  revalidatePath("/admin/influenceurs");
+  revalidatePath(`/admin/influenceurs/${id}`);
   return saved(result.skipped ? `Invitation créée (envoi désactivé sans clé Resend) : ${url}` : `Invitation envoyée à ${influencer.email}.`);
 }
 
@@ -159,7 +160,7 @@ export async function markStatementPaidAction(formData: FormData): Promise<Admin
   if (undo) {
     await unmarkStatement(id, month);
     await audit(user.email, "influencer.statement-unpaid", `influencers/${id}`, month);
-    revalidatePath("/admin/influenceurs");
+    revalidatePath(`/admin/influenceurs/${id}`);
     return saved(`Relevé de ${month} remis en attente.`);
   }
 
@@ -177,13 +178,16 @@ export async function markStatementPaidAction(formData: FormData): Promise<Admin
     clawedBack: row.clawbacks.map((c) => c.orderNumber),
   });
   await audit(user.email, "influencer.statement-paid", `influencers/${id}`, `${month} · ${row.commission} c`);
-  revalidatePath("/admin/influenceurs");
+  revalidatePath(`/admin/influenceurs/${id}`);
   return saved(`Relevé de ${month} marqué comme versé.`);
 }
 
 
 const KitInput = z.object({
+  id: z.string().min(1),
   enabled: z.boolean().default(false),
+  deductStock: z.boolean().default(false),
+  prototype: z.boolean().default(false),
   title: z.string().trim().max(80).default("Votre kit de bienvenue"),
   text: z.string().trim().max(400).default(""),
   /** Sélection sérialisée par l'éditeur : `slug:quantité`, séparés par des virgules. */
@@ -191,15 +195,20 @@ const KitInput = z.object({
 });
 
 /*
- * Sélection des livres du kit de bienvenue. La même pour tous les partenaires : ils
- * sont choisis en amont, pris sur un stock à part, et la commande qui en naît ne
- * décrémente aucun stock de vente.
+ * Kit de bienvenue d'un partenaire : les livres qu'on lui offre, à lui. Il les commande
+ * ensuite lui-même depuis son espace, et la commande part chez Boxtal comme les autres.
+ *
+ * `deductStock` dit si ces exemplaires sortent du stock de vente. Non par défaut : le
+ * kit vient d'un stock à part réservé aux influenceurs.
  */
 export async function savePartnerKitAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
-  const parsed = parseForm(KitInput, formData, { booleans: ["enabled"] });
+  const parsed = parseForm(KitInput, formData, { booleans: ["enabled", "deductStock", "prototype"] });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
+
+  const influencer = await getInfluencer(d.id);
+  if (!influencer) return failed("Partenaire inconnu");
 
   const lines = d.lines
     .split(",")
@@ -210,12 +219,28 @@ export async function savePartnerKitAction(formData: FormData): Promise<AdminRes
       return { slug: slug.trim(), qty: Math.min(20, Math.max(1, Number(qty) || 1)) };
     })
     .filter((l) => l.slug);
-  if (d.enabled && lines.length === 0) return failed("Choisissez au moins un livre avant d'activer le kit.", { lines: "Sélection vide" });
+  if (d.enabled && lines.length === 0) return failed("Choisissez au moins un livre avant de proposer le kit.", { lines: "Sélection vide" });
 
-  const settings = await getSettings();
-  await saveSettings({ ...settings, welcomeKit: { enabled: d.enabled, title: d.title, text: d.text, lines } });
-  await audit(user.email, "influencer.kit", "settings/site", `${lines.length} titre${lines.length > 1 ? "s" : ""}${d.enabled ? "" : " (inactif)"}`);
-  revalidatePath("/admin/influenceurs");
+  await upsertInfluencer({ ...influencer, kit: { enabled: d.enabled, title: d.title, text: d.text, lines, deductStock: d.deductStock, prototype: d.prototype } });
+  await audit(user.email, "influencer.kit", `influencers/${d.id}`, `${lines.length} titre${lines.length > 1 ? "s" : ""}${d.enabled ? "" : " (non proposé)"}`);
+  revalidatePath(`/admin/influenceurs/${d.id}`);
   revalidatePath("/partenaire");
-  return saved(d.enabled ? "Kit de bienvenue enregistré et proposé aux partenaires." : "Kit de bienvenue enregistré (non proposé).");
+  return saved(d.enabled ? "Kit enregistré et proposé au partenaire." : "Kit enregistré (non proposé).");
+}
+
+/*
+ * Note interne sur un partenaire. Elle ne sort jamais de l'admin : ni l'espace
+ * partenaire ni aucun e-mail ne la lisent.
+ */
+export async function saveInfluencerNoteAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  const note = String(formData.get("note") ?? "").trim().slice(0, 2000);
+  const influencer = await getInfluencer(id);
+  if (!influencer) return failed("Partenaire inconnu");
+
+  await upsertInfluencer({ ...influencer, note });
+  await audit(user.email, "influencer.note", `influencers/${id}`);
+  revalidatePath(`/admin/influenceurs/${id}`);
+  return saved(note ? "Note enregistrée." : "Note effacée.");
 }

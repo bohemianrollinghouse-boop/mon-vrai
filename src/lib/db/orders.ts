@@ -180,13 +180,19 @@ export type KitOrderInput = {
   delivery?: Order["delivery"];
   livemode?: boolean;
   note?: string;
+  /** Décompter les exemplaires du stock de vente (faux par défaut : stock à part). */
+  deductStock?: boolean;
 };
 
 /*
  * Commande du kit de bienvenue d'un partenaire. C'est une commande comme une autre —
- * même collection, même numérotation, même passage chez Boxtal — à trois différences
- * près : elle naît « payée » sans passer par Stripe, elle ne décrémente aucun stock
- * (les livres du kit viennent d'un stock à part), et elle n'est jamais facturée.
+ * même collection, même numérotation, même passage chez Boxtal — à deux différences
+ * près : elle naît « payée » sans passer par Stripe, et elle n'est jamais facturée.
+ *
+ * Le stock, lui, dépend du kit : il ne bouge pas quand les livres viennent du stock
+ * à part réservé aux influenceurs (le cas ordinaire), et se décrémente comme une vente
+ * quand on a réglé le contraire. Ce qui a été fait est inscrit sur la commande, pour
+ * que l'annulation rende exactement ce qui avait été pris.
  *
  * Idempotente sur l'influenceur : un double clic ne crée pas deux kits.
  */
@@ -209,6 +215,26 @@ export async function createKitOrder(input: KitOrderInput): Promise<Order> {
     const counterSnap = await tx.get(counterRef);
     const seq = ((counterSnap.data()?.seq as number | undefined) ?? 0) + 1;
 
+    // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
+    const notes: string[] = [];
+    const deduct = input.deductStock === true;
+    const productRefs = input.lines.map((line) => col("products").doc(line.productSlug));
+    const productSnaps = deduct ? await Promise.all(productRefs.map((ref) => tx.get(ref))) : [];
+    if (deduct) {
+      input.lines.forEach((line, i) => {
+        const product = parseDoc(Product, productSnaps[i]);
+        if (!product) {
+          notes.push(`Produit ${line.productSlug} introuvable`);
+          return;
+        }
+        if (product.stock !== null) {
+          const remaining = product.stock - line.qty;
+          if (remaining < 0) notes.push(`Stock négatif pour ${line.productSlug} (${remaining})`);
+          tx.update(productRefs[i], { stock: FieldValue.increment(-line.qty), updatedAt: createdAt });
+        }
+      });
+    }
+
     const order = Order.parse({
       id,
       number: formatOrderNumber(seq, createdAt),
@@ -219,9 +245,9 @@ export async function createKitOrder(input: KitOrderInput): Promise<Order> {
       shippingAddress: input.shippingAddress,
       livemode: input.livemode ?? true,
       delivery: input.delivery,
-      kit: { influencerId: input.influencerId },
+      kit: { influencerId: input.influencerId, stock: deduct },
       stripe: {},
-      timeline: [{ at: createdAt, status: "paid", note: input.note ?? "Kit de bienvenue partenaire", by: "partenaire" }],
+      timeline: [{ at: createdAt, status: "paid", note: [input.note ?? "Kit de bienvenue partenaire", ...notes].join(" · "), by: "partenaire" }],
       createdAt,
       updatedAt: createdAt,
     });
@@ -247,8 +273,8 @@ export async function transitionOrder(id: string, to: OrderStatus, opts: { note?
     if (!order) throw new Error(`Commande ${id} introuvable`);
     assertTransition(order.status, to);
 
-    // Un kit n'a rien décrémenté : l'annuler ne doit rien rendre au stock de vente.
-    const releasing = !order.kit && stockIsReserved(order.status) && !stockIsReserved(to);
+    // Un kit ne rend au stock de vente que s'il y a été pris (voir createKitOrder).
+    const releasing = (!order.kit || order.kit.stock) && stockIsReserved(order.status) && !stockIsReserved(to);
     if (releasing) {
       // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
       const prefs = order.lines.map((line) => col("products").doc(line.productSlug));

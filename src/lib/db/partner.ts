@@ -4,24 +4,24 @@ import { listRefClicksSince } from "./promos";
 import { partnerView, periodStart, type PartnerPeriod, type PartnerView } from "@/lib/promos/partner";
 import { statementRows, type StatementRow } from "@/lib/promos/statements";
 import { listStatements } from "./statements";
-import { getSettings } from "./settings";
 import { listAllProducts } from "./products";
 import { kitItems, kitOffered, type KitItem } from "@/lib/promos/kit";
 import type { Influencer, Order } from "@/lib/domain/types";
 import { now } from "./helpers";
 
 /*
- * Kit de bienvenue vu par le partenaire : ce qu'on lui offre, et — s'il l'a déjà
- * commandé — la commande, d'où viendra le suivi. Les produits sont lus en entier
- * (pas seulement les publiés) : un kit ne dépend pas de la mise en vente d'un titre.
+ * Kit de bienvenue vu par le partenaire : ce qu'on lui offre — sa sélection à lui,
+ * tenue sur sa fiche — et, s'il l'a déjà commandé, la commande d'où viendra le suivi.
+ * Les produits sont lus en entier (pas seulement les publiés) : un kit ne dépend pas
+ * de la mise en vente d'un titre.
  */
-export type PartnerKit = { title: string; text: string; items: KitItem[]; offered: boolean; order: Order | null };
+export type PartnerKit = { title: string; text: string; items: KitItem[]; offered: boolean; prototype: boolean; order: Order | null };
 
 export async function partnerKitSnapshot(influencer: Influencer): Promise<PartnerKit> {
-  const [settings, products, order] = await Promise.all([getSettings(), listAllProducts(), findKitOrder(influencer.id)]);
-  const kit = settings.welcomeKit;
+  const [products, order] = await Promise.all([listAllProducts(), findKitOrder(influencer.id)]);
+  const kit = influencer.kit;
   const items = kitItems(kit, products);
-  return { title: kit.title, text: kit.text, items, offered: kitOffered(kit, items), order };
+  return { title: kit.title, text: kit.text, items, offered: kitOffered(kit, items), prototype: kit.prototype, order };
 }
 
 /*

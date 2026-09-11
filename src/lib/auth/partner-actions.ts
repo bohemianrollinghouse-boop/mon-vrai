@@ -124,6 +124,7 @@ export async function orderPartnerKitAction(formData: FormData): Promise<Partner
     },
     delivery: { rateId: option.id, rateName: option.name, offerCode: optionOfferCode(option, d.country), relay },
     livemode: settings.payments.mode === "live",
+    deductStock: influencer.kit.deductStock,
     note: `Kit de bienvenue · ${influencer.name}`,
   });
 

@@ -10,8 +10,18 @@ import type { Order } from "@/lib/domain/types";
  * administrateur a saisi à la main pour une expédition faite autrement.
  */
 export function PartnerKitBlock({ kit }: { kit: PartnerKit }) {
-  if (!kit.offered) return null;
-  return kit.order ? <KitTracking order={kit.order} /> : <KitOffer kit={kit} />;
+  // Un kit déjà commandé garde son suivi, même si la sélection a changé depuis.
+  if (kit.order) return <KitTracking order={kit.order} prototype={kit.prototype} />;
+  return kit.offered ? <KitOffer kit={kit} /> : null;
+}
+
+/*
+ * Mention des prototypes : une ligne en petit, au pied du bloc. Le partenaire doit
+ * savoir que la reliure ou la teinte bougeront encore, sans que ce soit la première
+ * chose qu'il lise.
+ */
+function PrototypeNote({ className = "" }: { className?: string }) {
+  return <span className={`text-xs ${className}`}>Ces exemplaires sont des prototypes : la version définitive peut différer légèrement.</span>;
 }
 
 function KitOffer({ kit }: { kit: PartnerKit }) {
@@ -36,6 +46,7 @@ function KitOffer({ kit }: { kit: PartnerKit }) {
             </li>
           ))}
         </ul>
+        {kit.prototype && <PrototypeNote className="text-tint-sand-ink" />}
       </div>
       <Link href="/partenaire/kit" className="w-fit whitespace-nowrap rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white">
         Commander mon kit
@@ -44,7 +55,7 @@ function KitOffer({ kit }: { kit: PartnerKit }) {
   );
 }
 
-function KitTracking({ order }: { order: Order }) {
+function KitTracking({ order, prototype }: { order: Order; prototype: boolean }) {
   const number = order.tracking?.number ?? order.boxtal?.trackingNumber ?? "";
   const url = order.tracking?.url ?? order.boxtal?.trackingUrl ?? "";
   const carrier = order.tracking?.carrier ?? order.delivery?.rateName ?? "";
@@ -107,6 +118,7 @@ function KitTracking({ order }: { order: Order }) {
           </span>
         </div>
       </div>
+      {prototype && <PrototypeNote className="text-tint-green-ink" />}
     </div>
   );
 }

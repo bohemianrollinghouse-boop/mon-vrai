@@ -71,6 +71,7 @@ export default async function PartnerKitPage() {
             </div>
           ))}
           <span className="border-t border-white/60 pt-3 text-[0.8125rem] font-extrabold">Offert · livraison comprise</span>
+          {kit.prototype && <span className="text-xs text-tint-green-ink">Ces exemplaires sont des prototypes : la version définitive peut différer légèrement.</span>}
         </aside>
       </div>
     </section>

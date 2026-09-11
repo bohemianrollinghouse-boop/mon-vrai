@@ -203,12 +203,6 @@ async function main() {
     costs: DEFAULT_COSTS,
     payments: { mode: "live", paypal: false },
     promos: { collectionOffer: { enabled: true } },
-    welcomeKit: {
-      enabled: true,
-      title: "Votre kit de bienvenue",
-      text: "Trois imagiers à découvrir, à filmer, à offrir. Expédiés sous 48 h, sans rien à payer.",
-      lines: products.slice(0, 3).map((p) => ({ slug: p.handle, qty: 1 })),
-    },
     legal: {
       footerLine: "",
       sellerName: "",

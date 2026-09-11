@@ -1,6 +1,6 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
-import { Influencer, Promo, RefClicks } from "@/lib/domain/types";
+import { Influencer, Promo, RefClicks, type WelcomeKit } from "@/lib/domain/types";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
 /*
@@ -92,7 +92,7 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note"
 > & {
   id?: string;
   uid?: string;
@@ -100,6 +100,8 @@ export type InfluencerInput = Omit<
   activatedAt?: number;
   iban?: string;
   kitOrderId?: string;
+  kit?: WelcomeKit;
+  note?: string;
 };
 
 /** Crée ou met à jour l'influenceur et son code promo (remise en pourcentage, cumulable avec rien par défaut). */
@@ -116,6 +118,8 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     activatedAt: input.activatedAt ?? existing?.activatedAt,
     iban: input.iban ?? existing?.iban ?? "",
     kitOrderId: input.kitOrderId ?? existing?.kitOrderId ?? "",
+    kit: input.kit ?? existing?.kit,
+    note: input.note ?? existing?.note ?? "",
     inviteToken: existing?.inviteToken ?? "",
     inviteExpiresAt: existing?.inviteExpiresAt,
     createdAt: existing?.createdAt ?? now(),

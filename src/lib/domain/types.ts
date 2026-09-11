@@ -452,20 +452,6 @@ export const SiteSettings = z.object({
       collectionOffer: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
     })
     .default({ collectionOffer: { enabled: false } }),
-  /*
-   * Kit de bienvenue des partenaires. Les livres viennent d'un stock à part, réservé
-   * aux influenceurs : la commande qui en naît ne décrémente aucun stock de vente et
-   * n'est jamais facturée. La sélection est la même pour tout le monde, et chaque
-   * partenaire ne peut la commander qu'une fois depuis son espace.
-   */
-  welcomeKit: z
-    .object({
-      enabled: z.boolean().default(false),
-      title: z.string().max(80).default("Votre kit de bienvenue"),
-      text: z.string().max(400).default(""),
-      lines: z.array(z.object({ slug: Slug, qty: z.number().int().min(1).max(20).default(1) })).default([]),
-    })
-    .default({ enabled: false, title: "Votre kit de bienvenue", text: "", lines: [] }),
   legal: z
     .object({
       footerLine: z.string().default(""),
@@ -610,8 +596,12 @@ export const Order = z.object({
     .optional(),
   /** Codes promo appliqués à cette commande. */
   promoCodes: z.array(z.string()).default([]),
-  /** Kit de bienvenue d'un partenaire : offert, pris sur le stock influenceurs, jamais facturé. */
-  kit: z.object({ influencerId: z.string() }).optional(),
+  /*
+   * Kit de bienvenue d'un partenaire : offert, jamais facturé. `stock` mémorise si
+   * les exemplaires ont été décomptés du stock de vente — l'annulation doit les
+   * rendre dans ce cas-là seulement, quoi qu'on ait réglé depuis.
+   */
+  kit: z.object({ influencerId: z.string(), stock: z.boolean().default(false) }).optional(),
   /** Vente attribuée à un influenceur : par son code, ou par son lien (cookie 30 jours). */
   attribution: z.object({ influencerId: z.string(), via: z.enum(["code", "link"]) }).optional(),
   /** Facturation Tiime (via Make) : identifiants renvoyés par le scénario. */
@@ -844,6 +834,33 @@ export type Promo = z.infer<typeof Promo>;
 export const Platform = z.enum(["Instagram", "TikTok", "YouTube", "Blog", "Autre"]);
 export type Platform = z.infer<typeof Platform>;
 
+/*
+ * Kit de bienvenue d'un partenaire : quelques livres offerts, choisis pour lui. Ils
+ * viennent d'un stock à part, réservé aux influenceurs — la commande qui en naît ne
+ * décrémente donc aucun stock de vente et n'est jamais facturée. Chaque partenaire a
+ * le sien, et ne peut le commander qu'une fois, depuis son espace.
+ */
+export const WelcomeKit = z.object({
+  enabled: z.boolean().default(false),
+  title: z.string().max(80).default("Votre kit de bienvenue"),
+  text: z.string().max(400).default(""),
+  lines: z.array(z.object({ slug: Slug, qty: z.number().int().min(1).max(20).default(1) })).default([]),
+  /*
+   * Décompter ces exemplaires du stock de vente. Non par défaut : le kit vient
+   * normalement d'un stock à part. À cocher quand on le prélève sur les livres à vendre.
+   */
+  deductStock: z.boolean().default(false),
+  /*
+   * Exemplaires de prototype, pas encore les livres définitifs. Le dire au partenaire,
+   * discrètement, pour qu'il ne s'étonne pas d'une reliure ou d'une teinte différente.
+   * Faux par défaut : ce n'est vrai que des tout premiers kits.
+   */
+  prototype: z.boolean().default(false),
+});
+export type WelcomeKit = z.infer<typeof WelcomeKit>;
+
+const EMPTY_KIT: WelcomeKit = { enabled: false, title: "Votre kit de bienvenue", text: "", lines: [], deductStock: false, prototype: false };
+
 export const Influencer = z.object({
   id: z.string(),
   name: z.string().min(1).max(80),
@@ -884,8 +901,12 @@ export const Influencer = z.object({
    * sort que par le serveur, pour le partenaire lui-même ou un administrateur.
    */
   iban: z.string().trim().max(34).default(""),
+  /** Kit de bienvenue proposé à ce partenaire, et lui seul. */
+  kit: WelcomeKit.default(EMPTY_KIT),
   /** Kit de bienvenue déjà commandé : identifiant de la commande, vide sinon. */
   kitOrderId: z.string().default(""),
+  /** Note interne, visible des seuls administrateurs : jamais montrée au partenaire. */
+  note: z.string().max(2000).default(""),
   createdAt: z.number(),
   updatedAt: z.number(),
 });

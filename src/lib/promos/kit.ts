@@ -1,12 +1,12 @@
-import type { ImageRef, OrderLine, Product, SiteSettings } from "@/lib/domain/types";
+import type { ImageRef, OrderLine, Product, WelcomeKit } from "@/lib/domain/types";
 
 /*
  * Kit de bienvenue des partenaires.
  *
- * La sélection est faite en amont dans l'admin ; elle ne garde que des slugs, si bien
- * qu'un titre renommé ou un visuel remplacé suit tout seul. Les livres viennent d'un
- * stock à part, réservé aux influenceurs : la commande qui en naît ne décrémente rien
- * et vaut 0 € (voir `createKitOrder`).
+ * Chaque partenaire a le sien, choisi dans sa fiche ; la sélection ne garde que des
+ * slugs, si bien qu'un titre renommé ou un visuel remplacé suit tout seul. La commande
+ * qui en naît vaut 0 € et ne touche au stock de vente que si on l'a demandé
+ * (voir `createKitOrder`).
  *
  * Tout est pur, pour que l'espace partenaire et l'action de commande voient exactement
  * la même chose — et qu'un produit dépublié disparaisse des deux côtés à la fois.
@@ -15,7 +15,7 @@ import type { ImageRef, OrderLine, Product, SiteSettings } from "@/lib/domain/ty
 export type KitItem = { slug: string; title: string; qty: number; image?: ImageRef; weightG: number };
 
 /** Les articles du kit, dans l'ordre choisi, en ignorant les produits disparus. */
-export function kitItems(kit: SiteSettings["welcomeKit"], products: Product[]): KitItem[] {
+export function kitItems(kit: WelcomeKit, products: Product[]): KitItem[] {
   const bySlug = new Map(products.map((p) => [p.slug, p]));
   return kit.lines.flatMap((line) => {
     const product = bySlug.get(line.slug);
@@ -25,7 +25,7 @@ export function kitItems(kit: SiteSettings["welcomeKit"], products: Product[]): 
 }
 
 /** Le kit est-il proposable ? Activé, et au moins un livre encore disponible. */
-export function kitOffered(kit: SiteSettings["welcomeKit"], items: KitItem[]): boolean {
+export function kitOffered(kit: WelcomeKit, items: KitItem[]): boolean {
   return kit.enabled && items.length > 0;
 }
 

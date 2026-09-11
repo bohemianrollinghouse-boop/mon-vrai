@@ -1,12 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { Product, SiteSettings, type ImageRef } from "@/lib/domain/types";
+import { Product, WelcomeKit, type ImageRef } from "@/lib/domain/types";
 import { kitItems, kitOffered, kitOrderLines, kitWeightG } from "./kit";
 
 const product = (slug: string, over: Partial<Product> = {}) =>
   Product.parse({ slug, title: slug.toUpperCase(), price: 1500, weightG: 120, createdAt: 1, updatedAt: 1, ...over });
 
-const kit = (over: Partial<SiteSettings["welcomeKit"]> = {}) =>
-  SiteSettings.parse({ updatedAt: 1, welcomeKit: { enabled: true, title: "Kit", text: "", lines: [], ...over } }).welcomeKit;
+const kit = (over: Partial<WelcomeKit> = {}) => WelcomeKit.parse({ enabled: true, title: "Kit", text: "", lines: [], ...over });
 
 const IMG: ImageRef = { url: "https://example.test/a.jpg", alt: "A" };
 
