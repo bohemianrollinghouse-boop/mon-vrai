@@ -4,7 +4,7 @@ import type { Config, RichText, Slot } from "@puckeditor/core";
 import { MediaPickerField } from "@/components/admin/MediaPickerField";
 import { CollectionOfferButton } from "@/components/site/CollectionOfferButton";
 import { ContactForm } from "@/components/site/ContactForm";
-import { CenteredProse, Chapter, Contents, DarkPanel, EditorialPanel, Figures, Timeline, TintBanner, type Emphasis } from "@/components/site/editorial";
+import { CenteredProse, Chapter, Contents, DarkPanel, EditorialPanel, Figures, Timeline, TintBanner, type Emphasis, type Layout } from "@/components/site/editorial";
 import { ProRequestForm } from "@/components/site/ProRequestForm";
 import { CtaBand, HomeHero, Split, Tiles } from "@/components/site/home-sections";
 import { SortSelect } from "@/components/site/SortSelect";
@@ -61,6 +61,15 @@ const TINT_OPTIONS = [
 const ALIGN_OPTIONS = [
   { label: "Gauche", value: "left" },
   { label: "Centré", value: "center" },
+];
+
+/*
+ * L'allure des blocs de récit (voir components/site/editorial.tsx) : le titre sur un
+ * tiers et le texte sur deux tiers, ou tout empilé dans une colonne de lecture.
+ */
+const LAYOUT_OPTIONS = [
+  { label: "Deux colonnes", value: "colonnes" },
+  { label: "Colonne de lecture", value: "centre" },
 ];
 
 /** Le relief d'un paragraphe de récit (voir components/site/editorial.tsx). */
@@ -144,11 +153,11 @@ export type Props = {
   FAQ: { titre: string; note: string; source: "partagee" | "propres"; questions: { q: string; a: string }[] };
   GabaritLegal: { resume: string; aideTitre: string; aideTexte: string; aideCtaLabel: string; aideCtaHref: string; contenu: Slot };
   Heros: { surtitre: string; titre: string; texte: string; image: ImageRef | undefined; teinte: Tint; disposition: "cote" | "dessous" };
-  Chapitre: { surtitre: string; titre: string; ancre: string; paragraphes: { texte: string; relief: Emphasis }[]; pastilles: { texte: string }[]; teintePastilles: Tint; image: ImageRef | undefined };
-  Sommaire: { intitule: string; entrees: { numero: string; label: string; lien: string }[] };
-  Chiffres: { items: { valeur: string; texte: string }[]; taille: "lg" | "md"; largeurMin: number };
+  Chapitre: { surtitre: string; titre: string; ancre: string; paragraphes: { texte: string; relief: Emphasis }[]; pastilles: { texte: string }[]; teintePastilles: Tint; image: ImageRef | undefined; texteFin: string; disposition: Layout };
+  Sommaire: { intitule: string; entrees: { numero: string; label: string; lien: string }[]; disposition: Layout };
+  Chiffres: { items: { valeur: string; texte: string }[]; taille: "lg" | "md"; largeurMin: number; assemblage: "separees" | "jointes" };
   Panneau: { surtitre: string; titre: string; texte: string; citation: string; texte2: string; puces: { signe: string; texte: string }[]; image: ImageRef | undefined; cote: "left" | "right"; teinte: "" | Tint };
-  Frise: { surtitre: string; titre: string; texte: string; items: { label: string; texte: string }[]; teinte: "" | Tint };
+  Frise: { surtitre: string; titre: string; texte: string; items: { label: string; texte: string }[]; teinte: "" | Tint; disposition: "colonnes" | "empilees" };
   PanneauSombre: { disposition: "cards" | "columns"; surtitre: string; titre: string; texte: string; paragraphes: { texte: string }[]; cartes: { titre: string; texte: string }[] };
   ProseCentree: { surtitre: string; titre: string; paragraphes: { texte: string }[]; pastilles: { texte: string }[]; teintePastilles: Tint; texteFin: string; image: ImageRef | undefined };
   BandeauTeinte: { surtitre: string; titre: string; texte: string; ctaLabel: string; ctaHref: string; cta2Label: string; cta2Href: string; teinte: Tint };
@@ -650,11 +659,6 @@ export const blockConfig: Config<Props> = {
       },
     },
 
-    /*
-     * Héro bicolore : panneau teinté et image. Côte à côte (« Notre histoire ») ou
-     * l'image en bandeau sous un panneau pleine largeur (« Le concept »), quand le
-     * titre est long et mérite toute la largeur.
-     */
     /** Héro de l'espace professionnels : panneau teinté pleine largeur, deux boutons. */
     HerosPro: {
       label: "Héro pro",
@@ -792,7 +796,11 @@ export const blockConfig: Config<Props> = {
         ),
     },
 
-    /** Héro bicolore de « Notre histoire » : panneau teinté à gauche, image à droite. */
+    /*
+     * Héro bicolore : panneau teinté et photo. Côte à côte, ou la photo en bandeau sous
+     * un panneau pleine largeur — c'est ce que prennent « Notre histoire » et « Le
+     * concept », dont les titres méritent toute la largeur.
+     */
     Heros: {
       label: "Héro bicolore",
       fields: {
@@ -858,9 +866,11 @@ export const blockConfig: Config<Props> = {
         },
         teintePastilles: { type: "select", label: "Teinte des pastilles", options: TINT_OPTIONS },
         image: imageField("Image de fin de chapitre"),
+        texteFin: { type: "textarea", label: "Chute, après l'image" },
+        disposition: { type: "radio", label: "Disposition", options: LAYOUT_OPTIONS },
       },
-      defaultProps: { surtitre: "", titre: "Un chapitre", ancre: "", paragraphes: [{ texte: "", relief: "normal" }], pastilles: [], teintePastilles: "green", image: undefined },
-      render: ({ surtitre, titre, ancre, paragraphes, pastilles, teintePastilles, image }) => (
+      defaultProps: { surtitre: "", titre: "Un chapitre", ancre: "", paragraphes: [{ texte: "", relief: "normal" }], pastilles: [], teintePastilles: "green", image: undefined, texteFin: "", disposition: "colonnes" },
+      render: ({ surtitre, titre, ancre, paragraphes, pastilles, teintePastilles, image, texteFin, disposition }) => (
         <Chapter
           eyebrow={surtitre}
           heading={titre}
@@ -869,6 +879,8 @@ export const blockConfig: Config<Props> = {
           chips={pastilles.map((c) => c.texte).filter(Boolean)}
           chipTint={teintePastilles}
           image={image}
+          closing={{ text: texteFin, emphasis: "chute" }}
+          layout={disposition}
         />
       ),
     },
@@ -892,10 +904,11 @@ export const blockConfig: Config<Props> = {
           },
           getItemSummary: (item, i) => item.label || `Entrée ${(i ?? 0) + 1}`,
         },
+        disposition: { type: "radio", label: "Disposition", options: LAYOUT_OPTIONS },
       },
-      defaultProps: { intitule: "Au sommaire", entrees: [] },
-      render: ({ intitule, entrees }) => (
-        <Contents label={intitule} items={entrees.map((e) => ({ number: e.numero, label: e.label, href: e.lien }))} />
+      defaultProps: { intitule: "Au sommaire", entrees: [], disposition: "colonnes" },
+      render: ({ intitule, entrees, disposition }) => (
+        <Contents label={intitule} items={entrees.map((e) => ({ number: e.numero, label: e.label, href: e.lien }))} layout={disposition} />
       ),
     },
 
@@ -911,10 +924,11 @@ export const blockConfig: Config<Props> = {
         },
         taille: { type: "radio", label: "Taille du chiffre", options: [{ label: "Grande", value: "lg" }, { label: "Moyenne", value: "md" }] },
         largeurMin: { type: "number", label: "Largeur minimale (px)", min: 120, max: 400 },
+        assemblage: { type: "radio", label: "Tuiles", options: [{ label: "Séparées", value: "separees" }, { label: "En une bande", value: "jointes" }] },
       },
-      defaultProps: { items: [], taille: "lg", largeurMin: 180 },
-      render: ({ items, taille, largeurMin }) => (
-        <Figures items={items.map((f) => ({ value: f.valeur, text: f.texte }))} size={taille} min={largeurMin} />
+      defaultProps: { items: [], taille: "lg", largeurMin: 180, assemblage: "separees" },
+      render: ({ items, taille, largeurMin, assemblage }) => (
+        <Figures items={items.map((f) => ({ value: f.valeur, text: f.texte }))} size={taille} min={largeurMin} joined={assemblage === "jointes"} />
       ),
     },
 
@@ -971,15 +985,17 @@ export const blockConfig: Config<Props> = {
           getItemSummary: (item, i) => item.label || `Jalon ${(i ?? 0) + 1}`,
         },
         teinte: { type: "select", label: "Fond du panneau", options: [{ label: "Aucun (blanc)", value: "" }, ...TINT_OPTIONS] },
+        disposition: { type: "radio", label: "Jalons", options: [{ label: "En rangée", value: "colonnes" }, { label: "Empilés", value: "empilees" }] },
       },
-      defaultProps: { surtitre: "", titre: "", texte: "", items: [], teinte: "" },
-      render: ({ surtitre, titre, texte, items, teinte }) => (
+      defaultProps: { surtitre: "", titre: "", texte: "", items: [], teinte: "", disposition: "colonnes" },
+      render: ({ surtitre, titre, texte, items, teinte, disposition }) => (
         <Timeline
           eyebrow={surtitre}
           heading={titre}
           text={texte}
           items={items.map((s) => ({ label: s.label, text: s.texte }))}
           tint={teinte || undefined}
+          stacked={disposition === "empilees"}
         />
       ),
     },

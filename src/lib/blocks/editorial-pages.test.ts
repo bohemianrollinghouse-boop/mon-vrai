@@ -28,6 +28,25 @@ describe("storyBlocks", () => {
     }
   });
 
+  it("tient le récit dans la colonne de lecture", () => {
+    const doc = storyBlocks(photo);
+    const recit = doc.content.filter((b) => b.type === "Chapitre" || b.type === "Sommaire");
+
+    expect(recit.length).toBeGreaterThan(1);
+    for (const b of recit) expect(b.props.disposition).toBe("centre");
+  });
+
+  it("garde la chute d'un chapitre illustré après sa photo", () => {
+    const doc = storyBlocks(photo);
+    const chap2 = doc.content.find((b) => b.props.ancre === "chapitre-2");
+
+    expect(chap2?.props.image).toBeDefined();
+    expect(chap2?.props.texteFin).toMatch(/^Créés d'abord pour une enfant/);
+    // La chute ne doit pas rester en double dans les paragraphes qui précèdent l'image.
+    const paras = chap2?.props.paragraphes as { relief: string }[];
+    expect(paras.some((p) => p.relief === "chute")).toBe(false);
+  });
+
   it("n'ajoute l'infolettre que si on lui en donne une", () => {
     const has = (doc: BlockDocument) => doc.content.some((b) => b.type === "Infolettre");
     expect(has(storyBlocks(photo))).toBe(false);

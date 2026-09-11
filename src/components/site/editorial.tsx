@@ -64,8 +64,20 @@ function Picture({ image, className, sizes }: { image: ImageRef; className: stri
 }
 
 /*
+ * L'allure d'un bloc de récit. « colonnes » met le titre sur un tiers et le texte sur
+ * deux tiers, sur toute la largeur du site ; « centre » empile titre puis texte dans
+ * une colonne de lecture de 760 px. Le récit long préfère la seconde, les pages plus
+ * documentaires la première.
+ */
+export type Layout = "colonnes" | "centre";
+
+/** Colonne de lecture des blocs centrés — la même partout, d'où la constante. */
+const READING = "mx-auto flex max-w-[760px] flex-col gap-7";
+
+/*
  * Un chapitre du récit : surtitre et titre sur un tiers, texte au fil sur deux tiers.
- * La piste vide de `auto-fit` se replie, d'où le 1/3 – 2/3 sans le déclarer.
+ * La piste vide de `auto-fit` se replie, d'où le 1/3 – 2/3 sans le déclarer. En
+ * « centre », le titre passe simplement au-dessus de la colonne de lecture.
  */
 export function Chapter({
   eyebrow,
@@ -73,68 +85,120 @@ export function Chapter({
   lines,
   chips = [],
   image,
+  closing,
   anchor,
   chipTint = "green",
+  layout = "colonnes",
 }: {
   eyebrow?: string;
   heading: string;
   lines: Line[];
   chips?: string[];
   image?: ImageRef;
+  /** Ce qui se dit après la photo, et non avant : la chute d'un chapitre illustré. */
+  closing?: Line;
   anchor?: string;
   chipTint?: Tint;
+  layout?: Layout;
 }) {
+  const centre = layout === "centre";
+  const head = (
+    <div className="flex flex-col gap-3">
+      {eyebrow && <Eyebrow className="text-faint">{eyebrow}</Eyebrow>}
+      <h2 className="display-2">{heading}</h2>
+    </div>
+  );
+  const body = (
+    <div className={`flex flex-col gap-5 text-[1.0625rem] leading-[1.65] text-prose ${centre ? "" : "col-span-2"}`}>
+      {lines.map((l, i) => (
+        <p key={i} className={EMPHASIS[l.emphasis ?? "normal"]}>
+          {l.text}
+        </p>
+      ))}
+      {chips.length > 0 && <Chips items={chips} tint={chipTint} />}
+      {image && (
+        <Picture image={image} sizes={centre ? "(min-width: 900px) 760px, 100vw" : "(min-width: 900px) 66vw, 100vw"} className="h-[420px] rounded-card max-[899px]:h-60" />
+      )}
+      {closing?.text && <p className={EMPHASIS[closing.emphasis ?? "normal"]}>{closing.text}</p>}
+    </div>
+  );
   return (
     <section id={anchor || undefined} className="site-wrap scroll-mt-28 pt-20 max-[899px]:pt-12">
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-16 max-[899px]:gap-6">
-        <div className="flex flex-col gap-3">
-          {eyebrow && <Eyebrow className="text-faint">{eyebrow}</Eyebrow>}
-          <h2 className="display-2">{heading}</h2>
+      {centre ? (
+        <div className={READING}>
+          {head}
+          {body}
         </div>
-        <div className="col-span-2 flex flex-col gap-5 text-[1.0625rem] leading-[1.65] text-prose">
-          {lines.map((l, i) => (
-            <p key={i} className={EMPHASIS[l.emphasis ?? "normal"]}>
-              {l.text}
-            </p>
-          ))}
-          {chips.length > 0 && <Chips items={chips} tint={chipTint} />}
-          {image && <Picture image={image} sizes="(min-width: 900px) 66vw, 100vw" className="h-[420px] rounded-card max-[899px]:h-60" />}
+      ) : (
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-16 max-[899px]:gap-6">
+          {head}
+          {body}
         </div>
-      </div>
+      )}
     </section>
   );
 }
 
 /** Sommaire ancré : le numéro, le titre, et un renvoi libre en fin de liste. */
-export function Contents({ label, items }: { label: string; items: TocEntry[] }) {
+export function Contents({ label, items, layout = "colonnes" }: { label: string; items: TocEntry[]; layout?: Layout }) {
   if (items.length === 0) return null;
+  const centre = layout === "centre";
+  const list = (
+    <ol className={`grid list-none grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-8 gap-y-3 p-0 ${centre ? "" : "col-span-2"}`}>
+      {items.map((e, i) => (
+        <li key={i}>
+          <Link href={e.href || "#"} className="flex gap-3 text-[0.9375rem] font-semibold leading-normal hover:opacity-70">
+            <span className="text-faint">{e.number}</span>
+            {e.label}
+          </Link>
+        </li>
+      ))}
+    </ol>
+  );
   return (
     <section className="site-wrap pt-16 max-[899px]:pt-10">
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-16 border-t border-line-warm pt-8 max-[899px]:gap-6">
+      <div
+        className={
+          centre
+            ? `${READING} border-t border-line-warm pt-8`
+            : "grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-16 border-t border-line-warm pt-8 max-[899px]:gap-6"
+        }
+      >
         {label && <Eyebrow className="text-faint">{label}</Eyebrow>}
-        <ol className="col-span-2 grid list-none grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-8 gap-y-3 p-0">
-          {items.map((e, i) => (
-            <li key={i}>
-              <Link href={e.href || "#"} className="flex gap-3 text-[0.9375rem] font-semibold leading-normal hover:opacity-70">
-                <span className="text-faint">{e.number}</span>
-                {e.label}
-              </Link>
-            </li>
-          ))}
-        </ol>
+        {list}
       </div>
     </section>
   );
 }
 
-/** Tuiles blanches « chiffre + légende » : les repères du récit, les caractéristiques. */
-export function Figures({ items, size = "lg", min = 180 }: { items: Figure[]; size?: "lg" | "md"; min?: number }) {
+/*
+ * Tuiles « chiffre + légende » : les repères du récit, les caractéristiques d'un
+ * produit. Séparées (des cartes blanches espacées) ou jointes en une seule bande.
+ *
+ * La bande se sépare par un `gap` d'un pixel sur un fond de filet plutôt que par des
+ * bordures : les tuiles se replient en deux lignes dès que la largeur manque, et une
+ * bordure posée sur chaque tuile laisserait alors un filet en bout de ligne.
+ */
+export function Figures({
+  items,
+  size = "lg",
+  min = 180,
+  joined = false,
+}: {
+  items: Figure[];
+  size?: "lg" | "md";
+  min?: number;
+  joined?: boolean;
+}) {
   if (items.length === 0) return null;
   return (
     <section className="site-wrap pt-16 max-[899px]:pt-10">
-      <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))` }}>
+      <div
+        className={`grid ${joined ? "gap-px overflow-hidden rounded-card bg-line-warm" : "gap-4"}`}
+        style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))` }}
+      >
         {items.map((f, i) => (
-          <div key={i} className="flex flex-col gap-1.5 rounded-card bg-white p-8">
+          <div key={i} className={`flex flex-col gap-1.5 bg-white p-8 ${joined ? "" : "rounded-card"}`}>
             <span className={`font-extrabold leading-none tracking-[-0.02em] ${size === "lg" ? "text-[2.5rem]" : "text-[2rem]"}`}>{f.value}</span>
             <span className={`leading-relaxed text-muted ${size === "lg" ? "text-sm font-semibold" : "text-[0.9375rem]"}`}>{f.text}</span>
           </div>
@@ -158,12 +222,19 @@ export function Chips({ items, tint = "green", min = 150 }: { items: string[]; t
   );
 }
 
-/** Étapes ou jalons : un filet noir au-dessus, le libellé, puis la phrase. */
-function StepList({ items, ink, min }: { items: Step[]; ink: string; min: number }) {
+/*
+ * Étapes ou jalons. En colonnes, chaque jalon est coiffé d'un filet noir et la rangée
+ * se lit de gauche à droite ; empilés, le filet passe sur le flanc et la frise se lit
+ * de haut en bas — ce que demande une chronologie un peu longue.
+ */
+function StepList({ items, ink, min, stacked }: { items: Step[]; ink: string; min: number; stacked: boolean }) {
   return (
-    <ol className="grid list-none gap-6 p-0" style={{ gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))` }}>
+    <ol
+      className={`grid list-none p-0 ${stacked ? "grid-cols-1 gap-5" : "gap-6"}`}
+      style={stacked ? undefined : { gridTemplateColumns: `repeat(auto-fit, minmax(${min}px, 1fr))` }}
+    >
       {items.map((s, i) => (
-        <li key={i} className="flex flex-col gap-2 border-t-2 border-ink pt-4">
+        <li key={i} className={`flex flex-col gap-2 border-ink ${stacked ? "border-l-2 pl-5" : "border-t-2 pt-4"}`}>
           <span className="text-[0.8125rem] font-bold uppercase tracking-[0.08em]">{s.label}</span>
           <span className={`text-[0.9375rem] leading-relaxed ${ink}`}>{s.text}</span>
         </li>
@@ -183,6 +254,7 @@ export function Timeline({
   items,
   tint,
   min = 200,
+  stacked = false,
 }: {
   eyebrow?: string;
   heading?: string;
@@ -190,6 +262,8 @@ export function Timeline({
   items: Step[];
   tint?: Tint;
   min?: number;
+  /** Jalons empilés, filet sur le flanc, plutôt qu'en rangée. */
+  stacked?: boolean;
 }) {
   if (items.length === 0) return null;
   const ink = tint ? TINT_INK[tint] : "text-muted";
@@ -203,7 +277,7 @@ export function Timeline({
             {text && <p className={`text-[1.0625rem] leading-[1.65] ${ink}`}>{text}</p>}
           </div>
         )}
-        <StepList items={items} ink={ink} min={min} />
+        <StepList items={items} ink={ink} min={min} stacked={stacked} />
       </div>
     </section>
   );

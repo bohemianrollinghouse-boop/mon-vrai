@@ -54,7 +54,15 @@ const lines = (...texte: string[]) => texte.map((t) => ({ texte: t }));
  */
 const p = (texte: string, relief: Emphasis = "normal") => ({ texte, relief });
 
-/** « Notre histoire » : un récit en six chapitres, avec trois intermèdes. */
+/*
+ * « Notre histoire » : un récit en six chapitres, avec trois intermèdes.
+ *
+ * La page suit la variante B de la maquette : tout le récit tient dans une colonne de
+ * lecture — sommaire et chapitres centrés, titre au-dessus du texte —, le héros pose
+ * sa photo en bandeau sous le panneau, les repères chiffrés forment une seule bande et
+ * la chronologie se lit de haut en bas. Les panneaux et le manifeste sombre, eux, gardent
+ * la pleine largeur : ce sont les respirations entre deux blocs de lecture.
+ */
 export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]): BlockDocument {
   seq = 0;
   const content: BlockDocument["content"] = [
@@ -65,12 +73,13 @@ export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]
         "Mon Vrai est né d'un besoin très simple : proposer aux tout-petits des supports réellement pensés pour eux, ancrés dans le réel, simples à observer et adaptés à leur développement.",
       image: photo("histoire-bebe-livre.jpg"),
       teinte: "pink",
-      disposition: "cote",
+      disposition: "dessous",
     }),
 
     block("Chiffres", {
       taille: "lg",
       largeurMin: 180,
+      assemblage: "jointes",
       items: [
         { valeur: "6", texte: "représentations par imagier, une seule par double page" },
         { valeur: "500", texte: "premiers livres imprimés en 2025, vendus en quatre mois" },
@@ -81,6 +90,7 @@ export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]
 
     block("Sommaire", {
       intitule: "Au sommaire",
+      disposition: "centre",
       entrees: [
         { numero: "01", label: "Chercher, puis fabriquer", lien: "#chapitre-1" },
         { numero: "02", label: "Les cinq premiers imagiers", lien: "#chapitre-2" },
@@ -96,9 +106,11 @@ export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]
       surtitre: "Chapitre 01",
       titre: "Chercher, puis fabriquer",
       ancre: "chapitre-1",
+      disposition: "centre",
       teintePastilles: "green",
       pastilles: [],
       image: photo("histoire-main-savon.jpg"),
+      texteFin: "",
       paragraphes: [
         p("Tout commence avec une maternité très jeune et une passion née avec elle : comprendre comment fonctionne un bébé, comment il découvre son environnement, comment évoluent ses capacités et de quoi il a besoin à chaque étape. Des formations suivent : la pédagogie Montessori pour les 0–3 ans et les 3–6 ans, d'autres pédagogies alternatives, la neuroéducation et plus largement le développement de l'enfant."),
         p("De cette recherche naît une habitude : chercher du matériel cohérent avec l'âge de l'enfant, ses capacités, ses besoins cognitifs et sensoriels. Elle se retrouve d'abord dans les livres. Mais pour un tout-petit, les imagiers trouvés en librairie contiennent souvent énormément de pages, beaucoup de texte, ou des dessins très éloignés de la réalité. Ce que nous cherchions était plus court, plus simple, plus lisible : peu d'informations à la fois, et des représentations proches du monde réel."),
@@ -124,15 +136,17 @@ export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]
       surtitre: "Chapitre 02",
       titre: "Les cinq premiers imagiers",
       ancre: "chapitre-2",
+      disposition: "centre",
       teintePastilles: "green",
       pastilles: lines("Les Fruits", "Les Légumes", "Les Animaux de compagnie", "Les Vêtements", "Les Objets du quotidien"),
       image: photo("histoire-cinq-imagiers.jpg"),
+      // La chute de ce chapitre vient après la photo des cinq imagiers, pas avant.
+      texteFin: "Créés d'abord pour une enfant, ils ont plu à d'autres parents et à des personnes intéressées par le développement de l'enfant. Le manque ressenti n'était probablement pas le nôtre seulement.",
       paragraphes: [
         p("Quelques années plus tard, une deuxième petite fille arrive, et les outils numériques sont devenus plus accessibles. Les fichiers deviennent plus aboutis, et l'idée change d'échelle : plutôt que d'imprimer des cartes à la maison, pourquoi ne pas faire fabriquer de vrais livres ? Une formation autour du dropshipping, finalement abandonnée, avait laissé un savoir-faire utile : chercher des fournisseurs, les contacter, comprendre la fabrication, et réfléchir au passage d'une idée à un produit réel."),
         p("Dès les premiers essais, les principes étaient là : des représentations réalistes, un fond blanc, très peu d'éléments par livre, aucun texte, une seule image à observer à la fois, une construction volontairement épurée. Les premiers éléments, des fruits et des légumes, ont été photographiés à la maison ; faute de studio, des outils d'intelligence artificielle ont servi à en homogénéiser la lumière, puis chaque élément a été isolé sur fond blanc."),
         p("Chaque livre a été volontairement limité à six représentations. Pas vingt, pas cinquante : six. Retirer plutôt qu'ajouter, ne pas remplir pour remplir, et laisser au tout-petit un support visuel simple. Un fruit qui ressemble à un vrai fruit. Un animal qui ressemble réellement à l'animal dont on lui parle. Un objet qui rappelle celui qu'il voit dans sa maison."),
         p("La famille partageait déjà beaucoup son quotidien sur les réseaux sociaux, notamment sa vie en bus aménagé. Le projet a suscité de l'intérêt, et de premiers prototypes ont été fabriqués."),
-        p("Créés d'abord pour une enfant, ils ont plu à d'autres parents et à des personnes intéressées par le développement de l'enfant. Le manque ressenti n'était probablement pas le nôtre seulement.", "chute"),
       ],
     }),
 
@@ -140,9 +154,11 @@ export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]
       surtitre: "Chapitre 03",
       titre: "Devenir maison d'édition",
       ancre: "chapitre-3",
+      disposition: "centre",
       teintePastilles: "green",
       pastilles: [],
       image: photo("histoire-valise-rangement.jpg"),
+      texteFin: "",
       paragraphes: [
         p("Faire fabriquer et éditer ces livres a demandé d'entrer dans un univers inconnu : chercher des fournisseurs, comprendre la fabrication, se renseigner sur les normes, effectuer les démarches nécessaires pour transformer des fichiers en véritables livres. La structure éditoriale est née à ce moment-là sous le nom de Bohemian Rolling House, qui correspondait déjà à notre univers sur les réseaux sociaux."),
         p("En 2025, une campagne Ulule a permis de tester le projet plus sérieusement : une soixantaine de précommandes, puis une production de 500 exemplaires. Ces 500 livres se sont vendus en quelques mois, environ quatre. Au départ, les acheteurs venaient de notre communauté. Puis des commandes sont arrivées de personnes qui ne nous suivaient pas : des parents qui découvraient les imagiers par d'autres, des créateurs de contenu qui les montraient, des professionnels de la petite enfance qui s'y intéressaient."),
@@ -154,6 +170,7 @@ export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]
       titre: "",
       texte: "",
       teinte: "",
+      disposition: "empilees",
       items: [
         { label: "Avant Mon Vrai", texte: "Formations autour du développement de l'enfant, et des cartes fabriquées à la maison, imprimées puis plastifiées." },
         { label: "Premiers fichiers", texte: "Six représentations réalistes par livre, fond blanc, aucun texte. Cinq imagiers prennent forme." },
@@ -169,9 +186,11 @@ export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]
       surtitre: "Chapitre 04",
       titre: "La pause, puis le déclic",
       ancre: "chapitre-4",
+      disposition: "centre",
       teintePastilles: "green",
       pastilles: [],
       image: undefined,
+      texteFin: "",
       paragraphes: [
         p("La suite n'a pas été linéaire. Comment créer une identité ? Développer une gamme ? Construire un site ? Gérer une production plus importante ? Financer la suite ? Une partie du budget de la première production avait été mal anticipée : avoir vendu les 500 livres ne signifiait pas pouvoir relancer immédiatement une fabrication. À cela se sont ajoutés des changements importants dans la vie personnelle, et Mon Vrai a été mis en pause. Mais l'idée, elle, n'a jamais réellement disparu."),
         p("Avec du recul, la première édition avait fait exactement ce qu'elle devait faire : tester le concept, mettre les livres entre les mains des enfants, recueillir les premières réactions, confirmer qu'il existait une vraie demande. Visuellement, en revanche, tout avait été créé seule : il n'y avait pas encore de véritable identité de marque, ni de cohérence graphique globale."),
@@ -183,9 +202,11 @@ export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]
       surtitre: "Chapitre 05",
       titre: "Pourquoi « Mon Vrai »",
       ancre: "chapitre-5",
+      disposition: "centre",
       teintePastilles: "green",
       pastilles: [],
       image: photo("histoire-pomme-reelle.jpg"),
+      texteFin: "",
       paragraphes: [
         p("Au départ, les livres s'appelaient Mes Vrais Imagiers. Ce nom décrivait bien les premiers produits, mais il limitait le projet aux imagiers, alors que l'ambition était déjà plus grande : des cartes contrastées, d'autres collections, des supports de langage, des jeux, d'autres outils pensés pour le développement du jeune enfant."),
         p("Mon Vrai imagier. Mon Vrai jeu. Mes vraies cartes. Mon Vrai support.", "forte"),
@@ -213,9 +234,11 @@ export function storyBlocks(photo: Photo, newsletter?: HomeContent["newsletter"]
       surtitre: "Chapitre 06",
       titre: "Ce que nous voulons que Mon Vrai devienne",
       ancre: "chapitre-6",
+      disposition: "centre",
       teintePastilles: "green",
       pastilles: [],
       image: photo("histoire-chien-figurine.jpg"),
+      texteFin: "",
       paragraphes: [
         p("Aujourd'hui, Mon Vrai ne se limite plus à cinq livres. L'ambition est de construire une grande collection de référence pour les tout-petits, puis une continuité pour les enfants qui grandissent : des imagiers 6–18 mois, des collections 18–36 mois, des cartes contrastées adaptées aux premiers mois, des supports de langage, des histoires réalistes, des outils autour des émotions."),
         p("Nous ne voulons pas créer un produit simplement parce qu'il est joli ou parce qu'il peut se vendre. La question que nous gardons au centre de chaque création est celle-ci :"),
@@ -313,6 +336,7 @@ export function conceptBlocks(photo: Photo): BlockDocument {
       block("Chiffres", {
         taille: "md",
         largeurMin: 260,
+        assemblage: "separees",
         items: [
           { valeur: "14 × 14 cm", texte: "Un format carré, pensé pour être facilement manipulable par les jeunes enfants." },
           { valeur: "Cartonné", texte: "Des pages épaisses et des coins arrondis, faits pour être repris tous les jours." },
@@ -338,6 +362,7 @@ export function conceptBlocks(photo: Photo): BlockDocument {
         texte:
           "Un enfant n'a pas à arrêter de les utiliser après 18 mois. L'utilisation du même imagier évolue avec lui, et chaque enfant avance à son propre rythme.",
         teinte: "blue",
+        disposition: "colonnes",
         items: [
           { label: "D'abord", texte: "L'enfant regarde simplement une image." },
           { label: "Puis", texte: "Il commence à reconnaître certains éléments." },
