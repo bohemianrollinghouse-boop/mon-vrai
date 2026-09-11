@@ -9,6 +9,7 @@ import { readAdminTheme, themeAttribute } from "@/lib/admin/theme";
 import { AdminNav, type NavSection } from "@/components/admin/AdminNav";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { PwaRegister } from "@/components/admin/PwaRegister";
+import { DeployBanner } from "@/components/admin/DeployBanner";
 import { Avatar } from "@/components/admin/ui";
 import { ModeToggle } from "@/components/admin/ModeToggle";
 import { ThemeToggle } from "@/components/admin/ThemeToggle";
@@ -148,6 +149,8 @@ export default async function AdminLayout({ children }: { children: ReactNode })
       </AdminSidebar>
 
       <main className="flex min-w-0 flex-col gap-6 px-10 pb-16 pt-8 max-[899px]:px-5 max-[899px]:pt-20">
+        {/* Ce qui se passe côté infrastructure, en tête : un déploiement en cours se voit. */}
+        <DeployBanner />
         {(snap.settings.payments.mode === "test" || snap.settings.shipping.boxtalMode === "test") && (
           <div className="flex flex-wrap items-center gap-3 rounded-card bg-tint-sand px-5 py-3 text-[0.8125rem] font-semibold text-tint-sand-ink">
             <span>
