@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { Avatar, ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Thumb } from "@/components/admin/ui";
-import { addOrderNoteAction, createBoxtalLabelAction, regenerateInvoicePdfAction, resendOrderEmailAction, sendToMakeAction, setTrackingAction, syncBoxtalAction, transitionOrderAction } from "@/lib/admin/actions/orders";
+import { addOrderNoteAction, createBoxtalLabelAction, deleteOrderAction, regenerateInvoicePdfAction, resendOrderEmailAction, sendToMakeAction, setTrackingAction, syncBoxtalAction, transitionOrderAction } from "@/lib/admin/actions/orders";
 import { makeConfigured } from "@/lib/make/tiime";
 import { boxtalConfigured } from "@/lib/boxtal/client";
 import { carrierOf, findOffer } from "@/lib/boxtal/offers";
@@ -407,6 +407,27 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
               <Row k="Session" v={order.stripe.checkoutSessionId ?? "-"} />
               <Row k="Paiement" v={order.stripe.paymentIntentId ?? "-"} />
             </dl>
+          </Card>
+
+          {/* Une commande facturée ne s'efface pas : la base refuse, on le dit ici. */}
+          <Card title={<span className="text-sm">Zone dangereuse</span>} className="!gap-2 border border-danger-bg">
+            {order.invoice ? (
+              <p className="text-xs leading-relaxed text-subtle">
+                Commande facturée ({order.invoice.number}) : elle ne peut pas être supprimée. Annulez-la ou remboursez-la,
+                la facture reste au livre.
+              </p>
+            ) : (
+              <ActionForm
+                action={deleteOrderAction}
+                submitLabel="Supprimer la commande"
+                submitTone="danger"
+                confirm={`Supprimer définitivement la commande ${order.number} ? Elle disparaîtra des chiffres et de l'historique. Cette action est irréversible.`}
+                className="!gap-2"
+                footerNote={<span className="text-xs text-subtle">Les exemplaires encore réservés sont rendus au stock.</span>}
+              >
+                <input type="hidden" name="id" value={order.id} />
+              </ActionForm>
+            )}
           </Card>
         </div>
       </div>

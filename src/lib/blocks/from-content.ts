@@ -90,9 +90,10 @@ export function catalogueToBlocks(c: CatalogueContent, newsletter?: HomeContent[
 }
 
 /*
- * Contact : héro et formulaire côte à côte, FAQ, infolettre. Les coordonnées, les
- * sujets du formulaire et les questions ne sont pas recopiés — ils restent dans les
- * réglages, dans Contenus et dans /admin/faq, et arrivent par les métadonnées.
+ * Contact : héro et formulaire côte à côte, FAQ, infolettre. Les coordonnées restent
+ * dans les réglages et les questions dans /admin/faq — elles arrivent par les
+ * métadonnées. Les sujets du formulaire, eux, sont recopiés dans le bloc : c'est
+ * désormais là qu'ils se modifient.
  */
 export function contactToBlocks(c: ContactContent, newsletter?: HomeContent["newsletter"]): BlockDocument {
   seq = 0;
@@ -111,7 +112,7 @@ export function contactToBlocks(c: ContactContent, newsletter?: HomeContent["new
         }),
       ],
       centre: [],
-      droite: [block("FormulaireContact", {})],
+      droite: [block("FormulaireContact", { sujets: c.subjects.map((texte) => ({ texte })), mentionLegale: c.legal, messageConfirmation: c.successText })],
     }),
     block("FAQ", { titre: c.faq.heading, note: c.faq.note, source: "partagee", questions: [] }),
   ];

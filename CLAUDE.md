@@ -132,15 +132,18 @@ en 308 vers la nouvelle (`next.config.ts` + `content/redirects.json`).
   marchand dans l'aperçu doit être inerte (`puck.isEditing`) : hors du site il n'y a
   pas de `CartModalProvider`, et le hook lèverait au rendu.
 - Ce qui se règle ailleurs n'est pas recopié dans un bloc : les coordonnées restent
-  dans les réglages, les sujets du formulaire dans `/admin/contenus`, les questions
-  dans `/admin/faq`.
+  dans les réglages, les questions dans `/admin/faq`. Deux blocs font exception, parce
+  que le réglage n'a de sens que là où il s'affiche : le formulaire de contact porte ses
+  sujets, et la FAQ peut porter ses propres questions (« Propres à cette page ») au lieu
+  de la liste partagée. Les deux retombent sur l'ancienne source quand le champ est vide,
+  pour qu'une page composée avant le changement ne bouge pas.
 - **Trois formulaires, trois actions** sur la fiche d'une page — publication, contenu,
   SEO —, parce que l'éditeur ne peut pas être inclus dans un `<form>` (les boutons de
   Puck le soumettraient). Chacune relit la page et ne réécrit que ses champs.
 - **Accueil** : la page marquée `home` est servie à la racine (`db/pages.setHomePage`
   tient l'unicité) ; son adresse propre y redirige. Sans page marquée, `/` retombe sur
-  `content/home`. `content/story` n'est plus affiché mais reste éditable dans
-  `/admin/contenus`.
+  `content/home`. `content/story` et `content/home` ne sont plus
+  affichés ni éditables : ils ne servent que de repli et d'amorce au seed.
 - **SEO** : `PageSeo` étend le socle commun pour les pages seulement (partage,
   indexation, canonique). Les balises sont produites par `domain/page-metadata.ts`,
   partagé par la racine et l'attrape-tout — les deux routes émettent donc la même
@@ -165,7 +168,9 @@ en 308 vers la nouvelle (`next.config.ts` + `content/redirects.json`).
   d'ambiance, à remplacer dans l'éditeur.
 
 FAQ : les questions vivent dans `content/contact.faq.items` (rubrique, masquée) et se
-gèrent dans `/admin/faq`. Tarifs de livraison : `settings.shipping.rates`, proposés à
+gèrent dans `/admin/faq`. L'écran « Contenus » a disparu : les pages sont toutes en
+blocs, et ce qu'il réglait encore vraiment (sujets du formulaire de contact) est
+descendu dans le bloc — `migrate-prod.ts --contact-form` l'y recopie. Tarifs de livraison : `settings.shipping.rates`, proposés à
 la caisse Stripe. Stock : décrémenté au paiement ; « réservé » = payé non expédié.
 
 Les réglages sont éclatés en deux pages, donc en deux actions (`actions/settings.ts`) :

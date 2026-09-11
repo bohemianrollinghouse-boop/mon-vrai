@@ -340,6 +340,35 @@ export async function setInvoiceDoc(id: string, invoice: { number: string; issue
   await orders().doc(id).update({ invoice, updatedAt: now() });
 }
 
+/*
+ * Suppression d'une commande. Réservée aux commandes sans facture : un numéro de
+ * facture émis est une pièce comptable, il ne s'efface pas — une commande facturée
+ * s'annule ou se rembourse, elle ne disparaît pas.
+ *
+ * Le stock encore réservé (payée non expédiée) est rendu au passage, sauf s'il n'en
+ * était jamais sorti — un kit de bienvenue pris sur le stock à part.
+ */
+export async function deleteOrder(id: string): Promise<void> {
+  await db().runTransaction(async (tx) => {
+    const ref = orders().doc(id);
+    const order = parseDoc(Order, await tx.get(ref));
+    if (!order) throw new Error(`Commande ${id} introuvable`);
+    if (order.invoice) throw new Error("Cette commande porte une facture : elle ne peut pas être supprimée.");
+
+    const releasing = (!order.kit || order.kit.stock) && stockIsReserved(order.status);
+    if (releasing) {
+      // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
+      const prefs = order.lines.map((line) => col("products").doc(line.productSlug));
+      const snaps = await Promise.all(prefs.map((pref) => tx.get(pref)));
+      order.lines.forEach((line, i) => {
+        const product = parseDoc(Product, snaps[i]);
+        if (product && product.stock !== null) tx.update(prefs[i], { stock: FieldValue.increment(line.qty), updatedAt: now() });
+      });
+    }
+    tx.delete(ref);
+  });
+}
+
 export async function setTracking(id: string, tracking: NonNullable<Order["tracking"]>): Promise<void> {
   await orders().doc(id).update({ tracking, updatedAt: now() });
 }

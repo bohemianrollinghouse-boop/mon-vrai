@@ -6,7 +6,7 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { addOrderNote, getOrder, setTracking, transitionOrder } from "@/lib/db/orders";
+import { addOrderNote, deleteOrder, getOrder, setTracking, transitionOrder } from "@/lib/db/orders";
 import { OrderStatus } from "@/lib/domain/types";
 import { sendOrderConfirmation, sendShippingNotice } from "@/lib/email/send";
 import { createLabelForOrder, syncBoxtal } from "@/lib/boxtal/shipment";
@@ -171,4 +171,25 @@ export async function regenerateInvoicePdfAction(formData: FormData): Promise<Ad
   await audit(user.email, "order.invoice.pdf", `orders/${id}`, order.invoice.number);
   revalidatePath("/admin/commandes");
   return saved(`PDF de la facture ${order.invoice.number} régénéré.`);
+}
+
+/*
+ * Supprime définitivement une commande. Sert aux essais et aux doublons ; une commande
+ * facturée est refusée par la base (une facture émise est une pièce comptable). Le
+ * stock encore réservé est rendu au passage.
+ */
+export async function deleteOrderAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  const order = await getOrder(id);
+  if (!order) return failed("Commande introuvable");
+
+  try {
+    await deleteOrder(id);
+  } catch (err) {
+    return failed((err as Error).message);
+  }
+  await audit(user.email, "order.delete", `orders/${id}`, `${order.number} · ${order.shippingAddress.name}`);
+  revalidatePath("/admin/commandes");
+  return { ok: true, message: `Commande ${order.number} supprimée.`, redirectTo: "/admin/commandes" };
 }

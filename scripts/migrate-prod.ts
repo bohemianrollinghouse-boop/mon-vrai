@@ -25,6 +25,12 @@
  * --editorial réécrit « Notre histoire » avec le récit rédigé (editorial-pages.ts) et
  * crée « Le concept ». À passer APRÈS le déploiement : le code en ligne doit connaître
  * les blocs du récit (Chapitre, Frise, Panneau…) pour savoir les rendre.
+ *
+ * --contact-form recopie les sujets, la mention légale et le message de confirmation
+ * de `content/contact` dans le bloc « Formulaire de contact » de la page. Ils s'y
+ * éditaient auparavant depuis l'écran « Contenus », qui n'existe plus. Sans cette
+ * phase, le bloc continue de les lire par les métadonnées : rien ne casse, ils sont
+ * seulement invisibles dans l'éditeur.
  */
 import { legalToDocument } from "@/lib/blocks/from-html";
 import { catalogueToBlocks, contactToBlocks, homeToBlocks, proToBlocks, storyToBlocks } from "@/lib/blocks/from-content";
@@ -46,6 +52,9 @@ const FORCE = process.argv.includes("--force");
 /* Réécrit « Notre histoire » avec le récit rédigé. Explicite, parce que la page existe
    déjà en blocs : la réécrire efface ce qui aurait été retouché depuis l'admin. */
 const EDITORIAL = process.argv.includes("--editorial");
+/* Recopie les réglages du formulaire de contact dans son bloc, pour qu'ils s'éditent
+   depuis la page et non plus depuis l'écran « Contenus », retiré. */
+const CONTACT_FORM = process.argv.includes("--contact-form");
 
 /* Une page « sœur » est une page libre, pas une page système ni une URL. */
 const isPageSlug = (slug: string) => /^[a-z0-9-]+(\/[a-z0-9-]+)*$/.test(slug);
@@ -210,6 +219,33 @@ async function main() {
         ],
       });
     }
+  }
+
+  /* 3 ter. Les réglages du formulaire de contact descendent dans son bloc. Idempotent :
+     un bloc déjà rempli n'est pas réécrit, c'est lui qui fait foi. */
+  if (CONTACT_FORM && contact) {
+    const page = await getPage("contact");
+    const blocks = page?.blocks;
+    const target = blocks?.content.find((b) => b.type === "FormulaireContact");
+    if (!blocks || !target) {
+      note("· contact : aucun bloc « Formulaire de contact » — rien à recopier");
+    } else if ((target.props.sujets as unknown[] | undefined)?.length) {
+      note("= contact : sujets déjà dans le bloc");
+    } else {
+      note(`~ contact : ${contact.subjects.length} sujets recopiés dans le bloc`);
+      if (APPLY) {
+        await savePageBlocks("contact", {
+          root: blocks.root,
+          content: blocks.content.map((b) =>
+            b.type === "FormulaireContact"
+              ? { ...b, props: { ...b.props, sujets: contact.subjects.map((texte) => ({ texte })), mentionLegale: contact.legal, messageConfirmation: contact.successText } }
+              : b,
+          ),
+        });
+      }
+    }
+  } else if (!CONTACT_FORM) {
+    note("· formulaire de contact : réglages laissés dans content/contact — les descendre avec --contact-form");
   }
 
   /* 4. La racine est servie par une page — seulement si aucune ne l'est déjà. */

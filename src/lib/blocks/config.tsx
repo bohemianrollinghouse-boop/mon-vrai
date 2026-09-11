@@ -140,7 +140,7 @@ export type Props = {
   GrilleCatalogue: Record<string, never>;
   Specs: { items: { titre: string; texte: string }[] };
   HerosContact: { surtitre: string; titre: string; texte: string; teinte: Tint; proLabel: string; proTexte: string };
-  FormulaireContact: Record<string, never>;
+  FormulaireContact: { sujets: { texte: string }[]; mentionLegale: string; messageConfirmation: string };
   FAQ: { titre: string; note: string; source: "partagee" | "propres"; questions: { q: string; a: string }[] };
   GabaritLegal: { resume: string; aideTitre: string; aideTexte: string; aideCtaLabel: string; aideCtaHref: string; contenu: Slot };
   Heros: { surtitre: string; titre: string; texte: string; image: ImageRef | undefined; teinte: Tint; disposition: "cote" | "dessous" };
@@ -444,15 +444,39 @@ export const blockConfig: Config<Props> = {
     },
 
     /** Formulaire de contact. Sujets, mention légale et message de succès : Contenus. */
+    /*
+     * Formulaire de contact. Les sujets, la mention légale et le message de confirmation
+     * s'écrivent ici : ils tenaient auparavant dans un écran « Contenus » à part, ce qui
+     * obligeait à changer de page pour ajouter une ligne au menu déroulant.
+     *
+     * Un champ laissé vide reprend ce qui était enregistré avant : une page posée avant
+     * ce changement continue d'afficher exactement les mêmes sujets.
+     */
     FormulaireContact: {
       label: "Formulaire de contact",
-      fields: {},
-      defaultProps: {},
-      render: ({ puck }) => {
+      fields: {
+        sujets: {
+          type: "array",
+          label: "Sujets du menu déroulant",
+          arrayFields: { texte: { type: "text", label: "Sujet" } },
+          getItemSummary: (item) => item.texte || "Sujet",
+        },
+        mentionLegale: { type: "textarea", label: "Mention légale sous le formulaire" },
+        messageConfirmation: { type: "textarea", label: "Message de confirmation" },
+      },
+      defaultProps: { sujets: [], mentionLegale: "", messageConfirmation: "" },
+      /*
+       * `?? []` et `?? ""` : un bloc enregistré avant ces champs ne les porte pas, et
+       * `defaultProps` ne s'applique qu'à l'insertion — pas au rendu d'un contenu déjà
+       * en base. Sans ce repli, la page de contact en ligne tombait en erreur.
+       */
+      render: ({ sujets, mentionLegale, messageConfirmation, puck }) => {
         const cfg = (puck.metadata as BlockMetadata).contactForm;
+        const chosen = (sujets ?? []).map((s) => s.texte).filter(Boolean);
+        const subjects = chosen.length > 0 ? chosen : (cfg?.subjects ?? []);
         return (
           <div className="rounded-panel bg-white p-12 max-[899px]:p-8">
-            <ContactForm subjects={cfg?.subjects ?? []} legal={cfg?.legal ?? ""} successText={cfg?.successText ?? ""} />
+            <ContactForm subjects={subjects} legal={mentionLegale || (cfg?.legal ?? "")} successText={messageConfirmation || (cfg?.successText ?? "")} />
           </div>
         );
       },
@@ -500,7 +524,8 @@ export const blockConfig: Config<Props> = {
         return { props: { ...props, questions: ((metadata as BlockMetadata).faq ?? []).map((f) => ({ q: f.q, a: f.a })) } };
       },
       render: ({ titre, note, source, questions, puck }) => {
-        const items = source === "propres" ? questions : (puck.metadata as BlockMetadata).faq ?? [];
+        // Même prudence que pour le formulaire : un bloc d'avant ce choix n'a ni l'un ni l'autre.
+        const items = source === "propres" ? questions ?? [] : (puck.metadata as BlockMetadata).faq ?? [];
         if (items.length === 0) {
           // Dans l'éditeur, un bloc vide doit se voir et se dire — sur le site, il s'efface.
           return puck.isEditing ? <section className="site-wrap pt-[4.5rem] text-sm text-[#555]">Aucune question : ajoutez-en dans le panneau de droite, ou reprenez celles de la FAQ.</section> : <></>;
