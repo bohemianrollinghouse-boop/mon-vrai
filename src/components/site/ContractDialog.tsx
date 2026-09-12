@@ -4,11 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { ContractText } from "@/components/site/ContractText";
 
 /*
- * Lecture et acceptation du contrat.
+ * Lecture du contrat.
  *
- * La fenêtre ne demande plus rien : tout a été rempli dans la page, et le contrat
- * s'affiche ici avec ces informations à leur place. Il ne reste qu'à le lire et à
- * l'accepter — d'où une fenêtre presque entièrement occupée par le texte.
+ * La fenêtre ne demande rien et n'accepte rien : elle sert à LIRE. Les informations ont
+ * été remplies dans la page — le contrat s'affiche ici avec elles à leur place —, et
+ * les attestations se cochent dans la page APRÈS. On n'atteste pas avoir lu un texte
+ * qu'on n'a pas encore vu.
  *
  * Le bouton reste grisé tant que le contrat n'a pas été déroulé jusqu'en bas, et la
  * raison est écrite juste à côté. La condition se relâche quand le texte tient dans le
@@ -20,19 +21,19 @@ export function ContractDialog({
   version,
   body,
   signerName,
-  accepted,
+  alreadyRead,
   onClose,
-  onAccept,
+  onRead,
 }: {
   title: string;
   typeLabel: string;
   version: string;
   body: string;
   signerName: string;
-  /** Déjà accepté : la fenêtre sert alors à relire, sans redemander. */
-  accepted: boolean;
+  /** Déjà lu : la fenêtre sert alors à relire, sans rien redemander. */
+  alreadyRead: boolean;
   onClose: () => void;
-  onAccept: () => void;
+  onRead: () => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const [read, setRead] = useState(false);
@@ -75,28 +76,28 @@ export function ContractDialog({
           <ContractText text={body} />
           {/* La signature ferme le document, comme sur un contrat imprimé. */}
           <div className="mt-6 flex flex-col gap-1 border-t border-line pt-4 text-[0.8125rem]">
-            <span className="text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint">Accepté électroniquement par</span>
+            <span className="text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint">À accepter électroniquement par</span>
             <span className="text-base font-extrabold">{signerName || "—"}</span>
-            <span className="text-xs text-subtle">L&apos;acceptation sera horodatée au moment où vous validerez.</span>
+            <span className="text-xs text-subtle">Vous attesterez et signerez juste après, dans la page. L&apos;acceptation sera horodatée à ce moment-là.</span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span className={`text-xs font-semibold ${read ? "text-tint-green-ink" : "text-subtle"}`} role="status">
-            {read ? "Contrat lu jusqu'au bout." : "Faites défiler le contrat jusqu'en bas pour pouvoir l'accepter."}
+            {read ? "Contrat lu jusqu'au bout." : "Faites défiler le contrat jusqu'en bas pour continuer."}
           </span>
-          {accepted ? (
+          {alreadyRead ? (
             <button type="button" onClick={onClose} className="rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white">
               Fermer
             </button>
           ) : (
             <button
               type="button"
-              onClick={onAccept}
+              onClick={onRead}
               disabled={!read}
               className="rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              J&apos;accepte le contrat
+              J&apos;ai lu le contrat
             </button>
           )}
         </div>

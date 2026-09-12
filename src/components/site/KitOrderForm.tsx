@@ -99,7 +99,12 @@ export function KitOrderForm({
   const [signer, setSigner] = useState({ companyName: "", siret: "", vatNumber: "", taxCountry: "FR", signerTypedName: "" });
   const [status, setStatus] = useState<SignerStatus>("individual");
   const [checks, setChecks] = useState<Record<string, boolean>>({});
-  const [signed, setSigned] = useState(false);
+  /*
+   * On ne coche pas une attestation avant d'avoir lu : `readText` garde le contrat TEL
+   * QU'IL A ÉTÉ LU. Si les informations changent ensuite, le contrat change avec elles
+   * et la lecture ne vaut plus — il faut le relire. On le dit, on ne le tait pas.
+   */
+  const [readText, setReadText] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -110,9 +115,10 @@ export function KitOrderForm({
   const professional = status !== "individual";
 
   const addressOk = form.firstName.trim() && form.lastName.trim() && form.line1.trim() && form.postalCode.trim() && form.city.trim() && form.phone.trim() && (!option?.relay || relay);
+  /* Le contrat ne se lit qu'une fois rempli : ce sont ces informations qui y figurent. */
+  const partyOk = Boolean(addressOk) && (!professional || (signer.siret.trim() && signer.companyName.trim()));
   const checksOk = CHECKS.every((c) => !c.required || checks[c.name]);
-  const signerOk = signer.signerTypedName.trim() && (!professional || (signer.siret.trim() && signer.companyName.trim()));
-  const canRead = Boolean(contract) && Boolean(addressOk) && checksOk && Boolean(signerOk);
+  const signedOk = Boolean(signer.signerTypedName.trim());
 
   /* Le contrat, rempli de ce qui est saisi : c'est ce texte-là qui sera lu, accepté,
      puis conservé tel quel dans la signature. */
@@ -137,6 +143,11 @@ export function KitOrderForm({
     });
     return { summary: fillContract(contract.summary, values), body: fillContract(contract.body, values) };
   }, [contract, seller, form, email, country, signer, status, socials, goods]);
+
+  /* Lu, et lu DANS SA VERSION ACTUELLE : comparer le texte est plus sûr que de suivre
+     champ par champ ce qui a bougé. */
+  const upToDate = readText !== null && readText === filled.body;
+  const stale = readText !== null && readText !== filled.body;
 
   const payload = () => {
     const fd = new FormData();
@@ -263,7 +274,7 @@ export function KitOrderForm({
         )}
       </div>
 
-      {/* ---------- Le contrat ---------- */}
+      {/* ---------- Vos informations pour le contrat ---------- */}
       {contract && (
         <div className="flex flex-col gap-5 rounded-card bg-white p-8 max-[599px]:p-6">
           <div className="flex flex-col gap-1">
@@ -278,27 +289,7 @@ export function KitOrderForm({
             </div>
           )}
 
-          <div className="flex flex-col gap-2.5">
-            <span className="text-[0.8125rem] font-bold">Vos attestations</span>
-            {CHECKS.map((c) => (
-              <label key={c.name} className="flex cursor-pointer items-start gap-2.5 text-[0.8125rem] leading-relaxed">
-                <input
-                  type="checkbox"
-                  checked={Boolean(checks[c.name])}
-                  onChange={(e) => {
-                    setChecks((p) => ({ ...p, [c.name]: e.target.checked }));
-                    setSigned(false);
-                  }}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-black"
-                />
-                <span>
-                  {c.text}
-                  {!c.required && <span className="text-subtle"> (le cas échéant)</span>}
-                </span>
-              </label>
-            ))}
-          </div>
-
+          {/* Ces informations figurent DANS le contrat : elles se remplissent avant de le lire. */}
           <div className="flex flex-col gap-2.5">
             <span className="text-[0.8125rem] font-bold">Vous agissez en tant que</span>
             <div className="flex flex-wrap gap-2">
@@ -312,10 +303,7 @@ export function KitOrderForm({
                 <button
                   key={value}
                   type="button"
-                  onClick={() => {
-                    setStatus(value);
-                    setSigned(false);
-                  }}
+                  onClick={() => setStatus(value)}
                   aria-pressed={status === value}
                   className={`rounded-pill px-4 py-2.5 text-[0.8125rem] ${status === value ? "bg-ink font-bold text-white" : "bg-paper font-semibold hover:opacity-70"}`}
                 >
@@ -349,13 +337,70 @@ export function KitOrderForm({
             <input value={signer.taxCountry} onChange={(e) => setSigner((f) => ({ ...f, taxCountry: e.target.value.toUpperCase().slice(0, 2) }))} placeholder="FR" className={`${field} w-28`} />
           </label>
 
-          <label className={labelCls}>
-            <span>Signature — saisissez vos prénom et nom</span>
-            <input value={signer.signerTypedName} onChange={setS("signerTypedName")} placeholder={`${form.firstName} ${form.lastName}`.trim() || "Prénom Nom"} className={field} />
-            <span className="text-xs font-medium leading-relaxed text-subtle">
-              En saisissant votre nom puis en validant le contrat, vous confirmez votre acceptation et les engagements qu&apos;il contient.
-            </span>
-          </label>
+          {/* ---------- Lire ---------- */}
+          <div className="flex flex-col gap-2 border-t border-line-soft pt-5">
+            {upToDate ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-tint-green px-5 py-4">
+                <span className="text-[0.8125rem] font-bold text-tint-green-ink">Contrat lu jusqu&apos;au bout.</span>
+                <button type="button" onClick={() => setReading(true)} className="border-b-[1.5px] border-ink text-xs font-bold">
+                  Le relire
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setReading(true)}
+                  disabled={!partyOk}
+                  className="w-fit rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {stale ? "Relire le contrat mis à jour" : "Lire le contrat"}
+                </button>
+                <span className={`text-xs ${stale ? "font-semibold text-tint-sand-ink" : "text-subtle"}`}>
+                  {stale
+                    ? "Vos informations ont changé, et le contrat avec elles : relisez-le avant d'attester."
+                    : partyOk
+                      ? "Il s'ouvrira rempli de vos informations. Les attestations et la signature viennent ensuite."
+                      : "Complétez l'adresse et vos informations ci-dessus pour ouvrir le contrat."}
+                </span>
+              </>
+            )}
+          </div>
+
+          {/* ---------- Attester, après avoir lu ---------- */}
+          <div className={`flex flex-col gap-2.5 border-t border-line-soft pt-5 ${upToDate ? "" : "opacity-50"}`}>
+            <span className="text-[0.8125rem] font-bold">Vos attestations</span>
+            {!upToDate && <span className="text-xs text-subtle">Lisez le contrat ci-dessus pour pouvoir attester.</span>}
+            {CHECKS.map((c) => (
+              <label key={c.name} className={`flex items-start gap-2.5 text-[0.8125rem] leading-relaxed ${upToDate ? "cursor-pointer" : "cursor-not-allowed"}`}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(checks[c.name])}
+                  onChange={(e) => setChecks((p) => ({ ...p, [c.name]: e.target.checked }))}
+                  disabled={!upToDate}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-black"
+                />
+                <span>
+                  {c.text}
+                  {!c.required && <span className="text-subtle"> (le cas échéant)</span>}
+                </span>
+              </label>
+            ))}
+
+            <label className={`${labelCls} mt-2`}>
+              <span>Signature — saisissez vos prénom et nom</span>
+              <input
+                value={signer.signerTypedName}
+                onChange={setS("signerTypedName")}
+                disabled={!upToDate}
+                placeholder={`${form.firstName} ${form.lastName}`.trim() || "Prénom Nom"}
+                className={`${field} disabled:cursor-not-allowed`}
+              />
+              <span className="text-xs font-medium leading-relaxed text-subtle">
+                En saisissant votre nom, vous confirmez votre acceptation du contrat et des engagements qu&apos;il contient.
+              </span>
+            </label>
+          </div>
 
           <label className="flex cursor-pointer items-start gap-2.5 text-[0.8125rem] leading-relaxed text-subtle">
             <input type="checkbox" checked={Boolean(checks.newsletterOptIn)} onChange={(e) => setChecks((p) => ({ ...p, newsletterOptIn: e.target.checked }))} className="mt-0.5 h-4 w-4 shrink-0 accent-black" />
@@ -370,45 +415,23 @@ export function KitOrderForm({
             </a>
             .
           </p>
-
-          {signed ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-tint-green px-5 py-4">
-              <span className="text-[0.8125rem] font-bold text-tint-green-ink">Contrat lu et accepté.</span>
-              <button type="button" onClick={() => setReading(true)} className="border-b-[1.5px] border-ink text-xs font-bold">
-                Le relire
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setReading(true)}
-                disabled={!canRead}
-                className="w-fit rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Lire et signer le contrat
-              </button>
-              <span className="text-xs text-subtle">
-                {canRead
-                  ? "Le contrat s'ouvrira rempli de vos informations."
-                  : "Complétez l'adresse, les attestations et votre signature ci-dessus pour ouvrir le contrat."}
-              </span>
-            </div>
-          )}
         </div>
       )}
 
       {error && <p className="rounded-card bg-tint-pink px-5 py-4 text-[0.8125rem] font-semibold text-tint-pink-ink">{error}</p>}
 
       {/* ---------- Commander ---------- */}
-      {(!contract || signed) && (
-        <div className="flex flex-col gap-2">
-          <button type="button" onClick={submit} disabled={pending || (!contract && !addressOk)} className="w-fit rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white disabled:opacity-50">
-            {pending ? "Envoi…" : "Passer la commande"}
-          </button>
-          <span className="text-xs text-subtle">Aucun paiement : le kit est offert, frais de port compris.</span>
-        </div>
-      )}
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={pending || (contract ? !(upToDate && checksOk && signedOk) : !addressOk)}
+          className="w-fit rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {pending ? "Envoi…" : contract ? "Accepter le contrat et passer la commande" : "Passer la commande"}
+        </button>
+        <span className="text-xs text-subtle">Aucun paiement : le kit est offert, frais de port compris.</span>
+      </div>
 
       {reading && contract && (
         <ContractDialog
@@ -416,11 +439,11 @@ export function KitOrderForm({
           typeLabel={contract.typeLabel}
           version={contract.version}
           body={filled.body}
-          signerName={signer.signerTypedName || `${form.firstName} ${form.lastName}`.trim()}
-          accepted={signed}
+          signerName={`${form.firstName} ${form.lastName}`.trim()}
+          alreadyRead={upToDate}
           onClose={() => setReading(false)}
-          onAccept={() => {
-            setSigned(true);
+          onRead={() => {
+            setReadText(filled.body);
             setReading(false);
           }}
         />
