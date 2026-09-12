@@ -57,10 +57,16 @@ function scrimOverlay(w: number, h: number): Buffer {
   );
 }
 
-/** Chemin du fichier dans le bucket, déterminé par la demande : le recadrage est idempotent. */
+/*
+ * Chemin du fichier dans le bucket, déterminé par la demande : le recadrage est idempotent.
+ *
+ * Sous `media/`, impérativement : c'est le seul préfixe que `storage.rules` ouvre à la
+ * lecture publique. Déposée ailleurs, la dérivée existe mais Firebase en refuse l'accès —
+ * le destinataire ne voit qu'un carré vide à la place de la photo.
+ */
 function cropPath(r: CropReq): string {
   const hash = createHash("sha1").update(cropKey(r)).digest("hex").slice(0, 20);
-  return `newsletter/crops/${hash}-${r.w}x${r.h}.jpg`;
+  return `media/newsletter-crops/${hash}-${r.w}x${r.h}.jpg`;
 }
 
 /*
@@ -115,9 +121,12 @@ export async function resolveCrops(reqs: CropReq[]): Promise<CropMap> {
     [...unique].map(async ([key, r]) => {
       try {
         out[key] = await cropOne(r);
-      } catch {
+      } catch (e) {
         // Une image qu'on ne sait pas retailler ne doit pas empêcher la newsletter de
-        // partir : elle repart à l'identique, comme avant ce module.
+        // partir : elle repart à l'identique, comme avant ce module. Mais l'échec est
+        // tracé — sans ça, une photo non recadrée dans un envoi réel n'a aucune trace
+        // côté serveur, et le défaut ne se voit que dans la boîte du destinataire.
+        console.error(`[newsletter] recadrage impossible (${r.w}×${r.h}) de ${r.url} :`, (e as Error).message);
       }
     }),
   );

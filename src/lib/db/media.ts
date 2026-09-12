@@ -80,7 +80,7 @@ export async function deleteMedia(id: string): Promise<void> {
  * point d'entrée Firebase Storage sert les objets rendus publics par les règles.
  *
  * Exportée : les recadrages de newsletter (`newsletter/crops.ts`) déposent leurs
- * dérivés dans le même bucket et doivent en donner la même adresse.
+ * dérivés sous `media/` — le seul préfixe public — et doivent en donner la même adresse.
  */
 export function publicUrl(bucketName: string, path: string): string {
   const encoded = encodeURIComponent(path);
