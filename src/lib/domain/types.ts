@@ -472,6 +472,47 @@ export type SiteSettings = z.infer<typeof SiteSettings>;
 /* ---------- Politiques (pages légales) ---------- */
 
 
+/* ---------- Envois de newsletter ---------- */
+
+/*
+ * Un envoi de newsletter, tel qu'il s'est passé. Les chiffres de distribution ne sont
+ * pas recalculables : ils vivent chez Resend, qui les rattache aux identifiants des
+ * e-mails créés à l'envoi. On garde donc ces identifiants, et l'on note à côté ce que
+ * Resend nous en dit, avec la date de la dernière relève — un envoi d'hier n'a pas
+ * fini de recevoir ses accusés.
+ */
+export const NewsletterSendStats = z.object({
+  delivered: z.number().int().min(0).default(0),
+  bounced: z.number().int().min(0).default(0),
+  complained: z.number().int().min(0).default(0),
+  opened: z.number().int().min(0).default(0),
+  clicked: z.number().int().min(0).default(0),
+});
+export type NewsletterSendStats = z.infer<typeof NewsletterSendStats>;
+
+export const NewsletterSend = z.object({
+  id: z.string(),
+  templateId: z.string(),
+  /** Libellé du modèle au moment de l'envoi : le catalogue peut changer après coup. */
+  templateLabel: z.string().default(""),
+  subject: z.string().default(""),
+  /** Audience visée, en clair (« tous les inscrits », « les acheteurs », une adresse…). */
+  audience: z.string().default(""),
+  /** Adresses visées, e-mails acceptés par Resend, et lots refusés. */
+  recipients: z.number().int().min(0).default(0),
+  accepted: z.number().int().min(0).default(0),
+  failed: z.number().int().min(0).default(0),
+  /** Identifiants Resend des e-mails créés : la seule clé pour relire leur sort. */
+  emailIds: z.array(z.string()).default([]),
+  by: z.string().default(""),
+  sentAt: z.number(),
+  stats: NewsletterSendStats.optional(),
+  statsAt: z.number().optional(),
+  /** Pourquoi la dernière relève a échoué, s'il y a lieu (clé restreinte, API muette…). */
+  statsError: z.string().default(""),
+});
+export type NewsletterSend = z.infer<typeof NewsletterSend>;
+
 /* ---------- Panier ---------- */
 
 export const CartLine = z.object({

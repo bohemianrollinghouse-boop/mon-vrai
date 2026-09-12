@@ -64,6 +64,12 @@ env:
   - variable: RESEND_API_KEY
     secret: RESEND_API_KEY
 
+  # La clé ci-dessus doit être en accès complet : l'historique des newsletters relit
+  # chez Resend ce que sont devenus les e-mails d'un envoi, ce qu'une clé restreinte à
+  # l'envoi refuse. Pour séparer les deux pouvoirs, poser une seconde clé en accès
+  # complet dans le secret RESEND_METRICS_API_KEY et la déclarer ici ; la lecture la
+  # préférera. Ne la déclarer qu'une fois le secret créé, sinon le déploiement échoue.
+
   # Boxtal : expéditions (API v3), carte des points relais, signature des webhooks.
   - variable: BOXTAL_ACCESS_KEY
     secret: BOXTAL_ACCESS_KEY

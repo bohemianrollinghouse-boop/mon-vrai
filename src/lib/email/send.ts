@@ -37,17 +37,20 @@ export type NewsletterItem = { to: string; subject: string; html: string; text: 
  * porte l'en-tête List-Unsubscribe (désinscription en un clic dans les boîtes mail) en
  * plus du lien dans le corps. Jamais bloquant : on compte les envois et les échecs.
  */
-export async function sendNewsletterBatch(items: NewsletterItem[]): Promise<{ sent: number; failed: number; skipped: boolean }> {
+export async function sendNewsletterBatch(items: NewsletterItem[]): Promise<{ sent: number; failed: number; skipped: boolean; ids: string[] }> {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM ?? "Mon Vrai <no-reply@monvrai.fr>";
   if (!key) {
     console.info(`[newsletter] (non envoyé, pas de clé) → ${items.length} destinataire(s)`);
-    return { sent: 0, failed: 0, skipped: true };
+    return { sent: 0, failed: 0, skipped: true, ids: [] };
   }
   const { Resend } = await import("resend");
   const resend = new Resend(key);
   let sent = 0;
   let failed = 0;
+  /* Resend rend un identifiant par e-mail créé : c'est la seule clé pour relire plus
+     tard ce que chacun est devenu (voir email/metrics.ts). */
+  const ids: string[] = [];
   for (let i = 0; i < items.length; i += 100) {
     const chunk = items.slice(i, i + 100).map((it) => ({
       from,
@@ -58,19 +61,20 @@ export async function sendNewsletterBatch(items: NewsletterItem[]): Promise<{ se
       headers: { "List-Unsubscribe": `<${it.unsubscribeUrl}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" },
     }));
     try {
-      const { error } = await resend.batch.send(chunk);
+      const { data, error } = await resend.batch.send(chunk);
       if (error) {
         failed += chunk.length;
         console.warn("[newsletter] lot refusé :", error.message);
       } else {
         sent += chunk.length;
+        for (const created of data?.data ?? []) if (created?.id) ids.push(created.id);
       }
     } catch (err) {
       failed += chunk.length;
       console.warn("[newsletter] lot en erreur :", (err as Error).message);
     }
   }
-  return { sent, failed, skipped: false };
+  return { sent, failed, skipped: false, ids };
 }
 
 function siteUrl(): string {

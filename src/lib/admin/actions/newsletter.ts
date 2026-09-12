@@ -8,6 +8,8 @@ import { getSettings } from "@/lib/db/settings";
 import { resolveAudience, saveTemplateValues, type Audience } from "@/lib/db/newsletter";
 import { prepareCrops, renderNewsletter } from "@/lib/email/newsletter";
 import { sendNewsletterBatch } from "@/lib/email/send";
+import { getNewsletterSend, recordNewsletterSend, saveNewsletterSendStats } from "@/lib/db/newsletter-sends";
+import { fetchSendStats } from "@/lib/email/metrics";
 import { unsubscribeUrl } from "@/lib/newsletter/unsub";
 import { templateById } from "@/lib/newsletter/render";
 
@@ -90,6 +92,43 @@ export async function sendNewsletterAction(formData: FormData): Promise<AdminRes
   const res = await sendNewsletterBatch(items);
   await audit(user.email, "newsletter.send", `content/newsletter#${templateId}`, `${audience.kind} · ${res.sent}/${recipients.length}`);
   if (res.skipped) return failed("Envoi impossible : la clé Resend n'est pas configurée.");
+
   const label = audience.kind === "one" ? audience.email : audience.kind === "buyers" ? "les acheteurs inscrits" : audience.kind === "product" ? `les acheteurs inscrits de ${audience.slug}` : "tous les inscrits";
+  /* L'envoi est consigné : c'est la seule trace, et les identifiants Resend qu'il garde
+     sont la seule façon de relire plus tard combien de messages sont arrivés. */
+  await recordNewsletterSend({
+    templateId,
+    templateLabel: def.label,
+    subject: values.subject.trim(),
+    audience: label,
+    recipients: recipients.length,
+    accepted: res.sent,
+    failed: res.failed,
+    emailIds: res.ids,
+    by: user.email,
+  }).catch((err) => console.warn("[newsletter] envoi non consigné :", (err as Error).message));
+
+  revalidatePath("/admin/newsletter");
   return saved(`« ${def.label} » envoyée à ${label} : ${res.sent} envoyé(s)${res.failed ? `, ${res.failed} en échec` : ""}.`);
+}
+
+/*
+ * Relève auprès de Resend ce que sont devenus les e-mails d'un envoi. À la demande :
+ * les accusés arrivent sur plusieurs heures, et rien ne sert d'interroger l'API à
+ * chaque affichage de la page.
+ */
+export async function refreshNewsletterStatsAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return failed("Envoi inconnu");
+
+  const send = await getNewsletterSend(id);
+  if (!send) return failed("Envoi introuvable");
+
+  const outcome = await fetchSendStats(send.emailIds, send.sentAt);
+  await saveNewsletterSendStats(id, outcome.ok ? outcome.stats : null, outcome.ok ? "" : outcome.error);
+  await audit(user.email, "newsletter.stats", `newsletterSends/${id}`, outcome.ok ? `${outcome.stats.delivered}/${send.accepted}` : outcome.error);
+  revalidatePath("/admin/newsletter");
+  if (!outcome.ok) return failed(outcome.error);
+  return saved(`${outcome.stats.delivered} message${outcome.stats.delivered > 1 ? "s" : ""} remis sur ${send.accepted} envoyé${send.accepted > 1 ? "s" : ""}.`);
 }
