@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { getAllTemplateValues } from "@/lib/db/newsletter";
 import { getSettings } from "@/lib/db/settings";
-import { brandFromSettings } from "@/lib/email/newsletter";
-import { NEWSLETTER_TEMPLATES, renderTemplateBody, templateById, type RenderCtx } from "@/lib/newsletter/render";
+import { renderNewsletterBody } from "@/lib/email/newsletter";
+import { NEWSLETTER_TEMPLATES, templateById } from "@/lib/newsletter/render";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +27,7 @@ export default async function NewsletterWebView({ params }: PageProps<"/newslett
 
   const [values, settings] = await Promise.all([getAllTemplateValues(), getSettings()]);
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
-  const ctx: RenderCtx = { mode: "email", base, unsub: `${base}/compte`, brand: brandFromSettings(settings, base), values: values[id] ?? {} };
+  const body = await renderNewsletterBody(id, values[id] ?? {}, settings, `${base}/compte`);
 
   return (
     <section className="flex justify-center bg-canvas px-3 py-7">
@@ -35,7 +35,7 @@ export default async function NewsletterWebView({ params }: PageProps<"/newslett
         className="w-[600px] max-w-full text-left"
         // Rendu par notre propre moteur, à partir de textes saisis dans l'admin :
         // aucune entrée de visiteur ne passe par là.
-        dangerouslySetInnerHTML={{ __html: renderTemplateBody(id, ctx) }}
+        dangerouslySetInnerHTML={{ __html: body }}
       />
     </section>
   );

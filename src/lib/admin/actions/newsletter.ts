@@ -6,7 +6,7 @@ import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { getSettings } from "@/lib/db/settings";
 import { resolveAudience, saveTemplateValues, type Audience } from "@/lib/db/newsletter";
-import { renderNewsletter } from "@/lib/email/newsletter";
+import { prepareCrops, renderNewsletter } from "@/lib/email/newsletter";
 import { sendNewsletterBatch } from "@/lib/email/send";
 import { unsubscribeUrl } from "@/lib/newsletter/unsub";
 import { templateById } from "@/lib/newsletter/render";
@@ -78,9 +78,12 @@ export async function sendNewsletterAction(formData: FormData): Promise<AdminRes
   if (recipients.length === 0) return failed("Aucun destinataire pour cette sélection.");
 
   const base = siteUrl();
+  // Les images sont taillées UNE fois pour l'envoi entier : le contenu est le même pour
+  // tout le monde, seul le lien de désinscription change d'un destinataire à l'autre.
+  const crops = await prepareCrops(templateId, values, settings);
   const items = recipients.map((r) => {
     const url = unsubscribeUrl(base, r.email);
-    const built = renderNewsletter(templateId, values, settings, url);
+    const built = renderNewsletter(templateId, values, settings, url, crops);
     return { to: r.email, subject: built.subject, html: built.html, text: built.text, unsubscribeUrl: url };
   });
 

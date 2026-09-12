@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { getSettings } from "@/lib/db/settings";
-import { renderNewsletter } from "@/lib/email/newsletter";
+import { prepareCrops, renderNewsletter } from "@/lib/email/newsletter";
 import { templateById } from "@/lib/newsletter/render";
 
 /*
@@ -26,6 +26,7 @@ export async function POST(request: Request) {
   }
 
   const settings = await getSettings();
-  const html = renderNewsletter(templateId, values, settings, "#").html;
+  const crops = await prepareCrops(templateId, values, settings);
+  const html = renderNewsletter(templateId, values, settings, "#", crops).html;
   return new NextResponse(html, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }

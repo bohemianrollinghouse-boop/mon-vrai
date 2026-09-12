@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isValidHref, renderTemplateBody, resolveHref, type RenderCtx } from "./render";
+import { NEWSLETTER_TEMPLATES, PARTNER_WELCOME_ID, collectCrops, cropKey, isValidHref, renderTemplateBody, resolveHref, toPlainText, type CropReq, type RenderCtx } from "./render";
 
 const ctx = (mode: RenderCtx["mode"], values: Record<string, string> = {}): RenderCtx => ({
   mode,
@@ -60,5 +60,77 @@ describe("pied de page", () => {
     const html = renderTemplateBody("on-revient", withBrand({ address: "" }));
     expect(html).not.toContain("[adresse]");
     expect(html).toContain("Mon Vrai · <a href=");
+  });
+});
+
+/*
+ * Le rendu e-mail a déjà été écrit comme une page web une fois : `display:grid`,
+ * `object-fit`, `position:absolute`. L'aperçu (un navigateur) était parfait, et les
+ * destinataires recevaient des colonnes empilées et des photos dont on ne voyait qu'un
+ * coin, faute de recadrage. Ces tests interdisent le retour de ces propriétés.
+ */
+describe("compatibilité messagerie", () => {
+  const ids = [...NEWSLETTER_TEMPLATES.map((t) => t.id), PARTNER_WELCOME_ID];
+
+  // Propriétés que Gmail et Outlook retirent, et sans lesquelles la mise en page s'effondre.
+  const bannies = ["display:flex", "display:grid", "grid-template-columns", "position:absolute", "object-fit", "aspect-ratio", "linear-gradient", "flex-direction", "inset:0"];
+
+  it.each(ids)("« %s » n'utilise aucune propriété retirée en messagerie", (id) => {
+    const html = renderTemplateBody(id, ctx("email", { "img:hero": "https://monvrai.fr/h.jpg", "img:g1": "https://monvrai.fr/a.jpg", "img:photo": "https://monvrai.fr/p.jpg" }));
+    for (const prop of bannies) expect(html, prop).not.toContain(prop);
+  });
+
+  it.each(ids)("« %s » donne à chaque image ses attributs width/height", (id) => {
+    const html = renderTemplateBody(id, ctx("email", { "img:g1": "https://monvrai.fr/a.jpg", "img:g2": "https://monvrai.fr/b.jpg", "img:photo": "https://monvrai.fr/p.jpg" }));
+    for (const tag of html.match(/<img[^>]*>/g) ?? []) {
+      // Le logo est la seule image dont la hauteur suffit : elle ne remplit pas de boîte.
+      if (tag.includes("email-logo")) continue;
+      expect(tag, tag).toMatch(/\swidth="\d+"/);
+    }
+  });
+
+  it("garde l'aperçu éditable et l'e-mail sur la même ossature", () => {
+    const values = { "img:g1": "https://monvrai.fr/a.jpg" };
+    const edit = renderTemplateBody("coulisses", ctx("edit", values));
+    // Les crayons et les zones éditables sont le seul ajout du mode édition.
+    expect(edit).toContain("nl-pencil");
+    expect(edit.replace(/<button[\s\S]*?<\/button>/g, "")).toContain("<table role=\"presentation\"");
+  });
+});
+
+/*
+ * Recadrage : le modèle décrit une boîte, le serveur fabrique une image à cette taille,
+ * et le rendu définitif la substitue. Sans substitution, l'original repart tel quel —
+ * un envoi ne doit jamais échouer parce qu'une image n'a pas pu être taillée.
+ */
+describe("recadrage des images", () => {
+  const values = { "img:hero": "https://monvrai.fr/photo-4000px.jpg" };
+
+  it("réclame la photo du héros à la taille exacte de sa boîte", () => {
+    const reqs = collectCrops("on-revient", ctx("email", values));
+    const hero = reqs.find((r) => r.url.includes("photo-4000px"));
+    expect(hero).toMatchObject({ w: 552, h: 520, pos: "50% 40%", scrim: true });
+  });
+
+  it("substitue la dérivée quand elle existe, garde l'original sinon", () => {
+    const [hero] = collectCrops("on-revient", ctx("email", values));
+    const crops: Record<string, string> = { [cropKey(hero)]: "https://monvrai.fr/crop.jpg" };
+    const img = (r: CropReq) => crops[cropKey(r)] ?? r.url;
+
+    expect(renderTemplateBody("on-revient", { ...ctx("email", values), img })).toContain("https://monvrai.fr/crop.jpg");
+    expect(renderTemplateBody("on-revient", ctx("email", values))).toContain("photo-4000px.jpg");
+  });
+
+  it("ne réclame rien pour un emplacement vide", () => {
+    expect(collectCrops("coulisses", ctx("email"))).toHaveLength(0);
+  });
+});
+
+describe("version texte", () => {
+  it("ne laisse pas ressortir les tableaux fantômes d'Outlook", () => {
+    const text = toPlainText(renderTemplateBody("on-revient", ctx("email")), "https://monvrai.fr/u");
+    expect(text).not.toContain("mso");
+    expect(text).not.toContain("endif");
+    expect(text).toContain("128 réponses");
   });
 });

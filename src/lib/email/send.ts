@@ -3,7 +3,7 @@ import { getSettings } from "@/lib/db/settings";
 import type { Order } from "@/lib/domain/types";
 import { storage } from "@/lib/firebase/admin";
 import { contactForwardEmail, orderConfirmationEmail, shippingNoticeEmail, type BuiltEmail } from "./templates";
-import { renderPartnerWelcome } from "./newsletter";
+import { prepareCrops, renderPartnerWelcome } from "./newsletter";
 import { getAllTemplateValues } from "@/lib/db/newsletter";
 import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
 
@@ -112,5 +112,9 @@ export async function sendContactForward(message: { name: string; email: string;
  */
 export async function sendInfluencerWelcome(to: string, activationUrl: string): Promise<{ ok: boolean; skipped?: boolean; error?: string }> {
   const [settings, all] = await Promise.all([getSettings(), getAllTemplateValues()]);
-  return deliver({ to, ...renderPartnerWelcome(all[PARTNER_WELCOME_ID] ?? {}, settings, activationUrl) });
+  const values = all[PARTNER_WELCOME_ID] ?? {};
+  // La photo de l'invitation doit être taillée avant de partir, comme celles des
+  // newsletters : en messagerie, rien ne recadre une image à l'affichage.
+  const crops = await prepareCrops(PARTNER_WELCOME_ID, values, settings);
+  return deliver({ to, ...renderPartnerWelcome(values, settings, activationUrl, crops) });
 }

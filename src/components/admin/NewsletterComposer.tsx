@@ -209,6 +209,10 @@ export function NewsletterComposer({
   };
 
   const onSave = () => start(async () => setMessage(await saveNewsletterTemplateAction(formData())));
+  // Envoi de contrôle : toujours vers l'adresse de l'admin, quelle que soit l'audience
+  // sélectionnée. Un e-mail ne se rend pas comme un navigateur — l'aperçu ci-contre ne
+  // remplace pas la vue dans une vraie boîte.
+  const onTest = () => start(async () => setMessage(await sendNewsletterAction(formData({ kind: "one", email: adminEmail }))));
   const onSend = () => {
     if (kind !== "one" && !window.confirm("Envoyer cette newsletter à tous les destinataires de cette sélection ? De vrais e-mails partent.")) return;
     start(async () => setMessage(await sendNewsletterAction(formData({ kind, slug, email }))));
@@ -302,6 +306,14 @@ export function NewsletterComposer({
               {pending ? "…" : "Enregistrer le modèle"}
             </button>
             <span className="text-[0.6875rem] text-faint">Les modifications restent sur ce modèle.</span>
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-card bg-surface p-6">
+            <span className="text-lg font-extrabold">Vérifier</span>
+            <button type="button" onClick={onTest} disabled={busy} className="rounded-pill bg-paper px-5 py-3 text-sm font-bold disabled:opacity-60">
+              {pending ? "…" : "M'envoyer un test"}
+            </button>
+            <span className="text-[0.6875rem] text-faint">Part à {adminEmail}. À regarder dans votre boîte avant tout envoi de masse : un client de messagerie n'affiche pas un e-mail comme un navigateur.</span>
           </div>
 
           <div className="flex flex-col gap-3 rounded-card bg-surface p-6">
