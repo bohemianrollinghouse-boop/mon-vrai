@@ -42,6 +42,59 @@ async function litCommeUnDestinataire(url: string): Promise<{ ok: boolean; statu
   return { ok: res.ok, status: res.status, type: res.headers.get("content-type") ?? "", taille: buf.byteLength };
 }
 
+/** Couleur du centre d'une dérivée, relue après coup comme le ferait un œil. */
+async function centre(url: string): Promise<{ r: number; g: number; b: number }> {
+  const res = await fetch(url);
+  const { data } = await sharp(Buffer.from(await res.arrayBuffer())).resize(1, 1, { fit: "cover" }).raw().toBuffer({ resolveWithObject: true });
+  return { r: data[0], g: data[1], b: data[2] };
+}
+
+/*
+ * Deux pièges de `sharp` que rien ne signale côté serveur :
+ *   - une image CMJN (ce que rend Photoshop) ressort en NÉGATIF sans `toColourspace` :
+ *     un rouge devient cyan. Adobe y stocke des valeurs inversées ;
+ *   - le JPEG n'ayant pas de transparence, une couverture détourée se pose sur du noir
+ *     sans `flatten`.
+ * On fabrique les deux cas et on relit la couleur obtenue.
+ */
+async function verifieLesCouleurs(): Promise<boolean> {
+  const cas = [
+    {
+      nom: "JPEG CMJN",
+      bytes: await sharp({ create: { width: 800, height: 800, channels: 3, background: { r: 220, g: 30, b: 30 } } }).toColourspace("cmyk").jpeg().toBuffer(),
+      ext: "jpg",
+      mime: "image/jpeg",
+      attendu: (c: { r: number; g: number; b: number }) => c.r > 140 && c.b < 110,
+      dit: "doit rester rouge, pas devenir cyan",
+    },
+    {
+      nom: "PNG transparent",
+      bytes: await sharp({ create: { width: 800, height: 800, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer(),
+      ext: "png",
+      mime: "image/png",
+      attendu: (c: { r: number; g: number; b: number }) => c.r > 200 && c.g > 200 && c.b > 200,
+      dit: "doit se poser sur du blanc, pas sur du noir",
+    },
+  ];
+
+  let tout = true;
+  for (const k of cas) {
+    const m = await uploadMedia({ bytes: k.bytes, mime: k.mime, filename: `verif-couleurs.${k.ext}`, alt: "" });
+    const req: CropReq = { url: m.url, w: 200, h: 200, pos: "50% 50%" };
+    const derivee = (await resolveCrops([req]))[cropKey(req)];
+    if (!derivee) {
+      console.log(`  ${k.nom} : aucune dérivée produite`);
+      tout = false;
+      continue;
+    }
+    const c = await centre(derivee);
+    const ok = k.attendu(c);
+    if (!ok) tout = false;
+    console.log(`  ${k.nom} : rvb(${c.r}, ${c.g}, ${c.b}) — ${ok ? "OK" : "ÉCHEC"}, ${k.dit}`);
+  }
+  return tout;
+}
+
 async function main() {
   const bucket = storage().bucket();
   console.log(`Bucket : ${bucket.name}\n`);
@@ -69,10 +122,15 @@ async function main() {
   console.log(`Lecture d'un dépôt hors de media/ : ${refus.status} (doit être refusé)`);
   await bucket.file(hors).delete({ ignoreNotFound: true });
 
+  // 5. Les couleurs. Une image CMJN ressortait en négatif (un rouge devenait cyan), et une
+  //    image transparente se posait sur du noir. Deux défauts invisibles côté serveur.
+  const couleurs = await verifieLesCouleurs();
+
   const bon = lecture.ok && lecture.type.startsWith("image/") && lecture.taille > 0;
   const temoinBon = !refus.ok;
   console.log(`\n${bon && temoinBon ? "OK" : "ÉCHEC"} — la dérivée est ${bon ? "lisible" : "ILLISIBLE"} publiquement, et un dépôt hors de media/ est ${temoinBon ? "bien refusé" : "À TORT ACCESSIBLE"}.`);
-  if (!(bon && temoinBon)) process.exitCode = 1;
+  console.log(`${couleurs ? "OK" : "ÉCHEC"} — les couleurs sont fidèles (CMJN non inversé, transparence sur blanc).`);
+  if (!(bon && temoinBon && couleurs)) process.exitCode = 1;
 }
 
 main().catch((e) => {

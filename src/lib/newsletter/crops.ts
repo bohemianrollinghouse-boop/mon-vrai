@@ -27,6 +27,16 @@ import { cropKey, type CropReq } from "./render";
 /** Facteur de résolution : la boîte fait 552 px dans l'e-mail, le fichier 1104 px. */
 const DPR = 2;
 
+/*
+ * Version de la chaîne de traitement, entrée dans le nom du fichier.
+ *
+ * Une dérivée déjà déposée n'est jamais refabriquée — c'est tout l'intérêt. Mais quand
+ * la chaîne elle-même change (un espace de couleurs corrigé, un aplat ajouté), les
+ * anciennes dérivées sont fausses et seraient réutilisées telles quelles. Incrémenter ce
+ * nombre les met hors circuit d'un coup, sans rien effacer.
+ */
+const PIPELINE = 2;
+
 /** Qualité JPEG des dérivés. Au-delà, le poids grimpe sans gain visible en messagerie. */
 const QUALITY = 80;
 
@@ -65,7 +75,7 @@ function scrimOverlay(w: number, h: number): Buffer {
  * le destinataire ne voit qu'un carré vide à la place de la photo.
  */
 function cropPath(r: CropReq): string {
-  const hash = createHash("sha1").update(cropKey(r)).digest("hex").slice(0, 20);
+  const hash = createHash("sha1").update(`v${PIPELINE}|${cropKey(r)}`).digest("hex").slice(0, 20);
   return `media/newsletter-crops/${hash}-${r.w}x${r.h}.jpg`;
 }
 
@@ -97,7 +107,16 @@ async function cropOne(r: CropReq): Promise<string> {
     const h = r.h * DPR;
     let img = sharp(await sourceBytes(r.url), { failOn: "none" })
       .rotate() // respecte l'orientation EXIF : sans ça, une photo de téléphone part couchée
-      .resize(w, h, { fit: "cover", position: gravity(r.pos) });
+      .resize(w, h, { fit: "cover", position: gravity(r.pos) })
+      // Précaution : certaines images CMJN d'Adobe stockent des valeurs inversées et
+      // ressortent en négatif. Le cas n'est pas reproduit par la vérification (sharp s'en
+      // sort seul sur un CMJN ordinaire), mais la conversion ne coûte rien sur une image
+      // déjà en sRVB.
+      .toColourspace("srgb")
+      // Le JPEG ne connaît pas la transparence, et sharp aplatit sur du NOIR par défaut :
+      // sans cette ligne, une couverture détourée — les PNG produits — partait sur fond
+      // noir. C'est le défaut qu'on a vu, et `check-newsletter-crops.ts` le surveille.
+      .flatten({ background: "#ffffff" });
     if (r.scrim) img = img.composite([{ input: scrimOverlay(w, h), blend: "over" }]);
     const bytes = await img.jpeg({ quality: QUALITY, mozjpeg: true }).toBuffer();
     await file.save(bytes, {
