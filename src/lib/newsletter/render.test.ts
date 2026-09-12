@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NEWSLETTER_TEMPLATES, PARTNER_WELCOME_ID, collectCrops, cropKey, isValidHref, renderTemplateBody, resolveHref, toPlainText, type CropReq, type RenderCtx } from "./render";
+import { NEWSLETTER_TEMPLATES, PARTNER_WELCOME_ID, RESPONSIVE_CSS, collectCrops, cropKey, isValidHref, renderTemplateBody, resolveHref, toPlainText, type CropReq, type RenderCtx } from "./render";
 
 const ctx = (mode: RenderCtx["mode"], values: Record<string, string> = {}): RenderCtx => ({
   mode,
@@ -123,6 +123,60 @@ describe("recadrage des images", () => {
 
   it("ne réclame rien pour un emplacement vide", () => {
     expect(collectCrops("coulisses", ctx("email"))).toHaveLength(0);
+  });
+});
+
+/*
+ * Écran étroit. Une colonne repliée garde sa largeur maximale (281 px) : dans les ~310 px
+ * utiles d'un téléphone, elle restait collée à gauche, avec un vide à droite — la « photo
+ * pas centrée », revenue deux fois. Le centrage du conteneur la rattrape SANS feuille de
+ * style ; les classes ne font que compléter, là où la feuille passe.
+ */
+describe("colonnes sur écran étroit", () => {
+  const ids = [...NEWSLETTER_TEMPLATES.map((t) => t.id), PARTNER_WELCOME_ID];
+
+  // « precommande » ne met rien en colonnes : le test vaut pour ce qu'il y a, et la
+  // présence de colonnes est vérifiée une fois pour toutes juste après.
+  it.each(ids)("« %s » centre ses colonnes repliées sans déplacer leur contenu", (id) => {
+    const html = renderTemplateBody(id, ctx("email"));
+    for (const w of html.match(/<div style="font-size:0;line-height:0[^"]*"/g) ?? []) expect(w, w).toContain("text-align:center");
+    // Chaque colonne repose son propre alignement : le centrage ne vaut que pour les blocs.
+    for (const col of html.match(/<div class="nl-col[^"]*" style="[^"]*"/g) ?? []) expect(col, col).toContain("text-align:left");
+  });
+
+  it("met bien des colonnes là où le modèle en demande", () => {
+    const html = renderTemplateBody("on-revient", ctx("email"));
+    expect((html.match(/<div class="nl-col/g) ?? []).length).toBe(8);
+  });
+
+  it("rend toute la largeur aux colonnes empilées, et les espace", () => {
+    expect(RESPONSIVE_CSS).toContain(".nl-col{ max-width:100% !important; }");
+    expect(RESPONSIVE_CSS).toContain(".nl-colgap{ padding-bottom:12px !important; }");
+    // La dernière colonne n'ajoute rien sous elle : la section s'en charge.
+    const html = renderTemplateBody("coulisses", ctx("email"));
+    expect((html.match(/class="nl-col nl-colgap"/g) ?? []).length).toBe((html.match(/class="nl-col"/g) ?? []).length);
+  });
+
+  it("laisse l'image suivre sa colonne, et la couverture détourée garder sa taille", () => {
+    expect(RESPONSIVE_CSS).toContain(".nl-fluid{ max-width:100% !important; }");
+    const html = renderTemplateBody("nouveau-livre", ctx("email", { "img:g1": "https://monvrai.fr/a.jpg" }));
+    expect(html).toContain('<img class="nl-fluid" src="https://monvrai.fr/a.jpg"');
+    // La couverture posée sur un aplat n'est pas recadrée : l'étirer la déformerait.
+    expect(html).toMatch(/<img src="[^"]*E7356459[^"]*" width="260"/);
+  });
+
+  it("libère les hauteurs posées pour aligner deux colonnes", () => {
+    expect(RESPONSIVE_CSS).toContain(".nl-flexh{ height:auto !important; }");
+    for (const id of ["nouveau-produit", "retour-stock", PARTNER_WELCOME_ID]) {
+      expect(renderTemplateBody(id, ctx("email")), id).toMatch(/class="nl-flexh" style="[^"]*;height:\d+px/);
+    }
+  });
+
+  it("réduit aussi le titre d'un héros, qui n'est pas un <h1>", () => {
+    expect(RESPONSIVE_CSS).toContain("h1, .nl-h1{ font-size:30px !important");
+    expect(renderTemplateBody("on-revient", ctx("email"))).toContain('<span class="nl-h1" style="font-size:40px');
+    // En édition, la classe s'ajoute à celle qui rend le texte modifiable.
+    expect(renderTemplateBody("on-revient", ctx("edit"))).toContain('class="nl-e nl-h1"');
   });
 });
 

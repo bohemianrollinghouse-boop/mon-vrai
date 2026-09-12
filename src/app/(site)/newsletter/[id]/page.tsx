@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { getAllTemplateValues } from "@/lib/db/newsletter";
 import { getSettings } from "@/lib/db/settings";
 import { renderNewsletterBody } from "@/lib/email/newsletter";
-import { NEWSLETTER_TEMPLATES, templateById } from "@/lib/newsletter/render";
+import { NEWSLETTER_TEMPLATES, RESPONSIVE_CSS, templateById } from "@/lib/newsletter/render";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +31,9 @@ export default async function NewsletterWebView({ params }: PageProps<"/newslett
 
   return (
     <section className="flex justify-center bg-canvas px-3 py-7">
+      {/* La même feuille que l'e-mail : sur un téléphone, la page montre ce que montre
+          la boîte aux lettres — c'est la seule raison d'être de « Voir dans le navigateur ». */}
+      <style dangerouslySetInnerHTML={{ __html: RESPONSIVE_CSS }} />
       <div
         className="w-[600px] max-w-full text-left"
         // Rendu par notre propre moteur, à partir de textes saisis dans l'admin :

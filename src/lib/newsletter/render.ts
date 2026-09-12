@@ -122,9 +122,13 @@ function sect(inner: string, pad: string, center = false, extra = ""): string {
   return `<table ${TBL} width="100%" style="border-collapse:collapse"><tr><td${center ? ' align="center"' : ""} style="padding:${pad}${center ? ";text-align:center" : ""}${extra}">${inner}</td></tr></table>`;
 }
 
-/** Bloc coloré à coins arrondis. `bgcolor` double le style : Outlook ne lit que l'attribut. */
-function panel(inner: string, bg: string, pad: string, radius = 28, center = false, extra = ""): string {
-  return `<table ${TBL} width="100%" style="border-collapse:separate;background:${bg};border-radius:${radius}px"><tr><td bgcolor="${bg}"${center ? ' align="center"' : ""} style="padding:${pad};background:${bg};border-radius:${radius}px${center ? ";text-align:center" : ""}${extra}">${inner}</td></tr></table>`;
+/**
+ * Bloc coloré à coins arrondis. `bgcolor` double le style : Outlook ne lit que l'attribut.
+ * `cls` sert aux règles de `RESPONSIVE_CSS` — seule « nl-flexh » est utilisée aujourd'hui,
+ * sur les panneaux dont la hauteur n'est là que pour s'aligner sur la colonne voisine.
+ */
+function panel(inner: string, bg: string, pad: string, radius = 28, center = false, extra = "", cls = ""): string {
+  return `<table ${TBL} width="100%" style="border-collapse:separate;background:${bg};border-radius:${radius}px"><tr><td bgcolor="${bg}"${center ? ' align="center"' : ""}${cls ? ` class="${cls}"` : ""} style="padding:${pad};background:${bg};border-radius:${radius}px${center ? ";text-align:center" : ""}${extra}">${inner}</td></tr></table>`;
 }
 
 /** Espace vertical. Une marge se perd sous Outlook ; une ligne de tableau, non. */
@@ -138,30 +142,45 @@ const between = (left: string, right: string) =>
  * Colonnes.
  *
  * Des blocs `inline-block` à largeur maximale fixe : sur un écran étroit ils passent
- * naturellement à la ligne, sans media query — `width:100%` plafonné par `max-width`
- * suffit. Outlook ignore `inline-block` : il reçoit un tableau fantôme en commentaire
- * conditionnel, invisible partout ailleurs. La gouttière appartient aux colonnes (un
- * rembourrage de 5 px de chaque côté) et non à un `gap`, qui n'existe pas en messagerie.
+ * naturellement à la ligne. Outlook ignore `inline-block` : il reçoit un tableau fantôme
+ * en commentaire conditionnel, invisible partout ailleurs. La gouttière appartient aux
+ * colonnes (un rembourrage de 5 px de chaque côté) et non à un `gap`, qui n'existe pas
+ * en messagerie.
+ *
+ * Deux détails font tout le rendu sur téléphone, et ont manqué longtemps :
+ *
+ *   - le conteneur est CENTRÉ. Une colonne repliée garde sa largeur maximale (281 px) :
+ *     dans les ~310 px d'un téléphone, elle restait collée à gauche avec un vide à
+ *     droite — la « photo pas centrée ». Le centrage ne change rien tant que les
+ *     colonnes tiennent côte à côte, et les rattrape dès qu'elles s'empilent. Chaque
+ *     colonne repose son propre `text-align:left` : son contenu ne bouge pas.
+ *   - la classe `nl-col` laisse `RESPONSIVE_CSS` leur rendre toute la largeur sous
+ *     620 px, et `nl-colgap` glisse un espace entre deux colonnes empilées (sauf après
+ *     la dernière). Si la feuille de style est retirée, le centrage tient toujours.
  */
 function cols(items: string[], widths?: number[]): string {
   const ws = (widths ?? items.map(() => COLS_W / items.length)).map((w) => Math.floor(w));
   const total = ws.reduce((a, b) => a + b, 0);
   const cells = items.map(
     (html, i) =>
-      `<div style="display:inline-block;width:100%;max-width:${ws[i]}px;vertical-align:top;font-size:14px;line-height:1.5"><table ${TBL} width="100%"><tr><td style="padding:0 5px">${html}</td></tr></table></div>`,
+      `<div class="nl-col${i < items.length - 1 ? " nl-colgap" : ""}" style="display:inline-block;width:100%;max-width:${ws[i]}px;vertical-align:top;text-align:left;font-size:14px;line-height:1.5"><table ${TBL} width="100%"><tr><td style="padding:0 5px">${html}</td></tr></table></div>`,
   );
   const inner = cells.map((cell, i) => `<td width="${ws[i]}" valign="top"><![endif]-->${cell}<!--[if mso]></td>`).join("");
-  return `<div style="font-size:0;line-height:0"><!--[if mso]><table ${TBL} width="${total}"><tr>${inner}</tr></table><![endif]--></div>`;
+  return `<div style="font-size:0;line-height:0;text-align:center"><!--[if mso]><table ${TBL} width="${total}"><tr>${inner}</tr></table><![endif]--></div>`;
 }
 
 /* ---------- Primitives éditables ---------- */
 
-/** Texte éditable. `def` peut contenir du HTML (par défaut) ; une valeur saisie est du texte simple. */
-function T(c: RenderCtx, key: string, def: string, style: string, tag = "span"): string {
+/**
+ * Texte éditable. `def` peut contenir du HTML (par défaut) ; une valeur saisie est du
+ * texte simple. `cls` sert aux règles de `RESPONSIVE_CSS` pour les textes qui ne sont pas
+ * un `<h1>` — un titre de héros est un `<span>`, la règle sur `h1` ne l'atteindrait pas.
+ */
+function T(c: RenderCtx, key: string, def: string, style: string, tag = "span", cls = ""): string {
   const ov = c.values[key];
   const inner = ov == null ? def : nl2br(ov);
-  if (c.mode === "email") return `<${tag} style="${style}">${inner}</${tag}>`;
-  return `<${tag} style="${style}" class="nl-e" data-k="${esc(key)}" contenteditable="true">${inner}</${tag}>`;
+  if (c.mode === "email") return `<${tag}${cls ? ` class="${cls}"` : ""} style="${style}">${inner}</${tag}>`;
+  return `<${tag} style="${style}" class="${cls ? `nl-e ${cls}` : "nl-e"}" data-k="${esc(key)}" contenteditable="true">${inner}</${tag}>`;
 }
 
 function pencil(key: string): string {
@@ -200,7 +219,9 @@ function imgBox(c: RenderCtx, key: string, def: string, box: Box): string {
 
   if (c.mode === "email") {
     if (!has) return `<table ${TBL} width="100%"><tr><td bgcolor="${TINTP}" height="${h}" style="background:${TINTP};border-radius:${radius}px;height:${h}px;font-size:0;line-height:0">&nbsp;</td></tr></table>`;
-    return `<img src="${esc(cropped(c, { url, w, h, pos }))}" width="${w}" height="${h}" alt="" style="display:block;width:100%;max-width:${w}px;height:auto;border:0;border-radius:${radius}px">`;
+    // `nl-fluid` : sur téléphone, l'image suit la largeur de sa colonne au lieu de rester
+    // en retrait à gauche. Les dérivées sont taillées en ×2, l'agrandissement ne coûte rien.
+    return `<img class="nl-fluid" src="${esc(cropped(c, { url, w, h, pos }))}" width="${w}" height="${h}" alt="" style="display:block;width:100%;max-width:${w}px;height:auto;border:0;border-radius:${radius}px">`;
   }
   return `<div class="nl-imgwrap" style="width:100%;max-width:${w}px;height:${h}px;border-radius:${radius}px;overflow:hidden;position:relative${has ? "" : `;background:${TINTP}`}"><img ${imgAttrs(c, key)} src="${esc(has ? url : PIX)}" alt="" style="display:block;width:100%;height:100%;object-fit:cover;object-position:${pos};border:0">${pencil(key)}</div>`;
 }
@@ -384,7 +405,7 @@ function tplOnRevient(c: RenderCtx): string {
       20,
     );
 
-  const heroInner = `${T(c, "badge", "Vous étiez là au début", "background:#fff;color:#111;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700;display:inline-block")}${gap(12)}${T(c, "title", "Vous nous aviez laissé votre adresse. Voilà la suite.", "font-size:40px;line-height:1.02;font-weight:800;letter-spacing:-.02em;color:#fff;display:block", "span")}`;
+  const heroInner = `${T(c, "badge", "Vous étiez là au début", "background:#fff;color:#111;border-radius:999px;padding:7px 12px;font-size:11px;font-weight:700;display:inline-block")}${gap(12)}${T(c, "title", "Vous nous aviez laissé votre adresse. Voilà la suite.", "font-size:40px;line-height:1.02;font-weight:800;letter-spacing:-.02em;color:#fff;display:block", "span", "nl-h1")}`;
 
   return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €", "on-revient")}${logo(c)}
 ${sect(heroText(c, "hero", { w: 552, h: 520, pos: "50% 40%" }, heroInner), `16px ${PAD}px 0`)}
@@ -419,6 +440,7 @@ function tplNouveauProduit(c: RenderCtx): string {
     20,
     false,
     ";height:232px",
+    "nl-flexh",
   );
   return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €", "nouveau-produit")}${logo(c)}
 ${sect(imgBox(c, "hero", "", { w: 552, h: 520, pos: "50% 60%", radius: 28 }), `24px ${PAD}px 0`)}
@@ -470,7 +492,7 @@ ${footer(c)}`);
 function tplRetourStock(c: RenderCtx): string {
   // Colonne de droite : la photo (195) + 10 px + le panneau (155 + 2 × 20 de rembourrage)
   // font les 400 px de la photo de gauche. Deux `inline-block` ne s'alignent pas seuls.
-  const right = `${imgBox(c, "g2", "", { w: 236, h: 195, pos: "50% 80%" })}${gap(10)}${panel(`${T(c, "insideLabel", "Dedans", `font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${SAND_INK};display:block;margin-bottom:6px`)}${T(c, "inside", "Les haricots, le poireau, la courge, le chou-fleur, le brocoli, la carotte", `font-size:13px;font-weight:600;line-height:1.5;color:${SAND_INK}`)}`, SAND, "20px", 20, false, ";height:155px")}`;
+  const right = `${imgBox(c, "g2", "", { w: 236, h: 195, pos: "50% 80%" })}${gap(10)}${panel(`${T(c, "insideLabel", "Dedans", `font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${SAND_INK};display:block;margin-bottom:6px`)}${T(c, "inside", "Les haricots, le poireau, la courge, le chou-fleur, le brocoli, la carotte", `font-size:13px;font-weight:600;line-height:1.5;color:${SAND_INK}`)}`, SAND, "20px", 20, false, ";height:155px", "nl-flexh")}`;
   // Le titre et l'achat sont deux colonnes, pas quatre cellules d'une même ligne : sur un
   // téléphone, une ligne de tableau ne se replie pas et forçait l'e-mail hors de l'écran.
   const prodInfo = `<table ${TBL} width="100%"><tr><td width="72" valign="middle" style="width:72px">${panel(imgProduct(c, "product", "https://mon-vrai-2.myshopify.com/cdn/shop/files/7235B3F0-A987-4357-B101-FAEAA1DCB73E.png?v=1788622635&width=200", 43, 4, ";box-shadow:0 6px 14px rgba(0,0,0,.12)"), SAND, "14px", 16, true)}</td><td width="20" style="width:20px">&nbsp;</td><td valign="middle">${T(c, "prodName", "Les Légumes", "font-size:16px;font-weight:800;display:block;margin-bottom:4px")}${T(c, "prodMeta", "6–18 mois · 14 × 14 cm · en stock, expédié sous 48 h", `font-size:12px;color:${SUBTLE};font-weight:600`)}</td></tr></table>`;
@@ -522,6 +544,7 @@ function tplPartenaireBienvenue(c: RenderCtx): string {
       20,
       false,
       ";height:150px",
+      "nl-flexh",
     );
 
   // La photo est facultative : tant qu'aucune n'est choisie, le bloc disparaît de
@@ -575,19 +598,37 @@ export function collectCrops(id: string, ctx: Omit<RenderCtx, "img">): CropReq[]
   return reqs;
 }
 
+/*
+ * Feuille de style du rendu. Volontairement courte : tout ce qui compte vraiment est déjà
+ * en ligne, et cette feuille ne fait que RATTRAPER l'écran étroit — un client qui la
+ * retire (Outlook, quelques webmails) affiche une mise en page correcte, jamais cassée.
+ *
+ * Elle est partagée avec la version web (« Voir dans le navigateur ») : un téléphone y
+ * voit la même chose que dans sa boîte aux lettres, ce qui est tout l'intérêt du lien.
+ */
+export const RESPONSIVE_CSS = `
+  img{ -ms-interpolation-mode:bicubic; }
+  table{ mso-table-lspace:0pt; mso-table-rspace:0pt; }
+  @media only screen and (max-width:620px){
+    /* Une colonne repliée prend toute la largeur — sinon elle garde ses 281 px au milieu
+       d'un écran de 310 et paraît décalée — et respire avant celle du dessous. */
+    .nl-col{ max-width:100% !important; }
+    .nl-colgap{ padding-bottom:12px !important; }
+    /* Une photo de boîte suit sa colonne ; une couverture détourée garde sa taille. */
+    .nl-fluid{ max-width:100% !important; }
+    /* Une hauteur posée pour aligner deux colonnes n'a plus d'objet une fois empilées. */
+    .nl-flexh{ height:auto !important; }
+    h1, .nl-h1{ font-size:30px !important; line-height:1.08 !important; }
+    h2{ font-size:22px !important; }
+  }
+`;
+
 /** Enveloppe l'e-mail complet (doctype + fond + centrage 600 px). */
 export function wrapEmail(id: string, ctx: RenderCtx, preheader: string): string {
   const body = renderTemplateBody(id, ctx);
   return `<!doctype html><html lang="fr" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="x-ua-compatible" content="ie=edge"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(ctx.brand.shopName)}</title><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
-<style>
-  img{ -ms-interpolation-mode:bicubic; }
-  table{ mso-table-lspace:0pt; mso-table-rspace:0pt; }
-  @media only screen and (max-width:620px){
-    h1{ font-size:30px !important; line-height:1.08 !important; }
-    h2{ font-size:22px !important; }
-  }
-</style></head>
+<style>${RESPONSIVE_CSS}</style></head>
 <body style="margin:0;padding:0;background:${CANVAS};font-family:${FONT};color:${INK};-webkit-font-smoothing:antialiased">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(preheader)}</div>
 <table ${TBL} width="100%" style="background:${CANVAS}"><tr><td align="center" style="padding:28px 12px">
