@@ -92,7 +92,7 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "handle" | "platform"
 > & {
   id?: string;
   uid?: string;
@@ -103,6 +103,9 @@ export type InfluencerInput = Omit<
   kit?: WelcomeKit;
   note?: string;
   socials?: PartnerSocials;
+  /* Anciens champs, gardés pour les fiches d'avant : la saisie se fait par les réseaux. */
+  handle?: string;
+  platform?: Influencer["platform"];
   collaborationType?: CollaborationType;
   contractId?: string;
   signatureId?: string;
@@ -125,6 +128,8 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     kit: input.kit ?? existing?.kit,
     note: input.note ?? existing?.note ?? "",
     socials: input.socials ?? existing?.socials,
+    handle: input.handle ?? existing?.handle ?? "",
+    platform: input.platform ?? existing?.platform,
     collaborationType: input.collaborationType ?? existing?.collaborationType,
     contractId: input.contractId ?? existing?.contractId ?? "",
     signatureId: input.signatureId ?? existing?.signatureId ?? "",

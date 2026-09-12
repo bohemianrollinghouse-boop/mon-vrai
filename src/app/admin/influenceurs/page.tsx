@@ -9,6 +9,7 @@ import { adminSnapshot } from "@/lib/admin/counts";
 import { listInfluencers, listRefClicksSince } from "@/lib/db/promos";
 import { formatEuroShort } from "@/lib/domain/money";
 import { influencerStats } from "@/lib/promos/stats";
+import { mainAccount } from "@/lib/promos/socials";
 
 export const dynamic = "force-dynamic";
 
@@ -64,7 +65,8 @@ export default async function InfluencersPage() {
         head={["Influenceur", "Code", "Clics", "Ventes", "CA", "Commission", "Statut"]}
         empty="Aucun influenceur. Ajoutez le premier avec « Nouvel influenceur » : il reçoit un code et un lien de suivi."
         rows={rows.map((r) => {
-          const tone = PLATFORM_TONE[r.influencer.platform] ?? PLATFORM_TONE.Autre;
+          const account = mainAccount(r.influencer);
+          const tone = PLATFORM_TONE[account.platform] ?? PLATFORM_TONE.Autre;
           return {
             key: r.influencer.id,
             href: `/admin/influenceurs/${r.influencer.id}`,
@@ -74,7 +76,7 @@ export default async function InfluencersPage() {
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate font-bold">{r.influencer.name}</span>
                   <span className="truncate text-[0.6875rem] text-subtle">
-                    {r.influencer.handle || r.influencer.slug} · {r.influencer.platform}
+                    {account.handle} · {account.platform}
                   </span>
                 </span>
               </span>,

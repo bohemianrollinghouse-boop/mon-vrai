@@ -87,6 +87,10 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
         </div>
       </div>
 
+      {/* ---------- Vos réseaux ---------- */}
+      {/* Haut de page : lui seul peut les donner, et le contrat s'en sert. */}
+      <SocialsForm socials={influencer.socials} action={savePartnerSocialsAction} />
+
       {/* ---------- Kit de bienvenue ---------- */}
       {/* Bon de commande tant qu'il n'a pas été commandé, suivi ensuite. */}
       <PartnerKitBlock kit={kit} />
@@ -189,7 +193,7 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
         )}
       </div>
 
-      {/* ---------- Ma collaboration, et mes réseaux ---------- */}
+      {/* ---------- Ma collaboration ---------- */}
       <div className="mt-6 grid grid-cols-2 items-start gap-4 max-[899px]:grid-cols-1">
         {signature ? (
           <div className="flex flex-col gap-2.5 rounded-card bg-white p-7 text-[0.8125rem]">
@@ -223,7 +227,6 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
         ) : (
           <span />
         )}
-        <SocialsForm socials={influencer.socials} action={savePartnerSocialsAction} />
       </div>
 
       {/* ---------- Relevés et kit ---------- */}

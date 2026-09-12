@@ -16,13 +16,11 @@ import { statementRows } from "@/lib/promos/statements";
 import { now } from "@/lib/db/helpers";
 import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
 import { slugify } from "@/lib/domain/slug";
-import { CollaborationType, Platform } from "@/lib/domain/types";
+import { CollaborationType } from "@/lib/domain/types";
 
 const Input = z.object({
   id: z.string().default(""),
   name: z.string().trim().min(1, "Nom requis").max(80),
-  handle: z.string().trim().max(80).default(""),
-  platform: Platform.default("Instagram"),
   slug: z.string().trim().max(40).default(""),
   code: z.string().trim().min(2, "2 caractères minimum").max(24).regex(/^[A-Za-z0-9]+$/, "Lettres et chiffres uniquement"),
   discount: z.number().int().min(0).max(100).default(10),
@@ -64,8 +62,6 @@ export async function saveInfluencerAction(formData: FormData): Promise<AdminRes
   const saved_ = await upsertInfluencer({
     id: existing?.id,
     name: d.name,
-    handle: d.handle,
-    platform: d.platform,
     slug,
     code,
     discount: d.discount,

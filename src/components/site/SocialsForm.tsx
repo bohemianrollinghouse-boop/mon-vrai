@@ -19,11 +19,14 @@ const PLATFORMS = [
 const field = "w-full rounded-[10px] bg-paper px-3 py-2.5 text-[0.8125rem] font-semibold outline-none placeholder:font-medium placeholder:text-faint";
 
 export function SocialsForm({ socials, action }: { socials: PartnerSocials; action: (fd: FormData) => Promise<PartnerResult> }) {
-  const [open, setOpen] = useState(false);
+  const accountsInit = { ig: socials.instagram, tt: socials.tiktok, fb: socials.facebook };
+  const empty = !PLATFORMS.some((p) => accountsInit[p.key].handle || accountsInit[p.key].url);
+  /* Rien de renseigné : le formulaire est ouvert d'emblée, c'est la première chose à faire. */
+  const [open, setOpen] = useState(empty);
   const [notice, setNotice] = useState<string | null>(null);
   const [pending, start] = useTransition();
 
-  const accounts = { ig: socials.instagram, tt: socials.tiktok, fb: socials.facebook };
+  const accounts = accountsInit;
   const filled = PLATFORMS.filter((p) => accounts[p.key].handle || accounts[p.key].url);
 
   const submit = (fd: FormData) =>
@@ -34,17 +37,28 @@ export function SocialsForm({ socials, action }: { socials: PartnerSocials; acti
     });
 
   return (
-    <div className="flex flex-col gap-3 rounded-card bg-white p-7">
+    /* Tant que rien n'est renseigné, l'encart se voit : c'est une information qu'on ne
+       peut obtenir que de lui, et elle sert à son contrat. Une fois rempli, il s'efface. */
+    <div className={`flex flex-col gap-3 rounded-panel p-7 ${empty ? "bg-tint-sand" : "bg-white"}`}>
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <span className="text-base font-extrabold">Vos réseaux</span>
-        <button type="button" onClick={() => setOpen((v) => !v)} className="whitespace-nowrap border-b-[1.5px] border-ink text-xs font-bold">
-          {open ? "Annuler" : filled.length ? "Modifier" : "Renseigner"}
-        </button>
+        <div className="flex flex-col gap-1">
+          <span className="text-base font-extrabold">{empty ? "Ajoutez vos réseaux" : "Vos réseaux"}</span>
+          {empty && (
+            <span className="text-[0.8125rem] leading-relaxed text-tint-sand-ink">
+              Pseudo et adresse de vos comptes : ils figurent sur votre contrat de collaboration et nous permettent de
+              retrouver vos publications. Vous seul pouvez les renseigner.
+            </span>
+          )}
+        </div>
+        {!empty && (
+          <button type="button" onClick={() => setOpen((v) => !v)} className="whitespace-nowrap border-b-[1.5px] border-ink text-xs font-bold">
+            {open ? "Annuler" : "Modifier"}
+          </button>
+        )}
       </div>
 
       {!open && (
         <div className="flex flex-col gap-1.5 text-[0.8125rem]">
-          {filled.length === 0 && <span className="text-muted">Aucun compte renseigné. Ils servent à votre contrat de collaboration.</span>}
           {filled.map((p) => {
             const a = accounts[p.key];
             return (

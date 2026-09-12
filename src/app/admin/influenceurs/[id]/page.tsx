@@ -23,7 +23,8 @@ import { getSignature, listContracts } from "@/lib/db/contracts";
 import { getInfluencer, listRefClicksSince } from "@/lib/db/promos";
 import { listStatements } from "@/lib/db/statements";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
-import { CollaborationType, COLLABORATION_LABELS, Platform, type Contract } from "@/lib/domain/types";
+import { CollaborationType, COLLABORATION_LABELS, type Contract } from "@/lib/domain/types";
+import { mainAccount } from "@/lib/promos/socials";
 import { maskIban, monthLabel, statementRows } from "@/lib/promos/statements";
 import { influencerStats } from "@/lib/promos/stats";
 
@@ -83,7 +84,8 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
   const stats = rows[0];
   const statements = influencer.commission ? statementRows(influencer, snap.orders, stored, snap.now) : [];
   const maxSpark = Math.max(1, ...stats.spark.map((d) => d.code + d.link));
-  const tone = PLATFORM_TONE[influencer.platform] ?? PLATFORM_TONE.Autre;
+  const main = mainAccount(influencer);
+  const tone = PLATFORM_TONE[main.platform] ?? PLATFORM_TONE.Autre;
   const pct = (x: number) => `${(x * 100).toFixed(1).replace(".", ",")} %`;
 
   return (
@@ -98,7 +100,7 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
             {!influencer.commission && <Pill tone="muted">Sans commission</Pill>}
           </span>
         }
-        subtitle={`${influencer.handle || influencer.slug} · ${influencer.platform} · code ${influencer.code} · inscrit le ${longDate(influencer.createdAt)}`}
+        subtitle={`${main.handle} · ${main.platform} · code ${influencer.code} · inscrit le ${longDate(influencer.createdAt)}`}
         actions={
           <>
             <CopyButton text={`https://${site}/?ref=${influencer.slug}`} />
@@ -355,23 +357,11 @@ function IdentityForm({ influencer, contracts }: { influencer?: Awaited<ReturnTy
     <ActionForm action={saveInfluencerAction} submitLabel={inf ? "Enregistrer" : "Créer le partenaire"}>
       <input type="hidden" name="id" value={inf?.id ?? ""} />
       <input type="hidden" name="active" value={inf ? (inf.active ? "on" : "") : "on"} />
-      <div className="grid grid-cols-2 gap-2.5">
-        <Field label="Nom" name="name">
-          <Input name="name" required defaultValue={inf?.name ?? ""} placeholder="Marie Petit-Pas" className="!rounded-xl !py-3 !text-[0.8125rem] !font-bold" />
-        </Field>
-        <Field label="Pseudo" name="handle">
-          <Input name="handle" defaultValue={inf?.handle ?? ""} placeholder="@mariepetitpas" className="!rounded-xl !py-3 !text-[0.8125rem]" />
-        </Field>
-      </div>
+      <Field label="Nom" name="name">
+        <Input name="name" required defaultValue={inf?.name ?? ""} placeholder="Marie Petit-Pas" className="!rounded-xl !py-3 !text-[0.8125rem] !font-bold" />
+      </Field>
       <Field label="E-mail" hint="Sert au mot de passe de l'espace partenaire." name="email">
         <Input name="email" type="email" defaultValue={inf?.email ?? ""} placeholder="marie@exemple.fr" className="!rounded-xl !py-3 !text-[0.8125rem]" />
-      </Field>
-      <Field label="Plateforme" name="platform">
-        <Select name="platform" defaultValue={inf?.platform ?? "Instagram"} className="!rounded-xl !py-3 !text-[0.8125rem]">
-          {Platform.options.map((p) => (
-            <option key={p}>{p}</option>
-          ))}
-        </Select>
       </Field>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold text-subtle">Code promo</span>
