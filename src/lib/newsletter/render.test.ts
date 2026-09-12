@@ -28,6 +28,30 @@ describe("boutons de newsletter", () => {
   });
 });
 
+/*
+ * Le bouton de précommande arrivait après les quatre fiches produits — huit écrans plus
+ * bas sur un téléphone. Il en faut un dès le haut, sans perdre celui du bas.
+ */
+describe("appel à la précommande", () => {
+  it("propose « Précommander » en haut et en bas de « On revient »", () => {
+    const html = renderTemplateBody("on-revient", ctx("email"));
+    const positions = [...html.matchAll(/Précommander sur monvrai\.fr/g)].map((m) => m.index ?? -1);
+    expect(positions).toHaveLength(2);
+    // Le premier avant le bloc des thèmes, le second après les fiches produits.
+    expect(positions[0]).toBeLessThan(html.indexOf("128 réponses"));
+    expect(positions[1]).toBeGreaterThan(html.indexOf("Les Animaux de la forêt"));
+    expect((html.match(/href="https:\/\/monvrai\.fr\/catalogue"/g) ?? []).length).toBe(2);
+  });
+
+  it("garde les deux boutons modifiables séparément", () => {
+    const html = renderTemplateBody("on-revient", ctx("email", { ctaTop: "Je précommande", "href:ctaTop": "/livres" }));
+    expect(html).toContain("Je précommande");
+    expect(html).toContain('href="https://monvrai.fr/livres"');
+    // Celui du bas n'a pas bougé.
+    expect(html).toContain("Précommander sur monvrai.fr");
+  });
+});
+
 describe("resolveHref / isValidHref", () => {
   it("résout les chemins relatifs sur le site", () => {
     expect(resolveHref("/catalogue", "https://monvrai.fr/")).toBe("https://monvrai.fr/catalogue");
@@ -151,10 +175,22 @@ describe("colonnes sur écran étroit", () => {
 
   it("rend toute la largeur aux colonnes empilées, et les espace", () => {
     expect(RESPONSIVE_CSS).toContain(".nl-col{ max-width:100% !important; }");
-    expect(RESPONSIVE_CSS).toContain(".nl-colgap{ padding-bottom:12px !important; }");
+    // La valeur compte : l'écart d'une colonne empilée doit valoir la gouttière (10 px)
+    // et l'écart entre deux rangées, sinon l'espacement saute d'un cran sur deux.
+    expect(RESPONSIVE_CSS).toContain(".nl-colgap{ padding-bottom:10px !important; }");
     // La dernière colonne n'ajoute rien sous elle : la section s'en charge.
     const html = renderTemplateBody("coulisses", ctx("email"));
     expect((html.match(/class="nl-col nl-colgap"/g) ?? []).length).toBe((html.match(/class="nl-col"/g) ?? []).length);
+  });
+
+  it("sépare les quatre thèmes du même espace une fois empilés", () => {
+    const html = renderTemplateBody("on-revient", ctx("email"));
+    // Les deux rangées de thèmes sont séparées par une ligne de tableau : elle doit valoir
+    // la même chose que `nl-colgap`, sinon l'écart saute d'un cran sur deux (12/10/12).
+    const entreRangees = /Les Véhicules[\s\S]*?Le Visage/.exec(html)?.[0] ?? "";
+    expect(entreRangees).not.toBe("");
+    const hauteurs = [...entreRangees.matchAll(/height="(\d+)"/g)].map((m) => m[1]);
+    expect(hauteurs).toEqual(["10"]);
   });
 
   it("laisse l'image suivre sa colonne, et la couverture détourée garder sa taille", () => {

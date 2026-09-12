@@ -410,6 +410,7 @@ function tplOnRevient(c: RenderCtx): string {
   return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €", "on-revient")}${logo(c)}
 ${sect(heroText(c, "hero", { w: 552, h: 520, pos: "50% 40%" }, heroInner), `16px ${PAD}px 0`)}
 ${sect(T(c, "intro", "Les nouveaux imagiers existent. Ils sont en précommande, et ce sont les vôtres avant d'être les nôtres.", "margin:0;font-size:16px;line-height:1.6;color:#444;display:block", "p"), "32px 40px 0", true)}
+${sect(btn(c, "ctaTop", "Précommander sur monvrai.fr", `${c.base}/catalogue`), "20px 40px 0", true)}
 ${sect(panel(`${eyebrow(c, "thanksEy", "Merci d'avoir attendu", PINK_INK)}${T(c, "thanks1", "Quand les 500 premiers livres sont partis, vous avez été nombreux à laisser votre adresse pour savoir s'il y aurait une suite. Je n'avais pas de réponse à vous donner à ce moment-là. Il a fallu du temps, une pause, puis tout reprendre : une vraie identité, une vraie maison, un vrai site.", `margin:14px 0 12px;font-size:15px;line-height:1.65;color:${PINK_INK};display:block`, "p")}${T(c, "thanks2", "Vous avez attendu sans rien demander. C'est ce mail que je voulais pouvoir vous écrire.", `margin:0;font-size:15px;line-height:1.65;font-weight:700;color:${PINK_INK};display:block`, "p")}`, PINK, "36px 32px"), `24px ${PAD}px 0`)}
 ${sect(panel(`${eyebrow(c, "pollEy", "Ce que vous avez choisi", GREEN_INK)}${T(c, "pollTitle", "128 réponses. Quatre thèmes en sont sortis.", "margin:14px 0 10px;font-size:26px;line-height:1.1;font-weight:800;letter-spacing:-.02em;display:block", "h2")}${T(c, "pollText", "Vous nous avez dit quels imagiers vous manquaient vraiment. Nous n'en avons pas choisi d'autres : les quatre nouveautés sont exactement celles que vous avez demandées le plus souvent.", `margin:0;font-size:14px;line-height:1.6;color:${GREEN_INK};display:block`, "p")}${gap(18)}${cols([theme("t1", "Les Animaux de la ferme"), theme("t2", "Les Véhicules")], [themeW, themeW])}${gap(10)}${cols([theme("t3", "Le Visage"), theme("t4", "Les Animaux de la forêt")], [themeW, themeW])}`, GREEN, "36px 32px", 28, true), `10px ${PAD}px 0`)}
 ${sect(`${eyebrow(c, "newEy", "Les quatre nouveautés · 6–18 mois", SUBTLE)}${T(c, "newText", "Toujours six illustrations réalistes, une par double-page, sur fond blanc, sans texte.", "margin:10px 0 0;font-size:14px;line-height:1.6;color:#555;display:block", "p")}`, "32px 40px 0", true)}
@@ -611,9 +612,13 @@ export const RESPONSIVE_CSS = `
   table{ mso-table-lspace:0pt; mso-table-rspace:0pt; }
   @media only screen and (max-width:620px){
     /* Une colonne repliée prend toute la largeur — sinon elle garde ses 281 px au milieu
-       d'un écran de 310 et paraît décalée — et respire avant celle du dessous. */
+       d'un écran de 310 et paraît décalée. */
     .nl-col{ max-width:100% !important; }
-    .nl-colgap{ padding-bottom:12px !important; }
+    /* 10 px, et pas une autre valeur : c'est exactement la gouttière qui sépare deux
+       colonnes côte à côte, et l'écart que les modèles laissent entre deux rangées de
+       colonnes. Une fois tout empilé sur un téléphone, les quatre thèmes — comme les
+       quatre fiches produits — sont donc séparés du même espace partout. */
+    .nl-colgap{ padding-bottom:10px !important; }
     /* Une photo de boîte suit sa colonne ; une couverture détourée garde sa taille. */
     .nl-fluid{ max-width:100% !important; }
     /* Une hauteur posée pour aligner deux colonnes n'a plus d'objet une fois empilées. */
