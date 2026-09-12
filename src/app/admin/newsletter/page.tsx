@@ -53,7 +53,7 @@ export default async function NewsletterPage() {
       {[...byTemplate.entries()].map(([templateId, list]) => (
         <Card key={templateId} title={`Envois · ${list[0].templateLabel || templateId}`} className="mt-4" aside={<span className="text-[0.6875rem] font-semibold text-subtle">{list.length} envoi{list.length > 1 ? "s" : ""}</span>}>
           <GridTable
-            columns="auto 1fr 90px 110px 90px 90px auto"
+            columns="110px 1fr 80px 118px 80px 80px 88px"
             head={["Date", "Audience", "Envoyés", "Reçus", "Rebonds", "Ouverts", ""]}
             empty="Aucun envoi."
             rows={list.map((send) => {
@@ -103,7 +103,7 @@ export default async function NewsletterPage() {
 
       <Card title={`Inscrits (${subscribers.length})`} className="mt-4">
         <GridTable
-          columns="1.4fr 1fr auto auto"
+          columns="1.4fr 1fr 120px 110px"
           head={["E-mail", "Nom", "Origine", "Inscrit le"]}
           empty="Aucun inscrit pour l'instant."
           rows={subscribers.slice(0, 500).map((s) => ({

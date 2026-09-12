@@ -212,6 +212,13 @@ export function FilterPills({ items }: { items: { href: string; label: string; c
  * Tableau en grille, comme la maquette : en-tête en capitales grises, lignes séparées
  * par un filet doux, la ligne entière cliquable si `href` est donné.
  */
+/*
+ * Tableau en grille. L'en-tête et CHAQUE ligne sont des grilles distinctes — il le faut
+ * pour qu'une ligne entière soit un lien cliquable —, si bien qu'une colonne `auto` se
+ * dimensionne sur le contenu de sa propre grille : l'en-tête se décale alors des
+ * cellules. Les colonnes doivent donc être des largeurs définies (`px`, `fr`,
+ * `minmax(Npx, …)`), jamais `auto` seul.
+ */
 export function GridTable({ columns, head, rows, empty = "Rien pour l'instant." }: { columns: string; head: ReactNode[]; rows: { key: string; href?: string; cells: ReactNode[] }[]; empty?: string }) {
   const grid = { gridTemplateColumns: columns };
   return (
