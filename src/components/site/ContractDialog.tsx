@@ -50,8 +50,10 @@ const CHECKS = [
   },
 ] as const;
 
-export function ContractDialog({ contract, onClose, onAccept, pending, error }: {
+export function ContractDialog({ contract, signer, onClose, onAccept, pending, error }: {
   contract: ContractView;
+  /* Prénom et nom viennent du formulaire de commande : on ne les redemande pas ici. */
+  signer: { firstName: string; lastName: string };
   onClose: () => void;
   onAccept: (values: FormData) => void;
   pending: boolean;
@@ -61,7 +63,7 @@ export function ContractDialog({ contract, onClose, onAccept, pending, error }: 
   const [read, setRead] = useState(false);
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState<"individual" | "sole_trader" | "company">("individual");
-  const [form, setForm] = useState({ firstName: "", lastName: "", companyName: "", siret: "", vatNumber: "", taxCountry: "FR", signerTypedName: "" });
+  const [form, setForm] = useState({ companyName: "", siret: "", vatNumber: "", taxCountry: "FR", signerTypedName: "" });
 
   /* Déroulé jusqu'en bas — ou texte trop court pour défiler, auquel cas il est lu d'emblée. */
   useEffect(() => {
@@ -78,7 +80,7 @@ export function ContractDialog({ contract, onClose, onAccept, pending, error }: 
 
   const professional = status !== "individual";
   const missingChecks = CHECKS.filter((c) => c.required && !checks[c.name]).length;
-  const identityOk = form.firstName.trim() && form.lastName.trim() && form.signerTypedName.trim() && (!professional || (form.siret.trim() && form.companyName.trim()));
+  const identityOk = signer.firstName && signer.lastName && form.signerTypedName.trim() && (!professional || (form.siret.trim() && form.companyName.trim()));
   const ready = read && missingChecks === 0 && Boolean(identityOk) && !pending;
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -86,6 +88,8 @@ export function ContractDialog({ contract, onClose, onAccept, pending, error }: 
   const submit = () => {
     const fd = new FormData();
     for (const [k, v] of Object.entries(form)) fd.set(k, v);
+    fd.set("firstName", signer.firstName);
+    fd.set("lastName", signer.lastName);
     fd.set("signerStatus", status);
     for (const c of CHECKS) if (checks[c.name]) fd.set(c.name, "on");
     onAccept(fd);
@@ -172,15 +176,12 @@ export function ContractDialog({ contract, onClose, onAccept, pending, error }: 
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 max-[599px]:grid-cols-1">
-            <label className={label}>
-              <span>Prénom</span>
-              <input value={form.firstName} onChange={set("firstName")} autoComplete="given-name" className={field} />
-            </label>
-            <label className={label}>
-              <span>Nom</span>
-              <input value={form.lastName} onChange={set("lastName")} autoComplete="family-name" className={field} />
-            </label>
+          <div className="flex flex-col gap-1 rounded-[12px] bg-paper px-4 py-3 text-[0.8125rem]">
+            <span className="text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint">Vous signez en tant que</span>
+            <span className="font-bold">
+              {signer.firstName} {signer.lastName}
+            </span>
+            <span className="text-xs text-subtle">Repris du formulaire de commande. Fermez cette fenêtre pour le corriger.</span>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -232,7 +233,7 @@ export function ContractDialog({ contract, onClose, onAccept, pending, error }: 
 
           <label className={label}>
             <span>Signature — saisissez vos prénom et nom</span>
-            <input value={form.signerTypedName} onChange={set("signerTypedName")} placeholder={`${form.firstName} ${form.lastName}`.trim() || "Prénom Nom"} className={field} />
+            <input value={form.signerTypedName} onChange={set("signerTypedName")} placeholder={`${signer.firstName} ${signer.lastName}`.trim() || "Prénom Nom"} className={field} />
             <span className="text-xs font-medium leading-relaxed text-subtle">
               En saisissant votre nom et en validant, vous confirmez votre acceptation du contrat et des engagements qu&apos;il contient.
             </span>

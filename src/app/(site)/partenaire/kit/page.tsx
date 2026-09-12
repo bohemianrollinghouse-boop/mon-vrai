@@ -76,7 +76,6 @@ export default async function PartnerKitPage() {
 
       <div className="grid grid-cols-[1fr_360px] items-start gap-4 max-[899px]:grid-cols-1">
         <KitOrderForm
-          name={influencer.name}
           countries={settings.shipping.countries}
           options={options}
           mapToken={mapToken}

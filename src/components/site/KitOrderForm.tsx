@@ -29,7 +29,6 @@ function countryName(code: string): string {
 }
 
 export function KitOrderForm({
-  name,
   countries,
   options,
   mapToken,
@@ -37,7 +36,6 @@ export function KitOrderForm({
   contract,
   signAction,
 }: {
-  name: string;
   countries: string[];
   options: KitShippingOption[];
   mapToken: string | null;
@@ -50,7 +48,8 @@ export function KitOrderForm({
   const [country, setCountry] = useState(countries[0] ?? "FR");
   const [rateId, setRateId] = useState(options[0]?.id ?? "");
   const [relay, setRelay] = useState<Relay | null>(null);
-  const [form, setForm] = useState({ name, line1: "", line2: "", postalCode: "", city: "", phone: "" });
+  /* Rien n'est pré-rempli : le nom du compte est souvent un pseudo, pas une identité. */
+  const [form, setForm] = useState({ firstName: "", lastName: "", line1: "", line2: "", postalCode: "", city: "", phone: "" });
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   /* Adresse remplie ici, contrat signé par-dessus : un seul geste au bout du compte. */
@@ -119,10 +118,16 @@ export function KitOrderForm({
         ))}
       </div>
 
-      <label className={labelCls}>
-        <span>Nom du destinataire</span>
-        <input name="name" required value={form.name} onChange={set("name")} autoComplete="name" className={field} />
-      </label>
+      <div className="grid grid-cols-2 gap-4 max-[599px]:grid-cols-1">
+        <label className={labelCls}>
+          <span>Prénom</span>
+          <input name="firstName" required value={form.firstName} onChange={set("firstName")} autoComplete="given-name" className={field} />
+        </label>
+        <label className={labelCls}>
+          <span>Nom</span>
+          <input name="lastName" required value={form.lastName} onChange={set("lastName")} autoComplete="family-name" className={field} />
+        </label>
+      </div>
 
       <AddressAutocomplete
         value={form.line1}
@@ -206,7 +211,14 @@ export function KitOrderForm({
       </span>
 
       {contractOpen && contract && (
-        <ContractDialog contract={contract} onClose={() => setContractOpen(false)} onAccept={accept} pending={pending} error={error} />
+        <ContractDialog
+          contract={contract}
+          signer={{ firstName: form.firstName.trim(), lastName: form.lastName.trim() }}
+          onClose={() => setContractOpen(false)}
+          onAccept={accept}
+          pending={pending}
+          error={error}
+        />
       )}
     </form>
   );

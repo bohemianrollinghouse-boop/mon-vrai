@@ -40,7 +40,10 @@ export async function savePartnerIbanAction(formData: FormData): Promise<Partner
 
 
 const KitOrder = z.object({
-  name: z.string().trim().min(1, "Indiquez le nom du destinataire").max(80),
+  /* Prénom et nom séparés, et jamais pré-remplis : le « nom » du compte est le plus
+     souvent un pseudo de réseau social, pas une identité de livraison. */
+  firstName: z.string().trim().min(1, "Indiquez votre prénom").max(80),
+  lastName: z.string().trim().min(1, "Indiquez votre nom").max(80),
   line1: z.string().trim().min(1, "Indiquez l'adresse"),
   line2: z.string().trim().max(120).optional(),
   postalCode: z.string().trim().min(1, "Indiquez le code postal").max(12),
@@ -130,7 +133,7 @@ async function orderKit(influencer: Influencer, formData: FormData, kit: Partner
   if (!email) return { ok: false, error: "Aucune adresse e-mail sur votre compte." };
 
   const address: Address = {
-    name: d.name,
+    name: `${d.firstName} ${d.lastName}`,
     line1: d.line1,
     line2: d.line2 || undefined,
     postalCode: d.postalCode,
