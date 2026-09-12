@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, type ReactNode } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import type { AdminResult } from "@/lib/admin/types";
 import { IssuesContext } from "./issues-context";
-import { Button, Notice } from "./ui";
+import { Toast } from "./Toast";
+import { Button } from "./ui";
 
 /*
  * Enveloppe commune des formulaires de l'admin : un vrai <form> vers une action
@@ -47,6 +48,23 @@ export function ActionForm({ action, children, submitLabel = "Enregistrer", clas
     else router.refresh();
   }, [state, router]);
 
+  /*
+   * Le message flotte hors du flux (voir Toast) : inséré dans le formulaire, il
+   * décalait la ligne d'un tableau à chaque clic sur un bouton compact.
+   *
+   * Il se DÉDUIT du résultat plutôt que d'être recopié dans un état : on ne mémorise
+   * que le résultat déjà congédié, pour qu'un message fermé ne revienne pas.
+   */
+  const [dismissed, setDismissed] = useState<AdminResult | null>(null);
+  const notice =
+    state && state !== dismissed
+      ? state.ok
+        ? state.message
+          ? ({ tone: "ok", text: state.message } as const)
+          : null
+        : ({ tone: "error", text: state.error } as const)
+      : null;
+
   const issues = state && !state.ok ? state.issues ?? {} : {};
 
   return (
@@ -58,8 +76,7 @@ export function ActionForm({ action, children, submitLabel = "Enregistrer", clas
         if (confirm && !window.confirm(confirm)) e.preventDefault();
       }}
     >
-      {state && !state.ok && <Notice tone="error">{state.error}</Notice>}
-      {state?.ok && state.message && <Notice tone="ok">{state.message}</Notice>}
+      {notice && <Toast tone={notice.tone} message={notice.text} onClose={() => setDismissed(state)} />}
       <IssuesContext.Provider value={issues}>{children}</IssuesContext.Provider>
       {!hideFooter && (
         <div className="flex flex-wrap items-center justify-between gap-3">
