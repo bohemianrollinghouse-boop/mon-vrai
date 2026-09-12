@@ -97,6 +97,14 @@ export function KitOrderForm({
   /* Rien n'est pré-rempli : le nom du compte est souvent un pseudo, pas une identité. */
   const [form, setForm] = useState({ firstName: "", lastName: "", line1: "", line2: "", postalCode: "", city: "", phone: "" });
   const [signer, setSigner] = useState({ companyName: "", siret: "", vatNumber: "", taxCountry: "FR", signerTypedName: "" });
+  /*
+   * Le contractant n'est pas forcément le destinataire : on peut se faire livrer chez
+   * sa mère et signer en son propre nom, à sa propre adresse. D'où des coordonnées
+   * distinctes, et une case pour reprendre celles de la livraison quand c'est la même
+   * personne — ce qui reste le cas courant, sans jamais être supposé.
+   */
+  const [party, setParty] = useState({ firstName: "", lastName: "", line1: "", line2: "", postalCode: "", city: "", country: countries[0] ?? "FR" });
+  const [sameAsDelivery, setSameAsDelivery] = useState(false);
   const [status, setStatus] = useState<SignerStatus>("individual");
   const [checks, setChecks] = useState<Record<string, boolean>>({});
   /*
@@ -111,12 +119,19 @@ export function KitOrderForm({
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setS = (k: keyof typeof signer) => (e: React.ChangeEvent<HTMLInputElement>) => setSigner((f) => ({ ...f, [k]: e.target.value }));
+  const setP = (k: keyof typeof party) => (e: React.ChangeEvent<HTMLInputElement>) => setParty((f) => ({ ...f, [k]: e.target.value }));
+  /* Cochée, la case ne copie pas : elle reflète, pour que corriger la livraison suive. */
+  const me = sameAsDelivery
+    ? { firstName: form.firstName, lastName: form.lastName, line1: form.line1, line2: form.line2, postalCode: form.postalCode, city: form.city, country }
+    : party;
   const option = options.find((o) => o.id === rateId) ?? options[0];
   const professional = status !== "individual";
 
   const addressOk = form.firstName.trim() && form.lastName.trim() && form.line1.trim() && form.postalCode.trim() && form.city.trim() && form.phone.trim() && (!option?.relay || relay);
   /* Le contrat ne se lit qu'une fois rempli : ce sont ces informations qui y figurent. */
-  const partyOk = Boolean(addressOk) && (!professional || (signer.siret.trim() && signer.companyName.trim()));
+  const partyOk =
+    Boolean(me.firstName.trim() && me.lastName.trim() && me.line1.trim() && me.postalCode.trim() && me.city.trim()) &&
+    (!professional || Boolean(signer.siret.trim() && signer.companyName.trim()));
   const checksOk = CHECKS.every((c) => !c.required || checks[c.name]);
   const signedOk = Boolean(signer.signerTypedName.trim());
 
@@ -128,10 +143,10 @@ export function KitOrderForm({
       contract: { id: contract.id, version: contract.version, variables: contract.variables },
       seller,
       party: {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
+        firstName: me.firstName.trim(),
+        lastName: me.lastName.trim(),
         email,
-        address: { name: `${form.firstName} ${form.lastName}`.trim(), line1: form.line1, line2: form.line2 || undefined, postalCode: form.postalCode, city: form.city, country },
+        address: { name: `${me.firstName} ${me.lastName}`.trim(), line1: me.line1, line2: me.line2 || undefined, postalCode: me.postalCode, city: me.city, country: me.country },
         taxCountry: signer.taxCountry,
         status,
         companyName: signer.companyName,
@@ -142,7 +157,7 @@ export function KitOrderForm({
       goods,
     });
     return { summary: fillContract(contract.summary, values), body: fillContract(contract.body, values) };
-  }, [contract, seller, form, email, country, signer, status, socials, goods]);
+  }, [contract, seller, me, email, signer, status, socials, goods]);
 
   /* Lu, et lu DANS SA VERSION ACTUELLE : comparer le texte est plus sûr que de suivre
      champ par champ ce qui a bougé. */
@@ -157,6 +172,14 @@ export function KitOrderForm({
     fd.set("relay", option?.relay && relay ? JSON.stringify(relay) : "");
     if (contract) {
       for (const [k, v] of Object.entries(signer)) fd.set(k, v);
+      /* Le contrat se conclut au nom du contractant : ses coordonnées à lui. */
+      fd.set("firstName", me.firstName);
+      fd.set("lastName", me.lastName);
+      fd.set("partyLine1", me.line1);
+      fd.set("partyLine2", me.line2);
+      fd.set("partyPostalCode", me.postalCode);
+      fd.set("partyCity", me.city);
+      fd.set("partyCountry", me.country);
       fd.set("signerStatus", status);
       for (const c of CHECKS) if (checks[c.name]) fd.set(c.name, "on");
       if (checks.newsletterOptIn) fd.set("newsletterOptIn", "on");
@@ -290,6 +313,65 @@ export function KitOrderForm({
           )}
 
           {/* Ces informations figurent DANS le contrat : elles se remplissent avant de le lire. */}
+          <div className="flex flex-col gap-4 border-t border-line-soft pt-5">
+            <div className="flex flex-col gap-1">
+              <span className="text-[0.8125rem] font-bold">Vos coordonnées de contractant</span>
+              <span className="text-xs leading-relaxed text-subtle">
+                Celles qui figureront au contrat. Elles peuvent différer de la livraison — on peut se faire envoyer le kit
+                ailleurs et signer en son propre nom.
+              </span>
+            </div>
+
+            <label className="flex cursor-pointer items-start gap-2.5 text-[0.8125rem] leading-relaxed">
+              <input type="checkbox" checked={sameAsDelivery} onChange={(e) => setSameAsDelivery(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-black" />
+              <span>Réutiliser mes informations de livraison</span>
+            </label>
+
+            <div className="grid grid-cols-2 gap-4 max-[599px]:grid-cols-1">
+              <label className={labelCls}>
+                <span>Prénom</span>
+                <input value={me.firstName} onChange={setP("firstName")} disabled={sameAsDelivery} autoComplete="given-name" className={`${field} disabled:opacity-60`} />
+              </label>
+              <label className={labelCls}>
+                <span>Nom</span>
+                <input value={me.lastName} onChange={setP("lastName")} disabled={sameAsDelivery} autoComplete="family-name" className={`${field} disabled:opacity-60`} />
+              </label>
+            </div>
+
+            <label className={labelCls}>
+              <span>Adresse</span>
+              <input value={me.line1} onChange={setP("line1")} disabled={sameAsDelivery} autoComplete="address-line1" className={`${field} disabled:opacity-60`} />
+            </label>
+
+            <label className={labelCls}>
+              <span>
+                Complément <span className="font-medium text-faint">(facultatif)</span>
+              </span>
+              <input value={me.line2} onChange={setP("line2")} disabled={sameAsDelivery} autoComplete="address-line2" className={`${field} disabled:opacity-60`} />
+            </label>
+
+            <div className="grid grid-cols-[1fr_2fr_1fr] gap-4 max-[599px]:grid-cols-1">
+              <label className={labelCls}>
+                <span>Code postal</span>
+                <input value={me.postalCode} onChange={setP("postalCode")} disabled={sameAsDelivery} autoComplete="postal-code" className={`${field} disabled:opacity-60`} />
+              </label>
+              <label className={labelCls}>
+                <span>Ville</span>
+                <input value={me.city} onChange={setP("city")} disabled={sameAsDelivery} autoComplete="address-level2" className={`${field} disabled:opacity-60`} />
+              </label>
+              <label className={labelCls}>
+                <span>Pays</span>
+                <input
+                  value={me.country}
+                  onChange={(e) => setParty((f) => ({ ...f, country: e.target.value.toUpperCase().slice(0, 2) }))}
+                  disabled={sameAsDelivery}
+                  placeholder="FR"
+                  className={`${field} disabled:opacity-60`}
+                />
+              </label>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2.5">
             <span className="text-[0.8125rem] font-bold">Vous agissez en tant que</span>
             <div className="flex flex-wrap gap-2">
@@ -361,7 +443,7 @@ export function KitOrderForm({
                     ? "Vos informations ont changé, et le contrat avec elles : relisez-le avant d'attester."
                     : partyOk
                       ? "Il s'ouvrira rempli de vos informations. Les attestations et la signature viennent ensuite."
-                      : "Complétez l'adresse et vos informations ci-dessus pour ouvrir le contrat."}
+                      : "Complétez vos coordonnées de contractant ci-dessus pour ouvrir le contrat."}
                 </span>
               </>
             )}
@@ -393,7 +475,7 @@ export function KitOrderForm({
                 value={signer.signerTypedName}
                 onChange={setS("signerTypedName")}
                 disabled={!upToDate}
-                placeholder={`${form.firstName} ${form.lastName}`.trim() || "Prénom Nom"}
+                placeholder={`${me.firstName} ${me.lastName}`.trim() || "Prénom Nom"}
                 className={`${field} disabled:cursor-not-allowed`}
               />
               <span className="text-xs font-medium leading-relaxed text-subtle">
@@ -439,7 +521,7 @@ export function KitOrderForm({
           typeLabel={contract.typeLabel}
           version={contract.version}
           body={filled.body}
-          signerName={`${form.firstName} ${form.lastName}`.trim()}
+          signerName={`${me.firstName} ${me.lastName}`.trim()}
           alreadyRead={upToDate}
           onClose={() => setReading(false)}
           onRead={() => {

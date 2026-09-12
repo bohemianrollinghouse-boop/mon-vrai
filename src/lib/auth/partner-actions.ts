@@ -211,6 +211,13 @@ export async function savePartnerSocialsAction(formData: FormData): Promise<Part
 const SignInput = z.object({
   firstName: z.string().trim().min(1, "Indiquez votre prénom").max(80),
   lastName: z.string().trim().min(1, "Indiquez votre nom").max(80),
+  /* Adresse du CONTRACTANT, distincte de celle du colis : on peut se faire livrer
+     ailleurs et signer chez soi. */
+  partyLine1: z.string().trim().min(1, "Indiquez votre adresse").max(160),
+  partyLine2: z.string().trim().max(160).default(""),
+  partyPostalCode: z.string().trim().min(1, "Indiquez votre code postal").max(12),
+  partyCity: z.string().trim().min(1, "Indiquez votre ville").max(80),
+  partyCountry: z.string().trim().length(2).default("FR"),
   taxCountry: z.string().trim().length(2).default("FR"),
   signerStatus: SignerStatus,
   companyName: z.string().trim().max(160).default(""),
@@ -278,7 +285,14 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     firstName: d.firstName,
     lastName: d.lastName,
     email: influencer.email || user.email || "",
-    address: order.address,
+    address: {
+      name: `${d.firstName} ${d.lastName}`,
+      line1: d.partyLine1,
+      line2: d.partyLine2 || undefined,
+      postalCode: d.partyPostalCode,
+      city: d.partyCity,
+      country: d.partyCountry.toUpperCase(),
+    },
     taxCountry: d.taxCountry.toUpperCase(),
     status: d.signerStatus,
     companyName: d.companyName,
