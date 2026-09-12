@@ -97,13 +97,6 @@ const COLS_W = CARD_W - COLPAD * 2; // 562 px à répartir — 281 par colonne s
 
 export const NEWSLETTER_TEMPLATES: NewsletterTemplate[] = [
   { id: "on-revient", label: "On revient", description: "Retour aux inscrits de la première heure", subject: "On revient — et c'est vous qui avez choisi la suite" },
-  { id: "nouveau-livre", label: "Nouveau livre", description: "Sortie d'un imagier", subject: "Un nouvel imagier : Les Animaux de compagnie" },
-  { id: "nouveau-produit", label: "Nouveau produit", description: "Produit hors imagiers", subject: "La valise en palmier tressé est là" },
-  { id: "nouvelle-categorie", label: "Nouvelle catégorie", description: "Nouvelle famille de produits", subject: "Une nouvelle série : « Moi »" },
-  { id: "precommande", label: "Précommande ouverte", description: "Ouverture des précommandes", subject: "Les précommandes sont ouvertes — expédition le 25 décembre" },
-  { id: "offre", label: "Offre / Code promo", description: "Promotion ou code", subject: "Les 9 imagiers, un offert — jusqu'à dimanche" },
-  { id: "retour-stock", label: "Retour en stock", description: "Réimpression d'un titre", subject: "Ils sont de retour — Les Légumes, réimprimés" },
-  { id: "coulisses", label: "Coulisses / Notre histoire", description: "Le pourquoi de Mon Vrai", subject: "Pourquoi une pomme, une vraie" },
 ];
 
 export const templateById = (id: string): NewsletterTemplate | undefined => NEWSLETTER_TEMPLATES.find((t) => t.id === id);
@@ -254,19 +247,6 @@ function heroText(c: RenderCtx, key: string, box: Box, inner: string): string {
     : "";
   const vmlEnd = u ? `<!--[if gte mso 9]></v:textbox></v:rect><![endif]-->` : "";
   return `<table ${TBL} width="100%" style="border-collapse:separate"><tr><td${u ? ` background="${u}"` : ""} bgcolor="${HERO}" height="${h}" valign="bottom" style="height:${h}px;background-color:${HERO};${bg}border-radius:${radius}px">${vml}<table ${TBL} width="100%"><tr><td valign="bottom" height="${h}" style="height:${h}px;padding:32px;color:#fff">${inner}</td></tr></table>${vmlEnd}</td></tr></table>`;
-}
-
-/*
- * Image « produit » : une couverture de livre détourée, posée sur un aplat coloré. Pas de
- * recadrage — la transparence du PNG fait partie du visuel, et sa hauteur suit sa largeur.
- * Seule la largeur est imposée, en pixels, avec l'attribut que lit Outlook.
- */
-function imgProduct(c: RenderCtx, key: string, def: string, w: number, radius = 10, shadow = ""): string {
-  const url = imgUrl(c, key, def);
-  const has = filled(url);
-  const style = `display:inline-block;width:${w}px;max-width:100%;height:auto;border:0;border-radius:${radius}px${shadow}`;
-  if (c.mode === "email") return has ? `<img src="${esc(url)}" width="${w}" alt="" style="${style}">` : `<span style="display:inline-block;width:${w}px;height:${Math.round(w * 1.15)}px;background:${TINTP};border-radius:${radius}px"></span>`;
-  return `<span class="nl-imgwrap" style="position:relative;display:inline-block${has ? "" : `;background:${TINTP}`}"><img ${imgAttrs(c, key)} src="${esc(has ? url : PIX)}" alt="" style="${style}">${pencil(key)}</span>`;
 }
 
 /* ---------- Ossature commune ---------- */
@@ -423,102 +403,6 @@ ${sect(panel(`${T(c, "signWords", "Mon Vrai est né pour mes enfants. Il grandit
 ${footer(c)}`);
 }
 
-function tplNouveauLivre(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €", "nouveau-livre")}${logo(c)}
-${sect(`${eyebrow(c, "eyebrow", "Nouveau titre", GREEN_INK)}${T(c, "title", "Les Animaux de compagnie", "margin:12px 0;font-size:36px;line-height:1.05;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Le chien, le chat, le lapin, le poisson, le hamster, la tortue. Six illustrations réalistes de ceux qu'on croise tous les jours à la maison.", "margin:0;font-size:15px;line-height:1.6;color:#555;display:block", "p")}`, "24px 40px 0", true)}
-${sect(panel(imgProduct(c, "product", "https://mon-vrai-2.myshopify.com/cdn/shop/files/E7356459-D918-4329-A6A0-06A35F014BAE_6e4ac200-f7f9-4748-b1fd-e9b256c7db21.png?v=1788625340&width=600", 260, 10, ";box-shadow:0 24px 50px rgba(0,0,0,.18)"), GREEN, "32px", 28, true), `24px ${PAD}px 0`)}
-${sect(cols([imgBox(c, "g1", "", { w: 271, h: 300 }), imgBox(c, "g2", "", { w: 271, h: 300, pos: "50% 70%" })]), `10px ${COLPAD}px 0`)}
-${sect(`${T(c, "body", "Le livre, puis la figurine, puis le vrai chat du voisin : c'est exactement comme ça que le lien se fait. Nommez ce qu'il regarde. Laissez-le explorer.", "margin:0 0 14px;font-size:15px;line-height:1.6;color:#444;display:block", "p")}${btn(c, "cta", "Précommander · 10 €", c.base)}${gap(10)}${T(c, "ctaNote", "Expédition dès le 25 déc.", `font-size:12px;color:${SUBTLE};font-weight:600`)}`, "28px 40px 0", true)}
-${footer(c)}`);
-}
-
-function tplNouveauProduit(c: RenderCtx): string {
-  // Le panneau des caractéristiques fait la hauteur de la photo voisine : deux colonnes
-  // `inline-block` ne s'étirent pas l'une sur l'autre, la hauteur se pose donc à la main
-  // (280 px de photo = 232 px de contenu + 2 × 24 px de rembourrage).
-  const specs = panel(
-    `${T(c, "f1", "Palmier naturel, tressé main", `font-size:13px;font-weight:600;line-height:1.5;color:${SAND_INK};display:block`)}${gap(12)}${T(c, "f2", "32 × 22 × 12 cm — les 9 livres à plat", `font-size:13px;font-weight:600;line-height:1.5;color:${SAND_INK};display:block`)}${gap(12)}${T(c, "f3", "Lien de fermeture, sans métal ni plastique", `font-size:13px;font-weight:600;line-height:1.5;color:${SAND_INK};display:block`)}${gap(20)}${T(c, "priceNote", "[Prix à confirmer]", `font-size:11px;color:${SAND_INK};font-weight:700;display:block;margin-bottom:4px`)}${T(c, "price", "29 €", "font-size:26px;font-weight:800;letter-spacing:-.02em")}`,
-    SAND,
-    "24px",
-    20,
-    false,
-    ";height:232px",
-    "nl-flexh",
-  );
-  return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €", "nouveau-produit")}${logo(c)}
-${sect(imgBox(c, "hero", "", { w: 552, h: 520, pos: "50% 60%", radius: 28 }), `24px ${PAD}px 0`)}
-${sect(`${eyebrow(c, "eyebrow", "Nouveau produit", SAND_INK)}${T(c, "title", "La valise en palmier tressé", "margin:12px 0;font-size:36px;line-height:1.05;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Tressée à la main, elle accueille les neuf imagiers et se ferme d'un lien. Pour ranger la collection, l'emporter chez les grands-parents, ou l'offrir toute prête.", "margin:0;font-size:15px;line-height:1.6;color:#555;display:block", "p")}`, "32px 40px 0")}
-${sect(cols([imgBox(c, "g1", "", { w: 271, h: 280 }), specs]), `24px ${COLPAD}px 0`)}
-${sect(`${btn(c, "cta", "Découvrir la valise", c.base)}&nbsp;${btn(c, "cta2", "Valise + 9 imagiers", c.base, false)}`, "28px 40px 0", true)}
-${footer(c)}`);
-}
-
-function tplNouvelleCategorie(c: RenderCtx): string {
-  // Vignette produit : une couverture détourée posée au centre d'un carré teinté.
-  const tile = (k: string, def: string, name: string, price: string, desc: string) =>
-    panel(
-      `${panel(imgProduct(c, k, def, 134, 6, ";box-shadow:0 12px 28px rgba(0,0,0,.12)"), PINK, "40px 20px", 14, true)}${gap(12)}${between(T(c, `${k}t`, name, "font-size:15px;font-weight:700"), T(c, `${k}p`, price, "font-size:13px;font-weight:700;color:#666"))}${gap(8)}${T(c, `${k}d`, desc, "font-size:12px;color:#666;line-height:1.5")}`,
-      "#fff",
-      "20px",
-      20,
-    );
-  return card(`${topbar(c, "topnote", "Précommandes ouvertes · livraison offerte dès 30 €", "nouvelle-categorie")}${logo(c)}
-${sect(panel(`${eyebrow(c, "eyebrow", "Nouvelle série", PINK_INK)}${T(c, "title", "« Moi » : ce qu'il porte, ce qu'il est.", "margin:14px 0;font-size:44px;line-height:1.02;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Après les animaux et l'alimentation, une série sur l'enfant lui-même : son visage, ses vêtements. Les mots qu'il entend le plus au quotidien.", `margin:0;font-size:15px;line-height:1.6;color:${PINK_INK};display:block`, "p")}`, PINK, "40px 36px"), `24px ${PAD}px 0`)}
-${sect(cols([imgBox(c, "g1", "", { w: 271, h: 360 }), imgBox(c, "g2", "", { w: 271, h: 360 })]), `10px ${COLPAD}px 0`)}
-${sect(cols([tile("p1", "https://mon-vrai-2.myshopify.com/cdn/shop/files/A44725D9-D4D4-4C97-90C9-B3D403673526.png?v=1788625380&width=400", "Le Visage", "10 €", "Les yeux, le nez, la bouche, les oreilles, les cheveux, les mains"), tile("p2", "https://mon-vrai-2.myshopify.com/cdn/shop/files/1FBF7100-A70C-45B6-9302-39F80D3C98DA.png?v=1788622633&width=400", "Les Vêtements", "10 €", "Le body, le t-shirt, le pantalon, la culotte, les chaussettes, les chaussons")]), `10px ${COLPAD}px 0`)}
-${sect(`${btn(c, "cta", "Découvrir la série Moi", c.base)}${gap(10)}${T(c, "ctaNote", "Les deux titres : 20 €, expédiés ensemble dès le 25 décembre", `font-size:12px;color:${SUBTLE};font-weight:600`)}`, "28px 40px 0", true)}
-${footer(c)}`);
-}
-
-function tplPrecommande(c: RenderCtx): string {
-  const step = (n: string, bg: string, ink: string, body: string) =>
-    `<table ${TBL} width="100%"><tr><td width="28" valign="top" style="width:28px"><table ${TBL}><tr><td bgcolor="${bg}" width="28" height="28" align="center" style="width:28px;height:28px;line-height:28px;border-radius:999px;background:${bg};color:${ink};font-size:12px;font-weight:800;text-align:center">${n}</td></tr></table></td><td width="16" style="width:16px">&nbsp;</td><td valign="top" style="font-size:14px;line-height:1.5;color:#444">${body}</td></tr></table>`;
-  return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €", "precommande")}${logo(c)}
-${sect(panel(`${eyebrow(c, "eyebrow", "Précommandes ouvertes", GREEN)}${T(c, "title", "Réservez vos imagiers, on s'occupe du reste.", "margin:16px 0;font-size:42px;line-height:1.02;font-weight:800;letter-spacing:-.02em;display:block;color:#fff", "h1")}${T(c, "intro", "Les neuf titres sont en fabrication. Précommandez aujourd'hui, nous expédions tout dans un seul colis à partir du 25 décembre.", "margin:0 0 16px;font-size:15px;line-height:1.6;color:#BBB;display:block", "p")}${btn(c, "cta", "Précommander", c.base, false)}`, INK, "40px 36px", 28, true, ";color:#fff"), `24px ${PAD}px 0`)}
-${sect(imgBox(c, "hero", "", { w: 552, h: 420, pos: "50% 65%", radius: 28 }), `10px ${PAD}px 0`)}
-${sect(panel(`${T(c, "stepsTitle", "Comment ça marche", "font-size:16px;font-weight:800;display:block;margin-bottom:16px")}${step("1", GREEN, GREEN_INK, T(c, "step1", "Vous précommandez — paiement à la commande, code promo cumulable.", ""))}${gap(12)}${step("2", BLUE, BLUE_INK, T(c, "step2", "Nous fabriquons — cartonné, papier FSC, encre de soja, en Europe.", ""))}${gap(12)}${step("3", SAND, SAND_INK, T(c, "step3", "Nous expédions dès le 25 décembre — un seul colis, suivi par e-mail, point relais ou domicile.", ""))}`, "#fff", "28px", 24), `10px ${PAD}px 0`)}
-${sect(linkT(c, "link", "Voir les 9 titres →", c.base, "font-size:13px;font-weight:700;border-bottom:1.5px solid #111;color:#111;text-decoration:none"), "28px 40px 0", true)}
-${footer(c)}`);
-}
-
-function tplOffre(c: RenderCtx): string {
-  // La carte de l'offre chevauchait la photo d'un cran (marge négative) : aucune messagerie
-  // ne l'accepte, et Gmail la retire purement. Elle est posée juste dessous.
-  return card(`${topbar(c, "topnote", "Offre valable jusqu'au dimanche 21 septembre", "offre")}${logo(c)}
-${sect(imgBox(c, "hero", "", { w: 552, h: 440, pos: "50% 60%", radius: 28 }), `24px ${PAD}px 0`)}
-${sect(panel(`${eyebrow(c, "eyebrow", "Offre collection", SAND_INK)}${T(c, "title", "Les 9 imagiers,<br>Le Visage offert.", "margin:12px 0;font-size:38px;line-height:1.02;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Complétez la collection : dès 80 € dans le panier, le neuvième livre est ajouté gratuitement.", `margin:0;font-size:14px;line-height:1.55;color:${SAND_INK};display:block`, "p")}${gap(14)}${T(c, "codeLabel", "Votre code", `font-size:11px;font-weight:700;color:${SAND_INK};display:block;margin-bottom:6px`)}${T(c, "code", "COLLECTION", "background:#fff;padding:14px 20px;border-radius:14px;font-size:22px;font-weight:800;letter-spacing:.1em;display:inline-block")}${gap(14)}${btn(c, "cta", "J'en profite", c.base)}`, SAND, "32px 24px", 24, true), `10px ${PAD}px 0`)}
-${sect(`${T(c, "body", "Neuf thèmes, six illustrations réalistes chacun : les animaux, les fruits et légumes, les objets de la maison, les véhicules, le visage et les vêtements. De quoi nommer presque tout le quotidien d'un enfant de 6 à 18 mois.", "margin:0 0 12px;font-size:14px;line-height:1.6;color:#555;display:block", "p")}${T(c, "terms", "Cumulable avec la livraison offerte. Jusqu'au 21 septembre, 23h59.", `font-size:12px;color:${SUBTLE};font-weight:600`)}`, "32px 40px 0", true)}
-${sect(cols([imgBox(c, "g1", "", { w: 271, h: 240 }), imgBox(c, "g2", "", { w: 271, h: 240 })]), `28px ${COLPAD}px 0`)}
-${footer(c)}`);
-}
-
-function tplRetourStock(c: RenderCtx): string {
-  // Colonne de droite : la photo (195) + 10 px + le panneau (155 + 2 × 20 de rembourrage)
-  // font les 400 px de la photo de gauche. Deux `inline-block` ne s'alignent pas seuls.
-  const right = `${imgBox(c, "g2", "", { w: 236, h: 195, pos: "50% 80%" })}${gap(10)}${panel(`${T(c, "insideLabel", "Dedans", `font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${SAND_INK};display:block;margin-bottom:6px`)}${T(c, "inside", "Les haricots, le poireau, la courge, le chou-fleur, le brocoli, la carotte", `font-size:13px;font-weight:600;line-height:1.5;color:${SAND_INK}`)}`, SAND, "20px", 20, false, ";height:155px", "nl-flexh")}`;
-  // Le titre et l'achat sont deux colonnes, pas quatre cellules d'une même ligne : sur un
-  // téléphone, une ligne de tableau ne se replie pas et forçait l'e-mail hors de l'écran.
-  const prodInfo = `<table ${TBL} width="100%"><tr><td width="72" valign="middle" style="width:72px">${panel(imgProduct(c, "product", "https://mon-vrai-2.myshopify.com/cdn/shop/files/7235B3F0-A987-4357-B101-FAEAA1DCB73E.png?v=1788622635&width=200", 43, 4, ";box-shadow:0 6px 14px rgba(0,0,0,.12)"), SAND, "14px", 16, true)}</td><td width="20" style="width:20px">&nbsp;</td><td valign="middle">${T(c, "prodName", "Les Légumes", "font-size:16px;font-weight:800;display:block;margin-bottom:4px")}${T(c, "prodMeta", "6–18 mois · 14 × 14 cm · en stock, expédié sous 48 h", `font-size:12px;color:${SUBTLE};font-weight:600`)}</td></tr></table>`;
-  const prodAchat = `<div style="text-align:right">${T(c, "price", "10 €", "font-size:20px;font-weight:800;display:block;margin-bottom:8px")}${btn(c, "cta", "Commander", c.base)}</div>`;
-  const prodRow = cols([prodInfo, prodAchat], [330, 166]);
-  return card(`${topbar(c, "topnote", "Livraison offerte dès 30 €", "retour-stock")}${logo(c)}
-${sect(`${T(c, "badge", "De retour en stock", `background:${GREEN};color:${GREEN_INK};border-radius:999px;padding:8px 14px;font-size:12px;font-weight:700;display:inline-block`)}${T(c, "title", "Les Légumes sont revenus.", "margin:12px 0;font-size:38px;line-height:1.04;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "intro", "Épuisé en trois semaines, le titre préféré des mangeurs de chou-fleur est réimprimé. Cette fois, on a vu plus large.", "margin:0;font-size:15px;line-height:1.6;color:#555;display:block", "p")}`, "24px 40px 0", true)}
-${sect(cols([imgBox(c, "g1", "", { w: 306, h: 400, radius: 24 }), right], [316, 246]), `28px ${COLPAD}px 0`)}
-${sect(panel(prodRow, "#fff", "24px 28px", 24), `10px ${PAD}px 0`)}
-${sect(T(c, "note", "Vous l'aviez demandé par e-mail ? Vous êtes les premiers prévenus — le stock est limité.", `font-size:13px;color:${SUBTLE};font-weight:600`), "28px 40px 0", true)}
-${footer(c)}`);
-}
-
-function tplCoulisses(c: RenderCtx): string {
-  return card(`${topbar(c, "topnote", "Coulisses · n° 1", "coulisses")}${logo(c)}
-${sect(imgBox(c, "hero", "", { w: 552, h: 440, radius: 28 }), `24px ${PAD}px 0`)}
-${sect(`${eyebrow(c, "eyebrow", "Coulisses", SUBTLE)}${T(c, "title", "Pourquoi une pomme, une vraie.", "margin:14px 0 18px;font-size:36px;line-height:1.08;font-weight:800;letter-spacing:-.02em;display:block", "h1")}${T(c, "p1", "Tout a commencé par une pomme posée à côté d'un livre. Sur la page, une pomme dessinée, rouge, brillante, avec un sourire. Dans la main, une pomme un peu jaune, un peu tachée. L'enfant regardait l'une, puis l'autre, et ne faisait pas le lien.", "margin:0 0 18px;font-size:16px;line-height:1.7;color:#444;display:block", "p")}${T(c, "p2", "On a voulu un livre où ce lien se fait tout seul. Une illustration réaliste, isolée sur fond blanc, sans texte ni décor. Rien qui détourne le regard. Juste la chose, et son nom, dit par vous.", "margin:0;font-size:16px;line-height:1.7;color:#444;display:block", "p")}`, "32px 48px 0")}
-${sect(cols([imgBox(c, "g1", "", { w: 271, h: 320 }), imgBox(c, "g2", "", { w: 271, h: 320 })]), `28px ${COLPAD}px 0`)}
-${sect(`${T(c, "p3", "Chaque illustration réaliste est faite en studio, avec de vrais objets : la cuillère de la cuisine, le savon de la salle de bain, la chaise haute. On les choisit ordinaires, pour qu'ils ressemblent à ceux de chez vous.", "margin:0 0 18px;font-size:16px;line-height:1.7;color:#444;display:block", "p")}${panel(`${T(c, "quote", "« Il a posé sa main sur la cuillère de la page, puis a cherché la vraie sur la table. »", "font-size:18px;font-weight:800;letter-spacing:-.01em;line-height:1.3;display:block;margin-bottom:6px")}${T(c, "quoteBy", "Une maman, à la crèche des Petits Pas", `font-size:12px;font-weight:600;color:${GREEN_INK}`)}`, GREEN, "24px 28px", 20)}`, "28px 48px 0")}
-${sect(`${btn(c, "cta", "Lire notre histoire", c.base)}&nbsp;${btn(c, "cta2", "Voir les imagiers", c.base, false)}`, "32px 40px 0", true)}
-${footer(c)}`);
-}
-
 /** Identifiant du gabarit d'invitation. Absent de NEWSLETTER_TEMPLATES : il ne se
  *  compose pas dans l'onglet Newsletter mais dans l'onglet Influenceurs. */
 export const PARTNER_WELCOME_ID = "partenaire-bienvenue";
@@ -570,13 +454,6 @@ ${footerPlain(c)}`);
 const BUILDERS: Record<string, (c: RenderCtx) => string> = {
   [PARTNER_WELCOME_ID]: tplPartenaireBienvenue,
   "on-revient": tplOnRevient,
-  "nouveau-livre": tplNouveauLivre,
-  "nouveau-produit": tplNouveauProduit,
-  "nouvelle-categorie": tplNouvelleCategorie,
-  precommande: tplPrecommande,
-  offre: tplOffre,
-  "retour-stock": tplRetourStock,
-  coulisses: tplCoulisses,
 };
 
 /** Corps du modèle (carte 600 px), en mode « email » (propre) ou « edit » (éditable). */

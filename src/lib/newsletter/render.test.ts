@@ -23,8 +23,8 @@ describe("boutons de newsletter", () => {
   });
 
   it("propose le bouton 🔗 seulement en édition", () => {
-    expect(renderTemplateBody("coulisses", ctx("edit"))).toContain('class="nl-linkbtn" data-k="cta2"');
-    expect(renderTemplateBody("coulisses", ctx("email"))).not.toContain("nl-linkbtn");
+    expect(renderTemplateBody("on-revient", ctx("edit"))).toContain('class="nl-linkbtn" data-k="cta"');
+    expect(renderTemplateBody("on-revient", ctx("email"))).not.toContain("nl-linkbtn");
   });
 });
 
@@ -115,7 +115,7 @@ describe("compatibilité messagerie", () => {
 
   it("garde l'aperçu éditable et l'e-mail sur la même ossature", () => {
     const values = { "img:g1": "https://monvrai.fr/a.jpg" };
-    const edit = renderTemplateBody("coulisses", ctx("edit", values));
+    const edit = renderTemplateBody("on-revient", ctx("edit", values));
     // Les crayons et les zones éditables sont le seul ajout du mode édition.
     expect(edit).toContain("nl-pencil");
     expect(edit.replace(/<button[\s\S]*?<\/button>/g, "")).toContain("<table role=\"presentation\"");
@@ -146,7 +146,7 @@ describe("recadrage des images", () => {
   });
 
   it("ne réclame rien pour un emplacement vide", () => {
-    expect(collectCrops("coulisses", ctx("email"))).toHaveLength(0);
+    expect(collectCrops(PARTNER_WELCOME_ID, ctx("email"))).toHaveLength(0);
   });
 });
 
@@ -159,8 +159,7 @@ describe("recadrage des images", () => {
 describe("colonnes sur écran étroit", () => {
   const ids = [...NEWSLETTER_TEMPLATES.map((t) => t.id), PARTNER_WELCOME_ID];
 
-  // « precommande » ne met rien en colonnes : le test vaut pour ce qu'il y a, et la
-  // présence de colonnes est vérifiée une fois pour toutes juste après.
+  // Un modèle sans colonnes passe le test à vide : leur présence est vérifiée juste après.
   it.each(ids)("« %s » centre ses colonnes repliées sans déplacer leur contenu", (id) => {
     const html = renderTemplateBody(id, ctx("email"));
     for (const w of html.match(/<div style="font-size:0;line-height:0[^"]*"/g) ?? []) expect(w, w).toContain("text-align:center");
@@ -179,7 +178,7 @@ describe("colonnes sur écran étroit", () => {
     // et l'écart entre deux rangées, sinon l'espacement saute d'un cran sur deux.
     expect(RESPONSIVE_CSS).toContain(".nl-colgap{ padding-bottom:10px !important; }");
     // La dernière colonne n'ajoute rien sous elle : la section s'en charge.
-    const html = renderTemplateBody("coulisses", ctx("email"));
+    const html = renderTemplateBody("on-revient", ctx("email"));
     expect((html.match(/class="nl-col nl-colgap"/g) ?? []).length).toBe((html.match(/class="nl-col"/g) ?? []).length);
   });
 
@@ -193,19 +192,15 @@ describe("colonnes sur écran étroit", () => {
     expect(hauteurs).toEqual(["10"]);
   });
 
-  it("laisse l'image suivre sa colonne, et la couverture détourée garder sa taille", () => {
+  it("laisse l'image suivre sa colonne", () => {
     expect(RESPONSIVE_CSS).toContain(".nl-fluid{ max-width:100% !important; }");
-    const html = renderTemplateBody("nouveau-livre", ctx("email", { "img:g1": "https://monvrai.fr/a.jpg" }));
+    const html = renderTemplateBody("on-revient", ctx("email", { "img:p1": "https://monvrai.fr/a.jpg" }));
     expect(html).toContain('<img class="nl-fluid" src="https://monvrai.fr/a.jpg"');
-    // La couverture posée sur un aplat n'est pas recadrée : l'étirer la déformerait.
-    expect(html).toMatch(/<img src="[^"]*E7356459[^"]*" width="260"/);
   });
 
   it("libère les hauteurs posées pour aligner deux colonnes", () => {
     expect(RESPONSIVE_CSS).toContain(".nl-flexh{ height:auto !important; }");
-    for (const id of ["nouveau-produit", "retour-stock", PARTNER_WELCOME_ID]) {
-      expect(renderTemplateBody(id, ctx("email")), id).toMatch(/class="nl-flexh" style="[^"]*;height:\d+px/);
-    }
+    expect(renderTemplateBody(PARTNER_WELCOME_ID, ctx("email"))).toMatch(/class="nl-flexh" style="[^"]*;height:\d+px/);
   });
 
   it("réduit aussi le titre d'un héros, qui n'est pas un <h1>", () => {
