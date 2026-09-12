@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { KitOrderForm } from "@/components/site/KitOrderForm";
 import { Eyebrow } from "@/components/site/ui";
-import { orderPartnerKitAction } from "@/lib/auth/partner-actions";
+import { orderPartnerKitAction, signAndOrderKitAction } from "@/lib/auth/partner-actions";
 import { requireInfluencer } from "@/lib/auth/session";
 import { getMapToken } from "@/lib/boxtal/client";
 import { partnerKitSnapshot } from "@/lib/db/partner";
@@ -12,6 +12,10 @@ import { getSettings } from "@/lib/db/settings";
 import { shippingOptions } from "@/lib/checkout/quote";
 import { bracketIndexForWeight } from "@/lib/shipping/tariffs";
 import { kitWeightG } from "@/lib/promos/kit";
+import { getContract } from "@/lib/db/contracts";
+import { COLLABORATION_LABELS } from "@/lib/domain/types";
+import { formatEuro } from "@/lib/domain/money";
+import type { ContractView } from "@/components/site/ContractDialog";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Commander mon kit" };
@@ -42,6 +46,24 @@ export default async function PartnerKitPage() {
   }));
   const mapToken = await getMapToken().catch(() => null);
 
+  /*
+   * Le contrat n'est demandé qu'une fois : un partenaire qui a déjà signé commande
+   * directement. Le contenu envoyé au navigateur est celui du contrat en base, tel
+   * qu'il sera figé dans la signature.
+   */
+  const contract = influencer.signatureId ? null : await getContract(influencer.contractId);
+  const view: ContractView | undefined = contract
+    ? {
+        name: contract.name,
+        version: contract.version,
+        typeLabel: COLLABORATION_LABELS[contract.type],
+        summary: contract.summary,
+        body: contract.body,
+        products: kit.items.map((i) => ({ title: i.title, qty: i.qty, value: formatEuro(i.unitValue * i.qty) })),
+        totalValue: formatEuro(kit.items.reduce((sum, i) => sum + i.unitValue * i.qty, 0)),
+      }
+    : undefined;
+
   return (
     <section className="site-wrap flex flex-col gap-6 py-4 pb-20">
       <div className="flex flex-col gap-2">
@@ -53,7 +75,15 @@ export default async function PartnerKitPage() {
       </div>
 
       <div className="grid grid-cols-[1fr_360px] items-start gap-4 max-[899px]:grid-cols-1">
-        <KitOrderForm name={influencer.name} countries={settings.shipping.countries} options={options} mapToken={mapToken} action={orderPartnerKitAction} />
+        <KitOrderForm
+          name={influencer.name}
+          countries={settings.shipping.countries}
+          options={options}
+          mapToken={mapToken}
+          action={orderPartnerKitAction}
+          contract={view}
+          signAction={view ? signAndOrderKitAction : undefined}
+        />
 
         <aside className="flex flex-col gap-3 rounded-card bg-tint-green p-7">
           <span className="text-base font-extrabold">Ce que vous recevez</span>

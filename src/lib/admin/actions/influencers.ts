@@ -16,7 +16,7 @@ import { statementRows } from "@/lib/promos/statements";
 import { now } from "@/lib/db/helpers";
 import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
 import { slugify } from "@/lib/domain/slug";
-import { Platform } from "@/lib/domain/types";
+import { CollaborationType, Platform } from "@/lib/domain/types";
 
 const Input = z.object({
   id: z.string().default(""),
@@ -31,6 +31,15 @@ const Input = z.object({
   email: z.string().trim().default(""),
   endAt: z.string().trim().default(""),
   active: z.boolean().default(true),
+  collaborationType: CollaborationType.default("UGC"),
+  /** Contrat à signer avant de recevoir le kit ; vide : aucun. */
+  contractId: z.string().trim().default(""),
+  igHandle: z.string().trim().max(80).default(""),
+  igUrl: z.string().trim().max(300).default(""),
+  ttHandle: z.string().trim().max(80).default(""),
+  ttUrl: z.string().trim().max(300).default(""),
+  fbHandle: z.string().trim().max(80).default(""),
+  fbUrl: z.string().trim().max(300).default(""),
 });
 
 export async function saveInfluencerAction(formData: FormData): Promise<AdminResult> {
@@ -65,6 +74,13 @@ export async function saveInfluencerAction(formData: FormData): Promise<AdminRes
     email: d.email,
     endAt,
     active: d.active,
+    collaborationType: d.collaborationType,
+    contractId: d.contractId,
+    socials: {
+      instagram: { handle: d.igHandle, url: d.igUrl },
+      tiktok: { handle: d.ttHandle, url: d.ttUrl },
+      facebook: { handle: d.fbHandle, url: d.fbUrl },
+    },
   });
   await audit(user.email, existing ? "influencer.update" : "influencer.create", `influencers/${saved_.id}`, `${saved_.name} · ${code}`);
   revalidatePath("/admin/influenceurs");

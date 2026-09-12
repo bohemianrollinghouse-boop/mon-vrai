@@ -12,7 +12,9 @@ import type { ImageRef, OrderLine, Product, WelcomeKit } from "@/lib/domain/type
  * la même chose — et qu'un produit dépublié disparaisse des deux côtés à la fois.
  */
 
-export type KitItem = { slug: string; title: string; qty: number; image?: ImageRef; weightG: number };
+/* `unitValue` est le prix de vente du jour : c'est la valeur commerciale de l'avantage
+   en nature, qui doit figurer au contrat et y être figée à la signature. */
+export type KitItem = { slug: string; title: string; qty: number; image?: ImageRef; weightG: number; unitValue: number };
 
 /** Les articles du kit, dans l'ordre choisi, en ignorant les produits disparus. */
 export function kitItems(kit: WelcomeKit, products: Product[]): KitItem[] {
@@ -20,7 +22,7 @@ export function kitItems(kit: WelcomeKit, products: Product[]): KitItem[] {
   return kit.lines.flatMap((line) => {
     const product = bySlug.get(line.slug);
     if (!product) return [];
-    return [{ slug: product.slug, title: product.title, qty: line.qty, image: product.images[0], weightG: product.weightG }];
+    return [{ slug: product.slug, title: product.title, qty: line.qty, image: product.images[0], weightG: product.weightG, unitValue: product.price }];
   });
 }
 

@@ -902,6 +902,139 @@ export type WelcomeKit = z.infer<typeof WelcomeKit>;
 
 const EMPTY_KIT: WelcomeKit = { enabled: false, title: "Votre kit de bienvenue", text: "", lines: [], deductStock: false, prototype: false };
 
+/* ---------- Collaborations et contrats ---------- */
+
+/*
+ * Type de collaboration. Il détermine quel contrat s'affiche au partenaire : il ne le
+ * choisit pas, c'est l'administration qui l'attribue. La liste est ouverte — d'autres
+ * formes viendront (gifting, ambassadeur) sans rien changer au reste.
+ */
+export const CollaborationType = z.enum(["UGC", "INFLUENCE", "GIFTING", "AMBASSADEUR"]);
+export type CollaborationType = z.infer<typeof CollaborationType>;
+
+export const COLLABORATION_LABELS: Record<CollaborationType, string> = {
+  UGC: "UGC",
+  INFLUENCE: "Influence",
+  GIFTING: "Gifting",
+  AMBASSADEUR: "Ambassadeur",
+};
+
+/** Un compte social : le pseudo tel qu'il s'écrit, et l'adresse pour y aller. */
+export const SocialAccount = z.object({
+  handle: z.string().trim().max(80).default(""),
+  url: z.string().trim().max(300).default(""),
+});
+export type SocialAccount = z.infer<typeof SocialAccount>;
+
+export const PartnerSocials = z.object({
+  instagram: SocialAccount.default({ handle: "", url: "" }),
+  tiktok: SocialAccount.default({ handle: "", url: "" }),
+  facebook: SocialAccount.default({ handle: "", url: "" }),
+});
+export type PartnerSocials = z.infer<typeof PartnerSocials>;
+
+const EMPTY_SOCIALS: PartnerSocials = {
+  instagram: { handle: "", url: "" },
+  tiktok: { handle: "", url: "" },
+  facebook: { handle: "", url: "" },
+};
+
+/*
+ * Un contrat de collaboration, tel qu'il est rédigé dans l'administration.
+ *
+ * Il n'est JAMAIS réécrit en place une fois signé : une modification donne une nouvelle
+ * version (« UGC-2026-10-v2 »), et qui a signé la v1 reste lié à la v1. C'est aussi
+ * pourquoi la signature garde une copie figée du texte (voir ContractSignature).
+ */
+export const Contract = z.object({
+  id: z.string(),
+  name: z.string().min(1).max(120),
+  type: CollaborationType,
+  /** Référence de version, montrée au signataire : « UGC-2026-09-v1 ». */
+  version: z.string().trim().min(1).max(40),
+  /*
+   * Encart « Votre collaboration » : les engagements en clair, au-dessus du contrat.
+   * Personne ne lit un contrat en entier ; le résumé ne le remplace pas pour autant.
+   */
+  summary: z.string().max(8000).default(""),
+  /** Le contrat intégral, en texte (les paragraphes sont séparés par des lignes vides). */
+  body: z.string().max(200000).default(""),
+  /** Retiré : plus attribuable à personne, mais les signatures passées subsistent. */
+  active: z.boolean().default(true),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Contract = z.infer<typeof Contract>;
+
+/** Statut déclaré par le signataire : le SIRET n'est exigé que d'un professionnel. */
+export const SignerStatus = z.enum(["individual", "sole_trader", "company"]);
+export type SignerStatus = z.infer<typeof SignerStatus>;
+
+/*
+ * Acceptation d'un contrat — la preuve, et non un simple drapeau.
+ *
+ * Tout y est FIGÉ au moment de la signature : le texte du contrat, les produits offerts
+ * et leur valeur du jour, les coordonnées déclarées. Une hausse de prix ou une refonte
+ * du contrat, plus tard, ne doit rien changer à ce qui a été accepté. L'empreinte
+ * (SHA-256 du texte figé) permet de vérifier que la copie conservée n'a pas bougé.
+ */
+export const ContractSignature = z.object({
+  id: z.string(),
+  influencerId: z.string(),
+  contractId: z.string(),
+  contractName: z.string().default(""),
+  contractType: CollaborationType,
+  contractVersion: z.string().default(""),
+
+  firstName: z.string().min(1).max(80),
+  lastName: z.string().min(1).max(80),
+  email: z.string().trim().max(160).default(""),
+  address: Address,
+  /** Pays de résidence fiscale, code ISO à deux lettres. */
+  taxCountry: z.string().length(2).default("FR"),
+  status: SignerStatus,
+  companyName: z.string().trim().max(160).default(""),
+  siret: z.string().trim().max(20).default(""),
+  vatNumber: z.string().trim().max(20).default(""),
+  socials: PartnerSocials.default(EMPTY_SOCIALS),
+
+  /** Les livres offerts et leur valeur commerciale au jour de la signature. */
+  products: z
+    .array(z.object({ slug: z.string(), title: z.string(), qty: z.number().int().min(1), unitValue: Cents }))
+    .default([]),
+  /** Valeur totale de l'avantage en nature, en centimes, figée elle aussi. */
+  totalValue: Cents.default(0),
+
+  /** Les attestations cochées, une par une : « accepté » ne se résume pas à un booléen. */
+  checks: z
+    .object({
+      adult: z.boolean().default(false),
+      readAll: z.boolean().default(false),
+      acceptedContract: z.boolean().default(false),
+      accurate: z.boolean().default(false),
+      inKind: z.boolean().default(false),
+      childNotRequired: z.boolean().default(false),
+      childAuthorisation: z.boolean().default(false),
+    })
+    .default({ adult: false, readAll: false, acceptedContract: false, accurate: false, inKind: false, childNotRequired: false, childAuthorisation: false }),
+  /** Consentement marketing, séparé et facultatif : il ne conditionne jamais la signature. */
+  newsletterOptIn: z.boolean().default(false),
+
+  /** Nom saisi par le signataire, qui vaut acceptation. */
+  signerTypedName: z.string().min(1).max(160),
+  /** Copie figée du résumé et du contrat, tels qu'affichés au signataire. */
+  summarySnapshot: z.string().default(""),
+  bodySnapshot: z.string().default(""),
+  /** SHA-256 de la copie figée : de quoi prouver qu'elle n'a pas changé. */
+  contractHash: z.string().default(""),
+
+  acceptedAt: z.number(),
+  ip: z.string().default(""),
+  userAgent: z.string().default(""),
+});
+export type ContractSignature = z.infer<typeof ContractSignature>;
+
+
 export const Influencer = z.object({
   id: z.string(),
   name: z.string().min(1).max(80),
@@ -948,6 +1081,17 @@ export const Influencer = z.object({
   kitOrderId: z.string().default(""),
   /** Note interne, visible des seuls administrateurs : jamais montrée au partenaire. */
   note: z.string().max(2000).default(""),
+  /*
+   * Ses comptes : renseignés par l'administration à la création, et modifiables par le
+   * partenaire lui-même depuis son espace — c'est lui qui les connaît.
+   */
+  socials: PartnerSocials.default(EMPTY_SOCIALS),
+  /** Forme de la collaboration, décidée par l'administration. */
+  collaborationType: CollaborationType.default("UGC"),
+  /** Contrat qu'il doit signer ; vide : aucun contrat exigé. */
+  contractId: z.string().default(""),
+  /** Signature en cours de validité, s'il a signé (voir ContractSignature). */
+  signatureId: z.string().default(""),
   createdAt: z.number(),
   updatedAt: z.number(),
 });

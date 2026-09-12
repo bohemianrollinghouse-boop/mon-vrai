@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { RelayPicker, type Relay } from "@/components/checkout/RelayPicker";
 import { AddressAutocomplete } from "@/components/checkout/AddressAutocomplete";
+import { ContractDialog, type ContractView } from "@/components/site/ContractDialog";
 import type { PartnerResult } from "@/lib/auth/partner-actions";
 
 /*
@@ -33,12 +34,17 @@ export function KitOrderForm({
   options,
   mapToken,
   action,
+  contract,
+  signAction,
 }: {
   name: string;
   countries: string[];
   options: KitShippingOption[];
   mapToken: string | null;
   action: (fd: FormData) => Promise<PartnerResult>;
+  /** Contrat à signer avant de recevoir le kit ; absent : rien à signer. */
+  contract?: ContractView;
+  signAction?: (fd: FormData) => Promise<PartnerResult>;
 }) {
   const router = useRouter();
   const [country, setCountry] = useState(countries[0] ?? "FR");
@@ -47,18 +53,48 @@ export function KitOrderForm({
   const [form, setForm] = useState({ name, line1: "", line2: "", postalCode: "", city: "", phone: "" });
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  /* Adresse remplie ici, contrat signé par-dessus : un seul geste au bout du compte. */
+  const [contractOpen, setContractOpen] = useState(false);
+  const pendingForm = useRef<FormData | null>(null);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const option = options.find((o) => o.id === rateId) ?? options[0];
 
-  const submit = (fd: FormData) =>
+  /* L'adresse et le mode de livraison, communs aux deux chemins. */
+  const withDelivery = (fd: FormData) => {
+    fd.set("country", country);
+    fd.set("rateId", rateId);
+    fd.set("relay", option?.relay && relay ? JSON.stringify(relay) : "");
+    return fd;
+  };
+
+  const submit = (fd: FormData) => {
+    setError(null);
+    withDelivery(fd);
+    /*
+     * Avec contrat, l'envoi du formulaire n'envoie rien : il ouvre le contrat. C'est
+     * son bouton qui vaut commande — « Accepter le contrat et confirmer ma commande ».
+     */
+    if (contract && signAction) {
+      pendingForm.current = fd;
+      setContractOpen(true);
+      return;
+    }
     start(async () => {
-      setError(null);
-      fd.set("country", country);
-      fd.set("rateId", rateId);
-      fd.set("relay", option?.relay && relay ? JSON.stringify(relay) : "");
       const result = await action(fd);
       // Succès : la page partenaire affiche désormais le suivi à la place du bon de commande.
+      if (result.ok) router.push("/partenaire#kit");
+      else setError(result.error);
+    });
+  };
+
+  /* Le contrat rend ses champs ; on les ajoute à l'adresse déjà saisie. */
+  const accept = (signature: FormData) =>
+    start(async () => {
+      setError(null);
+      const fd = pendingForm.current ?? withDelivery(new FormData());
+      for (const [k, v] of signature.entries()) fd.set(k, v);
+      const result = await signAction!(fd);
       if (result.ok) router.push("/partenaire#kit");
       else setError(result.error);
     });
@@ -162,9 +198,16 @@ export function KitOrderForm({
       {error && <p className="rounded-[14px] bg-tint-pink px-5 py-4 text-[0.8125rem] font-semibold text-tint-pink-ink">{error}</p>}
 
       <button type="submit" disabled={pending} className="w-fit rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white disabled:opacity-50">
-        {pending ? "Envoi…" : "Valider ma commande"}
+        {pending ? "Envoi…" : contract ? "Lire et signer le contrat" : "Valider ma commande"}
       </button>
-      <span className="text-xs text-subtle">Aucun paiement : le kit est offert, frais de port compris.</span>
+      <span className="text-xs text-subtle">
+        Aucun paiement : le kit est offert, frais de port compris.
+        {contract && " Le contrat de collaboration s'ouvrira à l'étape suivante."}
+      </span>
+
+      {contractOpen && contract && (
+        <ContractDialog contract={contract} onClose={() => setContractOpen(false)} onAccept={accept} pending={pending} error={error} />
+      )}
     </form>
   );
 }

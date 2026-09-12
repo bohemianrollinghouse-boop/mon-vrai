@@ -1,6 +1,6 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
-import { Influencer, Promo, RefClicks, type WelcomeKit } from "@/lib/domain/types";
+import { Influencer, Promo, RefClicks, type CollaborationType, type PartnerSocials, type WelcomeKit } from "@/lib/domain/types";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
 /*
@@ -92,7 +92,7 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId"
 > & {
   id?: string;
   uid?: string;
@@ -102,6 +102,10 @@ export type InfluencerInput = Omit<
   kitOrderId?: string;
   kit?: WelcomeKit;
   note?: string;
+  socials?: PartnerSocials;
+  collaborationType?: CollaborationType;
+  contractId?: string;
+  signatureId?: string;
 };
 
 /** Crée ou met à jour l'influenceur et son code promo (remise en pourcentage, cumulable avec rien par défaut). */
@@ -120,6 +124,10 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     kitOrderId: input.kitOrderId ?? existing?.kitOrderId ?? "",
     kit: input.kit ?? existing?.kit,
     note: input.note ?? existing?.note ?? "",
+    socials: input.socials ?? existing?.socials,
+    collaborationType: input.collaborationType ?? existing?.collaborationType,
+    contractId: input.contractId ?? existing?.contractId ?? "",
+    signatureId: input.signatureId ?? existing?.signatureId ?? "",
     inviteToken: existing?.inviteToken ?? "",
     inviteExpiresAt: existing?.inviteExpiresAt,
     createdAt: existing?.createdAt ?? now(),

@@ -3,13 +3,16 @@ import { notFound } from "next/navigation";
 import { CopyValue } from "@/components/site/CopyValue";
 import { IbanForm } from "@/components/site/IbanForm";
 import { PartnerKitBlock } from "@/components/site/PartnerKitBlock";
+import { SocialsForm } from "@/components/site/SocialsForm";
 import { TrackingLink } from "@/components/site/TrackingLink";
-import { savePartnerIbanAction } from "@/lib/auth/partner-actions";
+import { savePartnerIbanAction, savePartnerSocialsAction } from "@/lib/auth/partner-actions";
 import { maskIban, monthLabel } from "@/lib/promos/statements";
 import { Eyebrow, PillLink } from "@/components/site/ui";
 import { requireInfluencer } from "@/lib/auth/session";
 import { partnerSnapshot } from "@/lib/db/partner";
 import { getInfluencerByUid } from "@/lib/db/promos";
+import { getSignature } from "@/lib/db/contracts";
+import { COLLABORATION_LABELS } from "@/lib/domain/types";
 import { formatEuro } from "@/lib/domain/money";
 import { PARTNER_PERIODS, type PartnerPeriod } from "@/lib/promos/partner";
 
@@ -33,7 +36,7 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   if (!influencer) notFound();
 
   const period = (PARTNER_PERIODS.some((p) => p.key === sp.periode) ? sp.periode : "30") as PartnerPeriod;
-  const { view, statements, kit } = await partnerSnapshot(influencer, period);
+  const [{ view, statements, kit }, signature] = await Promise.all([partnerSnapshot(influencer, period), getSignature(influencer.signatureId)]);
 
   // L'origine configurée, pas un protocole deviné : en local le site n'est pas en https.
   const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
@@ -184,6 +187,43 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
             </span>
           </div>
         )}
+      </div>
+
+      {/* ---------- Ma collaboration, et mes réseaux ---------- */}
+      <div className="mt-6 grid grid-cols-2 items-start gap-4 max-[899px]:grid-cols-1">
+        {signature ? (
+          <div className="flex flex-col gap-2.5 rounded-card bg-white p-7 text-[0.8125rem]">
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <span className="text-base font-extrabold">Ma collaboration</span>
+              <span className="rounded-pill bg-tint-green px-3 py-1.5 text-[0.6875rem] font-bold text-tint-green-ink">Contrat accepté</span>
+            </div>
+            <span className="text-subtle">
+              {COLLABORATION_LABELS[signature.contractType]} · {signature.contractName}
+            </span>
+            <span className="text-subtle">
+              Accepté le {new Date(signature.acceptedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} · version{" "}
+              {signature.contractVersion}
+            </span>
+            {signature.summarySnapshot.trim() && (
+              <ul className="mt-1 flex flex-col gap-1 border-t border-line-soft pt-2.5 leading-relaxed">
+                {signature.summarySnapshot
+                  .split("\n")
+                  .map((l) => l.trim())
+                  .filter(Boolean)
+                  .map((line, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span aria-hidden="true">·</span>
+                      <span>{line}</span>
+                    </li>
+                  ))}
+              </ul>
+            )}
+            <span className="text-xs text-subtle">Référence {signature.id}</span>
+          </div>
+        ) : (
+          <span />
+        )}
+        <SocialsForm socials={influencer.socials} action={savePartnerSocialsAction} />
       </div>
 
       {/* ---------- Relevés et kit ---------- */}

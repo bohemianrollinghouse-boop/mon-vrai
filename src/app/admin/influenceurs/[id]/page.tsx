@@ -19,10 +19,11 @@ import { adminSnapshot } from "@/lib/admin/counts";
 import { findKitOrder } from "@/lib/db/orders";
 import { influencerAccount } from "@/lib/db/influencer-account";
 import { listAllProducts } from "@/lib/db/products";
+import { getSignature, listContracts } from "@/lib/db/contracts";
 import { getInfluencer, listRefClicksSince } from "@/lib/db/promos";
 import { listStatements } from "@/lib/db/statements";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
-import { Platform } from "@/lib/domain/types";
+import { CollaborationType, COLLABORATION_LABELS, Platform, type Contract } from "@/lib/domain/types";
 import { maskIban, monthLabel, statementRows } from "@/lib/promos/statements";
 import { influencerStats } from "@/lib/promos/stats";
 
@@ -53,7 +54,7 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
   const influencer = isNew ? null : await getInfluencer(id);
   if (!isNew && !influencer) notFound();
 
-  const products = await listAllProducts();
+  const [products, contracts] = await Promise.all([listAllProducts(), listContracts()]);
 
   if (!influencer) {
     return (
@@ -61,7 +62,7 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
         <PageHeader back={{ href: "/admin/influenceurs", label: "Influenceurs" }} title="Nouvel influenceur" subtitle="Un code promo et un lien de suivi lui sont attribués à l'enregistrement." />
         <div className="max-w-[42rem]">
           <Card title="Identité et campagne">
-            <IdentityForm />
+            <IdentityForm contracts={contracts} />
           </Card>
         </div>
       </>
@@ -70,11 +71,12 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
 
   const snap = await adminSnapshot();
   const since = new Date(snap.now - 30 * 86_400_000).toISOString().slice(0, 10);
-  const [clicks, stored, kitOrder, account] = await Promise.all([
+  const [clicks, stored, kitOrder, account, signature] = await Promise.all([
     listRefClicksSince(since).catch(() => []),
     influencer.commission ? listStatements(influencer.id) : Promise.resolve([]),
     findKitOrder(influencer.id),
     influencerAccount(influencer.uid),
+    getSignature(influencer.signatureId),
   ]);
 
   const { rows } = influencerStats([influencer], snap.orders, clicks, snap.now);
@@ -151,6 +153,47 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
                 </Link>
               ))}
             </div>
+          </Card>
+
+          {/* ---------- Contrat ---------- */}
+          <Card title="Contrat de collaboration" aside={<span className="text-[0.6875rem] font-semibold text-subtle">{COLLABORATION_LABELS[influencer.collaborationType]}</span>}>
+            {signature ? (
+              <>
+                <div className="grid grid-cols-2 gap-4 text-[0.8125rem] max-[749px]:grid-cols-1">
+                  <span className="flex flex-col">
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint">Signé le</span>
+                    <span className="font-semibold">{new Date(signature.acceptedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}</span>
+                  </span>
+                  <span className="flex flex-col">
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint">Version</span>
+                    <span className="font-semibold">{signature.contractVersion || "—"}</span>
+                  </span>
+                  <span className="flex flex-col">
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint">Signataire</span>
+                    <span className="font-semibold">{signature.signerTypedName}</span>
+                    <span className="text-[0.6875rem] text-subtle">
+                      {signature.status === "individual" ? "Particulier" : signature.status === "sole_trader" ? "Micro-entrepreneur" : "Société"}
+                      {signature.siret && ` · SIRET ${signature.siret}`}
+                    </span>
+                  </span>
+                  <span className="flex flex-col">
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint">Avantage en nature</span>
+                    <span className="font-extrabold">{formatEuro(signature.totalValue)}</span>
+                    <span className="text-[0.6875rem] text-subtle">{signature.products.map((p) => `${p.title}${p.qty > 1 ? ` × ${p.qty}` : ""}`).join(", ") || "—"}</span>
+                  </span>
+                </div>
+                <span className="border-t border-line-soft pt-2 text-[0.6875rem] leading-relaxed text-subtle">
+                  Référence {signature.id} · empreinte {signature.contractHash.slice(0, 16)}… — le texte accepté est conservé tel quel ; modifier le
+                  contrat n'y change rien.
+                </span>
+              </>
+            ) : influencer.contractId ? (
+              <p className="text-[0.8125rem] text-subtle">Pas encore signé. Le contrat lui sera présenté au moment de commander son kit.</p>
+            ) : (
+              <p className="text-[0.8125rem] text-subtle">
+                Aucun contrat exigé. Choisissez-en un dans « Identité et campagne » pour qu'il doive le signer avant de recevoir son kit.
+              </p>
+            )}
           </Card>
 
           {/* ---------- Kit de bienvenue ---------- */}
@@ -242,7 +285,7 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
 
         <div className="flex flex-col gap-3">
           <Card title="Identité et campagne">
-            <IdentityForm influencer={influencer} />
+            <IdentityForm influencer={influencer} contracts={contracts} />
           </Card>
 
           <Card title={<span className="text-sm">Accès à son espace</span>} className="!gap-2">
@@ -304,8 +347,10 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
 }
 
 /* Le même formulaire sert à créer et à modifier : un seul endroit où changer un champ. */
-function IdentityForm({ influencer }: { influencer?: Awaited<ReturnType<typeof getInfluencer>> }) {
+function IdentityForm({ influencer, contracts }: { influencer?: Awaited<ReturnType<typeof getInfluencer>>; contracts: Contract[] }) {
   const inf = influencer ?? null;
+  /* Un contrat retiré n'est plus proposable, sauf s'il est déjà celui du partenaire. */
+  const choices = contracts.filter((c) => c.active || c.id === inf?.contractId);
   return (
     <ActionForm action={saveInfluencerAction} submitLabel={inf ? "Enregistrer" : "Créer le partenaire"}>
       <input type="hidden" name="id" value={inf?.id ?? ""} />
@@ -350,6 +395,50 @@ function IdentityForm({ influencer }: { influencer?: Awaited<ReturnType<typeof g
           </span>
         </div>
         <span className="text-[0.6875rem] text-subtle">Cookie d'attribution 30 jours. La remise du code s'applique automatiquement au panier via le lien.</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        <Field label="Collaboration" hint="Détermine le contrat proposé." name="collaborationType">
+          <Select name="collaborationType" defaultValue={inf?.collaborationType ?? "UGC"} className="!rounded-xl !py-3 !text-[0.8125rem]">
+            {CollaborationType.options.map((t) => (
+              <option key={t} value={t}>
+                {COLLABORATION_LABELS[t]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Contrat à signer" hint="Vide : aucun contrat exigé avant le kit." name="contractId">
+          <Select name="contractId" defaultValue={inf?.contractId ?? ""} className="!rounded-xl !py-3 !text-[0.8125rem]">
+            <option value="">Aucun</option>
+            {choices.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name} · {c.version}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      {/*
+        Ses comptes : renseignés ici si on les connaît, et modifiables par le partenaire
+        lui-même depuis son espace — c'est lui qui les tient à jour.
+      */}
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-semibold text-subtle">Réseaux sociaux</span>
+        {(
+          [
+            ["ig", "Instagram", inf?.socials.instagram],
+            ["tt", "TikTok", inf?.socials.tiktok],
+            ["fb", "Facebook", inf?.socials.facebook],
+          ] as const
+        ).map(([key, label, account]) => (
+          <div key={key} className="grid grid-cols-[90px_1fr] items-center gap-2">
+            <span className="text-[0.6875rem] font-semibold text-subtle">{label}</span>
+            <div className="grid grid-cols-2 gap-2">
+              <Input name={`${key}Handle`} defaultValue={account?.handle ?? ""} placeholder="@pseudo" className="!rounded-xl !py-2.5 !text-xs" />
+              <Input name={`${key}Url`} defaultValue={account?.url ?? ""} placeholder="https://…" className="!rounded-xl !py-2.5 !text-xs" />
+            </div>
+          </div>
+        ))}
+        <span className="text-[0.6875rem] text-subtle">Le partenaire peut les compléter lui-même depuis son espace.</span>
       </div>
       <div className="grid grid-cols-2 gap-2.5">
         {/*
