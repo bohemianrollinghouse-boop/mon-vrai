@@ -14,8 +14,8 @@ import { bracketIndexForWeight } from "@/lib/shipping/tariffs";
 import { kitWeightG } from "@/lib/promos/kit";
 import { getContract } from "@/lib/db/contracts";
 import { COLLABORATION_LABELS } from "@/lib/domain/types";
-import { formatEuro } from "@/lib/domain/money";
-import type { ContractView } from "@/components/site/ContractDialog";
+
+import type { ContractOffer } from "@/components/site/KitOrderForm";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Commander mon kit" };
@@ -52,17 +52,24 @@ export default async function PartnerKitPage() {
    * qu'il sera figé dans la signature.
    */
   const contract = influencer.signatureId ? null : await getContract(influencer.contractId);
-  const view: ContractView | undefined = contract
+  const view: ContractOffer | undefined = contract
     ? {
+        id: contract.id,
         name: contract.name,
         version: contract.version,
         typeLabel: COLLABORATION_LABELS[contract.type],
         summary: contract.summary,
         body: contract.body,
-        products: kit.items.map((i) => ({ title: i.title, qty: i.qty, value: formatEuro(i.unitValue * i.qty) })),
-        totalValue: formatEuro(kit.items.reduce((sum, i) => sum + i.unitValue * i.qty, 0)),
+        variables: contract.variables,
       }
     : undefined;
+
+  /* Identité du vendeur, telle qu'elle figure au contrat : elle vient des réglages. */
+  const seller = {
+    address: [settings.legal.sellerName, ...settings.legal.sellerAddressLines].filter(Boolean).join(", "),
+    siren: settings.legal.siret || settings.legal.vatNumber,
+    representative: settings.legal.sellerName,
+  };
 
   return (
     <section className="site-wrap flex flex-col gap-6 py-4 pb-20">
@@ -82,6 +89,10 @@ export default async function PartnerKitPage() {
           action={orderPartnerKitAction}
           contract={view}
           signAction={view ? signAndOrderKitAction : undefined}
+          seller={seller}
+          goods={kit.items.map((i) => ({ title: i.title, qty: i.qty, unitValue: i.unitValue }))}
+          socials={influencer.socials}
+          email={influencer.email}
         />
 
         <aside className="flex flex-col gap-3 rounded-card bg-tint-green p-7">

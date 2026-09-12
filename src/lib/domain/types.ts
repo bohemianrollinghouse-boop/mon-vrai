@@ -909,12 +909,13 @@ const EMPTY_KIT: WelcomeKit = { enabled: false, title: "Votre kit de bienvenue",
  * choisit pas, c'est l'administration qui l'attribue. La liste est ouverte — d'autres
  * formes viendront (gifting, ambassadeur) sans rien changer au reste.
  */
-export const CollaborationType = z.enum(["UGC", "INFLUENCE", "GIFTING", "AMBASSADEUR"]);
+export const CollaborationType = z.enum(["UGC", "INFLUENCE", "MIXTE", "GIFTING", "AMBASSADEUR"]);
 export type CollaborationType = z.infer<typeof CollaborationType>;
 
 export const COLLABORATION_LABELS: Record<CollaborationType, string> = {
   UGC: "UGC",
   INFLUENCE: "Influence",
+  MIXTE: "Mixte UGC + Influence",
   GIFTING: "Gifting",
   AMBASSADEUR: "Ambassadeur",
 };
@@ -959,6 +960,12 @@ export const Contract = z.object({
   summary: z.string().max(8000).default(""),
   /** Le contrat intégral, en texte (les paragraphes sont séparés par des lignes vides). */
   body: z.string().max(200000).default(""),
+  /*
+   * Valeurs des variables propres à la campagne — délais, plateformes, droits
+   * publicitaires… Celles qui décrivent le signataire ou les livres sont calculées à
+   * l'affichage et ne se saisissent pas ici (voir promos/contract-template.ts).
+   */
+  variables: z.record(z.string(), z.string()).default({}),
   /** Retiré : plus attribuable à personne, mais les signatures passées subsistent. */
   active: z.boolean().default(true),
   createdAt: z.number(),
@@ -1022,7 +1029,10 @@ export const ContractSignature = z.object({
 
   /** Nom saisi par le signataire, qui vaut acceptation. */
   signerTypedName: z.string().min(1).max(160),
-  /** Copie figée du résumé et du contrat, tels qu'affichés au signataire. */
+  /*
+   * Copie figée du résumé et du contrat, VARIABLES REMPLACÉES : c'est le texte que le
+   * signataire a eu sous les yeux, pas le gabarit dont il est tiré.
+   */
   summarySnapshot: z.string().default(""),
   bodySnapshot: z.string().default(""),
   /** SHA-256 de la copie figée : de quoi prouver qu'elle n'a pas changé. */

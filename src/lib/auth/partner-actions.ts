@@ -12,6 +12,8 @@ import { bracketIndexForWeight } from "@/lib/shipping/tariffs";
 import { kitOrderLines, kitWeightG } from "@/lib/promos/kit";
 import { isIban } from "@/lib/promos/statements";
 import { getContract, recordSignature } from "@/lib/db/contracts";
+import { fillContract } from "@/lib/promos/contract-template";
+import { contractValues } from "@/lib/promos/contract-values";
 import { SignerStatus, type Address, type Influencer } from "@/lib/domain/types";
 import { headers } from "next/headers";
 
@@ -268,14 +270,11 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
 
   const order = await orderKit(influencer, formData, kit);
   if (!order.ok) return order;
+  const settings = await getSettings();
 
   const head = await headers();
-  await recordSignature({
-    influencerId: influencer.id,
-    contractId: contract.id,
-    contractName: contract.name,
-    contractType: contract.type,
-    contractVersion: contract.version,
+  const acceptedAt = Date.now();
+  const party = {
     firstName: d.firstName,
     lastName: d.lastName,
     email: influencer.email || user.email || "",
@@ -286,13 +285,39 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     siret: d.siret,
     vatNumber: d.vatNumber,
     socials: influencer.socials,
+  };
+  const goods = kit.items.map((i) => ({ title: i.title, qty: i.qty, unitValue: i.unitValue }));
+  /*
+   * Le texte conservé est celui que le partenaire a lu : variables remplacées, avec SES
+   * informations. Les mêmes fonctions pures servent des deux côtés, pour que la copie
+   * figée soit identique à l'affichage, au caractère près.
+   */
+  const values = contractValues({
+    contract: { id: contract.id, version: contract.version, variables: contract.variables },
+    seller: {
+      address: [settings.legal.sellerName, ...settings.legal.sellerAddressLines].filter(Boolean).join(", "),
+      siren: settings.legal.siret || settings.legal.vatNumber,
+      representative: settings.legal.sellerName,
+    },
+    party,
+    goods,
+    acceptedAt,
+  });
+
+  await recordSignature({
+    influencerId: influencer.id,
+    contractId: contract.id,
+    contractName: contract.name,
+    contractType: contract.type,
+    contractVersion: contract.version,
+    ...party,
     products: kit.items.map((i) => ({ slug: i.slug, title: i.title, qty: i.qty, unitValue: i.unitValue })),
-    totalValue: kit.items.reduce((sum, i) => sum + i.unitValue * i.qty, 0),
+    totalValue: goods.reduce((sum, g) => sum + g.unitValue * g.qty, 0),
     checks,
     newsletterOptIn: checked(d.newsletterOptIn),
     signerTypedName: d.signerTypedName,
-    summarySnapshot: contract.summary,
-    bodySnapshot: contract.body,
+    summarySnapshot: fillContract(contract.summary, values),
+    bodySnapshot: fillContract(contract.body, values),
     ip: head.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "",
     userAgent: head.get("user-agent") ?? "",
   }).then(async (signature) => {

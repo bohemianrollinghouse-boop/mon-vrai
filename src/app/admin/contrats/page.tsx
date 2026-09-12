@@ -4,7 +4,8 @@ import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Texta
 import { deleteContractAction, saveContractAction } from "@/lib/admin/actions/contracts";
 import { listContracts } from "@/lib/db/contracts";
 import { listInfluencers } from "@/lib/db/promos";
-import { CollaborationType, COLLABORATION_LABELS } from "@/lib/domain/types";
+import { CollaborationType, COLLABORATION_LABELS, type Contract } from "@/lib/domain/types";
+import { manualPlaceholders } from "@/lib/promos/contract-template";
 
 export const dynamic = "force-dynamic";
 
@@ -101,9 +102,20 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 <Textarea name="summary" rows={7} defaultValue={current && !isNew ? current.summary : ""} placeholder={"40 photographies originales\n20 vidéos de 5 à 15 secondes\nLivres réellement manipulés, fichiers sans filigrane"} />
               </Field>
 
-              <Field label="Contrat intégral" hint="Le texte complet. Une ligne vide sépare deux paragraphes." name="body">
+              <Field
+                label="Contrat intégral"
+                hint="Le texte complet. « # » et « ## » pour les titres, « ** » autour d'un passage en gras, « * » en début de ligne pour une puce. Les variables s'écrivent {{COMME_CECI}}."
+                name="body"
+              >
                 <Textarea name="body" rows={22} defaultValue={current && !isNew ? current.body : ""} className="!font-mono !text-xs" placeholder="Article 1 — Objet…" />
               </Field>
+
+              {/*
+                Les variables de campagne sont détectées dans le texte : pas de liste à
+                tenir à jour ici, et l'on ne demande jamais celles qui se calculent
+                (identité du signataire, livres reçus, valeur, date d'acceptation).
+              */}
+              {current && !isNew && <ContractVariables contract={current} />}
             </ActionForm>
           </Card>
 
@@ -130,5 +142,32 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
         </div>
       </div>
     </>
+  );
+}
+
+/*
+ * Les variables propres à la campagne, telles qu'elles apparaissent dans le contrat.
+ * Une variable non remplie n'est pas laissée en accolades sous les yeux du signataire :
+ * elle devient un tiret — ce que dit l'aide sous les champs.
+ */
+function ContractVariables({ contract }: { contract: Contract }) {
+  const keys = manualPlaceholders(`${contract.summary}\n${contract.body}`).sort();
+  if (keys.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-xs font-semibold text-subtle">Variables de ce contrat</span>
+      <div className="grid grid-cols-2 gap-2.5 max-[899px]:grid-cols-1">
+        {keys.map((key) => (
+          <label key={key} className="flex flex-col gap-1">
+            <span className="font-mono text-[0.6875rem] text-faint">{`{{${key}}}`}</span>
+            <Input name={`var:${key}`} defaultValue={contract.variables[key] ?? ""} className="!rounded-xl !py-2.5 !text-[0.8125rem]" />
+          </label>
+        ))}
+      </div>
+      <span className="text-[0.6875rem] leading-relaxed text-subtle">
+        Laissée vide, une variable s'affiche en tiret dans le contrat. L'identité du signataire, ses comptes, les livres
+        offerts, leur valeur et la date d'acceptation se remplissent tout seuls — ils ne sont pas listés ici.
+      </span>
+    </div>
   );
 }

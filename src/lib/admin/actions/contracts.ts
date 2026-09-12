@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
-import { failed, saved, type AdminResult } from "@/lib/admin/types";
+import { failed, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { deleteContract, getContract, listContracts, upsertContract } from "@/lib/db/contracts";
 import { CollaborationType } from "@/lib/domain/types";
@@ -27,6 +27,18 @@ const Input = z.object({
   active: z.boolean().default(true),
 });
 
+/* Les variables de campagne arrivent en champs `var:CLÉ` : l'éditeur les détecte dans
+   le texte, il n'y a donc pas de liste fixe à tenir ici. */
+function variablesFrom(formData: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("var:") || typeof value !== "string") continue;
+    const name = key.slice(4);
+    if (/^[A-Z0-9_]{1,60}$/.test(name)) out[name] = value.slice(0, 2000);
+  }
+  return out;
+}
+
 export async function saveContractAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const parsed = parseForm(Input, formData, { booleans: ["active"] });
@@ -39,7 +51,16 @@ export async function saveContractAction(formData: FormData): Promise<AdminResul
     return failed(`La version « ${d.version} » existe déjà. Une version ne se réutilise jamais : elle identifie ce qui a été signé.`, { version: "Déjà utilisée" });
   }
 
-  const contract = await upsertContract({ id: d.id || undefined, name: d.name, type: d.type, version: d.version, summary: d.summary, body: d.body, active: d.active });
+  const contract = await upsertContract({
+    id: d.id || undefined,
+    name: d.name,
+    type: d.type,
+    version: d.version,
+    summary: d.summary,
+    body: d.body,
+    variables: variablesFrom(formData),
+    active: d.active,
+  });
   await audit(user.email, d.id ? "contract.update" : "contract.create", `contracts/${contract.id}`, `${contract.name} · ${contract.version}`);
   revalidatePath("/admin/contrats");
   return { ok: true, message: `Contrat « ${contract.name} » enregistré.`, redirectTo: `/admin/contrats?id=${contract.id}` };
