@@ -306,8 +306,10 @@ function topbarPlain(c: RenderCtx, key: string, def: string): string {
   return sect(T(c, key, def, ""), "12px 32px", false, `;text-align:right;font-size:11px;color:${SUBTLE};font-weight:600`);
 }
 
+/* Fond opaque explicite derrière le logo : un PNG détouré posé sur un fond que le
+   client a repeint en sombre est précisément ce qui donne l'effet « négatif ». */
 const logo = (c: RenderCtx, align: "center" | "left" = "center") =>
-  `<table ${TBL} width="100%"><tr><td align="${align}" style="padding:20px 32px 8px;text-align:${align}"><img src="${esc(c.brand.logoUrl)}" alt="${esc(c.brand.shopName)}" height="30" style="height:30px;border:0;display:inline-block"></td></tr></table>`;
+  `<table ${TBL} width="100%" bgcolor="${PAPER}" style="background:${PAPER}"><tr><td align="${align}" bgcolor="${PAPER}" style="padding:20px 32px 8px;text-align:${align};background:${PAPER}"><img src="${esc(c.brand.logoUrl)}" alt="${esc(c.brand.shopName)}" height="30" style="height:30px;border:0;display:inline-block;background:${PAPER}"></td></tr></table>`;
 
 /*
  * Pied de page : seuls les réseaux renseignés dans les réglages apparaissent (aucun :
@@ -608,6 +610,10 @@ export function collectCrops(id: string, ctx: Omit<RenderCtx, "img">): CropReq[]
  * voit la même chose que dans sa boîte aux lettres, ce qui est tout l'intérêt du lien.
  */
 export const RESPONSIVE_CSS = `
+  /* Verrouille le thème : sans cela Apple Mail retourne tout l'e-mail en mode sombre
+     — fonds clairs en noir, logo en négatif. Les balises <meta> le disent aussi ;
+     certains clients ne lisent que la règle CSS. */
+  :root{ color-scheme:light only; supported-color-schemes:light only; }
   img{ -ms-interpolation-mode:bicubic; }
   table{ mso-table-lspace:0pt; mso-table-rspace:0pt; }
   @media only screen and (max-width:620px){
@@ -634,9 +640,9 @@ export function wrapEmail(id: string, ctx: RenderCtx, preheader: string): string
   return `<!doctype html><html lang="fr" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="x-ua-compatible" content="ie=edge"><meta name="color-scheme" content="light"><meta name="supported-color-schemes" content="light"><title>${esc(ctx.brand.shopName)}</title><link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]-->
 <style>${RESPONSIVE_CSS}</style></head>
-<body style="margin:0;padding:0;background:${CANVAS};font-family:${FONT};color:${INK};-webkit-font-smoothing:antialiased">
+<body bgcolor="${CANVAS}" style="margin:0;padding:0;background:${CANVAS};font-family:${FONT};color:${INK};-webkit-font-smoothing:antialiased">
 <div style="display:none;max-height:0;overflow:hidden;opacity:0">${esc(preheader)}</div>
-<table ${TBL} width="100%" style="background:${CANVAS}"><tr><td align="center" style="padding:28px 12px">
+<table ${TBL} width="100%" bgcolor="${CANVAS}" style="background:${CANVAS}"><tr><td align="center" bgcolor="${CANVAS}" style="padding:28px 12px;background:${CANVAS}">
 ${body}
 </td></tr></table></body></html>`;
 }
