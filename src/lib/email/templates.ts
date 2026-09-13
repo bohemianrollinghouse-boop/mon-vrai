@@ -182,3 +182,59 @@ export function contactForwardEmail(m: { name: string; email: string; phone: str
 ${button("Répondre", `mailto:${esc(m.email)}?subject=${encodeURIComponent(`Re : ${m.subject || "votre message"} - ${settings.shopName}`)}`)}`;
   return { subject: `[Contact] ${m.subject || "Message"} - ${m.name || m.email}`, html: layout(settings, { preheader: m.body.slice(0, 100), content }), text: `${m.name}\n${m.email}\n${m.phone}\n\n${m.body}` };
 }
+
+
+/*
+ * Confirmation de la demande de kit partenaire. Elle ne ressemble pas à une confirmation
+ * de commande : rien n'a été payé, et c'est le contrat qui compte. D'où un e-mail qui
+ * rappelle les engagements, la valeur de ce qui est offert, et joint le contrat signé.
+ */
+export function kitConfirmationEmail(input: {
+  settings: SiteSettings;
+  siteUrl: string;
+  firstName: string;
+  orderNumber: string;
+  products: { title: string; qty: number }[];
+  totalValue: number;
+  contract?: { name: string; version: string; reference: string; acceptedAt: number };
+}): BuiltEmail {
+  const { settings, siteUrl, firstName, orderNumber, products, totalValue, contract } = input;
+  const list = products.map((p) => `${p.title}${p.qty > 1 ? ` × ${p.qty}` : ""}`);
+  const accepted = contract ? new Date(contract.acceptedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" }) : "";
+
+  const content = `${eyebrow("C'est confirmé")}${h1(`Merci ${esc(firstName)} !`)}
+<p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:${MUTED}">Votre demande de kit est enregistrée sous le numéro <strong style="color:${INK}">${esc(orderNumber)}</strong>. Nous préparons votre envoi ; vous recevrez le suivi dès qu'il partira.</p>
+<div style="margin-top:22px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${SUBTLE}">Ce que vous recevez</div>
+<p style="margin:6px 0 0;font-size:14px;line-height:1.6;color:${INK}">${list.map(esc).join("<br>")}</p>
+<p style="margin:8px 0 0;font-size:13px;color:${MUTED}">Valeur de l'avantage en nature : <strong style="color:${INK}">${formatEuro(totalValue)}</strong></p>
+${
+    contract
+      ? `<div style="margin-top:26px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${SUBTLE}">Votre contrat</div>
+<p style="margin:6px 0 0;font-size:14px;line-height:1.6;color:${INK}">${esc(contract.name)}</p>
+<p style="margin:4px 0 0;font-size:13px;color:${MUTED}">Accepté le ${esc(accepted)} · version ${esc(contract.version)} · référence ${esc(contract.reference)}</p>
+<p style="margin:12px 0 0;font-size:13px;line-height:1.55;color:${MUTED}">Une copie est jointe à cet e-mail. Vous le retrouverez à tout moment dans votre espace partenaire.</p>`
+      : ""
+  }
+<p style="margin:26px 0 0;font-size:13px;line-height:1.55;color:${MUTED}">Votre espace : <a href="${siteUrl}/partenaire" style="color:${INK}">${siteUrl.replace(/^https?:\/\//, "")}/partenaire</a></p>`;
+
+  const text = [
+    `Merci ${firstName} !`,
+    "",
+    `Votre demande de kit est enregistrée sous le numéro ${orderNumber}.`,
+    "",
+    "Ce que vous recevez :",
+    ...list.map((l) => `- ${l}`),
+    `Valeur de l'avantage en nature : ${formatEuro(totalValue)}`,
+    ...(contract ? ["", `Contrat : ${contract.name} (version ${contract.version}, référence ${contract.reference})`, `Accepté le ${accepted}. Une copie est jointe à cet e-mail.`] : []),
+    "",
+    `Votre espace : ${siteUrl}/partenaire`,
+    "",
+    settings.shopName,
+  ].join("\n");
+
+  return {
+    subject: contract ? `Votre contrat de collaboration ${settings.shopName} est confirmé` : `Votre kit ${settings.shopName} est confirmé`,
+    html: layout(settings, { preheader: `Kit ${orderNumber} confirmé${contract ? " · contrat accepté" : ""}`, content }),
+    text,
+  };
+}

@@ -4,6 +4,8 @@ import { CopyValue } from "@/components/site/CopyValue";
 import { IbanForm } from "@/components/site/IbanForm";
 import { PartnerKitBlock } from "@/components/site/PartnerKitBlock";
 import { SocialsForm } from "@/components/site/SocialsForm";
+import { ContractText } from "@/components/site/ContractText";
+import { SignedContractView } from "@/components/site/SignedContractView";
 import { TrackingLink } from "@/components/site/TrackingLink";
 import { savePartnerIbanAction, savePartnerSocialsAction } from "@/lib/auth/partner-actions";
 import { maskIban, monthLabel } from "@/lib/promos/statements";
@@ -89,7 +91,9 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
 
       {/* ---------- Vos réseaux ---------- */}
       {/* Haut de page : lui seul peut les donner, et le contrat s'en sert. */}
+      <div id="reseaux" className="scroll-mt-24">
       <SocialsForm socials={influencer.socials} action={savePartnerSocialsAction} />
+      </div>
 
       {/* ---------- Kit de bienvenue ---------- */}
       {/* Bon de commande tant qu'il n'a pas été commandé, suivi ensuite. */}
@@ -208,20 +212,20 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
               Accepté le {new Date(signature.acceptedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} · version{" "}
               {signature.contractVersion}
             </span>
+            {/* Le résumé garde sa mise en forme : l'afficher brut donnerait des dièses à lire. */}
             {signature.summarySnapshot.trim() && (
-              <ul className="mt-1 flex flex-col gap-1 border-t border-line-soft pt-2.5 leading-relaxed">
-                {signature.summarySnapshot
-                  .split("\n")
-                  .map((l) => l.trim())
-                  .filter(Boolean)
-                  .map((line, i) => (
-                    <li key={i} className="flex gap-2">
-                      <span aria-hidden="true">·</span>
-                      <span>{line}</span>
-                    </li>
-                  ))}
-              </ul>
+              <div className="mt-1 border-t border-line-soft pt-2.5">
+                <ContractText text={signature.summarySnapshot} />
+              </div>
             )}
+            <SignedContractView
+              title={signature.contractName}
+              version={signature.contractVersion}
+              acceptedAt={new Date(signature.acceptedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}
+              signerName={signature.signerTypedName}
+              reference={signature.id}
+              body={signature.bodySnapshot}
+            />
             <span className="text-xs text-subtle">Référence {signature.id}</span>
           </div>
         ) : (

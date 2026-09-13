@@ -10,6 +10,8 @@ import { getSettings } from "@/lib/db/settings";
 import { optionOfferCode, shippingOptions } from "@/lib/checkout/quote";
 import { bracketIndexForWeight } from "@/lib/shipping/tariffs";
 import { kitOrderLines, kitWeightG } from "@/lib/promos/kit";
+import { socialCount } from "@/lib/promos/socials";
+import { sendKitConfirmation } from "@/lib/email/send";
 import { isIban } from "@/lib/promos/statements";
 import { getContract, recordSignature } from "@/lib/db/contracts";
 import { fillContract } from "@/lib/promos/contract-template";
@@ -92,6 +94,13 @@ export async function orderPartnerKitAction(formData: FormData): Promise<Partner
   if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
   // Un contrat exigé ne se contourne pas en postant ce formulaire-ci.
   if (influencer.contractId && !influencer.signatureId) return { ok: false, error: "Le contrat doit être accepté avant de commander." };
+  /*
+   * Au moins un réseau renseigné : le contrat les cite, et un kit part pour être montré
+   * quelque part. La demande n'a pas de sens sans eux.
+   */
+  if (socialCount(influencer.socials) === 0) {
+    return { ok: false, error: "Renseignez au moins un de vos réseaux dans votre espace avant de commander votre kit." };
+  }
 
   const kit = await partnerKitSnapshot(influencer);
   if (!kit.offered) return { ok: false, error: "Le kit de bienvenue n'est pas disponible pour le moment." };
@@ -100,6 +109,14 @@ export async function orderPartnerKitAction(formData: FormData): Promise<Partner
   const done = await orderKit(influencer, formData, kit);
   if (!done.ok) return done;
   await upsertInfluencer({ ...influencer, kitOrderId: done.orderId }).catch(() => undefined);
+  /* L'e-mail ne doit jamais faire échouer une commande déjà passée. */
+  await sendKitConfirmation({
+    to: influencer.email,
+    firstName: done.address.name.split(" ")[0] ?? influencer.name,
+    orderNumber: done.number,
+    products: kit.items.map((i) => ({ title: i.title, qty: i.qty })),
+    totalValue: kit.items.reduce((sum, i) => sum + i.unitValue * i.qty, 0),
+  }).catch((err) => console.warn("[kit] confirmation non envoyée :", (err as Error).message));
   revalidatePath("/partenaire");
   return { ok: true, message: `Kit commandé — commande ${done.number}.` };
 }
@@ -241,6 +258,14 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
   const influencer = await getInfluencerByUid(user.uid);
   if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
 
+  /*
+   * Au moins un réseau renseigné : le contrat les cite, et un kit part pour être montré
+   * quelque part. La demande n'a pas de sens sans eux.
+   */
+  if (socialCount(influencer.socials) === 0) {
+    return { ok: false, error: "Renseignez au moins un de vos réseaux dans votre espace avant de commander votre kit." };
+  }
+
   const kit = await partnerKitSnapshot(influencer);
   if (!kit.offered) return { ok: false, error: "Le kit de bienvenue n'est pas disponible pour le moment." };
   if (kit.order) return { ok: false, error: "Votre kit a déjà été commandé." };
@@ -315,6 +340,7 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     },
     party,
     goods,
+    prototype: kit.prototype,
     acceptedAt,
   });
 
@@ -336,6 +362,14 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     userAgent: head.get("user-agent") ?? "",
   }).then(async (signature) => {
     await upsertInfluencer({ ...influencer, kitOrderId: order.orderId, signatureId: signature.id });
+    await sendKitConfirmation({
+      to: signature.email,
+      firstName: signature.firstName,
+      orderNumber: order.number,
+      products: goods.map((g) => ({ title: g.title, qty: g.qty })),
+      totalValue: goods.reduce((sum, g) => sum + g.unitValue * g.qty, 0),
+      signature,
+    }).catch((err) => console.warn("[kit] confirmation non envoyée :", (err as Error).message));
   });
 
   revalidatePath("/partenaire");

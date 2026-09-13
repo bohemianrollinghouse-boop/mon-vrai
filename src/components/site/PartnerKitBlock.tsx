@@ -48,9 +48,20 @@ function KitOffer({ kit }: { kit: PartnerKit }) {
         </ul>
         {kit.prototype && <PrototypeNote className="text-tint-sand-ink" />}
       </div>
-      <Link href="/partenaire/kit" className="w-fit whitespace-nowrap rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white">
-        Commander mon kit
-      </Link>
+      {kit.socialsMissing ? (
+        /* Un kit part pour être montré quelque part, et le contrat cite les comptes :
+           la demande n'a pas de sens tant qu'aucun réseau n'est renseigné. */
+        <div className="flex w-fit flex-col gap-1.5">
+          <span className="w-fit cursor-not-allowed whitespace-nowrap rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white opacity-40">Commander mon kit</span>
+          <a href="#reseaux" className="text-xs font-semibold text-tint-sand-ink underline">
+            Renseignez d&apos;abord au moins un de vos réseaux, en haut de cette page.
+          </a>
+        </div>
+      ) : (
+        <Link href="/partenaire/kit" className="w-fit whitespace-nowrap rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white">
+          Commander mon kit
+        </Link>
+      )}
     </div>
   );
 }

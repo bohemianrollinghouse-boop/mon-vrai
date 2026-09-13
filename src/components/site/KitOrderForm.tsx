@@ -77,6 +77,7 @@ export function KitOrderForm({
   goods,
   socials,
   email,
+  prototype,
 }: {
   countries: string[];
   options: KitShippingOption[];
@@ -89,6 +90,8 @@ export function KitOrderForm({
   goods: ContractGoods;
   socials: PartnerSocials;
   email: string;
+  /** Les livres remis sont-ils des prototypes : le contrat le dit. */
+  prototype: boolean;
 }) {
   const router = useRouter();
   const [country, setCountry] = useState(countries[0] ?? "FR");
@@ -155,9 +158,10 @@ export function KitOrderForm({
         socials,
       },
       goods,
+      prototype,
     });
     return { summary: fillContract(contract.summary, values), body: fillContract(contract.body, values) };
-  }, [contract, seller, me, email, signer, status, socials, goods]);
+  }, [contract, seller, me, email, signer, status, socials, goods, prototype]);
 
   /* Lu, et lu DANS SA VERSION ACTUELLE : comparer le texte est plus sûr que de suivre
      champ par champ ce qui a bougé. */

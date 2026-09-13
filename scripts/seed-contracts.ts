@@ -15,11 +15,58 @@ import { listContracts, upsertContract } from "@/lib/db/contracts";
 import type { CollaborationType } from "@/lib/domain/types";
 
 const APPLY = process.argv.includes("--apply");
+/* Remet les valeurs par défaut des variables sur un contrat déjà installé, sans toucher
+   à son texte. Sans effet sur ce qui est déjà signé : la signature en garde sa copie. */
+const VARIABLES = process.argv.includes("--variables");
 
-const FILES: { file: string; name: string; type: CollaborationType; version: string }[] = [
-  { file: "ugc.md", name: "Création de contenu UGC — Mon Vrai", type: "UGC", version: "UGC-2026-09-v1" },
-  { file: "influence.md", name: "Collaboration Influence — Mon Vrai", type: "INFLUENCE", version: "INFLUENCE-2026-09-v1" },
-  { file: "mixte.md", name: "Collaboration mixte UGC + Influence — Mon Vrai", type: "MIXTE", version: "MIXTE-2026-09-v1" },
+/*
+ * Valeurs de départ des variables de campagne. Elles ne créent aucun engagement que le
+ * texte ne prévoie déjà : « aucune exclusivité », « publicité non comprise »… Sans
+ * elles, le contrat s'affiche criblé de tirets, ce qui le fait paraître inachevé.
+ * À relire et à ajuster dans l'admin pour chaque campagne.
+ */
+const COMMON: Record<string, string> = {
+  PROTOTYPE_NOTES: "Aucune information particulière.",
+  PAID_ADS_AUTHORIZATION: "Non comprise. Toute utilisation publicitaire fera l'objet d'un accord complémentaire entre les Parties.",
+  EXCLUSIVITY_TERMS: "Aucune",
+  STATS_DELIVERY_DELAY: "15 jours après la publication",
+};
+
+const FILES: { file: string; name: string; type: CollaborationType; version: string; variables: Record<string, string> }[] = [
+  {
+    file: "ugc.md",
+    name: "Création de contenu UGC — Mon Vrai",
+    type: "UGC",
+    version: "UGC-2026-09-v1",
+    variables: { ...COMMON, DELIVERY_DEADLINE_DAYS: "30", CONTENT_DUE_DATE: "à convenir entre les Parties" },
+  },
+  {
+    file: "influence.md",
+    name: "Collaboration Influence — Mon Vrai",
+    type: "INFLUENCE",
+    version: "INFLUENCE-2026-09-v1",
+    variables: {
+      ...COMMON,
+      PUBLICATION_PLATFORMS: "Instagram et TikTok",
+      PUBLICATION_DEADLINE_DAYS: "30",
+      CAMPAIGN_END_DATE: "à convenir entre les Parties",
+      ADDITIONAL_USAGE_RIGHTS: "Aucun droit supplémentaire accordé.",
+    },
+  },
+  {
+    file: "mixte.md",
+    name: "Collaboration mixte UGC + Influence — Mon Vrai",
+    type: "MIXTE",
+    version: "MIXTE-2026-09-v1",
+    variables: {
+      ...COMMON,
+      PUBLICATION_PLATFORMS: "Instagram et TikTok",
+      DELIVERY_DEADLINE_DAYS: "30",
+      CAMPAIGN_END_DATE: "à convenir entre les Parties",
+      OPTIONAL_UGC_QUANTITY: "Aucune quantité minimale convenue.",
+      INFLUENCE_ADDITIONAL_RIGHTS: "Aucun droit supplémentaire accordé.",
+    },
+  },
 ];
 
 /* Le résumé et le contrat sont séparés par une ligne `---` seule sur sa ligne. */
@@ -39,12 +86,23 @@ async function main() {
     const { summary, body } = split(await readFile(path.join(dir, entry.file), "utf-8"));
     const already = existing.find((c) => c.version.toLowerCase() === entry.version.toLowerCase());
     if (already) {
-      console.log(`= ${entry.version.padEnd(24)} déjà installé (${already.id})`);
+      if (!VARIABLES) {
+        console.log(`= ${entry.version.padEnd(24)} déjà installé (${already.id})`);
+        continue;
+      }
+      const missing = Object.entries(entry.variables).filter(([k]) => !already.variables[k]?.trim());
+      if (missing.length === 0) {
+        console.log(`= ${entry.version.padEnd(24)} variables déjà renseignées`);
+        continue;
+      }
+      console.log(`~ ${entry.version.padEnd(24)} ${missing.length} variable(s) à remplir : ${missing.map(([k]) => k).join(", ")}`);
+      if (!APPLY) continue;
+      await upsertContract({ ...already, variables: { ...entry.variables, ...already.variables } });
       continue;
     }
     console.log(`~ ${entry.version.padEnd(24)} ${entry.name} · résumé ${summary.length} c · contrat ${body.length} c`);
     if (!APPLY) continue;
-    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: {}, active: true });
+    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: entry.variables, active: true });
     console.log(`  → ${saved.id}`);
   }
 

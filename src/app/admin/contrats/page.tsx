@@ -153,9 +153,17 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
 function ContractVariables({ contract }: { contract: Contract }) {
   const keys = manualPlaceholders(`${contract.summary}\n${contract.body}`).sort();
   if (keys.length === 0) return null;
+  const empty = keys.filter((k) => !contract.variables[k]?.trim());
   return (
     <div className="flex flex-col gap-2">
       <span className="text-xs font-semibold text-subtle">Variables de ce contrat</span>
+      {/* Une variable vide se lit « — » dans le contrat : mieux vaut le signaler ici. */}
+      {empty.length > 0 && (
+        <p className="rounded-xl bg-tint-sand px-4 py-3 text-[0.8125rem] font-semibold text-tint-sand-ink">
+          {empty.length} variable{empty.length > 1 ? "s" : ""} sans valeur : elle{empty.length > 1 ? "s s'afficheront" : " s'affichera"} en tiret dans le
+          contrat ({empty.join(", ")}).
+        </p>
+      )}
       <div className="grid grid-cols-2 gap-2.5 max-[899px]:grid-cols-1">
         {keys.map((key) => (
           <label key={key} className="flex flex-col gap-1">

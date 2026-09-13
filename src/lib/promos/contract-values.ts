@@ -42,6 +42,9 @@ export function contractValues(input: {
   seller: Seller;
   party: ContractParty;
   goods: ContractGoods;
+  /* Les livres remis sont-ils des prototypes ? La fiche du kit le sait déjà : le
+     contrat le reprend plutôt que de le faire ressaisir. */
+  prototype: boolean;
   /** Date d'acceptation ; absente tant que le contrat n'est qu'affiché. */
   acceptedAt?: number;
 }): Record<string, string> {
@@ -74,6 +77,9 @@ export function contractValues(input: {
 
     /* La liste sert dans un paragraphe : une ligne par livre, prête à être lue. */
     PRODUCTS_LIST: goods.map((g) => `${g.title}${g.qty > 1 ? ` × ${g.qty}` : ""} — ${formatEuro(g.unitValue * g.qty)}`).join("\n"),
+    PRODUCT_STATUS: input.prototype
+      ? "Exemplaires de présérie (prototypes) — ils peuvent différer de la version commercialisée."
+      : "Exemplaires définitifs, identiques à la version commercialisée.",
     PRODUCTS_QUANTITY: String(quantity),
     PRODUCTS_TOTAL_VALUE: (total / 100).toFixed(2).replace(".", ","),
 

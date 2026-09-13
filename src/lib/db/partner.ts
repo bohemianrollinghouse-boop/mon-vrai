@@ -6,6 +6,7 @@ import { statementRows, type StatementRow } from "@/lib/promos/statements";
 import { listStatements } from "./statements";
 import { listAllProducts } from "./products";
 import { kitItems, kitOffered, type KitItem } from "@/lib/promos/kit";
+import { socialCount } from "@/lib/promos/socials";
 import type { Influencer, Order } from "@/lib/domain/types";
 import { now } from "./helpers";
 
@@ -15,13 +16,22 @@ import { now } from "./helpers";
  * Les produits sont lus en entier (pas seulement les publiés) : un kit ne dépend pas
  * de la mise en vente d'un titre.
  */
-export type PartnerKit = { title: string; text: string; items: KitItem[]; offered: boolean; prototype: boolean; order: Order | null };
+export type PartnerKit = {
+  title: string;
+  text: string;
+  items: KitItem[];
+  offered: boolean;
+  prototype: boolean;
+  order: Order | null;
+  /** Au moins un réseau renseigné : sans cela la demande de kit n'a pas de sens. */
+  socialsMissing: boolean;
+};
 
 export async function partnerKitSnapshot(influencer: Influencer): Promise<PartnerKit> {
   const [products, order] = await Promise.all([listAllProducts(), findKitOrder(influencer.id)]);
   const kit = influencer.kit;
   const items = kitItems(kit, products);
-  return { title: kit.title, text: kit.text, items, offered: kitOffered(kit, items), prototype: kit.prototype, order };
+  return { title: kit.title, text: kit.text, items, offered: kitOffered(kit, items), prototype: kit.prototype, order, socialsMissing: socialCount(influencer.socials) === 0 };
 }
 
 /*

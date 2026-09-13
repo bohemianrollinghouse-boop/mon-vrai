@@ -25,6 +25,7 @@ import { listStatements } from "@/lib/db/statements";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
 import { CollaborationType, COLLABORATION_LABELS, type Contract } from "@/lib/domain/types";
 import { mainAccount } from "@/lib/promos/socials";
+import { SignedContractView } from "@/components/site/SignedContractView";
 import { maskIban, monthLabel, statementRows } from "@/lib/promos/statements";
 import { influencerStats } from "@/lib/promos/stats";
 
@@ -184,10 +185,21 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
                     <span className="text-[0.6875rem] text-subtle">{signature.products.map((p) => `${p.title}${p.qty > 1 ? ` × ${p.qty}` : ""}`).join(", ") || "—"}</span>
                   </span>
                 </div>
-                <span className="border-t border-line-soft pt-2 text-[0.6875rem] leading-relaxed text-subtle">
-                  Référence {signature.id} · empreinte {signature.contractHash.slice(0, 16)}… — le texte accepté est conservé tel quel ; modifier le
-                  contrat n'y change rien.
-                </span>
+                <div className="flex flex-col gap-2 border-t border-line-soft pt-2">
+                  <SignedContractView
+                    title={signature.contractName}
+                    version={signature.contractVersion}
+                    acceptedAt={new Date(signature.acceptedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}
+                    signerName={signature.signerTypedName}
+                    reference={signature.id}
+                    body={signature.bodySnapshot}
+                    label="Lire le contrat signé"
+                  />
+                  <span className="text-[0.6875rem] leading-relaxed text-subtle">
+                    Référence {signature.id} · empreinte {signature.contractHash.slice(0, 16)}… — le texte accepté est conservé tel quel ; modifier le
+                    contrat n'y change rien.
+                  </span>
+                </div>
               </>
             ) : influencer.contractId ? (
               <p className="text-[0.8125rem] text-subtle">Pas encore signé. Le contrat lui sera présenté au moment de commander son kit.</p>

@@ -33,6 +33,8 @@ export default async function PartnerKitPage() {
 
   const kit = await partnerKitSnapshot(influencer);
   if (!kit.offered || kit.order) redirect("/partenaire#kit");
+  // Sans réseau renseigné, la demande n'a pas de sens : on renvoie à l'encart qui le demande.
+  if (kit.socialsMissing) redirect("/partenaire#reseaux");
 
   const settings = await getSettings();
   const weight = Math.max(1, settings.shipping.parcel.baseWeightG + kitWeightG(kit.items));
@@ -93,6 +95,7 @@ export default async function PartnerKitPage() {
           goods={kit.items.map((i) => ({ title: i.title, qty: i.qty, unitValue: i.unitValue }))}
           socials={influencer.socials}
           email={influencer.email}
+          prototype={kit.prototype}
         />
 
         <aside className="flex flex-col gap-3 rounded-card bg-tint-green p-7">

@@ -1,8 +1,8 @@
 import "server-only";
 import { getSettings } from "@/lib/db/settings";
-import type { Order } from "@/lib/domain/types";
+import type { ContractSignature, Order } from "@/lib/domain/types";
 import { storage } from "@/lib/firebase/admin";
-import { contactForwardEmail, orderConfirmationEmail, shippingNoticeEmail, type BuiltEmail } from "./templates";
+import { contactForwardEmail, kitConfirmationEmail, orderConfirmationEmail, shippingNoticeEmail, type BuiltEmail } from "./templates";
 import { prepareCrops, renderPartnerWelcome } from "./newsletter";
 import { getAllTemplateValues } from "@/lib/db/newsletter";
 import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
@@ -121,4 +121,46 @@ export async function sendInfluencerWelcome(to: string, activationUrl: string): 
   // newsletters : en messagerie, rien ne recadre une image à l'affichage.
   const crops = await prepareCrops(PARTNER_WELCOME_ID, values, settings);
   return deliver({ to, ...renderPartnerWelcome(values, settings, activationUrl, crops) });
+}
+
+
+/*
+ * Confirmation de la demande de kit d'un partenaire, contrat signé en pièce jointe.
+ *
+ * Le PDF est composé à partir de la SIGNATURE et non du contrat en base : c'est la copie
+ * figée qui fait foi. Un échec de génération ne doit pas empêcher l'e-mail de partir —
+ * la commande, elle, est déjà passée.
+ */
+export async function sendKitConfirmation(input: {
+  to: string;
+  firstName: string;
+  orderNumber: string;
+  products: { title: string; qty: number }[];
+  totalValue: number;
+  signature?: ContractSignature;
+}): Promise<void> {
+  const settings = await getSettings();
+  const built = kitConfirmationEmail({
+    settings,
+    siteUrl: siteUrl(),
+    firstName: input.firstName,
+    orderNumber: input.orderNumber,
+    products: input.products,
+    totalValue: input.totalValue,
+    contract: input.signature
+      ? { name: input.signature.contractName, version: input.signature.contractVersion, reference: input.signature.id, acceptedAt: input.signature.acceptedAt }
+      : undefined,
+  });
+
+  let attachments: Attachment[] | undefined;
+  if (input.signature) {
+    try {
+      const { contractPdf } = await import("@/lib/contracts/pdf");
+      attachments = [{ filename: `contrat-${input.signature.contractVersion}.pdf`, content: await contractPdf(input.signature) }];
+    } catch (err) {
+      console.warn("[kit] contrat non joint :", (err as Error).message);
+    }
+  }
+
+  await deliver({ to: input.to, replyTo: replyTo(settings), ...built, attachments });
 }
