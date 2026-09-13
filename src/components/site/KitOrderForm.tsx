@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 import { RelayPicker, type Relay } from "@/components/checkout/RelayPicker";
@@ -14,15 +15,21 @@ import type { PartnerSocials, SignerStatus } from "@/lib/domain/types";
 /*
  * Commande du kit de bienvenue, et signature du contrat quand il y en a un.
  *
- * Tout est dans le fil de la page, dans l'ordre où on le remplit : l'adresse, puis le
- * contrat — résumé, attestations, identité, signature. Ces champs tenaient auparavant
- * dans la fenêtre du contrat, où il fallait les chercher dans un défilement étroit.
+ * Trois étapes numérotées, dans l'ordre où on les remplit : où livrer, le contrat,
+ * attester et signer. Sur un téléphone on les voit une à une, avec une barre de
+ * progression et un bouton posé en bas de l'écran ; sur un bureau les trois tiennent
+ * dans la page, numérotées, avec un récapitulatif qui suit le défilement. Ce n'est pas
+ * deux parcours mais un seul, montré selon la place qu'on a.
  *
- * La fenêtre ne sert plus qu'à UNE chose : lire le contrat une fois rempli de vos
- * informations, et l'accepter. Une fois accepté, le bouton de commande apparaît.
+ * La fenêtre du contrat ne sert qu'à UNE chose : le lire, rempli de vos informations.
+ * On n'atteste pas avoir lu un texte qu'on n'a pas encore vu, d'où l'ordre : informations,
+ * lecture, attestations, signature.
  */
 
 export type KitShippingOption = { id: string; name: string; description: string; relay: boolean; networks: string[] };
+
+/** Ce que le partenaire reçoit, tel qu'il s'affiche à côté du formulaire. */
+export type KitItem = { slug: string; title: string; qty: number; image?: string };
 
 export type ContractOffer = {
   id: string;
@@ -40,6 +47,7 @@ export type ContractOffer = {
 const field =
   "w-full rounded-[14px] bg-paper px-[1.125rem] py-4 text-sm font-semibold outline-none placeholder:font-medium placeholder:text-faint focus-visible:outline-[1.5px] focus-visible:outline-offset-0 focus-visible:outline-ink";
 const labelCls = "flex flex-col gap-2 text-[0.8125rem] font-bold";
+const card = "flex flex-col gap-[1.125rem] rounded-card bg-surface p-8 max-[599px]:p-6";
 
 function countryName(code: string): string {
   try {
@@ -69,6 +77,24 @@ const CHECKS = [
   },
 ] as const;
 
+/*
+ * Le résumé d'un contrat commence par son titre et un « Résumé » : le panneau porte déjà
+ * l'un et l'autre. On retire donc les titres de tête — de l'affichage seulement, la copie
+ * figée dans la signature reste le texte entier.
+ */
+function summaryProse(text: string): string {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  let i = 0;
+  while (i < lines.length && (lines[i].trim() === "" || lines[i].trim().startsWith("#"))) i += 1;
+  return lines.slice(i).join("\n").trim();
+}
+
+const STATUSES: { value: SignerStatus; label: string }[] = [
+  { value: "individual", label: "Particulier" },
+  { value: "sole_trader", label: "Micro-entrepreneur" },
+  { value: "company", label: "Société" },
+];
+
 export function KitOrderForm({
   countries,
   options,
@@ -78,6 +104,7 @@ export function KitOrderForm({
   signAction,
   seller,
   goods,
+  items,
   socials,
   email,
   prototype,
@@ -91,6 +118,7 @@ export function KitOrderForm({
   signAction?: (fd: FormData) => Promise<PartnerResult>;
   seller: Seller;
   goods: ContractGoods;
+  items: KitItem[];
   socials: PartnerSocials;
   email: string;
   /** Les livres remis sont-ils des prototypes : le contrat le dit. */
@@ -122,6 +150,8 @@ export function KitOrderForm({
   const [reading, setReading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  /* L'étape affichée sur un petit écran. Sur un bureau, les trois sont toujours là. */
+  const [step, setStep] = useState(1);
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setS = (k: keyof typeof signer) => (e: React.ChangeEvent<HTMLInputElement>) => setSigner((f) => ({ ...f, [k]: e.target.value }));
@@ -138,13 +168,17 @@ export function KitOrderForm({
   const option = options.find((o) => o.id === rateId) ?? options[0];
   const professional = status !== "individual";
 
-  const addressOk = form.firstName.trim() && form.lastName.trim() && form.line1.trim() && form.postalCode.trim() && form.city.trim() && form.phone.trim() && (!option?.relay || relay);
+  /* L'adresse d'abord, le relais ensuite : on ne reproche pas un relais manquant à
+     quelqu'un qui n'a pas encore dit où il habite — la carte cherche autour de là. */
+  const postalOk = Boolean(form.firstName.trim() && form.lastName.trim() && form.line1.trim() && form.postalCode.trim() && form.city.trim() && form.phone.trim());
+  const addressOk = postalOk && Boolean(!option?.relay || relay);
   /* Le contrat ne se lit qu'une fois rempli : ce sont ces informations qui y figurent. */
   const partyOk =
     Boolean(me.firstName.trim() && me.lastName.trim() && me.line1.trim() && me.postalCode.trim() && me.city.trim()) &&
     (!professional || Boolean(signer.siret.trim() && signer.companyName.trim()));
   const checksOk = CHECKS.every((c) => !c.required || checks[c.name]);
   const signedOk = Boolean(signer.signerTypedName.trim());
+  const checkedCount = CHECKS.filter((c) => checks[c.name]).length;
 
   /* Le contrat, rempli de ce qui est saisi : c'est ce texte-là qui sera lu, accepté,
      puis conservé tel quel dans la signature. */
@@ -210,328 +244,506 @@ export function KitOrderForm({
       else setError(result.error);
     });
 
+  /*
+   * Ce qui manque pour avancer, dit à sa place. Un bouton grisé sans explication est une
+   * porte fermée sans écriteau.
+   */
+  const totalSteps = contract ? 3 : 1;
+  const ready = addressOk && (!contract || (partyOk && upToDate && checksOk && signedOk));
+  const canLeaveStep = step === 1 ? addressOk : step === 2 ? partyOk && upToDate : checksOk && signedOk;
+  const stepHint =
+    step === 1
+      ? addressOk
+        ? "Aucun paiement : le kit est offert, port compris."
+        : !postalOk
+          ? "Complétez vos coordonnées de livraison."
+          : option?.relay && !relay
+            ? "Choisissez votre point relais sur la carte."
+            : "Complétez vos coordonnées de livraison."
+      : step === 2
+        ? !partyOk
+          ? "Complétez vos coordonnées de contractant."
+          : stale
+            ? "Vos informations ont changé : relisez le contrat."
+            : !upToDate
+              ? "Lisez le contrat pour continuer."
+              : "Contrat lu. Il reste à attester et signer."
+        : !checksOk
+          ? "Cochez les attestations obligatoires."
+          : !signedOk
+            ? "Saisissez vos prénom et nom pour signer."
+            : "Aucun paiement : le kit est offert, port compris.";
+
+  /* Le titre d'étape, et l'intitulé du bouton qui y mène. */
+  const stepName = ["Où vous l'envoyer", "Le contrat", "Attester et signer"];
+  const ctaLabel = !contract ? "Commander mon kit" : step === 1 ? "Continuer · le contrat" : step === 2 ? "Continuer · accepter" : "Accepter le contrat et commander";
+
+  const onCta = () => {
+    if (!contract || step === totalSteps) return submit();
+    setStep(step + 1);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const back = (to: number) => {
+    setStep(to);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  /* Une étape passée reste rendue : ses champs font partie du même formulaire. Sur un
+     petit écran on la cache, sur un bureau elle reste sous les yeux. */
+  const only = (n: number) => (step === n ? "" : "max-[1099px]:hidden");
+
   return (
     <div className="flex flex-col gap-4">
-      {/* ---------- Où livrer ---------- */}
-      <div className="flex flex-col gap-5 rounded-card bg-white p-8 max-[599px]:p-6">
-        <span className="text-base font-extrabold">Où vous l&apos;envoyer</span>
-        {/* Le kit part en point relais : l'adresse sert à trouver le plus proche de chez
-            vous, et le transporteur en a besoin pour l'étiquette. */}
-        <p className="-mt-2 text-[0.8125rem] leading-relaxed text-subtle">
-          Votre kit vous attendra dans un point relais : rien à guetter chez vous, et vous le récupérez quand cela vous
-          arrange. Votre adresse sert à vous proposer les relais les plus proches.
-        </p>
-
-        <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Pays">
-          {countries.map((c) => (
-            <button
-              key={c}
-              type="button"
-              role="radio"
-              aria-checked={country === c}
-              onClick={() => {
-                setCountry(c);
-                setRelay(null);
-              }}
-              className={`rounded-pill px-4 py-2.5 text-[0.8125rem] ${country === c ? "bg-ink font-bold text-white" : "bg-paper font-semibold hover:opacity-70"}`}
-            >
-              {countryName(c)}
+      {/* ---------- Progression, sur petit écran ---------- */}
+      {contract && (
+        <div className="flex flex-col gap-2 min-[1100px]:hidden">
+          {step > 1 && (
+            <button type="button" onClick={() => back(step - 1)} className="w-fit text-xs font-bold text-muted hover:opacity-70">
+              ← {stepName[step - 2]}
             </button>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 max-[599px]:grid-cols-1">
-          <label className={labelCls}>
-            <span>Prénom</span>
-            <input value={form.firstName} onChange={set("firstName")} autoComplete="given-name" className={field} />
-          </label>
-          <label className={labelCls}>
-            <span>Nom</span>
-            <input value={form.lastName} onChange={set("lastName")} autoComplete="family-name" className={field} />
-          </label>
-        </div>
-
-        <AddressAutocomplete
-          value={form.line1}
-          country={country}
-          fieldClassName={field}
-          labelClassName={labelCls}
-          onInput={(v) => setForm((f) => ({ ...f, line1: v }))}
-          onPick={(a) => setForm((f) => ({ ...f, line1: a.line1, postalCode: a.postalCode, city: a.city }))}
-        />
-
-        <label className={labelCls}>
-          <span>
-            Complément <span className="font-medium text-faint">(bâtiment, étage…)</span>
+          )}
+          <div className="grid grid-cols-3 gap-1">
+            {[1, 2, 3].map((n) => (
+              <span key={n} className={`h-1 rounded-pill ${n <= step ? "bg-ink" : "bg-line-warm"}`} />
+            ))}
+          </div>
+          <span className="text-xs font-bold">
+            <span className="text-subtle">Étape {step} sur 3 · </span>
+            {stepName[step - 1]}
           </span>
-          <input value={form.line2} onChange={set("line2")} autoComplete="address-line2" className={field} />
-        </label>
-
-        <div className="grid grid-cols-[1fr_2fr] gap-4 max-[599px]:grid-cols-1">
-          <label className={labelCls}>
-            <span>Code postal</span>
-            <input value={form.postalCode} onChange={set("postalCode")} autoComplete="postal-code" className={field} />
-          </label>
-          <label className={labelCls}>
-            <span>Ville</span>
-            <input value={form.city} onChange={set("city")} autoComplete="address-level2" className={field} />
-          </label>
         </div>
+      )}
 
-        <label className={labelCls}>
-          <span>
-            Téléphone <span className="font-medium text-faint">(pour le transporteur)</span>
+      {/* ---------- Le kit, en bandeau, sur petit écran ---------- */}
+      <div className="flex items-center gap-3 rounded-card bg-tint-green px-4 py-3.5 min-[1100px]:hidden">
+        <span className="flex shrink-0">
+          {items.slice(0, 3).map((item, i) =>
+            item.image ? (
+              <Image
+                key={item.slug}
+                src={item.image}
+                alt=""
+                width={44}
+                height={44}
+                className={`h-11 w-11 rounded-[12px] bg-white object-cover ${i > 0 ? "-ml-2.5 outline-2 outline-tint-green" : ""}`}
+              />
+            ) : (
+              <span key={item.slug} className={`h-11 w-11 rounded-[12px] bg-white ${i > 0 ? "-ml-2.5 outline-2 outline-tint-green" : ""}`} />
+            ),
+          )}
+        </span>
+        <span className="flex min-w-0 flex-col gap-px">
+          <span className="text-[0.8125rem] font-extrabold">
+            {goods.reduce((n, g) => n + g.qty, 0)} imagier{goods.reduce((n, g) => n + g.qty, 0) > 1 ? "s" : ""} · offert, livraison comprise
           </span>
-          <input type="tel" value={form.phone} onChange={set("phone")} autoComplete="tel" placeholder="06 …" className={field} />
-        </label>
-
-        <div className="flex flex-col gap-2.5" role="radiogroup" aria-label="Mode de livraison">
-          <span className="text-[0.8125rem] font-bold">Mode de livraison</span>
-          {options.map((o) => (
-            <button
-              key={o.id}
-              type="button"
-              role="radio"
-              aria-checked={rateId === o.id}
-              onClick={() => {
-                setRateId(o.id);
-                if (!o.relay || o.networks.join() !== option?.networks.join()) setRelay(null);
-              }}
-              className={`grid grid-cols-[auto_1fr_auto] items-center gap-3.5 rounded-2xl border-[1.5px] bg-paper px-[1.125rem] py-4 text-left ${rateId === o.id ? "border-ink" : "border-transparent hover:border-line-warm"}`}
-            >
-              <span className="flex h-5 w-5 items-center justify-center rounded-pill border-2 border-ink">
-                <span className={`h-2.5 w-2.5 rounded-pill ${rateId === o.id ? "bg-ink" : "bg-transparent"}`} />
-              </span>
-              <span className="flex flex-col gap-0.5">
-                <span className="text-sm font-bold">{o.name}</span>
-                {o.description && <span className="text-xs text-muted">{o.description}</span>}
-              </span>
-              <span className="text-sm font-extrabold">Offerte</span>
-            </button>
-          ))}
-        </div>
-
-        {option?.relay && (
-          <RelayPicker token={mapToken} networks={option.networks} address={{ country, postalCode: form.postalCode, city: form.city, street: form.line1 }} selected={relay} onSelect={setRelay} />
-        )}
+          <span className="truncate text-[0.6875rem] font-semibold text-tint-green-ink">{items.map((i) => i.title).join(", ")}</span>
+        </span>
       </div>
 
-      {/* ---------- Vos informations pour le contrat ---------- */}
-      {contract && (
-        <div className="flex flex-col gap-5 rounded-card bg-white p-8 max-[599px]:p-6">
-          <div className="flex flex-col gap-1">
-            <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-faint">Contrat · {contract.typeLabel}</span>
-            <span className="text-base font-extrabold">{contract.name}</span>
-            <span className="text-xs text-subtle">Version {contract.version}</span>
-          </div>
+      <div className="grid items-start gap-6 min-[1100px]:grid-cols-[1fr_380px]">
+        <div className="flex flex-col gap-4">
+          {/* ---------- 1 · Où livrer ---------- */}
+          <Step n={1} title="Où vous l'envoyer" className={only(1)} numbered={Boolean(contract)}>
+            <p className="text-[0.8125rem] leading-relaxed text-subtle">
+              Votre kit vous attendra dans un point relais : rien à guetter chez vous. Votre adresse sert à proposer les
+              relais les plus proches.
+            </p>
 
-          {contract.summary.trim() && (
-            <div className="rounded-card bg-tint-green p-5">
-              <ContractSummary text={filled.summary} />
+            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Pays">
+              {countries.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="radio"
+                  aria-checked={country === c}
+                  onClick={() => {
+                    setCountry(c);
+                    setRelay(null);
+                  }}
+                  className={`rounded-pill px-4 py-2.5 text-[0.8125rem] ${country === c ? "bg-ink font-bold text-white" : "bg-paper font-semibold hover:opacity-70"}`}
+                >
+                  {countryName(c)}
+                </button>
+              ))}
             </div>
-          )}
-
-          {/* Ces informations figurent DANS le contrat : elles se remplissent avant de le lire. */}
-          <div className="flex flex-col gap-4 border-t border-line-soft pt-5">
-            <div className="flex flex-col gap-1">
-              <span className="text-[0.8125rem] font-bold">Vos coordonnées de contractant</span>
-              <span className="text-xs leading-relaxed text-subtle">
-                Celles qui figureront au contrat. Elles peuvent différer de la livraison — on peut se faire envoyer le kit
-                ailleurs et signer en son propre nom.
-              </span>
-            </div>
-
-            <label className="flex cursor-pointer items-start gap-2.5 text-[0.8125rem] leading-relaxed">
-              <input type="checkbox" checked={sameAsDelivery} onChange={(e) => setSameAsDelivery(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-black" />
-              <span>Réutiliser mes informations de livraison</span>
-            </label>
 
             <div className="grid grid-cols-2 gap-4 max-[599px]:grid-cols-1">
               <label className={labelCls}>
                 <span>Prénom</span>
-                <input value={me.firstName} onChange={setP("firstName")} disabled={sameAsDelivery} autoComplete="given-name" className={`${field} disabled:opacity-60`} />
+                <input value={form.firstName} onChange={set("firstName")} autoComplete="given-name" className={field} />
               </label>
               <label className={labelCls}>
                 <span>Nom</span>
-                <input value={me.lastName} onChange={setP("lastName")} disabled={sameAsDelivery} autoComplete="family-name" className={`${field} disabled:opacity-60`} />
+                <input value={form.lastName} onChange={set("lastName")} autoComplete="family-name" className={field} />
               </label>
             </div>
 
-            <label className={labelCls}>
-              <span>Adresse</span>
-              <input value={me.line1} onChange={setP("line1")} disabled={sameAsDelivery} autoComplete="address-line1" className={`${field} disabled:opacity-60`} />
-            </label>
+            <AddressAutocomplete
+              value={form.line1}
+              country={country}
+              fieldClassName={field}
+              labelClassName={labelCls}
+              onInput={(v) => setForm((f) => ({ ...f, line1: v }))}
+              onPick={(a) => setForm((f) => ({ ...f, line1: a.line1, postalCode: a.postalCode, city: a.city }))}
+            />
 
             <label className={labelCls}>
               <span>
-                Complément <span className="font-medium text-faint">(facultatif)</span>
+                Complément <span className="font-medium text-faint">(bâtiment, étage…)</span>
               </span>
-              <input value={me.line2} onChange={setP("line2")} disabled={sameAsDelivery} autoComplete="address-line2" className={`${field} disabled:opacity-60`} />
+              <input value={form.line2} onChange={set("line2")} autoComplete="address-line2" className={field} />
             </label>
 
-            <div className="grid grid-cols-[1fr_2fr_1fr] gap-4 max-[599px]:grid-cols-1">
+            <div className="grid grid-cols-[1fr_2fr_1.4fr] gap-4 max-[749px]:grid-cols-[1fr_2fr] max-[449px]:grid-cols-1">
               <label className={labelCls}>
                 <span>Code postal</span>
-                <input value={me.postalCode} onChange={setP("postalCode")} disabled={sameAsDelivery} autoComplete="postal-code" className={`${field} disabled:opacity-60`} />
+                <input value={form.postalCode} onChange={set("postalCode")} autoComplete="postal-code" className={field} />
               </label>
               <label className={labelCls}>
                 <span>Ville</span>
-                <input value={me.city} onChange={setP("city")} disabled={sameAsDelivery} autoComplete="address-level2" className={`${field} disabled:opacity-60`} />
+                <input value={form.city} onChange={set("city")} autoComplete="address-level2" className={field} />
               </label>
-              <label className={labelCls}>
-                <span>Pays</span>
-                <input
-                  value={me.country}
-                  onChange={(e) => setParty((f) => ({ ...f, country: e.target.value.toUpperCase().slice(0, 2) }))}
-                  disabled={sameAsDelivery}
-                  placeholder="FR"
-                  className={`${field} disabled:opacity-60`}
-                />
-              </label>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2.5">
-            <span className="text-[0.8125rem] font-bold">Vous agissez en tant que</span>
-            <div className="flex flex-wrap gap-2">
-              {(
-                [
-                  ["individual", "Particulier"],
-                  ["sole_trader", "Micro-entrepreneur"],
-                  ["company", "Société"],
-                ] as const
-              ).map(([value, text]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setStatus(value)}
-                  aria-pressed={status === value}
-                  className={`rounded-pill px-4 py-2.5 text-[0.8125rem] ${status === value ? "bg-ink font-bold text-white" : "bg-paper font-semibold hover:opacity-70"}`}
-                >
-                  {text}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {professional && (
-            <div className="grid grid-cols-2 gap-4 max-[599px]:grid-cols-1">
-              <label className={labelCls}>
-                <span>Nom commercial ou raison sociale</span>
-                <input value={signer.companyName} onChange={setS("companyName")} className={field} />
-              </label>
-              <label className={labelCls}>
-                <span>SIRET</span>
-                <input value={signer.siret} onChange={setS("siret")} inputMode="numeric" placeholder="123 456 789 00012" className={field} />
-              </label>
-              <label className={labelCls}>
+              <label className={`${labelCls} max-[749px]:col-span-2 max-[449px]:col-span-1`}>
                 <span>
-                  TVA intracommunautaire <span className="font-medium text-faint">(si applicable)</span>
+                  Téléphone <span className="font-medium text-faint">(pour le transporteur)</span>
                 </span>
-                <input value={signer.vatNumber} onChange={setS("vatNumber")} placeholder="FR12345678901" className={field} />
+                <input type="tel" value={form.phone} onChange={set("phone")} autoComplete="tel" placeholder="06 …" className={field} />
               </label>
             </div>
+
+            <div className="flex flex-col gap-2.5" role="radiogroup" aria-label="Mode de livraison">
+              <span className="text-[0.8125rem] font-bold">Mode de livraison</span>
+              <div className={`grid gap-2.5 ${options.length > 1 ? "grid-cols-2 max-[749px]:grid-cols-1" : "grid-cols-1"}`}>
+                {options.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={rateId === o.id}
+                    onClick={() => {
+                      setRateId(o.id);
+                      if (!o.relay || o.networks.join() !== option?.networks.join()) setRelay(null);
+                    }}
+                    className={`grid grid-cols-[auto_1fr_auto] items-center gap-3.5 rounded-2xl border-[1.5px] bg-paper px-[1.125rem] py-3.5 text-left ${rateId === o.id ? "border-ink" : "border-transparent hover:border-line-warm"}`}
+                  >
+                    <span className="flex h-5 w-5 items-center justify-center rounded-pill border-2 border-ink">
+                      <span className={`h-2.5 w-2.5 rounded-pill ${rateId === o.id ? "bg-ink" : "bg-transparent"}`} />
+                    </span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="text-sm font-bold">{o.name}</span>
+                      {o.description && <span className="truncate text-xs text-muted">{o.description}</span>}
+                    </span>
+                    <span className="text-sm font-extrabold">Offerte</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {option?.relay && (
+              <RelayPicker
+                token={mapToken}
+                networks={option.networks}
+                address={{ country, postalCode: form.postalCode, city: form.city, street: form.line1 }}
+                selected={relay}
+                onSelect={setRelay}
+              />
+            )}
+          </Step>
+
+          {/* ---------- 2 · Le contrat ---------- */}
+          {contract && (
+            <Step n={2} title="Le contrat" className={only(2)} numbered aside={`${contract.typeLabel} · ${contract.name} · version ${contract.version}`}>
+              <div className="grid grid-cols-2 items-start gap-5 max-[899px]:grid-cols-1">
+                {summaryProse(filled.summary) && (
+                  <div className="flex flex-col gap-2 rounded-card bg-tint-green p-5 text-tint-green-ink">
+                    <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em]">En résumé</span>
+                    <ContractText text={summaryProse(filled.summary)} className="!text-tint-green-ink" />
+                    <span className="text-[0.6875rem]">Ce résumé ne remplace pas le contrat : vous le lirez en entier avant de l&apos;accepter.</span>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3.5">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[0.8125rem] font-extrabold">Vos coordonnées de contractant</span>
+                    <span className="text-xs leading-relaxed text-subtle">Celles qui figureront au contrat ; elles peuvent différer de la livraison.</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    role="checkbox"
+                    aria-checked={sameAsDelivery}
+                    onClick={() => setSameAsDelivery(!sameAsDelivery)}
+                    className="flex items-center gap-3 rounded-[14px] bg-paper px-3.5 py-3 text-left text-[0.8125rem] font-semibold"
+                  >
+                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px] border-ink text-xs font-extrabold ${sameAsDelivery ? "bg-ink text-white" : ""}`}>
+                      {sameAsDelivery ? "✓" : ""}
+                    </span>
+                    Réutiliser mes informations de livraison
+                  </button>
+
+                  {sameAsDelivery ? (
+                    <div className="flex flex-col gap-1 px-1 text-[0.8125rem] leading-relaxed text-muted">
+                      <span className="font-bold text-ink">{`${me.firstName} ${me.lastName}`.trim() || "Vos nom et prénom"}</span>
+                      <span>{[me.line1, me.line2, `${me.postalCode} ${me.city}`.trim(), countryName(me.country)].filter(Boolean).join(", ") || "Votre adresse de livraison"}</span>
+                      <span>{email}</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3.5">
+                      <div className="grid grid-cols-2 gap-3 max-[599px]:grid-cols-1">
+                        <label className={labelCls}>
+                          <span>Prénom</span>
+                          <input value={party.firstName} onChange={setP("firstName")} className={field} />
+                        </label>
+                        <label className={labelCls}>
+                          <span>Nom</span>
+                          <input value={party.lastName} onChange={setP("lastName")} className={field} />
+                        </label>
+                      </div>
+                      <label className={labelCls}>
+                        <span>Adresse</span>
+                        <input value={party.line1} onChange={setP("line1")} className={field} />
+                      </label>
+                      <label className={labelCls}>
+                        <span>
+                          Complément <span className="font-medium text-faint">(facultatif)</span>
+                        </span>
+                        <input value={party.line2} onChange={setP("line2")} className={field} />
+                      </label>
+                      <div className="grid grid-cols-[1fr_2fr] gap-3 max-[449px]:grid-cols-1">
+                        <label className={labelCls}>
+                          <span>Code postal</span>
+                          <input value={party.postalCode} onChange={setP("postalCode")} className={field} />
+                        </label>
+                        <label className={labelCls}>
+                          <span>Ville</span>
+                          <input value={party.city} onChange={setP("city")} className={field} />
+                        </label>
+                      </div>
+                      <label className={labelCls}>
+                        <span>Pays</span>
+                        <input value={party.country} onChange={setP("country")} maxLength={2} className={`${field} !w-28 uppercase`} />
+                      </label>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-2.5 border-t border-line-soft pt-4">
+                    <span className="text-[0.8125rem] font-bold">Vous agissez en tant que</span>
+                    <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Qualité du signataire">
+                      {STATUSES.map((s) => (
+                        <button
+                          key={s.value}
+                          type="button"
+                          role="radio"
+                          aria-checked={status === s.value}
+                          onClick={() => setStatus(s.value)}
+                          className={`rounded-pill px-4 py-2.5 text-[0.8125rem] font-bold ${status === s.value ? "bg-ink text-white" : "bg-paper hover:opacity-70"}`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {professional && (
+                    <div className="grid grid-cols-2 gap-3 max-[599px]:grid-cols-1">
+                      <label className={labelCls}>
+                        <span>Nom commercial ou raison sociale</span>
+                        <input value={signer.companyName} onChange={setS("companyName")} className={field} />
+                      </label>
+                      <label className={labelCls}>
+                        <span>SIRET</span>
+                        <input value={signer.siret} onChange={setS("siret")} placeholder="123 456 789 00012" className={field} />
+                      </label>
+                      <label className={`${labelCls} col-span-2 max-[599px]:col-span-1`}>
+                        <span>
+                          TVA intracommunautaire <span className="font-medium text-faint">(si applicable)</span>
+                        </span>
+                        <input value={signer.vatNumber} onChange={setS("vatNumber")} placeholder="FR12345678901" className={field} />
+                      </label>
+                    </div>
+                  )}
+
+                  <label className={labelCls}>
+                    <span>Pays de résidence fiscale</span>
+                    <input value={signer.taxCountry} onChange={setS("taxCountry")} maxLength={2} className={`${field} !w-28 uppercase`} />
+                  </label>
+                </div>
+              </div>
+
+              {/* La lecture : proposée en noir tant qu'elle n'a pas eu lieu, constatée en vert ensuite. */}
+              {upToDate ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-tint-green px-5 py-4">
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-[0.8125rem] font-extrabold text-tint-green-ink">Contrat lu jusqu&apos;au bout.</span>
+                    <span className="text-[0.6875rem] font-semibold text-tint-green-ink">Rempli de vos informations · version {contract.version}</span>
+                  </span>
+                  <button type="button" onClick={() => setReading(true)} className="whitespace-nowrap border-b-[1.5px] border-ink text-xs font-bold">
+                    Le relire
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-4 rounded-card bg-deep px-5 py-[1.125rem] text-on-deep max-[599px]:flex-col max-[599px]:items-stretch">
+                  <span className="flex flex-col gap-0.5">
+                    <span className="text-sm font-extrabold">{stale ? "Vos informations ont changé" : "Lire le contrat"}</span>
+                    <span className="text-xs leading-relaxed text-on-deep-muted">
+                      {stale
+                        ? "Le contrat a été refait avec vos nouvelles informations : relisez-le avant de l'accepter."
+                        : "Il s'ouvre rempli de vos informations. Les attestations et la signature viennent ensuite."}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setReading(true)}
+                    disabled={!partyOk}
+                    className="whitespace-nowrap rounded-pill bg-white px-6 py-3.5 text-[0.8125rem] font-bold text-ink disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {stale ? "Relire le contrat" : "Ouvrir le contrat"}
+                  </button>
+                </div>
+              )}
+            </Step>
           )}
 
-          <label className={labelCls}>
-            <span>Pays de résidence fiscale</span>
-            <input value={signer.taxCountry} onChange={(e) => setSigner((f) => ({ ...f, taxCountry: e.target.value.toUpperCase().slice(0, 2) }))} placeholder="FR" className={`${field} w-28`} />
-          </label>
-
-          {/* ---------- Lire ---------- */}
-          <div className="flex flex-col gap-2 border-t border-line-soft pt-5">
-            {upToDate ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-card bg-tint-green px-5 py-4">
-                <span className="text-[0.8125rem] font-bold text-tint-green-ink">Contrat lu jusqu&apos;au bout.</span>
-                <button type="button" onClick={() => setReading(true)} className="border-b-[1.5px] border-ink text-xs font-bold">
-                  Le relire
-                </button>
-              </div>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setReading(true)}
-                  disabled={!partyOk}
-                  className="w-fit rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {stale ? "Relire le contrat mis à jour" : "Lire le contrat"}
-                </button>
-                <span className={`text-xs ${stale ? "font-semibold text-tint-sand-ink" : "text-subtle"}`}>
-                  {stale
-                    ? "Vos informations ont changé, et le contrat avec elles : relisez-le avant d'attester."
-                    : partyOk
-                      ? "Il s'ouvrira rempli de vos informations. Les attestations et la signature viennent ensuite."
-                      : "Complétez vos coordonnées de contractant ci-dessus pour ouvrir le contrat."}
+          {/* ---------- 3 · Attester et signer ---------- */}
+          {contract && (
+            <Step n={3} title="Attester et signer" className={`${only(3)} ${upToDate ? "" : "opacity-60"}`} numbered aside={`${checkedCount} sur ${CHECKS.length}`}>
+              {!upToDate && (
+                <span className="w-fit rounded-xl bg-tint-sand px-3 py-2.5 text-xs font-semibold text-tint-sand-ink">
+                  Lisez d&apos;abord le contrat pour pouvoir attester.
                 </span>
-              </>
+              )}
+
+              <div className="grid grid-cols-2 gap-x-6 gap-y-3 max-[899px]:grid-cols-1">
+                {CHECKS.map((c) => (
+                  <button
+                    key={c.name}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={Boolean(checks[c.name])}
+                    disabled={!upToDate}
+                    onClick={() => setChecks((s) => ({ ...s, [c.name]: !s[c.name] }))}
+                    className="grid grid-cols-[22px_1fr] items-start gap-3 text-left text-[0.8125rem] leading-[1.55] text-[#333] disabled:cursor-not-allowed"
+                  >
+                    <span className={`mt-px flex h-[22px] w-[22px] items-center justify-center rounded-[7px] border-[1.5px] border-ink text-xs font-extrabold ${checks[c.name] ? "bg-ink text-white" : ""}`}>
+                      {checks[c.name] ? "✓" : ""}
+                    </span>
+                    <span>
+                      {c.text}
+                      {!c.required && <span className="text-subtle"> (facultatif)</span>}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <label className={`${labelCls} border-t border-line-soft pt-4`}>
+                <span>Signature — saisissez vos prénom et nom</span>
+                <input
+                  value={signer.signerTypedName}
+                  onChange={setS("signerTypedName")}
+                  disabled={!upToDate}
+                  placeholder={`${me.firstName} ${me.lastName}`.trim() || "Camille Dupont"}
+                  className={`${field} !py-[1.125rem] !text-lg !font-extrabold !tracking-[-0.01em] disabled:cursor-not-allowed`}
+                />
+              </label>
+              <span className="text-xs font-medium leading-[1.55] text-subtle">
+                En saisissant votre nom, vous confirmez votre acceptation du contrat et des engagements qu&apos;il
+                contient. L&apos;acceptation sera horodatée.
+              </span>
+
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={Boolean(checks.newsletterOptIn)}
+                onClick={() => setChecks((s) => ({ ...s, newsletterOptIn: !s.newsletterOptIn }))}
+                className="grid grid-cols-[22px_1fr] items-start gap-3 border-t border-line-soft pt-4 text-left text-xs leading-[1.55] text-subtle"
+              >
+                <span className={`mt-px flex h-[22px] w-[22px] items-center justify-center rounded-[7px] border-[1.5px] border-ink text-xs font-extrabold ${checks.newsletterOptIn ? "bg-ink text-white" : ""}`}>
+                  {checks.newsletterOptIn ? "✓" : ""}
+                </span>
+                <span>
+                  Je souhaite recevoir par e-mail les actualités de Mon Vrai. <span className="text-faint">(facultatif, sans effet sur le contrat)</span>
+                </span>
+              </button>
+            </Step>
+          )}
+
+          {error && (
+            <p role="alert" className="rounded-card bg-tint-pink px-5 py-4 text-[0.8125rem] font-semibold text-tint-pink-ink">
+              {error}
+            </p>
+          )}
+
+          {/* ---------- Valider, sur grand écran ---------- */}
+          <div className="flex flex-col gap-2 max-[1099px]:hidden">
+            <button
+              type="button"
+              onClick={submit}
+              disabled={!ready || pending}
+              className="w-full rounded-pill bg-ink py-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {pending ? "Envoi…" : contract ? "Accepter le contrat et commander" : "Commander mon kit"}
+            </button>
+            <span className="text-center text-[0.6875rem] text-subtle">
+              {ready ? "Aucun paiement : le kit est offert, port compris." : stepHint}
+            </span>
+          </div>
+        </div>
+
+        {/* ---------- Ce que vous recevez, et où l'on en est ---------- */}
+        <aside className="sticky top-6 flex flex-col gap-3.5 max-[1099px]:hidden">
+          <div className="flex flex-col gap-3 rounded-card bg-tint-green p-7">
+            <span className="text-base font-extrabold">Ce que vous recevez</span>
+            {items.map((item, i) => (
+              <div key={item.slug} className={`flex items-center gap-3 ${i > 0 ? "border-t border-white/60 pt-3" : ""}`}>
+                {item.image ? (
+                  <Image src={item.image} alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-2xl bg-white object-cover" />
+                ) : (
+                  <span className="h-12 w-12 shrink-0 rounded-2xl bg-white" />
+                )}
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-[0.8125rem] font-bold">{item.title}</span>
+                  <span className="text-xs text-tint-green-ink">{item.qty > 1 ? `${item.qty} exemplaires` : "1 exemplaire"}</span>
+                </span>
+              </div>
+            ))}
+            <span className="border-t border-white/60 pt-3 text-[0.8125rem] font-extrabold">Offert · livraison comprise</span>
+            {prototype && (
+              <span className="text-xs text-tint-green-ink">Ces exemplaires sont des prototypes : la version définitive peut différer légèrement.</span>
             )}
           </div>
 
-          {/* ---------- Attester, après avoir lu ---------- */}
-          <div className={`flex flex-col gap-2.5 border-t border-line-soft pt-5 ${upToDate ? "" : "opacity-50"}`}>
-            <span className="text-[0.8125rem] font-bold">Vos attestations</span>
-            {!upToDate && <span className="text-xs text-subtle">Lisez le contrat ci-dessus pour pouvoir attester.</span>}
-            {CHECKS.map((c) => (
-              <label key={c.name} className={`flex items-start gap-2.5 text-[0.8125rem] leading-relaxed ${upToDate ? "cursor-pointer" : "cursor-not-allowed"}`}>
-                <input
-                  type="checkbox"
-                  checked={Boolean(checks[c.name])}
-                  onChange={(e) => setChecks((p) => ({ ...p, [c.name]: e.target.checked }))}
-                  disabled={!upToDate}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-black"
-                />
-                <span>
-                  {c.text}
-                  {!c.required && <span className="text-subtle"> (le cas échéant)</span>}
-                </span>
-              </label>
-            ))}
+          {contract && (
+            <div className="flex flex-col rounded-card bg-surface px-5 py-1.5">
+              {[
+                { label: "Livraison", done: addressOk, note: relay?.name ?? (addressOk ? "Adresse complète" : "À compléter") },
+                { label: "Contrat", done: partyOk && upToDate, note: upToDate ? "Lu" : stale ? "À relire" : "Non lu" },
+                { label: "Attester et signer", done: checksOk && signedOk, note: `${checkedCount} sur ${CHECKS.length}` },
+              ].map((s, i) => (
+                <div key={s.label} className={`flex items-center gap-3 py-3 ${i < 2 ? "border-b border-line-soft" : ""}`}>
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-pill text-[0.6875rem] font-extrabold ${s.done ? "bg-tint-green text-tint-green-ink" : "bg-paper"}`}>
+                    {s.done ? "✓" : i + 1}
+                  </span>
+                  <span className="flex-1 text-[0.8125rem] font-bold">{s.label}</span>
+                  <span className="truncate text-xs text-subtle">{s.note}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </aside>
+      </div>
 
-            <label className={`${labelCls} mt-2`}>
-              <span>Signature — saisissez vos prénom et nom</span>
-              <input
-                value={signer.signerTypedName}
-                onChange={setS("signerTypedName")}
-                disabled={!upToDate}
-                placeholder={`${me.firstName} ${me.lastName}`.trim() || "Prénom Nom"}
-                className={`${field} disabled:cursor-not-allowed`}
-              />
-              <span className="text-xs font-medium leading-relaxed text-subtle">
-                En saisissant votre nom, vous confirmez votre acceptation du contrat et des engagements qu&apos;il contient.
-              </span>
-            </label>
-          </div>
-
-          <label className="flex cursor-pointer items-start gap-2.5 text-[0.8125rem] leading-relaxed text-subtle">
-            <input type="checkbox" checked={Boolean(checks.newsletterOptIn)} onChange={(e) => setChecks((p) => ({ ...p, newsletterOptIn: e.target.checked }))} className="mt-0.5 h-4 w-4 shrink-0 accent-black" />
-            <span>Je souhaite recevoir par e-mail les actualités et nouveautés de Mon Vrai. (facultatif, sans effet sur le contrat)</span>
-          </label>
-
-          <p className="text-[0.6875rem] leading-relaxed text-subtle">
-            Les informations recueillies servent à gérer votre collaboration, établir et conserver le contrat et organiser l&apos;envoi des produits.
-            Pour la durée de conservation et vos droits, voyez notre{" "}
-            <a href="/privacy-policy" target="_blank" rel="noreferrer" className="underline">
-              politique de confidentialité
-            </a>
-            .
-          </p>
-        </div>
-      )}
-
-      {error && <p className="rounded-card bg-tint-pink px-5 py-4 text-[0.8125rem] font-semibold text-tint-pink-ink">{error}</p>}
-
-      {/* ---------- Commander ---------- */}
-      <div className="flex flex-col gap-2">
+      {/* ---------- Valider, posé en bas de l'écran, sur petit écran ---------- */}
+      <div className="sticky bottom-0 z-10 flex flex-col gap-2 bg-gradient-to-b from-transparent to-paper to-30% pb-6 pt-5 min-[1100px]:hidden">
         <button
           type="button"
-          onClick={submit}
-          disabled={pending || (contract ? !(upToDate && checksOk && signedOk) : !addressOk)}
-          className="w-fit rounded-pill bg-ink px-7 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+          onClick={onCta}
+          disabled={(step === totalSteps ? !ready : !canLeaveStep) || pending}
+          className="w-full rounded-pill bg-ink py-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {pending ? "Envoi…" : contract ? "Accepter le contrat et passer la commande" : "Passer la commande"}
+          {pending ? "Envoi…" : ctaLabel}
         </button>
-        <span className="text-xs text-subtle">Aucun paiement : le kit est offert, frais de port compris.</span>
+        <span className="text-center text-[0.6875rem] text-subtle">{stepHint}</span>
       </div>
 
       {reading && contract && (
@@ -553,13 +765,38 @@ export function KitOrderForm({
   );
 }
 
-/* Le résumé se rend comme le contrat : l'administration décide de sa mise en forme,
-   paragraphes ou puces, sans qu'on la lui impose ici. */
-function ContractSummary({ text }: { text: string }) {
+/*
+ * Une étape : son numéro dans une pastille, son titre, et ce qu'elle demande. Le numéro
+ * ne s'affiche que s'il y a un contrat — sans lui il n'y a qu'une étape, et « 1 » tout
+ * seul ne numérote rien.
+ */
+function Step({
+  n,
+  title,
+  aside,
+  numbered,
+  className = "",
+  children,
+}: {
+  n: number;
+  title: string;
+  aside?: string;
+  numbered: boolean;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="flex flex-col gap-2">
-      <ContractText text={text} className="[&_h2]:mt-0 [&_h3]:mt-0 !text-tint-green-ink" />
-      <span className="text-xs text-tint-green-ink">Ce résumé ne remplace pas le contrat : vous le lirez en entier avant de l&apos;accepter.</span>
-    </div>
+    <section className={`${card} ${numbered ? "min-[1100px]:grid min-[1100px]:grid-cols-[36px_1fr] min-[1100px]:gap-5" : ""} ${className}`}>
+      {numbered && (
+        <span className="flex h-9 w-9 items-center justify-center rounded-pill bg-ink text-sm font-extrabold text-white max-[1099px]:hidden">{n}</span>
+      )}
+      <div className="flex min-w-0 flex-col gap-[1.125rem]">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <span className="text-lg font-extrabold">{title}</span>
+          {aside && <span className="text-xs font-semibold text-subtle">{aside}</span>}
+        </div>
+        {children}
+      </div>
+    </section>
   );
 }

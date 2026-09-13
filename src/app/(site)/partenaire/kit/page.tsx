@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { KitOrderForm } from "@/components/site/KitOrderForm";
@@ -99,9 +98,11 @@ export default async function PartnerKitPage() {
 
   return (
     <section className="site-wrap flex flex-col gap-6 py-4 pb-20">
+      {/* Le geste en titre, le nom du kit au-dessus : on vient ici pour commander. */}
       <div className="flex flex-col gap-2">
-        <Eyebrow>Kit de bienvenue</Eyebrow>
-        <h1 className="display-1 text-[clamp(1.75rem,3.5vw,2.5rem)]">{kit.title}</h1>
+        <Eyebrow>{kit.title}</Eyebrow>
+        <h1 className="display-1 text-[clamp(1.75rem,3.5vw,2.5rem)]">Commander mon kit</h1>
+        {kit.text && <p className="max-w-[44rem] text-sm leading-relaxed text-subtle">{kit.text}</p>}
         <Link href="/partenaire" className="w-fit border-b-[1.5px] border-ink text-[0.8125rem] font-bold">
           Retour à mon espace
         </Link>
@@ -114,40 +115,20 @@ export default async function PartnerKitPage() {
         </p>
       )}
 
-      <div className="grid grid-cols-[1fr_360px] items-start gap-4 max-[899px]:grid-cols-1">
-        <KitOrderForm
-          countries={settings.shipping.countries}
-          options={options}
-          mapToken={mapToken}
-          action={orderPartnerKitAction}
-          contract={view}
-          signAction={view ? signAndOrderKitAction : undefined}
-          seller={seller}
-          goods={kit.items.map((i) => ({ title: i.title, qty: i.qty, unitValue: i.unitValue }))}
-          socials={influencer.socials}
-          email={influencer.email}
-          prototype={kit.prototype}
-        />
-
-        <aside className="flex flex-col gap-3 rounded-card bg-tint-green p-7">
-          <span className="text-base font-extrabold">Ce que vous recevez</span>
-          {kit.items.map((item) => (
-            <div key={item.slug} className="flex items-center gap-3 border-t border-white/60 pt-3 first:border-0 first:pt-0">
-              {item.image ? (
-                <Image src={item.image.url} alt={item.image.alt || item.title} width={48} height={48} className="h-12 w-12 shrink-0 rounded-thumb bg-white object-cover" />
-              ) : (
-                <span className="h-12 w-12 shrink-0 rounded-thumb bg-white" />
-              )}
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-[0.8125rem] font-bold">{item.title}</span>
-                <span className="text-xs text-tint-green-ink">{item.qty > 1 ? `${item.qty} exemplaires` : "1 exemplaire"}</span>
-              </span>
-            </div>
-          ))}
-          <span className="border-t border-white/60 pt-3 text-[0.8125rem] font-extrabold">Offert · livraison comprise</span>
-          {kit.prototype && <span className="text-xs text-tint-green-ink">Ces exemplaires sont des prototypes : la version définitive peut différer légèrement.</span>}
-        </aside>
-      </div>
+      <KitOrderForm
+        countries={settings.shipping.countries}
+        options={options}
+        mapToken={mapToken}
+        action={orderPartnerKitAction}
+        contract={view}
+        signAction={view ? signAndOrderKitAction : undefined}
+        seller={seller}
+        goods={kit.items.map((i) => ({ title: i.title, qty: i.qty, unitValue: i.unitValue }))}
+        items={kit.items.map((i) => ({ slug: i.slug, title: i.title, qty: i.qty, image: i.image?.url }))}
+        socials={influencer.socials}
+        email={influencer.email}
+        prototype={kit.prototype}
+      />
     </section>
   );
 }
