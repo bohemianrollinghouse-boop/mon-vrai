@@ -13,7 +13,7 @@
  *     scripts/migrate-campaigns.ts [--apply]
  */
 import { listCampaigns, syncCampaignPromo, upsertCampaign } from "@/lib/db/campaigns";
-import { listInfluencers } from "@/lib/db/promos";
+import { listInfluencers, upsertInfluencer } from "@/lib/db/promos";
 import { getSignature } from "@/lib/db/contracts";
 
 const APPLY = process.argv.includes("--apply");
@@ -22,6 +22,16 @@ async function main() {
   console.log(APPLY ? "Mode : ÉCRITURE\n" : "Mode : répétition à blanc, aucune écriture\n");
 
   for (const inf of await listInfluencers()) {
+    /*
+     * Le démarchage : les partenaires d'avant sont, par définition, validés — on leur a
+     * parlé, ils ont un code et un espace. Le statut ne naît « pas encore contacté » que
+     * pour les fiches créées à partir de maintenant.
+     */
+    if (inf.outreach === "todo") {
+      console.log(`  ${inf.name.padEnd(22)} démarchage : validé`);
+      if (APPLY) await upsertInfluencer({ ...inf, outreach: "validated" });
+    }
+
     const existing = await listCampaigns(inf.id);
     if (existing.length > 0) {
       /*

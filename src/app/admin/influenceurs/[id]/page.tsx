@@ -4,7 +4,7 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { AutoSubmitSwitch } from "@/components/admin/AutoSubmitSwitch";
 import { CopyButton } from "@/components/admin/CodeInput";
 import { CommissionField } from "@/components/admin/CommissionField";
-import { Card, Field, FilterPills, Input, PageHeader, Pill, Textarea, Tile } from "@/components/admin/ui";
+import { Card, Field, FilterPills, Input, PageHeader, Pill, Select, Textarea, Tile } from "@/components/admin/ui";
 import {
   deleteInfluencerAction,
   markStatementPaidAction,
@@ -21,7 +21,7 @@ import { listContracts } from "@/lib/db/contracts";
 import { getInfluencer, listRefClicksSince } from "@/lib/db/promos";
 import { listStatements } from "@/lib/db/statements";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
-import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, type Campaign, type Influencer } from "@/lib/domain/types";
+import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, OutreachStatus, OUTREACH_LABELS, type Campaign, type Influencer } from "@/lib/domain/types";
 import { campaignStart, liveCampaign } from "@/lib/promos/campaign";
 import { mainAccount } from "@/lib/promos/socials";
 import { maskIban, monthLabel, statementRows } from "@/lib/promos/statements";
@@ -366,6 +366,16 @@ function IdentityForm({ influencer }: { influencer?: Influencer }) {
       </Field>
       <Field label="E-mail" hint="Sert au mot de passe de l'espace partenaire." name="email">
         <Input name="email" type="email" defaultValue={inf?.email ?? ""} placeholder="marie@exemple.fr" className="!rounded-xl !py-3 !text-[0.8125rem]" />
+      </Field>
+      {/* Le démarchage, en amont de toute campagne : où en est la conversation. */}
+      <Field label="Où on en est" hint="Se change aussi d'un geste depuis la liste des influenceurs." name="outreach">
+        <Select name="outreach" defaultValue={inf?.outreach ?? "todo"} className="!rounded-xl !py-3 !text-[0.8125rem]">
+          {OutreachStatus.options.map((o) => (
+            <option key={o} value={o}>
+              {OUTREACH_LABELS[o]}
+            </option>
+          ))}
+        </Select>
       </Field>
       <div className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold text-subtle">Lien de suivi</span>

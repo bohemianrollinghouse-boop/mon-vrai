@@ -16,6 +16,7 @@ import { statementRows } from "@/lib/promos/statements";
 import { now } from "@/lib/db/helpers";
 import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
 import { slugify } from "@/lib/domain/slug";
+import { OutreachStatus, OUTREACH_LABELS } from "@/lib/domain/types";
 
 const Input = z.object({
   id: z.string().default(""),
@@ -25,6 +26,8 @@ const Input = z.object({
   commission: z.boolean().default(false),
   email: z.string().trim().default(""),
   active: z.boolean().default(true),
+  /* Où en est le démarchage : posé à la création, puis changé depuis la liste. */
+  outreach: OutreachStatus.default("todo"),
   igHandle: z.string().trim().max(80).default(""),
   igUrl: z.string().trim().max(300).default(""),
   ttHandle: z.string().trim().max(80).default(""),
@@ -57,6 +60,7 @@ export async function saveInfluencerAction(formData: FormData): Promise<AdminRes
     commission: d.commission,
     email: d.email,
     active: d.active,
+    outreach: d.outreach,
     socials: {
       instagram: { handle: d.igHandle, url: d.igUrl },
       tiktok: { handle: d.ttHandle, url: d.ttUrl },
@@ -204,4 +208,25 @@ export async function saveInfluencerNoteAction(formData: FormData): Promise<Admi
   await audit(user.email, "influencer.note", `influencers/${id}`);
   revalidatePath(`/admin/influenceurs/${id}`);
   return saved(note ? "Note enregistrée." : "Note effacée.");
+}
+
+/*
+ * Où en est le démarchage, changé d'un geste depuis la liste : la case se poste seule,
+ * sans bouton d'enregistrement. C'est un suivi de conversation, pas un réglage de fiche
+ * — il ne touche à rien d'autre.
+ */
+export async function setInfluencerOutreachAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  const parsed = OutreachStatus.safeParse(String(formData.get("outreach") ?? ""));
+  if (!parsed.success) return failed("Statut inconnu");
+
+  const influencer = await getInfluencer(id);
+  if (!influencer) return failed("Partenaire inconnu");
+
+  await upsertInfluencer({ ...influencer, outreach: parsed.data });
+  await audit(user.email, "influencer.outreach", `influencers/${id}`, OUTREACH_LABELS[parsed.data]);
+  revalidatePath("/admin/influenceurs");
+  revalidatePath(`/admin/influenceurs/${id}`);
+  return saved(`${influencer.name} · ${OUTREACH_LABELS[parsed.data]}.`);
 }

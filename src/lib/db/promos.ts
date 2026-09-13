@@ -93,13 +93,14 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "collaborationSeq" | "handle" | "platform" | "code" | "discount" | "endAt"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "collaborationSeq" | "handle" | "platform" | "code" | "discount" | "endAt" | "outreach"
 > & {
   id?: string;
   /* Repris par les campagnes : conservés tels quels, plus jamais saisis ici. */
   code?: string;
   discount?: number;
   endAt?: number;
+  outreach?: Influencer["outreach"];
   uid?: string;
   invitedAt?: number;
   activatedAt?: number;
@@ -127,6 +128,7 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     ...input,
     id,
     clicks: existing?.clicks ?? 0,
+    outreach: input.outreach ?? existing?.outreach ?? "todo",
     code: input.code ?? existing?.code ?? "",
     discount: input.discount ?? existing?.discount ?? 10,
     endAt: input.endAt ?? existing?.endAt,

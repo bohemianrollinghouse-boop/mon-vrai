@@ -1086,9 +1086,28 @@ export const ContractSignature = z.object({
 export type ContractSignature = z.infer<typeof ContractSignature>;
 
 
+/*
+ * Où en est-on du démarchage d'un partenaire.
+ *
+ * Une fiche existe souvent bien avant qu'il ne se passe quoi que ce soit : on a repéré
+ * quelqu'un, on lui a écrit, on attend. Ce statut ne dit rien de ses campagnes — il dit
+ * seulement où en est la conversation.
+ */
+export const OutreachStatus = z.enum(["todo", "contacted", "talking", "validated"]);
+export type OutreachStatus = z.infer<typeof OutreachStatus>;
+
+export const OUTREACH_LABELS: Record<OutreachStatus, string> = {
+  todo: "Pas encore contacté",
+  contacted: "Contacté, en attente",
+  talking: "Échange en cours",
+  validated: "Validé",
+};
+
 export const Influencer = z.object({
   id: z.string(),
   name: z.string().min(1).max(80),
+  /** Où en est le démarchage. Sans rapport avec ses campagnes : c'est l'amont. */
+  outreach: OutreachStatus.default("todo"),
   handle: z.string().max(80).default(""),
   platform: Platform.default("Instagram"),
   /** Identifiant du lien de suivi : monvrai.fr/?ref=<slug>. */
