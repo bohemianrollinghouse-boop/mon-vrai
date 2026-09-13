@@ -68,6 +68,7 @@ export default async function PartnerKitPage() {
            elle l'emporte, le reste continue de suivre le contrat. */
         variables: { ...contract.variables, ...campaign!.contractVariables },
         requiredVariables: contract.requiredVariables,
+        campaign: { startAt: campaign!.startAt ?? campaign!.createdAt, endAt: campaign!.endAt },
       }
     : undefined;
 

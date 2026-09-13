@@ -86,6 +86,9 @@ Les vidéos verticales sont privilégiées pour les contenus destinés aux rése
 
 ## Article 6 — Délai de réalisation
 
+Période de la campagne :
+**Du {{DATE_DEBUT_CAMPAGNE}} au {{DATE_FIN_DE_CAMPAGNE}}**
+
 Les contenus devront être transmis dans un délai de **{{DELAI_EN_JOURS}} jours** suivant la réception des produits, sauf autre accord écrit entre les Parties.
 
 La date indicative de remise des contenus est :

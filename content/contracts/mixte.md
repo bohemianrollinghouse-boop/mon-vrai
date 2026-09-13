@@ -107,11 +107,11 @@ Il s'engage à signaler clairement la nature commerciale ou publicitaire des pub
 
 ## Article 8 — Calendrier
 
+Période de la campagne :
+**Du {{DATE_DEBUT_CAMPAGNE}} au {{DATE_FIN_DE_CAMPAGNE}}**
+
 Les publications et contenus devront être réalisés dans un délai de :
 **{{DELAI_EN_JOURS}} jours après réception des produits.**
-
-Date indicative de fin de collaboration :
-**{{DATE_FIN_DE_CAMPAGNE}}**
 
 Un autre calendrier peut être convenu entre les Parties.
 

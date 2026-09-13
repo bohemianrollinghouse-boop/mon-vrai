@@ -39,6 +39,12 @@ export function oneLineAddress(a: Address): string {
 
 export function contractValues(input: {
   contract: Pick<Contract, "id" | "version" | "variables">;
+  /*
+   * La campagne dont relève ce contrat : ses dates y figurent, et ne se saisissent pas.
+   * C'est la période pendant laquelle le code promo vaut — le contrat dit donc la même
+   * chose que la boutique, sans recopie.
+   */
+  campaign: { startAt: number; endAt?: number };
   seller: Seller;
   party: ContractParty;
   goods: ContractGoods;
@@ -69,7 +75,8 @@ export function contractValues(input: {
   const v = contract.variables;
   const deadlines: Record<string, string> = {};
   if (!v.DATE_REMISE_CONTENUS?.trim()) deadlines.DATE_REMISE_CONTENUS = plusDays(v.DELAI_EN_JOURS);
-  if (!v.DATE_FIN_DE_CAMPAGNE?.trim()) deadlines.DATE_FIN_DE_CAMPAGNE = plusDays(v.DELAI_PUBLICATION_EN_JOURS ?? v.DELAI_EN_JOURS);
+
+  const longDay = (ts: number | undefined) => (ts ? new Date(ts).toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", year: "numeric" }) : "");
 
   return {
     /* Les valeurs de campagne d'abord : une variable automatique ne doit jamais pouvoir
@@ -101,6 +108,9 @@ export function contractValues(input: {
       : "Exemplaires définitifs, identiques à la version commercialisée.",
     QUANTITE_DE_PRODUITS: String(quantity),
     VALEUR_TOTALE_PRODUITS: (total / 100).toFixed(2).replace(".", ","),
+
+    DATE_DEBUT_CAMPAGNE: longDay(input.campaign.startAt),
+    DATE_FIN_DE_CAMPAGNE: longDay(input.campaign.endAt),
 
     DATE_ACCEPTATION: input.acceptedAt
       ? new Date(input.acceptedAt).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "long", timeStyle: "short" })

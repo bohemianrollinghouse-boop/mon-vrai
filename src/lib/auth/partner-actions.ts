@@ -343,6 +343,7 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
   const values = contractValues({
     /* Mêmes réglages qu'à l'affichage : ceux de la campagne par-dessus ceux du contrat. */
     contract: { id: contract.id, version: contract.version, variables: { ...contract.variables, ...campaign.contractVariables } },
+    campaign: { startAt: campaign.startAt ?? campaign.createdAt, endAt: campaign.endAt },
     seller: {
       address: [settings.legal.sellerName, ...settings.legal.sellerAddressLines].filter(Boolean).join(", "),
       siren: settings.legal.siret || settings.legal.vatNumber,

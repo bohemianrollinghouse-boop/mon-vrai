@@ -24,6 +24,12 @@ export type PromoContext = {
   usedByCustomer: Record<string, number>;
   /** Influenceur du lien de suivi (cookie), s'il y en a un. */
   refInfluencer: Influencer | null;
+  /*
+   * Le code que son lien applique aujourd'hui : celui de sa campagne en cours, vide s'il
+   * n'en a pas. Vide ne veut pas dire « pas d'attribution » — un lien suivi après la fin
+   * d'une campagne n'ouvre plus droit à la remise, mais la vente lui revient toujours.
+   */
+  refCode: string;
   promos: Map<string, Promo>;
   influencers: Map<string, Influencer>;
 };
@@ -61,10 +67,12 @@ export function rejectionReason(p: Promo, ctx: PromoContext, influencer?: Influe
   if (p.limit && p.uses >= p.limit) return "Ce code a atteint son nombre d'utilisations.";
   if ((ctx.usedByCustomer[p.code] ?? 0) >= p.perCustomer) return "Vous avez déjà utilisé ce code.";
   if (p.minimum && ctx.subtotal < p.minimum) return `Ce code s'applique à partir de ${(p.minimum / 100).toFixed(2).replace(".", ",")} € d'achats.`;
-  if (p.influencerId) {
-    if (!influencer || !influencer.active) return "Ce code n'est plus actif.";
-    if (influencer.endAt && influencer.endAt < ctx.now) return "Cette campagne est terminée.";
-  }
+  /*
+   * Un code d'influenceur suit sa campagne : dates et extinction sont déjà portées par
+   * le document promo, qui en est le reflet (voir db/campaigns.ts). Il ne reste à
+   * vérifier ici que la mise en pause du partenaire, qui coupe tout.
+   */
+  if (p.influencerId && (!influencer || !influencer.active)) return "Ce code n'est plus actif.";
   if (p.type === "gift" && !p.gifts.length) return "Ce code n'offre rien pour l'instant.";
   return null;
 }
@@ -97,12 +105,14 @@ export function applyPromos(codes: string[], ctx: PromoContext): PromoOutcome {
 
   for (const code of codes) consider(code, false);
 
-  // Lien influenceur : son code s'applique tout seul, sauf si un code influenceur est déjà là.
+  // Lien influenceur : le code de sa campagne s'applique tout seul, sauf si un code
+  // influenceur a déjà été saisi. Sans campagne en cours, il n'y a pas de code à poser —
+  // la vente n'en est pas moins attribuée, plus bas.
   const ref = ctx.refInfluencer;
   const hasInfluencerCode = kept.some((k) => k.influencerId);
-  if (ref && ref.active && !(ref.endAt && ref.endAt < ctx.now) && !hasInfluencerCode) {
+  if (ref && ref.active && ctx.refCode && !hasInfluencerCode) {
     const before = rejected.length;
-    consider(ref.code, true);
+    consider(ctx.refCode, true);
     // Un refus du code du lien n'est pas une erreur à montrer au client.
     if (rejected.length > before) rejected.splice(before);
   }

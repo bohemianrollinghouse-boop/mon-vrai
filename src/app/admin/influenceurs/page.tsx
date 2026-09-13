@@ -7,6 +7,8 @@ import { brandFromSettings } from "@/lib/email/newsletter";
 import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { listInfluencers, listRefClicksSince } from "@/lib/db/promos";
+import { listAllCampaigns } from "@/lib/db/campaigns";
+import { liveCampaign } from "@/lib/promos/campaign";
 import { formatEuroShort } from "@/lib/domain/money";
 import { influencerStats } from "@/lib/promos/stats";
 import { mainAccount } from "@/lib/promos/socials";
@@ -28,7 +30,19 @@ const PLATFORM_TONE: Record<string, { bg: string; fg: string }> = {
 };
 
 export default async function InfluencersPage() {
-  const [influencers, snap, templateValues, settings] = await Promise.all([listInfluencers(), adminSnapshot(), getAllTemplateValues(), getSettings()]);
+  const [influencers, snap, templateValues, settings, campaigns] = await Promise.all([
+    listInfluencers(),
+    adminSnapshot(),
+    getAllTemplateValues(),
+    getSettings(),
+    listAllCampaigns(),
+  ]);
+  /* Le code d'un partenaire est celui de sa campagne en cours : il change avec elle, et
+     s'éteint quand elle se termine. Une seule lecture pour toute la liste. */
+  const byInfluencer = new Map<string, ReturnType<typeof liveCampaign>>();
+  for (const inf of influencers) {
+    byInfluencer.set(inf.id, liveCampaign(campaigns.filter((c) => c.influencerId === inf.id).sort((a, b) => b.seq - a.seq)));
+  }
   const since = new Date(snap.now - 30 * 86_400_000).toISOString().slice(0, 10);
   const clicks = await listRefClicksSince(since).catch(() => []);
   const { rows, totals } = influencerStats(influencers, snap.orders, clicks, snap.now);
@@ -63,7 +77,7 @@ export default async function InfluencersPage() {
       <GridTable
         columns="1fr 130px 70px 90px 100px 90px 90px"
         head={["Influenceur", "Code", "Clics", "Ventes", "CA", "Commission", "Statut"]}
-        empty="Aucun influenceur. Ajoutez le premier avec « Nouvel influenceur » : il reçoit un code et un lien de suivi."
+        empty="Aucun influenceur. Ajoutez le premier avec « Nouvel influenceur » : son code viendra de sa première campagne."
         rows={rows.map((r) => {
           const account = mainAccount(r.influencer);
           const tone = PLATFORM_TONE[account.platform] ?? PLATFORM_TONE.Autre;
@@ -80,7 +94,17 @@ export default async function InfluencersPage() {
                   </span>
                 </span>
               </span>,
-              <span key="c" className="w-fit rounded-lg bg-paper px-2.5 py-1.5 text-xs font-bold">{r.influencer.code}</span>,
+              (() => {
+                const live = byInfluencer.get(r.influencer.id);
+                return live?.code ? (
+                  <span key="c" className="flex w-fit flex-col gap-0.5">
+                    <span className="w-fit rounded-lg bg-paper px-2.5 py-1.5 text-xs font-bold">{live.code}</span>
+                    <span className="text-[0.6875rem] text-subtle">−{live.discount} %</span>
+                  </span>
+                ) : (
+                  <span key="c" className="text-[0.6875rem] text-subtle">Aucune campagne</span>
+                );
+              })(),
               <span key="k" className="text-muted">{r.clicks}</span>,
               <span key="v" className="flex flex-col">
                 <span className="font-bold">{r.orders}</span>

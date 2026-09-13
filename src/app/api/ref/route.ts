@@ -17,8 +17,13 @@ export async function GET(request: Request) {
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? url.origin;
   const res = NextResponse.redirect(new URL(safeTo, base), 302);
 
+  /*
+   * Le suivi ne s'arrête pas avec la campagne : un lien partagé il y a six mois continue
+   * de compter et d'attribuer, même si le code promo, lui, ne remise plus rien. Seule la
+   * mise en pause du partenaire coupe le suivi.
+   */
   const influencer = slug ? await getInfluencerBySlug(slug).catch(() => null) : null;
-  if (influencer && influencer.active && !(influencer.endAt && influencer.endAt < Date.now())) {
+  if (influencer && influencer.active) {
     res.cookies.set(REF_COOKIE, influencer.id, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/", maxAge: REF_DAYS * 86_400 });
     await recordRefClick(influencer.id).catch((err) => console.warn("[ref] clic non compté :", err));
   }

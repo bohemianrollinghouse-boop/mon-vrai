@@ -7,9 +7,9 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { deleteCampaign, getCampaign, listCampaigns, upsertCampaign } from "@/lib/db/campaigns";
+import { deleteCampaign, getCampaign, listCampaigns, syncCampaignPromo, upsertCampaign } from "@/lib/db/campaigns";
 import { getSignature, setSignatureState } from "@/lib/db/contracts";
-import { getInfluencer } from "@/lib/db/promos";
+import { getInfluencer, getPromo } from "@/lib/db/promos";
 import { CollaborationType } from "@/lib/domain/types";
 
 /*
@@ -30,6 +30,11 @@ const Input = z.object({
   influencerId: z.string().min(1),
   name: z.string().trim().max(80).default(""),
   collaborationType: CollaborationType.default("UGC"),
+  /* Le code promo de la campagne, et la remise qu'il offre. */
+  code: z.string().trim().max(24).default(""),
+  discount: z.number().int().min(0).max(100).default(10),
+  startAt: z.string().trim().default(""),
+  endAt: z.string().trim().default(""),
   contractId: z.string().trim().default(""),
   /* Le kit, dans le même formulaire : il fait partie de ce qui se négocie. */
   enabled: z.boolean().default(false),
@@ -71,9 +76,16 @@ function kitLines(raw: string): { slug: string; qty: number }[] {
     .filter((l) => l.slug);
 }
 
+/** Une date de formulaire (`AAAA-MM-JJ`) en horodatage ; la fin court jusqu'au soir. */
+function dayStamp(value: string, edge: "start" | "end"): number | null {
+  if (!value) return null;
+  const ts = new Date(`${value}T${edge === "start" ? "00:00:00" : "23:59:59"}`).getTime();
+  return Number.isNaN(ts) ? null : ts;
+}
+
 export async function saveCampaignAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
-  const parsed = parseForm(Input, formData, { booleans: ["enabled", "deductStock", "prototype"] });
+  const parsed = parseForm(Input, formData, { numbers: ["discount"], booleans: ["enabled", "deductStock", "prototype"] });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
 
@@ -86,12 +98,40 @@ export async function saveCampaignAction(formData: FormData): Promise<AdminResul
   const lines = kitLines(d.lines);
   if (d.enabled && lines.length === 0) return failed("Choisissez au moins un livre avant de proposer le kit.", { lines: "Sélection vide" });
 
+  /*
+   * Les dates ne sont pas décoratives : le code promo ne vaut qu'entre les deux, et le
+   * contrat les cite. On les exige donc, dans cet ordre.
+   */
+  const startAt = dayStamp(d.startAt, "start");
+  const endAt = dayStamp(d.endAt, "end");
+  if (startAt === null) return failed("Indiquez la date de début de la campagne.", { startAt: "Date requise" });
+  if (endAt === null) return failed("Indiquez la date de fin de la campagne.", { endAt: "Date requise" });
+  if (endAt < startAt) return failed("La fin de campagne précède son début.", { endAt: "Après le début" });
+
+  /*
+   * Le code, s'il y en a un : il ne peut pas être celui d'un autre partenaire ni un code
+   * promo interne. Deux campagnes du MÊME partenaire peuvent en revanche le partager —
+   * une nouvelle campagne reprend par défaut celui de la précédente.
+   */
+  const code = d.code.toUpperCase();
+  if (code && !/^[A-Z0-9]{2,24}$/.test(code)) return failed("Le code ne prend que des lettres et des chiffres, 2 au minimum.", { code: "Code invalide" });
+  if (code) {
+    const promo = await getPromo(code);
+    if (promo && promo.influencerId !== influencer.id) {
+      return failed(`Le code ${code} existe déjà${promo.influencerId ? " (autre partenaire)" : " (code promo interne)"}.`, { code: "Déjà utilisé" });
+    }
+  }
+
   const campaign = await upsertCampaign({
     ...(existing ?? {}),
     id: existing?.id,
     influencerId: influencer.id,
     name: d.name,
     collaborationType: d.collaborationType,
+    code,
+    discount: d.discount,
+    startAt,
+    endAt,
     contractId: d.contractId,
     contractVariables: contractVariablesFrom(formData),
     kit: { enabled: d.enabled, title: d.title, text: d.text, lines, deductStock: d.deductStock, prototype: d.prototype },
@@ -100,9 +140,18 @@ export async function saveCampaignAction(formData: FormData): Promise<AdminResul
     status: existing?.status ?? "draft",
   });
 
+  /*
+   * Le document promo est un reflet de la campagne : on le refait. L'ancien code aussi,
+   * s'il a changé — il peut n'être plus porté par personne, et doit alors s'éteindre.
+   */
+  for (const c of new Set([code, existing?.code ?? ""].filter(Boolean))) {
+    await syncCampaignPromo(influencer, c).catch((err) => console.warn("[campagne] code non synchronisé :", (err as Error).message));
+  }
+
   await audit(user.email, existing ? "campaign.update" : "campaign.create", `campaigns/${campaign.id}`, `${influencer.name} · campagne n° ${campaign.seq}`);
   revalidatePath(`/admin/influenceurs/${influencer.id}`);
   revalidatePath(campaignPath(influencer.id, campaign.id));
+  revalidatePath("/admin/codes-promo");
   revalidatePath("/partenaire");
   return saved(`Campagne n° ${campaign.seq} enregistrée${d.enabled ? "" : " (kit non proposé)"}.`);
 }
@@ -123,10 +172,20 @@ export async function createCampaignAction(formData: FormData): Promise<AdminRes
   const blank = list.find((c) => c.status === "draft" && c.kit.lines.length === 0 && !c.contractId);
   if (blank) return { ok: true, message: `Campagne n° ${blank.seq}, encore vide : à remplir.`, redirectTo: campaignPath(influencerId, blank.id) };
 
+  /*
+   * Une nouvelle campagne reprend ce qui se reconduit d'ordinaire : le même code promo,
+   * la même remise, la même forme de collaboration. Tout reste modifiable — c'est un
+   * point de départ, pas une règle.
+   */
+  const previous = list[0] ?? null;
   const campaign = await upsertCampaign({
     influencerId,
     name: "",
-    collaborationType: influencer.collaborationType,
+    collaborationType: previous?.collaborationType ?? influencer.collaborationType,
+    code: previous?.code ?? "",
+    discount: previous?.discount ?? 10,
+    startAt: Date.now(),
+    endAt: undefined,
     contractId: "",
     contractVariables: {},
     kit: { enabled: false, title: "Votre kit de bienvenue", text: "", lines: [], deductStock: false, prototype: false },
@@ -153,11 +212,18 @@ export async function completeCampaignAction(formData: FormData): Promise<AdminR
   if (signature?.state === "active") await setSignatureState(signature.id, "completed").catch(() => undefined);
   await upsertCampaign({ ...campaign, status: "completed", completedAt: Date.now() });
 
+  /* Campagne terminée, code éteint — sauf si une autre campagne vivante le porte aussi. */
+  const influencer = await getInfluencer(campaign.influencerId);
+  if (influencer && campaign.code) {
+    await syncCampaignPromo(influencer, campaign.code).catch((err) => console.warn("[campagne] code non éteint :", (err as Error).message));
+  }
+
   await audit(user.email, "campaign.complete", `campaigns/${id}`, `campagne n° ${campaign.seq}`);
   revalidatePath(`/admin/influenceurs/${campaign.influencerId}`);
   revalidatePath(campaignPath(campaign.influencerId, id));
+  revalidatePath("/admin/codes-promo");
   revalidatePath("/partenaire");
-  return saved(`Campagne n° ${campaign.seq} terminée.`);
+  return saved(`Campagne n° ${campaign.seq} terminée${campaign.code ? ` · le code ${campaign.code} ne remise plus` : ""}.`);
 }
 
 /*
@@ -176,8 +242,11 @@ export async function deleteCampaignAction(formData: FormData): Promise<AdminRes
   }
 
   await deleteCampaign(id);
+  const owner = await getInfluencer(campaign.influencerId);
+  if (owner && campaign.code) await syncCampaignPromo(owner, campaign.code).catch(() => undefined);
   await audit(user.email, "campaign.delete", `campaigns/${id}`, `campagne n° ${campaign.seq}`);
   revalidatePath(`/admin/influenceurs/${campaign.influencerId}`);
+  revalidatePath("/admin/codes-promo");
   revalidatePath("/partenaire");
   /*
    * Redirection côté serveur, et non `redirectTo` : une action serveur invalide la

@@ -4,9 +4,10 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { ContractPicker } from "@/components/admin/ContractPicker";
 import { WelcomeKitEditor } from "@/components/admin/WelcomeKitEditor";
 import { Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
+import { CodeInput } from "@/components/admin/CodeInput";
 import { SignedContractView } from "@/components/site/SignedContractView";
 import { completeCampaignAction, deleteCampaignAction, saveCampaignAction } from "@/lib/admin/actions/campaigns";
-import { getCampaign, listCampaigns } from "@/lib/db/campaigns";
+import { clockNow, getCampaign, listCampaigns } from "@/lib/db/campaigns";
 import { getSignature, listContracts } from "@/lib/db/contracts";
 import { findKitOrder } from "@/lib/db/orders";
 import { listAllProducts } from "@/lib/db/products";
@@ -14,6 +15,7 @@ import { getInfluencer } from "@/lib/db/promos";
 import { formatEuro } from "@/lib/domain/money";
 import { CAMPAIGN_STATUS_LABELS, CollaborationType, COLLABORATION_LABELS } from "@/lib/domain/types";
 import { manualPlaceholders } from "@/lib/promos/contract-template";
+import { campaignLive, campaignStart } from "@/lib/promos/campaign";
 
 export const dynamic = "force-dynamic";
 
@@ -37,12 +39,13 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
   /* Une campagne ne s'ouvre que depuis la fiche de SON partenaire : l'adresse ne suffit pas. */
   if (!influencer || !campaign || campaign.influencerId !== influencer.id) notFound();
 
-  const [products, contracts, order, signature, siblings] = await Promise.all([
+  const [products, contracts, order, signature, siblings, at] = await Promise.all([
     listAllProducts(),
     listContracts(),
     findKitOrder(influencer.id, campaign.seq).catch(() => null),
     getSignature(campaign.signatureId).catch(() => null),
     listCampaigns(influencer.id),
+    clockNow(),
   ]);
 
   /* Un contrat retiré n'est plus proposable, sauf s'il est déjà celui de la campagne. */
@@ -50,6 +53,11 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
   const closed = campaign.status === "completed" || campaign.status === "cancelled";
   const waiting = campaign.status === "draft" && siblings.some((c) => c.status === "active" && c.id !== campaign.id);
   const title = campaign.name || `Campagne n° ${campaign.seq}`;
+  const day = (ts: number | undefined) => (ts ? new Date(ts).toISOString().slice(0, 10) : "");
+  /* Le code peut être porté par plusieurs campagnes : on le dit, pour qu'on ne s'étonne
+     pas de le voir survivre à la clôture de celle-ci. */
+  const shared = campaign.code ? siblings.filter((c) => c.code === campaign.code && c.id !== campaign.id) : [];
+  const live = campaignLive(campaign, at);
 
   return (
     <>
@@ -91,6 +99,39 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
                     ))}
                   </Select>
                 </Field>
+              </div>
+
+              {/* ---------- Quand ---------- */}
+              {/*
+                Les dates ne sont pas décoratives : le code promo ne vaut qu'entre les
+                deux, et le contrat les cite ({{DATE_DEBUT_CAMPAGNE}}, {{DATE_FIN_DE_CAMPAGNE}}).
+              */}
+              <div className="grid grid-cols-2 gap-2.5 max-[749px]:grid-cols-1">
+                <Field label="Début de la campagne" name="startAt">
+                  <Input name="startAt" type="date" required defaultValue={day(campaignStart(campaign))} />
+                </Field>
+                <Field label="Fin de la campagne" hint="Passée cette date, le code ne remise plus rien." name="endAt">
+                  <Input name="endAt" type="date" required defaultValue={day(campaign.endAt)} />
+                </Field>
+              </div>
+
+              {/* ---------- Le code promo ---------- */}
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold text-subtle">Code promo de la campagne</span>
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <CodeInput name="code" initial={campaign.code} placeholder="MARIE10" generate={false} />
+                  </div>
+                  <span className="flex items-center rounded-xl bg-paper px-3">
+                    <input name="discount" type="number" min={0} max={100} defaultValue={campaign.discount} className="w-10 bg-transparent py-3 text-right text-sm font-extrabold outline-none" />
+                    <span className="text-[0.8125rem] font-extrabold">%</span>
+                  </span>
+                </div>
+                <span className="text-[0.6875rem] leading-relaxed text-subtle">
+                  Remise offerte à sa communauté. Vide : la campagne ne donne pas de code, seul son lien de suivi
+                  attribue les ventes.
+                  {shared.length > 0 && ` Ce code est aussi porté par ${shared.length} autre${shared.length > 1 ? "s" : ""} campagne${shared.length > 1 ? "s" : ""} : il continuera de valoir tant que l'une d'elles sera en cours.`}
+                </span>
               </div>
 
               <ContractPicker
@@ -163,6 +204,25 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
               <span className="text-[0.8125rem] text-subtle">
                 Pas encore commandé. {campaign.kit.enabled ? "Le kit est proposé dans son espace." : "Le kit n'est pas encore proposé dans son espace."}
               </span>
+            )}
+          </Card>
+
+          <Card title={<span className="text-sm">Code promo</span>} className="!gap-2">
+            {campaign.code ? (
+              <>
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-lg bg-paper px-2.5 py-1.5 text-xs font-bold">{campaign.code}</span>
+                  <span className="text-[0.8125rem] font-extrabold">−{campaign.discount} %</span>
+                  <Pill tone={live ? "ok" : "muted"}>{live ? "Valable" : "Ne remise plus"}</Pill>
+                </span>
+                <span className="text-[0.6875rem] leading-relaxed text-subtle">
+                  Du {new Date(campaignStart(campaign)).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+                  {campaign.endAt ? ` au ${new Date(campaign.endAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}` : ", sans fin renseignée"}. Son
+                  lien de suivi, lui, continue de compter les visites et d&apos;attribuer les ventes même après la fin.
+                </span>
+              </>
+            ) : (
+              <span className="text-[0.8125rem] text-subtle">Aucun code pour cette campagne. Seul le lien de suivi attribue les ventes.</span>
             )}
           </Card>
 

@@ -1,5 +1,6 @@
 import "server-only";
-import { Campaign, type CampaignStatus } from "@/lib/domain/types";
+import { Campaign, Promo, type CampaignStatus, type Influencer } from "@/lib/domain/types";
+import { campaignLive, liveCampaign } from "@/lib/promos/campaign";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
 /*
@@ -35,6 +36,15 @@ export async function listAllCampaigns(): Promise<Campaign[]> {
   return parseQuery(Campaign, campaigns().limit(2000));
 }
 
+/*
+ * L'horloge, lue par la base. Un composant serveur doit rester pur
+ * (react-hooks/purity) : il ne lit pas l'heure lui-même, il la reçoit — c'est déjà ainsi
+ * qu'adminSnapshot et partnerSnapshot la donnent.
+ */
+export async function clockNow(): Promise<number> {
+  return now();
+}
+
 export async function getCampaign(id: string): Promise<Campaign | null> {
   if (!id) return null;
   return parseDoc(Campaign, await campaigns().doc(id).get());
@@ -52,8 +62,7 @@ export async function listCampaigns(influencerId: string): Promise<Campaign[]> {
  * elle ne propose plus de kit et n'attend plus de signature.
  */
 export async function currentCampaign(influencerId: string): Promise<Campaign | null> {
-  const list = await listCampaigns(influencerId);
-  return list.find((c) => c.status === "active") ?? list.find((c) => c.status === "draft") ?? null;
+  return liveCampaign(await listCampaigns(influencerId));
 }
 
 export async function setCampaignStatus(id: string, status: CampaignStatus): Promise<void> {
@@ -88,4 +97,74 @@ export async function findCampaignByOrder(orderId: string): Promise<Campaign | n
   const snap = await campaigns().where("kitOrderId", "==", orderId).limit(1).get();
   const doc = snap.docs[0];
   return doc ? parseDoc(Campaign, doc) : null;
+}
+
+/* ---------- Le code promo d'une campagne ---------- */
+
+const promos = () => col("promos");
+
+/*
+ * Réécrit `promos/<CODE>` d'après les campagnes qui le portent.
+ *
+ * Le document promo n'est qu'un reflet : c'est la campagne qui décide de la remise, des
+ * dates et de l'extinction. On le recalcule donc à chaque fois que quelque chose bouge
+ * — enregistrement, clôture, suppression, changement de code.
+ *
+ * Deux campagnes peuvent se partager un code (une nouvelle campagne reprend par défaut
+ * celui de la précédente) : c'est la plus récente ENCORE VIVANTE qui le gouverne. Quand
+ * il n'en reste aucune, le code est éteint mais jamais effacé — ses utilisations et les
+ * commandes qui le citent doivent rester lisibles.
+ */
+export async function syncCampaignPromo(influencer: Influencer, code: string): Promise<void> {
+  const upper = code.trim().toUpperCase();
+  if (!upper) return;
+  const ref = promos().doc(upper);
+  const existing = parseDoc(Promo, await ref.get());
+  /* Un code qui n'est pas le sien ne se touche pas : l'admin l'a déjà refusé en amont. */
+  if (existing && existing.influencerId && existing.influencerId !== influencer.id) return;
+
+  const at = now();
+  const carrying = (await listCampaigns(influencer.id)).filter((c) => c.code === upper);
+  const owner = carrying.find((c) => campaignLive(c, at)) ?? carrying[0] ?? null;
+
+  if (!owner) {
+    if (existing) await ref.update({ active: false, campaignId: "", updatedAt: at }).catch(() => undefined);
+    return;
+  }
+
+  await ref.set(
+    Promo.parse({
+      code: upper,
+      description: `Code influenceur · ${influencer.name}${owner.name ? ` · ${owner.name}` : ""}`,
+      type: "percent",
+      amount: owner.discount,
+      minimum: existing?.minimum ?? 0,
+      startAt: owner.startAt ?? owner.createdAt,
+      endAt: owner.endAt,
+      perCustomer: existing?.perCustomer ?? 1,
+      stackWith: existing?.stackWith ?? [],
+      gifts: [],
+      /* Le partenaire en pause coupe tout ; sinon c'est la campagne qui décide. */
+      active: influencer.active && campaignLive(owner, at),
+      influencerId: influencer.id,
+      campaignId: owner.id,
+      uses: existing?.uses ?? 0,
+      createdAt: existing?.createdAt ?? at,
+      updatedAt: at,
+    }),
+  );
+}
+
+/** Tous les codes portés par les campagnes d'un partenaire, sans doublon. */
+export async function campaignCodes(influencerId: string): Promise<string[]> {
+  const list = await listCampaigns(influencerId);
+  return [...new Set(list.map((c) => c.code).filter(Boolean))];
+}
+
+/** À la suppression d'un partenaire : ses campagnes s'en vont, ses codes s'éteignent. */
+export async function dropCampaignsOf(influencer: Influencer): Promise<void> {
+  const list = await listCampaigns(influencer.id);
+  const codes = [...new Set(list.map((c) => c.code).filter(Boolean))];
+  await Promise.all(list.map((c) => campaigns().doc(c.id).delete().catch(() => undefined)));
+  await Promise.all(codes.map((code) => syncCampaignPromo(influencer, code).catch(() => undefined)));
 }

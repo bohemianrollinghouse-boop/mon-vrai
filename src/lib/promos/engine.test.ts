@@ -15,6 +15,7 @@ const base = (promos: Promo[], extra: Partial<PromoContext> = {}): PromoContext 
   items,
   usedByCustomer: {},
   refInfluencer: null,
+  refCode: "",
   promos: new Map(promos.map((p) => [p.code, p])),
   influencers: new Map([["inf_1", influ]]),
   ...extra,
@@ -60,13 +61,23 @@ describe("moteur des codes promo", () => {
     expect(byCode.attribution).toEqual({ influencerId: "inf_1", via: "code" });
     expect(byCode.discount).toBe(300);
 
-    const byLink = applyPromos([], base([marie], { refInfluencer: influ }));
+    const byLink = applyPromos([], base([marie], { refInfluencer: influ, refCode: "MARIE10" }));
     expect(byLink.applied[0]).toMatchObject({ code: "MARIE10", viaLink: true, amount: 300 });
     expect(byLink.attribution).toEqual({ influencerId: "inf_1", via: "link" });
 
-    const paused = applyPromos([], base([marie], { refInfluencer: { ...influ, active: false } }));
+    const paused = applyPromos([], base([marie], { refInfluencer: { ...influ, active: false }, refCode: "MARIE10" }));
     expect(paused.applied).toEqual([]);
     expect(paused.attribution).toBeNull();
+  });
+
+  it("compte encore le lien d'une campagne terminée, mais sans remise", () => {
+    /* Campagne close : son code ne vaut plus (refCode vide), le lien attribue quand même.
+       C'est la règle : le suivi et les statistiques ne s'arrêtent pas avec la campagne. */
+    const marie = mk({ code: "MARIE10", type: "percent", amount: 10, influencerId: "inf_1", active: false });
+    const r = applyPromos([], base([marie], { refInfluencer: influ, refCode: "" }));
+    expect(r.applied).toEqual([]);
+    expect(r.discount).toBe(0);
+    expect(r.attribution).toEqual({ influencerId: "inf_1", via: "link" });
   });
 
   it("le lien n'écrase pas un code influenceur tapé, et respecte le cumul", () => {
@@ -79,7 +90,7 @@ describe("moteur des codes promo", () => {
     expect(canStack(mk({ code: "XX", type: "percent", stackWith: ["__influ"] }), marie)).toBe(true);
     // Le marqueur influenceur est insensible à la casse (l'admin majuscule les codes).
     expect(canStack(mk({ code: "YY", type: "percent", stackWith: ["__INFLU"] }), marie)).toBe(true);
-    const both = applyPromos(["NOEL"], base([mk({ code: "NOEL", type: "percent", amount: 10, stackWith: ["__INFLU"] }), marie], { refInfluencer: influ }));
+    const both = applyPromos(["NOEL"], base([mk({ code: "NOEL", type: "percent", amount: 10, stackWith: ["__INFLU"] }), marie], { refInfluencer: influ, refCode: "MARIE10" }));
     expect(both.applied.map((a) => a.code).sort()).toEqual(["MARIE10", "NOEL"]);
     expect(both.discount).toBe(570);
   });

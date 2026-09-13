@@ -7,7 +7,7 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { deleteInfluencer, getInfluencer, getInfluencerBySlug, getPromo, issueInfluencerInvite, upsertInfluencer } from "@/lib/db/promos";
+import { deleteInfluencer, getInfluencer, getInfluencerBySlug, issueInfluencerInvite, upsertInfluencer } from "@/lib/db/promos";
 import { sendInfluencerWelcome } from "@/lib/email/send";
 import { saveTemplateValues } from "@/lib/db/newsletter";
 import { listStatements, markStatementPaid, unmarkStatement } from "@/lib/db/statements";
@@ -21,12 +21,9 @@ const Input = z.object({
   id: z.string().default(""),
   name: z.string().trim().min(1, "Nom requis").max(80),
   slug: z.string().trim().max(40).default(""),
-  code: z.string().trim().min(2, "2 caractères minimum").max(24).regex(/^[A-Za-z0-9]+$/, "Lettres et chiffres uniquement"),
-  discount: z.number().int().min(0).max(100).default(10),
   rate: z.number().int().min(0).max(100).default(10),
   commission: z.boolean().default(false),
   email: z.string().trim().default(""),
-  endAt: z.string().trim().default(""),
   active: z.boolean().default(true),
   igHandle: z.string().trim().max(80).default(""),
   igUrl: z.string().trim().max(300).default(""),
@@ -38,20 +35,17 @@ const Input = z.object({
 
 export async function saveInfluencerAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
-  const parsed = parseForm(Input, formData, { numbers: ["discount", "rate"], booleans: ["active", "commission"] });
+  const parsed = parseForm(Input, formData, { numbers: ["rate"], booleans: ["active", "commission"] });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
-  const code = d.code.toUpperCase();
-  const slug = slugify(d.slug || d.code);
+  /* À défaut d'identifiant de lien saisi, son nom fait l'affaire : le code promo, lui,
+     n'est plus sur cette fiche — il appartient à ses campagnes. */
+  const slug = slugify(d.slug || d.name);
   if (!slug) return failed("Identifiant de lien invalide.", { slug: "Invalide" });
 
   const existing = d.id ? await getInfluencer(d.id) : null;
   const bySlug = await getInfluencerBySlug(slug);
   if (bySlug && bySlug.id !== existing?.id) return failed(`Le lien « ${slug} » est déjà pris par ${bySlug.name}.`, { slug: "Déjà utilisé" });
-  const promo = await getPromo(code);
-  if (promo && promo.influencerId !== existing?.id) return failed(`Le code ${code} existe déjà${promo.influencerId ? " (autre influenceur)" : " (code promo interne)"}.`, { code: "Déjà utilisé" });
-  const endAt = d.endAt ? new Date(`${d.endAt}T23:59:59`).getTime() : undefined;
-  if (endAt !== undefined && Number.isNaN(endAt)) return failed("Date de fin invalide.", { endAt: "Date invalide" });
 
   if (d.email && !z.email().safeParse(d.email).success) return failed("E-mail invalide.", { email: "Adresse invalide" });
 
@@ -59,12 +53,9 @@ export async function saveInfluencerAction(formData: FormData): Promise<AdminRes
     id: existing?.id,
     name: d.name,
     slug,
-    code,
-    discount: d.discount,
     rate: d.rate,
     commission: d.commission,
     email: d.email,
-    endAt,
     active: d.active,
     socials: {
       instagram: { handle: d.igHandle, url: d.igUrl },
@@ -72,11 +63,14 @@ export async function saveInfluencerAction(formData: FormData): Promise<AdminRes
       facebook: { handle: d.fbHandle, url: d.fbUrl },
     },
   });
-  await audit(user.email, existing ? "influencer.update" : "influencer.create", `influencers/${saved_.id}`, `${saved_.name} · ${code}`);
+  await audit(user.email, existing ? "influencer.update" : "influencer.create", `influencers/${saved_.id}`, saved_.name);
   revalidatePath("/admin/influenceurs");
   revalidatePath(`/admin/influenceurs/${saved_.id}`);
-  revalidatePath("/admin/codes-promo");
-  return { ok: true, message: `${saved_.name} enregistré${existing ? "" : " · code " + code + " actif"}.`, redirectTo: `/admin/influenceurs/${saved_.id}` };
+  return {
+    ok: true,
+    message: existing ? `${saved_.name} enregistré.` : `${saved_.name} créé — ouvrez-lui une campagne pour lui donner un code.`,
+    redirectTo: existing ? `/admin/influenceurs/${saved_.id}` : `/admin/influenceurs/${saved_.id}?onglet=campagnes`,
+  };
 }
 
 export async function toggleInfluencerAction(formData: FormData): Promise<AdminResult> {

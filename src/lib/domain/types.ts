@@ -866,6 +866,12 @@ export const Promo = z.object({
   active: z.boolean().default(true),
   /** Code rattaché à un influenceur : géré depuis l'onglet Influenceurs. */
   influencerId: z.string().optional(),
+  /*
+   * Et à laquelle de ses campagnes. C'est elle qui décide de la remise, des dates et de
+   * l'extinction du code : ce document n'est qu'un reflet, réécrit à chaque
+   * enregistrement de la campagne (voir db/campaigns.ts).
+   */
+  campaignId: z.string().optional(),
   uses: z.number().int().min(0).default(0),
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -1087,13 +1093,18 @@ export const Influencer = z.object({
   platform: Platform.default("Instagram"),
   /** Identifiant du lien de suivi : monvrai.fr/?ref=<slug>. */
   slug: Slug,
-  /** Code promo de l'influenceur (document `promos/<code>`). */
-  code: z.string().min(2).max(24).regex(/^[A-Z0-9]+$/),
-  /** Remise offerte au client, en pourcentage. */
+  /*
+   * Code promo, remise et fin de campagne : repris par les campagnes (voir Campaign).
+   * Un code appartient à ce qu'on négocie, pas à la personne — il change d'une campagne
+   * à l'autre et cesse de valoir quand elle se termine. Ces trois champs ne sont plus
+   * lus que par `scripts/migrate-campaigns.ts`, et le schéma les accepte vides pour
+   * qu'un partenaire créé aujourd'hui n'ait pas à porter un code fantôme.
+   */
+  code: z.string().max(24).regex(/^[A-Z0-9]*$/).default(""),
   discount: z.number().int().min(0).max(100).default(10),
+  endAt: z.number().optional(),
   /** Commission de l'influenceur, en pourcentage du CA HT attribué. */
   rate: z.number().int().min(0).max(100).default(10),
-  endAt: z.number().optional(),
   active: z.boolean().default(true),
   clicks: z.number().int().min(0).default(0),
   /*
@@ -1182,6 +1193,22 @@ export const Campaign = z.object({
   /** Nom libre, pour s'y retrouver : « Lancement automne », « Réédition Légumes ». */
   name: z.string().trim().max(80).default(""),
   collaborationType: CollaborationType.default("UGC"),
+  /*
+   * Le code promo de CETTE campagne (document `promos/<code>`), et la remise qu'il
+   * offre. Une nouvelle campagne reprend par défaut celui de la précédente, mais rien
+   * n'oblige à le garder. Vide : la campagne ne donne aucun code, seul le lien de suivi
+   * attribue les ventes.
+   */
+  code: z.string().max(24).regex(/^[A-Z0-9]*$/).default(""),
+  discount: z.number().int().min(0).max(100).default(10),
+  /*
+   * Début et fin de la campagne. Le code ne vaut qu'entre les deux, et le contrat les
+   * cite ({{DATE_DEBUT_CAMPAGNE}}, {{DATE_FIN_DE_CAMPAGNE}}). Facultatives au schéma
+   * pour que les campagnes d'avant se relisent — à défaut, le début est la date
+   * d'ouverture ; l'administration, elle, les exige à l'enregistrement.
+   */
+  startAt: z.number().optional(),
+  endAt: z.number().optional(),
   /** Contrat à signer ; vide : aucun contrat exigé pour cette campagne. */
   contractId: z.string().default(""),
   /** Variables du contrat ajustées pour CETTE campagne. */

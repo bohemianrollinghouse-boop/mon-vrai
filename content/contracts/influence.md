@@ -89,10 +89,10 @@ Cette information devra apparaître de manière immédiatement identifiable et c
 
 ## Article 7 — Calendrier
 
-Les publications devront être réalisées dans un délai de **{{DELAI_PUBLICATION_EN_JOURS}} jours** suivant la réception des produits, sauf autre accord entre les Parties.
+Période de la campagne :
+**Du {{DATE_DEBUT_CAMPAGNE}} au {{DATE_FIN_DE_CAMPAGNE}}**
 
-Date indicative de fin de campagne :
-**{{DATE_FIN_DE_CAMPAGNE}}**
+Les publications devront être réalisées dans un délai de **{{DELAI_PUBLICATION_EN_JOURS}} jours** suivant la réception des produits, sauf autre accord entre les Parties.
 
 ## Article 8 — Prototypes
 

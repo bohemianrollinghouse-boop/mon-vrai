@@ -46,14 +46,22 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
   const trackingUrl = `${origin}/?ref=${influencer.slug}`;
   const maxBar = Math.max(1, ...view.days.map((d) => d.code + d.link));
-  const endAt = influencer.endAt ? new Date(influencer.endAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : null;
+  /*
+   * Son code, sa remise et la fin de sa campagne viennent de la campagne en cours. Sans
+   * campagne, il n'a pas de code — mais son lien de suivi continue de lui attribuer les
+   * ventes, et ses résultats restent affichés.
+   */
+  const shortDay = (ts: number) => new Date(ts).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+  const endAt = campaign?.endAt ? shortDay(campaign.endAt) : null;
+  const code = campaign?.code ?? "";
+  const discount = campaign?.discount ?? 0;
 
   return (
     <section className="site-wrap flex flex-col gap-4 py-4 pb-20">
       {/* ---------- Héro ---------- */}
       <div className="grid grid-cols-[1.1fr_1fr] items-stretch gap-4 max-[899px]:grid-cols-1">
         <div className="flex flex-col justify-center gap-4 rounded-panel bg-tint-pink p-12 max-[749px]:p-8">
-          <Eyebrow className="text-tint-pink-ink">Campagne en cours</Eyebrow>
+          <Eyebrow className="text-tint-pink-ink">{campaign?.name || (campaign ? "Campagne en cours" : "Votre espace")}</Eyebrow>
           {/* Le nom en entier : un partenaire peut être une marque, sans prénom à extraire. */}
           <h1 className="display-1 text-[clamp(1.875rem,4vw,2.75rem)]">Bonjour {influencer.name}, merci de faire grandir du vrai.</h1>
           <p className="text-[0.9375rem] leading-relaxed text-tint-pink-ink">
@@ -69,7 +77,7 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
           <div className="flex flex-wrap gap-2 text-xs font-bold">
             <span className="rounded-pill bg-white px-3.5 py-2">{influencer.active ? "Active" : "En pause"}</span>
             {endAt && <span className="rounded-pill bg-white px-3.5 py-2">Fin de campagne · {endAt}</span>}
-            <span className="rounded-pill bg-white px-3.5 py-2">−{influencer.discount} % pour votre communauté</span>
+            {code && <span className="rounded-pill bg-white px-3.5 py-2">−{discount} % pour votre communauté</span>}
           </div>
         </div>
 
@@ -77,9 +85,16 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
           <div className="flex flex-col gap-3 rounded-card bg-white p-7">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-faint">Votre code</span>
-              <span className="text-xs font-semibold text-subtle">−{influencer.discount} % sur les livres</span>
+              <span className="text-xs font-semibold text-subtle">{code ? `−${discount} % sur les livres` : "aucune campagne en cours"}</span>
             </div>
-            <CopyValue value={influencer.code} label="Copier" display="code" />
+            {code ? (
+              <CopyValue value={code} label="Copier" display="code" />
+            ) : (
+              <p className="text-[0.8125rem] leading-relaxed text-subtle">
+                Votre code vous sera communiqué à l&apos;ouverture de votre prochaine campagne. Votre lien de suivi,
+                lui, continue de fonctionner.
+              </p>
+            )}
           </div>
           <div className="flex flex-col gap-3 rounded-card bg-white p-7">
             <div className="flex items-baseline justify-between gap-3">
@@ -185,7 +200,7 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
                 <span className="text-subtle">{new Date(o.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>
                 <span>
                   <span className={`rounded-pill px-2.5 py-1 text-[0.6875rem] font-bold ${o.via === "code" ? "bg-ink text-white" : "bg-tint-green text-tint-green-ink"}`}>
-                    {o.via === "code" ? `code ${influencer.code}` : "lien"}
+                    {o.via === "code" ? "code" : "lien"}
                   </span>
                 </span>
                 <span className="text-right font-semibold">{formatEuro(o.merchandise)}</span>

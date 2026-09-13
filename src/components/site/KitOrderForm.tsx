@@ -33,6 +33,8 @@ export type ContractOffer = {
   body: string;
   variables: Record<string, string>;
   requiredVariables: string[];
+  /* Les dates de la campagne : elles figurent au contrat et ne se saisissent pas. */
+  campaign: { startAt: number; endAt?: number };
 };
 
 const field =
@@ -150,6 +152,7 @@ export function KitOrderForm({
     if (!contract) return { summary: "", body: "" };
     const values = contractValues({
       contract: { id: contract.id, version: contract.version, variables: contract.variables },
+      campaign: contract.campaign,
       seller,
       party: {
         firstName: me.firstName.trim(),

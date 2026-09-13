@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { AutoSubmitSwitch } from "@/components/admin/AutoSubmitSwitch";
-import { CodeInput, CopyButton } from "@/components/admin/CodeInput";
+import { CopyButton } from "@/components/admin/CodeInput";
 import { CommissionField } from "@/components/admin/CommissionField";
 import { Card, Field, FilterPills, Input, PageHeader, Pill, Textarea, Tile } from "@/components/admin/ui";
 import {
@@ -22,6 +22,7 @@ import { getInfluencer, listRefClicksSince } from "@/lib/db/promos";
 import { listStatements } from "@/lib/db/statements";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
 import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, type Campaign, type Influencer } from "@/lib/domain/types";
+import { campaignStart, liveCampaign } from "@/lib/promos/campaign";
 import { mainAccount } from "@/lib/promos/socials";
 import { maskIban, monthLabel, statementRows } from "@/lib/promos/statements";
 import { influencerStats } from "@/lib/promos/stats";
@@ -64,7 +65,7 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
   if (!influencer) {
     return (
       <>
-        <PageHeader back={{ href: "/admin/influenceurs", label: "Influenceurs" }} title="Nouvel influenceur" subtitle="Un code promo et un lien de suivi lui sont attribués à l'enregistrement." />
+        <PageHeader back={{ href: "/admin/influenceurs", label: "Influenceurs" }} title="Nouvel influenceur" subtitle="Un lien de suivi lui est attribué à l'enregistrement ; son code promo viendra de sa première campagne." />
         <div className="max-w-[42rem]">
           <Card title="Identité">
             <IdentityForm />
@@ -85,6 +86,8 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
     listContracts(),
   ]);
   const contractName = new Map(contracts.map((c) => [c.id, c.name]));
+  /* Son code aujourd'hui : celui de sa campagne en cours. Sans campagne, il n'en a pas. */
+  const live = liveCampaign(campaigns);
 
   const { rows } = influencerStats([influencer], snap.orders, clicks, snap.now);
   const stats = rows[0];
@@ -106,7 +109,7 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
             {!influencer.commission && <Pill tone="muted">Sans commission</Pill>}
           </span>
         }
-        subtitle={`${main.handle} · ${main.platform} · code ${influencer.code} · inscrit le ${longDate(influencer.createdAt)}`}
+        subtitle={`${main.handle} · ${main.platform} · ${live?.code ? `code ${live.code}` : "sans code en cours"} · inscrit le ${longDate(influencer.createdAt)}`}
         actions={
           <>
             <CopyButton text={`https://${site}/?ref=${influencer.slug}`} />
@@ -127,7 +130,7 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
         {influencer.commission ? (
           <Tile tone="sand" label="Commission (30 j)" value={formatEuroShort(stats.commission)} note={`${influencer.rate} % du CA attribué`} />
         ) : (
-          <Tile label="Remise client" value={`−${influencer.discount} %`} note="offerte à sa communauté" />
+          <Tile label="Remise client" value={live?.code ? `−${live.discount} %` : "—"} note={live?.code ? `code ${live.code}` : "aucune campagne en cours"} />
         )}
         <Tile label="Dernière connexion" value={account?.lastSignInAt ? longDate(account.lastSignInAt) : "Jamais"} note={influencer.activatedAt ? `espace ouvert le ${longDate(influencer.activatedAt)}` : "espace pas encore ouvert"} />
       </div>
@@ -169,7 +172,7 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
                   <Link key={order.id} href={`/admin/commandes/${order.id}`} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2.5 border-b border-line-soft py-2.5 text-xs hover:opacity-70">
                     <span className="font-bold">{order.number.replace(/^MV-\d{4}-/, "#")}</span>
                     <span className="truncate text-muted">{order.shippingAddress.name}</span>
-                    <span className={`rounded-pill px-2 py-[3px] text-[0.625rem] font-bold ${via === "code" ? "bg-ink text-on-ink" : "bg-tint-green text-tint-green-ink"}`}>{via === "code" ? `code ${influencer.code}` : "lien"}</span>
+                    <span className={`rounded-pill px-2 py-[3px] text-[0.625rem] font-bold ${via === "code" ? "bg-ink text-on-ink" : "bg-tint-green text-tint-green-ink"}`}>{via === "code" ? `code ${order.promoCodes[0] ?? ""}`.trim() : "lien"}</span>
                     <span className="whitespace-nowrap font-extrabold">{formatEuro(order.totals.total)}</span>
                   </Link>
                 ))}
@@ -302,7 +305,7 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
  */
 function CampaignTile({ campaign, influencerId, contractName }: { campaign: Campaign; influencerId: string; contractName?: string }) {
   const books = campaign.kit.lines.reduce((sum, l) => sum + l.qty, 0);
-  const done = campaign.signatureId ? "Contrat signé" : campaign.kitOrderId ? "Kit commandé" : campaign.kit.enabled ? "Kit proposé, en attente" : "Pas encore proposé";
+  const done = campaign.signatureId ? "Contrat signé" : campaign.kitOrderId ? "Kit commandé" : campaign.kit.enabled ? "Kit proposé" : "Kit non proposé";
 
   return (
     <Link
@@ -313,12 +316,22 @@ function CampaignTile({ campaign, influencerId, contractName }: { campaign: Camp
         <span className="min-w-0 truncate text-[0.9375rem] font-extrabold">{campaign.name || `Campagne n° ${campaign.seq}`}</span>
         <Pill tone={STATUS_TONE[campaign.status]}>{CAMPAIGN_STATUS_LABELS[campaign.status]}</Pill>
       </div>
-      <span className="text-[0.8125rem] text-muted">
-        {COLLABORATION_LABELS[campaign.collaborationType]} · {books > 0 ? `${books} livre${books > 1 ? "s" : ""}` : "aucun livre"}
+      <span className="flex flex-wrap items-center gap-2 text-[0.8125rem]">
+        {campaign.code ? (
+          <>
+            <span className="rounded-lg bg-paper px-2 py-1 text-xs font-bold">{campaign.code}</span>
+            <span className="font-extrabold">−{campaign.discount} %</span>
+          </>
+        ) : (
+          <span className="text-muted">Sans code promo</span>
+        )}
       </span>
-      <span className="truncate text-[0.8125rem] text-muted">{contractName ?? (campaign.contractId ? "Contrat retiré" : "Sans contrat")}</span>
+      <span className="truncate text-[0.8125rem] text-muted">
+        {COLLABORATION_LABELS[campaign.collaborationType]} · {books > 0 ? `${books} livre${books > 1 ? "s" : ""}` : "aucun livre"} ·{" "}
+        {contractName ?? (campaign.contractId ? "contrat retiré" : "sans contrat")}
+      </span>
       <span className="mt-auto border-t border-line-soft pt-2 text-[0.6875rem] font-semibold text-subtle">
-        n° {campaign.seq} · {done} · ouverte le {shortDate(campaign.createdAt)}
+        {shortDate(campaignStart(campaign))} → {campaign.endAt ? shortDate(campaign.endAt) : "fin à renseigner"} · {done}
       </span>
     </Link>
   );
@@ -355,19 +368,6 @@ function IdentityForm({ influencer }: { influencer?: Influencer }) {
         <Input name="email" type="email" defaultValue={inf?.email ?? ""} placeholder="marie@exemple.fr" className="!rounded-xl !py-3 !text-[0.8125rem]" />
       </Field>
       <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-semibold text-subtle">Code promo</span>
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <CodeInput name="code" initial={inf?.code ?? ""} placeholder="MARIE10" generate={false} />
-          </div>
-          <span className="flex items-center rounded-xl bg-paper px-3">
-            <input name="discount" type="number" min={0} max={100} defaultValue={inf?.discount ?? 10} className="w-10 bg-transparent py-3 text-right text-sm font-extrabold outline-none" />
-            <span className="text-[0.8125rem] font-extrabold">%</span>
-          </span>
-        </div>
-        <span className="text-[0.6875rem] text-subtle">Remise offerte au client. Le code est attribué à ce partenaire.</span>
-      </div>
-      <div className="flex flex-col gap-1.5">
         <span className="text-xs font-semibold text-subtle">Lien de suivi</span>
         <div className="flex items-center gap-2 rounded-xl bg-paper py-1.5 pl-3.5 pr-1.5">
           <span className="min-w-0 flex-1 truncate text-xs font-semibold text-muted">
@@ -375,7 +375,10 @@ function IdentityForm({ influencer }: { influencer?: Influencer }) {
             <input name="slug" defaultValue={inf?.slug ?? ""} placeholder="marie" className="w-[40%] bg-transparent font-extrabold text-ink outline-none placeholder:font-semibold placeholder:text-faint" />
           </span>
         </div>
-        <span className="text-[0.6875rem] text-subtle">Cookie d'attribution 30 jours. La remise du code s'applique automatiquement au panier via le lien.</span>
+        <span className="text-[0.6875rem] leading-relaxed text-subtle">
+          Cookie d&apos;attribution 30 jours. Le lien pose le code de la campagne en cours ; passée la campagne, il
+          continue d&apos;attribuer les ventes et de compter les visites, sans remise.
+        </span>
       </div>
       {/*
         Ses comptes : renseignés ici si on les connaît, et modifiables par le partenaire
@@ -401,16 +404,14 @@ function IdentityForm({ influencer }: { influencer?: Influencer }) {
         ))}
         <span className="text-[0.6875rem] text-subtle">Le partenaire peut les compléter lui-même depuis son espace.</span>
       </div>
+      {/*
+        Commission facultative : sans elle, l'espace partenaire n'en montre rien et n'y
+        fait aucune allusion. Le taux reste saisissable pour qu'on puisse le préparer,
+        mais il n'est lu que si la case est cochée. Les dates, elles, appartiennent à
+        chaque campagne — une personne n'a pas de date de fin.
+      */}
       <div className="grid grid-cols-2 gap-2.5">
-        {/*
-          Commission facultative : sans elle, l'espace partenaire n'en montre rien et
-          n'y fait aucune allusion. Le taux reste saisissable pour qu'on puisse le
-          préparer, mais il n'est lu que si la case est cochée.
-        */}
         <CommissionField enabled={inf?.commission ?? false} rate={inf?.rate ?? 10} />
-        <Field label="Fin de campagne" hint="Vide : sans fin." name="endAt">
-          <Input name="endAt" type="date" defaultValue={inf?.endAt ? new Date(inf.endAt).toISOString().slice(0, 10) : ""} className="!rounded-xl !py-3 !text-[0.8125rem]" />
-        </Field>
       </div>
     </ActionForm>
   );

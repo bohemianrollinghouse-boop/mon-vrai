@@ -1,6 +1,7 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
 import { Influencer, Promo, RefClicks, type CollaborationType, type PartnerSocials, type WelcomeKit } from "@/lib/domain/types";
+import { dropCampaignsOf } from "./campaigns";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
 /*
@@ -92,9 +93,13 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "collaborationSeq" | "handle" | "platform"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "collaborationSeq" | "handle" | "platform" | "code" | "discount" | "endAt"
 > & {
   id?: string;
+  /* Repris par les campagnes : conservés tels quels, plus jamais saisis ici. */
+  code?: string;
+  discount?: number;
+  endAt?: number;
   uid?: string;
   invitedAt?: number;
   activatedAt?: number;
@@ -113,7 +118,7 @@ export type InfluencerInput = Omit<
   collaborationSeq?: number;
 };
 
-/** Crée ou met à jour l'influenceur et son code promo (remise en pourcentage, cumulable avec rien par défaut). */
+/** Crée ou met à jour la fiche du partenaire. Son code vit dans ses campagnes. */
 export async function upsertInfluencer(input: InfluencerInput): Promise<Influencer> {
   const id = input.id ?? newId("inf");
   const ref = influencers().doc(id);
@@ -122,6 +127,9 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     ...input,
     id,
     clicks: existing?.clicks ?? 0,
+    code: input.code ?? existing?.code ?? "",
+    discount: input.discount ?? existing?.discount ?? 10,
+    endAt: input.endAt ?? existing?.endAt,
     uid: input.uid ?? existing?.uid ?? "",
     invitedAt: input.invitedAt ?? existing?.invitedAt,
     activatedAt: input.activatedAt ?? existing?.activatedAt,
@@ -143,36 +151,22 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     updatedAt: now(),
   });
   await ref.set(doc);
-
-  // Le code de l'influenceur est un code promo comme un autre, marqué de son id.
-  if (existing && existing.code !== doc.code) await promos().doc(existing.code).delete().catch(() => undefined);
-  const promoRef = promos().doc(doc.code);
-  const existingPromo = parseDoc(Promo, await promoRef.get());
-  await promoRef.set(
-    Promo.parse({
-      code: doc.code,
-      description: `Code influenceur · ${doc.name}`,
-      type: "percent",
-      amount: doc.discount,
-      minimum: 0,
-      startAt: existingPromo?.startAt ?? now(),
-      endAt: doc.endAt,
-      perCustomer: existingPromo?.perCustomer ?? 1,
-      stackWith: existingPromo?.stackWith ?? [],
-      gifts: [],
-      active: doc.active,
-      influencerId: id,
-      uses: existingPromo?.uses ?? 0,
-      createdAt: existingPromo?.createdAt ?? now(),
-      updatedAt: now(),
-    }),
-  );
+  /*
+   * Aucun code promo n'est créé ici : un code appartient à une CAMPAGNE, qui décide de
+   * sa remise, de ses dates et de son extinction (voir db/campaigns.ts). La fiche du
+   * partenaire ne décrit que la personne.
+   */
   return doc;
 }
 
+/*
+ * Supprime le partenaire et tout ce qui n'a de sens qu'avec lui : ses campagnes s'en
+ * vont, leurs codes s'éteignent. Les commandes passées, elles, gardent leur attribution
+ * et le code qu'elles citent — on n'efface pas une vente.
+ */
 export async function deleteInfluencer(id: string): Promise<void> {
   const existing = await getInfluencer(id);
-  if (existing) await promos().doc(existing.code).delete().catch(() => undefined);
+  if (existing) await dropCampaignsOf(existing).catch(() => undefined);
   await influencers().doc(id).delete();
 }
 

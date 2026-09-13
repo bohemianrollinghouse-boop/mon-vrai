@@ -1,6 +1,8 @@
 import "server-only";
 import { cookies } from "next/headers";
 import { getInfluencer, getInfluencersByIds, getPromosByCodes } from "@/lib/db/promos";
+import { listCampaigns } from "@/lib/db/campaigns";
+import { campaignLive } from "@/lib/promos/campaign";
 import { listOrdersForEmail } from "@/lib/db/orders";
 import type { Influencer, Order } from "@/lib/domain/types";
 import { applyPromos, type PricedItem, type PromoContext, type PromoOutcome } from "./engine";
@@ -33,7 +35,12 @@ export type ResolveInput = { codes: string[]; items: PricedItem[]; subtotal: num
 
 export async function resolvePromos(input: ResolveInput): Promise<PromoOutcome> {
   const ref = input.refInfluencer === undefined ? await readRefInfluencer() : input.refInfluencer;
-  const wanted = [...input.codes, ...(ref ? [ref.code] : [])];
+  /*
+   * Le code que son lien applique : celui de sa campagne en cours. Une campagne terminée
+   * n'en pose plus — mais le lien continue d'attribuer la vente, et de compter.
+   */
+  const refCode = ref ? await liveCode(ref) : "";
+  const wanted = [...input.codes, ...(refCode ? [refCode] : [])];
   const promos = await getPromosByCodes(wanted);
   const influencerIds = [...promos.values()].map((p) => p.influencerId).filter((x): x is string => Boolean(x));
   const influencers = await getInfluencersByIds([...influencerIds, ...(ref ? [ref.id] : [])]);
@@ -44,10 +51,18 @@ export async function resolvePromos(input: ResolveInput): Promise<PromoOutcome> 
     items: input.items,
     usedByCustomer: await usedCodesByEmail(input.email, wanted),
     refInfluencer: ref,
+    refCode,
     promos,
     influencers,
   };
   return applyPromos(input.codes, ctx);
+}
+
+/** Le code promo actif d'un partenaire aujourd'hui, d'après ses campagnes. */
+async function liveCode(influencer: Influencer): Promise<string> {
+  const list = await listCampaigns(influencer.id).catch(() => []);
+  const at = Date.now();
+  return list.find((c) => c.code && campaignLive(c, at))?.code ?? "";
 }
 
 /** Vérification rapide à l'ajout d'un code dans le panier (sans e-mail ni panier chiffré précis). */

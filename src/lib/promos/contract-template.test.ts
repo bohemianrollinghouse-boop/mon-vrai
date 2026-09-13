@@ -8,7 +8,8 @@ describe("variables d'un contrat", () => {
 
   it("ne demande à l'admin que ce qui ne se calcule pas", () => {
     const text = "{{CREATOR_FIRST_NAME}} {{PRODUCTS_TOTAL_VALUE}} {{CAMPAIGN_END_DATE}} {{STATS_DELIVERY_DELAY}}";
-    expect(manualPlaceholders(text)).toEqual(["CAMPAIGN_END_DATE", "STATS_DELIVERY_DELAY"]);
+    /* CAMPAIGN_END_DATE a rejoint les variables calculées : elle vient des dates de la campagne. */
+    expect(manualPlaceholders(text)).toEqual(["STATS_DELIVERY_DELAY"]);
   });
 
   it("remplace, et ne laisse jamais d'accolades sous les yeux du signataire", () => {
