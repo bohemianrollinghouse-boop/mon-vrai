@@ -77,17 +77,23 @@ export function BreakEvenBar({
   return (
     <div className={`relative flex flex-col gap-4 overflow-hidden rounded-card p-7 ${reached ? "bg-tint-green" : "bg-surface"}`}>
       <div className="flex flex-wrap items-end justify-between gap-4">
+        {/*
+          Les livres en gros : c'est ainsi qu'on pense l'objectif, en exemplaires. La
+          somme remboursée juste en dessous, parce que c'est elle qui atteint vraiment le
+          tirage — et que 26 livres ne valent pas 26 × le plein tarif dès qu'une remise
+          est passée par là.
+        */}
         <span className="flex flex-col gap-1">
           <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-subtle">
             {reached ? "Production remboursée" : "Vers le remboursement du tirage"}
           </span>
           <span className="text-[1.75rem] font-extrabold leading-none tracking-[-0.02em]">
-            {amortisedLabel}
-            <span className="text-subtle"> / {productionLabel}</span>
+            {`${books.toLocaleString("fr-FR")} livre${books > 1 ? "s" : ""}`}
+            {!reached && remaining !== null && <span className="text-subtle"> / {(books + remaining).toLocaleString("fr-FR")}</span>}
           </span>
           <span className="text-[0.8125rem] font-semibold text-subtle">
-            {`${books.toLocaleString("fr-FR")} livre${books > 1 ? "s" : ""} parti${books > 1 ? "s" : ""}`}
-            {gifted > 0 && `, dont ${gifted.toLocaleString("fr-FR")} offert${gifted > 1 ? "s" : ""}`}
+            {amortisedLabel} remboursés sur {productionLabel}
+            {gifted > 0 && ` · ${gifted.toLocaleString("fr-FR")} offert${gifted > 1 ? "s" : ""}`}
           </span>
         </span>
         <span className="flex flex-col items-end gap-1 text-right">
@@ -97,7 +103,7 @@ export function BreakEvenBar({
               ? "objectif franchi"
               : remaining === null
                 ? "en attente d'une première vente"
-                : `encore ~${remaining.toLocaleString("fr-FR")} livre${remaining > 1 ? "s" : ""} à ce rythme`}
+                : `encore ~${remaining.toLocaleString("fr-FR")} livre${remaining > 1 ? "s" : ""}, au rythme observé`}
           </span>
         </span>
       </div>
