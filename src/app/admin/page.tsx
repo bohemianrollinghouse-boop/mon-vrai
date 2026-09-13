@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, GridTable, Pill, Tile } from "@/components/admin/ui";
 import { adminSnapshot } from "@/lib/admin/counts";
-import { orderRevenue, sumRevenue } from "@/lib/admin/revenue";
+import { ledger, orderRevenue } from "@/lib/admin/revenue";
 import { amortisation } from "@/lib/admin/breakeven";
 import { BreakEvenBar } from "@/components/admin/BreakEvenBar";
 import { ADMIN_STATUS_LABELS, COUNTED, STATUS_TONE, TO_SHIP, capitalize, longDate, shortDate } from "@/lib/admin/order-ui";
@@ -41,16 +41,24 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
   const current = orders.filter((o) => counted(o) && (period.days ? inRange(o, now - span, now + 1) : true));
   const previous = period.days ? orders.filter((o) => counted(o) && inRange(o, now - 2 * span, now - span)) : [];
 
-  const revenue = current.reduce((s, o) => s + o.totals.total, 0);
-  const prevRevenue = previous.reduce((s, o) => s + o.totals.total, 0);
+  /*
+   * Un kit de partenaire est une commande pour l'expédition, pas pour le commerce : il
+   * n'encaisse rien. Le compter parmi les commandes diluait le panier moyen et gonflait
+   * un chiffre qui doit dire ce qui s'est vendu. On les sépare donc ici aussi.
+   */
+  const sales = current.filter((o) => !o.kit);
+  const kitOrders = current.length - sales.length;
+
+  const revenue = sales.reduce((s, o) => s + o.totals.total, 0);
+  const prevRevenue = previous.filter((o) => !o.kit).reduce((s, o) => s + o.totals.total, 0);
   const delta = prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : null;
-  const basket = current.length ? Math.round(revenue / current.length) : 0;
+  const basket = sales.length ? Math.round(revenue / sales.length) : 0;
 
   // Revenu net de la période (et de la précédente, pour l'évolution) : mêmes règles que
   // la page Revenus. Un coût unitaire laissé à zéro dans les réglages surévalue le net,
   // ce que la précision de la tuile signale plutôt que de le taire.
-  const net = sumRevenue(current.map((o) => orderRevenue(o, settings)));
-  const prevNet = sumRevenue(previous.map((o) => orderRevenue(o, settings)));
+  const net = ledger(current.map((o) => orderRevenue(o, settings)));
+  const prevNet = ledger(previous.map((o) => orderRevenue(o, settings)));
   const netDelta = prevNet.net > 0 ? Math.round(((net.net - prevNet.net) / prevNet.net) * 100) : null;
   const costsIncomplete = !settings.costs.bookCost || !settings.costs.packagingCost;
   /** Lien vers le tableau de bord en conservant l'autre réglage (période / brut-net). */
@@ -154,11 +162,25 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
               : delta === null
                 ? period.days
                   ? "pas de période de comparaison"
-                  : `${current.length} commandes encaissées`
+                  : `${sales.length} commande${sales.length > 1 ? "s" : ""} encaissée${sales.length > 1 ? "s" : ""}`
                 : `${delta >= 0 ? "+" : "−"}${Math.abs(delta)} % vs ${period.days} jours précédents`
           }
         />
-        <Tile label="Commandes" value={current.length} note={current.length ? `panier moyen ${formatEuro(basket)}` : "aucune sur la période"} href="/admin/commandes" />
+        {/*
+          Les vraies commandes en gros ; les kits, gratuits, sur la ligne du dessous —
+          ils partent bien, mais ils ne se vendent pas.
+        */}
+        <Tile
+          label="Commandes"
+          value={sales.length}
+          note={
+            <span className="flex flex-col">
+              <span>{sales.length ? `panier moyen ${formatEuro(basket)}` : "aucune vente sur la période"}</span>
+              <span>{kitOrders ? `+ ${kitOrders} kit${kitOrders > 1 ? "s" : ""} partenaire${kitOrders > 1 ? "s" : ""}, offert${kitOrders > 1 ? "s" : ""}` : "aucun kit sur la période"}</span>
+            </span>
+          }
+          href="/admin/commandes"
+        />
         <Tile label="Livres précommandés" value={preorderBooks} note={shipFrom ? `à expédier dès le ${shipFrom}` : "à expédier"} href="/admin/commandes?statut=a-expedier" />
         <Tile tone={snap.lowStock.length ? "pink" : "white"} label="Stock bas" value={`${snap.lowStock.length} titre${snap.lowStock.length > 1 ? "s" : ""}`} note={`sous le seuil de ${settings.inventory.lowThreshold} ex.`} href="/admin/stocks" />
       </div>
