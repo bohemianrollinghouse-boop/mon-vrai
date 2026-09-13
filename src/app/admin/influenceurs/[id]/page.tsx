@@ -127,7 +127,9 @@ export default async function InfluencerPage({ params }: PageProps<"/admin/influ
         <Tile label="Dernière connexion" value={account?.lastSignInAt ? longDate(account.lastSignInAt) : "Jamais"} note={influencer.activatedAt ? `espace ouvert le ${longDate(influencer.activatedAt)}` : "espace pas encore ouvert"} />
       </div>
 
-      <div className="grid grid-cols-[1fr_380px] items-start gap-3 max-[1199px]:grid-cols-1">
+      {/* Deux colonnes égales : la fiche de droite porte autant de saisie que la gauche
+          d'affichage — réseaux, contrat et ses réglages tenaient à l'étroit dans 380 px. */}
+      <div className="grid grid-cols-2 items-start gap-3 max-[1199px]:grid-cols-1">
         <div className="flex flex-col gap-3">
           {/* ---------- Ventes ---------- */}
           <Card title={<span className="text-sm">Ventes attribuées</span>} aside={<span className="text-[0.6875rem] font-semibold text-subtle">14 derniers jours</span>} className="!gap-3">
