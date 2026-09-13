@@ -46,15 +46,27 @@ export default async function PartnerKitPage() {
 
   const settings = await getSettings();
   const weight = Math.max(1, settings.shipping.parcel.baseWeightG + kitWeightG(kit.items));
-  // Port offert : `freeAll` met tous les modes à 0 €, le barème ne sert qu'à l'offre Boxtal.
-  const options = shippingOptions(settings.shipping.rates, bracketIndexForWeight(weight), true, true).map((o) => ({
-    id: o.id,
-    name: o.name,
-    description: o.description,
-    relay: o.relay,
-    networks: o.networks,
-  }));
+  /*
+   * Port offert : `freeAll` met tous les modes à 0 €, le barème ne sert qu'à l'offre Boxtal.
+   *
+   * Et seulement en point relais : un kit part vers quelqu'un qu'on ne connaît pas encore,
+   * souvent absent la journée ; le relais évite l'avis de passage et la réexpédition, et
+   * revient moins cher sur un envoi qu'on offre. Le filtre est redit côté serveur, à la
+   * création de la commande — un formulaire ne décide de rien.
+   */
+  const options = shippingOptions(settings.shipping.rates, bracketIndexForWeight(weight), true, true)
+    .filter((o) => o.relay)
+    .map((o) => ({
+      id: o.id,
+      name: o.name,
+      description: o.description,
+      relay: o.relay,
+      networks: o.networks,
+    }));
   const mapToken = await getMapToken().catch(() => null);
+  /* Aucun mode relais actif dans les réglages : mieux vaut le dire que d'afficher un
+     bon de commande sans livraison possible. */
+  const noRelay = options.length === 0;
 
   /*
    * Le contrat n'est demandé qu'une fois : un partenaire qui a déjà signé commande
@@ -94,6 +106,13 @@ export default async function PartnerKitPage() {
           Retour à mon espace
         </Link>
       </div>
+
+      {noRelay && (
+        <p className="rounded-card bg-tint-sand px-7 py-5 text-sm leading-relaxed text-tint-sand-ink">
+          Aucun point relais n&apos;est disponible pour le moment. Écrivez-nous et nous organiserons l&apos;envoi
+          autrement.
+        </p>
+      )}
 
       <div className="grid grid-cols-[1fr_360px] items-start gap-4 max-[899px]:grid-cols-1">
         <KitOrderForm

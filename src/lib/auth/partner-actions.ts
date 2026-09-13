@@ -160,15 +160,17 @@ async function orderKit(influencer: Influencer, campaign: Campaign, formData: Fo
 
   // Port offert : on ne lit le barème que pour retrouver l'offre Boxtal du mode choisi.
   const weight = Math.max(1, settings.shipping.parcel.baseWeightG + kitWeightG(kit.items));
-  const options = shippingOptions(settings.shipping.rates, bracketIndexForWeight(weight), true, true);
+  /*
+   * Un kit ne part qu'en point relais. Le formulaire ne propose déjà que cela ; on le
+   * revérifie ici, parce qu'une action serveur est une entrée publique et qu'un `rateId`
+   * se change à la main.
+   */
+  const options = shippingOptions(settings.shipping.rates, bracketIndexForWeight(weight), true, true).filter((o) => o.relay);
   const option = options.find((o) => o.id === d.rateId);
-  if (!option) return { ok: false, error: "Ce mode de livraison n'est plus proposé." };
+  if (!option) return { ok: false, error: "Le kit s'envoie en point relais : choisissez-en un sur la carte." };
 
-  let relay: z.infer<typeof Relay> | undefined;
-  if (option.relay) {
-    relay = parseRelay(d.relay);
-    if (!relay) return { ok: false, error: "Choisissez un point relais sur la carte." };
-  }
+  const relay = parseRelay(d.relay);
+  if (!relay) return { ok: false, error: "Choisissez un point relais sur la carte." };
 
   const email = influencer.email.trim().toLowerCase();
   if (!email) return { ok: false, error: "Aucune adresse e-mail sur votre compte." };

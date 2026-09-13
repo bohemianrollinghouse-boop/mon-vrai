@@ -215,6 +215,12 @@ export function KitOrderForm({
       {/* ---------- Où livrer ---------- */}
       <div className="flex flex-col gap-5 rounded-card bg-white p-8 max-[599px]:p-6">
         <span className="text-base font-extrabold">Où vous l&apos;envoyer</span>
+        {/* Le kit part en point relais : l'adresse sert à trouver le plus proche de chez
+            vous, et le transporteur en a besoin pour l'étiquette. */}
+        <p className="-mt-2 text-[0.8125rem] leading-relaxed text-subtle">
+          Votre kit vous attendra dans un point relais : rien à guetter chez vous, et vous le récupérez quand cela vous
+          arrange. Votre adresse sert à vous proposer les relais les plus proches.
+        </p>
 
         <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Pays">
           {countries.map((c) => (
