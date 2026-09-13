@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ledger, marginPct, orderRevenue, shippingCostFor, sumRevenue } from "./revenue";
+import { dashboardNet, ledger, marginPct, orderRevenue, shippingCostFor, sumRevenue } from "./revenue";
 import { DEFAULT_PARCEL, DEFAULT_SHIPPING_RATES, EMPTY_SENDER, Order, SiteSettings } from "@/lib/domain/types";
 
 /*
@@ -131,5 +131,49 @@ describe("Revenus - kits offerts aux partenaires", () => {
     const l = ledger([orderRevenue(order(), settings)]);
     expect(l.kits.orders).toBe(0);
     expect(l.net).toBe(l.sales.net);
+  });
+});
+
+describe("Revenus - le net du tableau de bord", () => {
+  const c = { urssafBp: 1200, bookCost: 120, packagingCost: 250, kitBookCost: 0, kitPackagingCost: 0, stripeBp: 150, stripeFixed: 25, productionCost: 350_000, bookPrice: 1000 };
+
+  it("ne retire que cotisations, commission et fabrication des livres payés", () => {
+    const d = dashboardNet([order()], c);
+    expect(d.gross).toBe(3500);
+    expect(d.urssaf).toBe(420); // 12 % de 35,00 €, port compris
+    expect(d.stripe).toBe(78); // 1,5 % + 0,25 €
+    expect(d.bookCost).toBe(240); // 2 livres à 1,20 €
+    // Ni port réel, ni emballage : ce n'est pas le bilan, c'est ce qu'il reste en caisse.
+    expect(d.net).toBe(3500 - 420 - 78 - 240);
+  });
+
+  it("ne fait pas payer les livres offerts", () => {
+    const offert = order({
+      lines: [
+        { productSlug: "les-fruits", title: "Les fruits", qty: 8, unitPrice: 1000, preorder: false },
+        { productSlug: "le-visage", title: "Le Visage", qty: 1, unitPrice: 0, preorder: false, gift: true },
+      ],
+      totals: { subtotal: 8000, shipping: 0, discount: 0, tax: 0, total: 8000, currency: "eur" },
+    });
+    const d = dashboardNet([offert], c);
+    expect(d.paidBooks).toBe(8);
+    expect(d.gifted).toBe(1);
+    expect(d.bookCost).toBe(960); // 8 × 1,20 €, le neuvième ne coûte rien ici
+  });
+
+  it("compte le manque à gagner en livres : remises et exemplaires offerts", () => {
+    // 1,00 € de remise sur un imagier à 10,00 € = un dixième de livre non vendu.
+    const remise = order({ totals: { subtotal: 3000, shipping: 500, discount: 100, tax: 0, total: 3400, currency: "eur" } });
+    expect(dashboardNet([remise], c).lostBooks).toBeCloseTo(0.1, 5);
+
+    const offert = order({
+      lines: [
+        { productSlug: "les-fruits", title: "Les fruits", qty: 8, unitPrice: 1000, preorder: false },
+        { productSlug: "le-visage", title: "Le Visage", qty: 1, unitPrice: 0, preorder: false, gift: true },
+      ],
+      totals: { subtotal: 8000, shipping: 0, discount: 0, tax: 0, total: 8000, currency: "eur" },
+    });
+    // Une remise d'un dixième plus un livre offert : 1,1 livre non vendu.
+    expect(dashboardNet([remise, offert], c).lostBooks).toBeCloseTo(1.1, 5);
   });
 });

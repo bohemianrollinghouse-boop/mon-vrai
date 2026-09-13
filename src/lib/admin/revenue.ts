@@ -161,3 +161,67 @@ export function ledger(rows: OrderRevenue[]): Ledger {
 export function marginPct(t: Pick<RevenueTotals, "revenue" | "net">): number | null {
   return t.revenue > 0 ? (t.net / t.revenue) * 100 : null;
 }
+
+/*
+ * Le net du tableau de bord : l'encaissement, moins ce qu'on doit vraiment.
+ *
+ * Volontairement plus court que `ledger()`, qui sert la page Revenus : ici on ne retire
+ * que les cotisations, la commission du paiement et la fabrication des exemplaires
+ * PAYÉS. Ni port, ni emballage, ni kits — un tableau de bord dit ce qui rentre et ce qu'il
+ * faudra en reverser, pas le bilan complet.
+ *
+ * Les livres offerts ne sont pas décomptés : ils ne sont pas une dépense de la vente, ils
+ * sont la vente qu'on n'a pas faite. C'est `lostBooks` qui les compte, en face.
+ */
+export type DashboardNet = {
+  gross: number;
+  urssaf: number;
+  stripe: number;
+  /** Fabrication des exemplaires payés, les offerts exclus. */
+  bookCost: number;
+  paidBooks: number;
+  net: number;
+  /** Remises accordées, en centimes. */
+  discount: number;
+  /** Exemplaires offerts (neuvième livre, code cadeau). */
+  gifted: number;
+  /*
+   * Le manque à gagner, exprimé en livres : une remise de 10 % sur un imagier vaut un
+   * dixième de livre non vendu, un exemplaire offert en vaut un entier. Deux façons de
+   * ne pas encaisser, ramenées à la même unité.
+   */
+  lostBooks: number;
+};
+
+export function dashboardNet(sales: Order[], costs: Costs): DashboardNet {
+  let gross = 0;
+  let urssaf = 0;
+  let stripe = 0;
+  let paidBooks = 0;
+  let discount = 0;
+  let gifted = 0;
+
+  for (const o of sales) {
+    gross += o.totals.total;
+    urssaf += partOf(o.totals.total, costs.urssafBp);
+    stripe += o.totals.total > 0 ? partOf(o.totals.total, costs.stripeBp) + costs.stripeFixed : 0;
+    discount += o.totals.discount;
+    for (const l of o.lines) {
+      if (l.gift) gifted += l.qty;
+      else paidBooks += l.qty;
+    }
+  }
+
+  const bookCost = paidBooks * costs.bookCost;
+  return {
+    gross,
+    urssaf,
+    stripe,
+    bookCost,
+    paidBooks,
+    net: gross - urssaf - stripe - bookCost,
+    discount,
+    gifted,
+    lostBooks: gifted + (costs.bookPrice > 0 ? discount / costs.bookPrice : 0),
+  };
+}

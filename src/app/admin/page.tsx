@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, GridTable, Pill, Tile } from "@/components/admin/ui";
 import { adminSnapshot } from "@/lib/admin/counts";
-import { ledger, orderRevenue } from "@/lib/admin/revenue";
+import { dashboardNet } from "@/lib/admin/revenue";
 import { amortisation } from "@/lib/admin/breakeven";
 import { BreakEvenBar } from "@/components/admin/BreakEvenBar";
 import { ADMIN_STATUS_LABELS, COUNTED, STATUS_TONE, TO_SHIP, capitalize, longDate, shortDate } from "@/lib/admin/order-ui";
@@ -54,13 +54,19 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
   const delta = prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : null;
   const basket = sales.length ? Math.round(revenue / sales.length) : 0;
 
-  // Revenu net de la période (et de la précédente, pour l'évolution) : mêmes règles que
-  // la page Revenus. Un coût unitaire laissé à zéro dans les réglages surévalue le net,
-  // ce que la précision de la tuile signale plutôt que de le taire.
-  const net = ledger(current.map((o) => orderRevenue(o, settings)));
-  const prevNet = ledger(previous.map((o) => orderRevenue(o, settings)));
+  /*
+   * Le net de la tuile est volontairement court : l'encaissement moins les cotisations,
+   * la commission du paiement et la fabrication des exemplaires payés. Ni port, ni
+   * emballage, ni kits — la page Revenus est là pour le bilan complet, pas le tableau de
+   * bord, qui doit dire ce qui rentre et ce qu'il faudra en reverser.
+   */
+  const net = dashboardNet(sales, settings.costs);
+  const prevNet = dashboardNet(previous.filter((o) => !o.kit), settings.costs);
   const netDelta = prevNet.net > 0 ? Math.round(((net.net - prevNet.net) / prevNet.net) * 100) : null;
-  const costsIncomplete = !settings.costs.bookCost || !settings.costs.packagingCost;
+  const costsIncomplete = !settings.costs.bookCost;
+  /* Les remises s'expriment en livres non vendus : 1,00 € de remise = un dixième d'imagier. */
+  const lost = net.lostBooks;
+  const lostLabel = lost === 0 ? "0" : lost.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   /** Lien vers le tableau de bord en conservant l'autre réglage (période / brut-net). */
   const dash = (p: string, r: boolean) => {
     const q = new URLSearchParams();
@@ -127,7 +133,7 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
         />
       )}
 
-      <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">
+      <div className="grid grid-cols-5 gap-3 max-[1399px]:grid-cols-3 max-[899px]:grid-cols-2">
         {/*
           Pas de `href` sur la tuile : elle porte deux liens (brut / net) et un <a> ne
           s'imbrique pas dans un autre. Le nombre lui-même mène à Revenus — des liens
@@ -153,17 +159,28 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
             </Link>
           }
           note={
-            netView
-              ? costsIncomplete
-                ? "coûts unitaires à compléter dans Revenus"
-                : netDelta === null
-                  ? "après cotisations, coûts et port réel"
-                  : `${netDelta >= 0 ? "+" : "−"}${Math.abs(netDelta)} % vs ${period.days} jours précédents`
-              : delta === null
-                ? period.days
-                  ? "pas de période de comparaison"
-                  : `${sales.length} commande${sales.length > 1 ? "s" : ""} encaissée${sales.length > 1 ? "s" : ""}`
-                : `${delta >= 0 ? "+" : "−"}${Math.abs(delta)} % vs ${period.days} jours précédents`
+            netView ? (
+              /* Ce qu'on doit, dit nommément : l'URSSAF d'abord, c'est elle qu'on provisionne. */
+              <span className="flex flex-col">
+                <span>
+                  URSSAF {formatEuro(net.urssaf)} · Stripe {formatEuro(net.stripe)}
+                  {netDelta !== null && ` · ${netDelta >= 0 ? "+" : "−"}${Math.abs(netDelta)} %`}
+                </span>
+                <span>
+                  {costsIncomplete
+                    ? "coût d'un livre à renseigner dans Revenus"
+                    : `fabrication ${formatEuro(net.bookCost)} · ${net.paidBooks} livre${net.paidBooks > 1 ? "s" : ""} payé${net.paidBooks > 1 ? "s" : ""}`}
+                </span>
+              </span>
+            ) : delta === null ? (
+              period.days ? (
+                "pas de période de comparaison"
+              ) : (
+                `${sales.length} commande${sales.length > 1 ? "s" : ""} encaissée${sales.length > 1 ? "s" : ""}`
+              )
+            ) : (
+              `${delta >= 0 ? "+" : "−"}${Math.abs(delta)} % vs ${period.days} jours précédents`
+            )
           }
         />
         {/*
@@ -180,6 +197,22 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
             </span>
           }
           href="/admin/commandes"
+        />
+        {/*
+          Ce qu'on n'a pas encaissé, ramené à l'unité qui parle : le livre. Une remise de
+          10 % sur un imagier vaut un dixième de livre non vendu, un exemplaire offert en
+          vaut un entier — deux façons de ne pas vendre, une seule mesure.
+        */}
+        <Tile
+          tone={lost >= 1 ? "sand" : "white"}
+          label="Manque à gagner"
+          value={`${lostLabel} livre${lost >= 2 ? "s" : ""}`}
+          note={
+            <span className="flex flex-col">
+              <span>{net.discount ? `${formatEuro(net.discount)} de remises` : "aucune remise"}</span>
+              <span>{net.gifted ? `${net.gifted} livre${net.gifted > 1 ? "s" : ""} offert${net.gifted > 1 ? "s" : ""}` : "aucun livre offert"}</span>
+            </span>
+          }
         />
         <Tile label="Livres précommandés" value={preorderBooks} note={shipFrom ? `à expédier dès le ${shipFrom}` : "à expédier"} href="/admin/commandes?statut=a-expedier" />
         <Tile tone={snap.lowStock.length ? "pink" : "white"} label="Stock bas" value={`${snap.lowStock.length} titre${snap.lowStock.length > 1 ? "s" : ""}`} note={`sous le seuil de ${settings.inventory.lowThreshold} ex.`} href="/admin/stocks" />
