@@ -4,7 +4,7 @@ import { adminSnapshot } from "@/lib/admin/counts";
 import { dashboardNet } from "@/lib/admin/revenue";
 import { amortisation } from "@/lib/admin/breakeven";
 import { BreakEvenBar } from "@/components/admin/BreakEvenBar";
-import { ADMIN_STATUS_LABELS, COUNTED, STATUS_TONE, TO_SHIP, capitalize, longDate, shortDate } from "@/lib/admin/order-ui";
+import { ADMIN_STATUS_LABELS, COUNTED, STATUS_TONE, TO_SHIP, bookCount, capitalize, longDate, shortDate } from "@/lib/admin/order-ui";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatEuro } from "@/lib/domain/money";
 import type { Order } from "@/lib/domain/types";
@@ -229,8 +229,8 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
           className="!p-6 [&>div:last-child]:-mx-6 [&>div:last-child]:rounded-none [&>div:last-child]:py-0"
         >
           <GridTable
-            columns="minmax(110px,auto) 1fr 130px 80px 80px"
-            head={["N°", "Client", "Statut", "Date", "Total"]}
+            columns="minmax(110px,auto) 1fr 110px 130px 80px 80px"
+            head={["N°", "Client", "Livres", "Statut", "Date", "Total"]}
             empty="Aucune commande pour le moment."
             rows={orders.slice(0, 5).map((o) => ({
               key: o.id,
@@ -238,6 +238,24 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
               cells: [
                 <span key="n" className="font-bold">{o.number}</span>,
                 <span key="c" className="truncate font-semibold">{o.shippingAddress.name}</span>,
+                /* Le nombre de livres, et le code promo qui a servi. */
+                (() => {
+                  const books = bookCount(o);
+                  return (
+                    <span key="b" className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-semibold">
+                        {books.total}
+                        {books.gifted > 0 && !o.kit && <span className="text-subtle">{` dont ${books.gifted} offert${books.gifted > 1 ? "s" : ""}`}</span>}
+                      </span>
+                      {o.totals.discount > 0 && (
+                        <span className="truncate text-[0.625rem] font-bold text-subtle">
+                          {/* Sans code, la remise vient de l'offre collection, automatique. */}
+                          {`${o.promoCodes.join(", ") || "offre collection"} −${formatEuro(o.totals.discount)}`}
+                        </span>
+                      )}
+                    </span>
+                  );
+                })(),
                 <span key="s" className="flex gap-1.5">
                   <Pill tone={STATUS_TONE[o.status]}>{ADMIN_STATUS_LABELS[o.status]}</Pill>
                   {!o.livemode && <Pill tone="muted">Test</Pill>}

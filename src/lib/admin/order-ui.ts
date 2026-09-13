@@ -55,6 +55,21 @@ export function itemsSummary(order: Order): string {
   return order.lines.map((l) => `${l.qty}× ${shortTitle(l.title)}`).join(", ");
 }
 
+/*
+ * Combien de livres part dans une commande, et combien étaient offerts. Le neuvième
+ * exemplaire d'une offre « 8 achetés » sort du stock comme les autres : il compte dans le
+ * total, mais on le distingue, parce qu'il n'a rien rapporté.
+ */
+export function bookCount(order: Order): { total: number; gifted: number } {
+  let total = 0;
+  let gifted = 0;
+  for (const l of order.lines) {
+    total += l.qty;
+    if (l.gift) gifted += l.qty;
+  }
+  return { total, gifted };
+}
+
 export function shortTitle(title: string): string {
   return title.replace(/^Les Animaux de /i, "Anim. ").replace(/^Les Objets du quotidien$/i, "Objets").replace(/^Les /i, "").replace(/^Le /i, "");
 }
