@@ -30,7 +30,8 @@ const STATUS_LABEL: Record<SignerStatus, string> = {
   company: "société",
 };
 
-const account = (a: { handle: string; url: string }) => [a.handle, a.url].filter(Boolean).join(" — ");
+/* Pas de cadratin dans un contrat : l'adresse se met entre parenthèses derrière le pseudo. */
+const account = (a: { handle: string; url: string }) => (a.handle && a.url ? `${a.handle} (${a.url})` : a.handle || a.url);
 
 /** Une adresse postale sur une ligne, telle qu'elle se lit dans un contrat. */
 export function oneLineAddress(a: Address): string {
@@ -58,7 +59,7 @@ export function contractValues(input: {
   const total = goods.reduce((sum, g) => sum + g.unitValue * g.qty, 0);
   const quantity = goods.reduce((sum, g) => sum + g.qty, 0);
 
-  const company = party.status === "individual" ? "" : [party.companyName, party.siret && `SIRET ${party.siret}`, party.vatNumber && `TVA ${party.vatNumber}`].filter(Boolean).join(" — ");
+  const company = party.status === "individual" ? "" : [party.companyName, party.siret && `SIRET ${party.siret}`, party.vatNumber && `TVA ${party.vatNumber}`].filter(Boolean).join(", ");
 
   /*
    * Les échéances se déduisent du délai plutôt que de se saisir : une date écrite à la
@@ -102,9 +103,9 @@ export function contractValues(input: {
     COMPTE_AUTRE_RESEAU: account(party.socials.facebook),
 
     /* La liste sert dans un paragraphe : une ligne par livre, prête à être lue. */
-    LISTE_DES_PRODUITS: goods.map((g) => `${g.title}${g.qty > 1 ? ` × ${g.qty}` : ""} — ${formatEuro(g.unitValue * g.qty)}`).join("\n"),
+    LISTE_DES_PRODUITS: goods.map((g) => `${g.title}${g.qty > 1 ? ` × ${g.qty}` : ""} : ${formatEuro(g.unitValue * g.qty)}`).join("\n"),
     STATUT_DES_PRODUITS: input.prototype
-      ? "Exemplaires de présérie (prototypes) — ils peuvent différer de la version commercialisée."
+      ? "Exemplaires de présérie (prototypes) : ils peuvent différer de la version commercialisée."
       : "Exemplaires définitifs, identiques à la version commercialisée.",
     QUANTITE_DE_PRODUITS: String(quantity),
     VALEUR_TOTALE_PRODUITS: (total / 100).toFixed(2).replace(".", ","),

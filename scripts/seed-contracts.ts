@@ -35,14 +35,14 @@ const COMMON: Record<string, string> = {
 const FILES: { file: string; name: string; type: CollaborationType; version: string; variables: Record<string, string> }[] = [
   {
     file: "ugc.md",
-    name: "Création de contenu UGC — Mon Vrai",
+    name: "Création de contenu UGC (Mon Vrai)",
     type: "UGC",
     version: "UGC-2026-09-v1",
     variables: { ...COMMON, DELAI_EN_JOURS: "30" },
   },
   {
     file: "influence.md",
-    name: "Collaboration Influence — Mon Vrai",
+    name: "Collaboration Influence (Mon Vrai)",
     type: "INFLUENCE",
     version: "INFLUENCE-2026-09-v1",
     variables: {
@@ -54,7 +54,7 @@ const FILES: { file: string; name: string; type: CollaborationType; version: str
   },
   {
     file: "mixte.md",
-    name: "Collaboration mixte UGC + Influence — Mon Vrai",
+    name: "Collaboration mixte UGC + Influence (Mon Vrai)",
     type: "MIXTE",
     version: "MIXTE-2026-09-v1",
     variables: {

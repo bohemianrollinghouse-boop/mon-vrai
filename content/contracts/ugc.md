@@ -1,4 +1,4 @@
-# CRÉATION DE CONTENU UGC — MON VRAI
+# CRÉATION DE CONTENU UGC : MON VRAI
 
 ## Résumé
 
@@ -10,13 +10,13 @@ Les fichiers devront être transmis dans leur meilleure qualité disponible, san
 
 ---
 
-# CONTRAT DE COLLABORATION — CRÉATION DE CONTENU UGC MON VRAI
+# CONTRAT DE COLLABORATION : CRÉATION DE CONTENU UGC MON VRAI
 
-## Article 1 — Les parties
+## Article 1 : Les parties
 
 Le présent contrat est conclu entre :
 
-**Bohemian Rolling House — Mon Vrai**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{ADRESSE_MON_VRAI}}**, immatriculée sous le numéro **{{SIREN_MON_VRAI}}**, représentée par **{{REPRESENTANT_MON_VRAI}}**,
+**Bohemian Rolling House (Mon Vrai)**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{ADRESSE_MON_VRAI}}**, immatriculée sous le numéro **{{SIREN_MON_VRAI}}**, représentée par **{{REPRESENTANT_MON_VRAI}}**,
 
 ci-après dénommée **« Mon Vrai »**,
 
@@ -33,7 +33,7 @@ ci-après dénommé(e) **« le Créateur »**.
 
 Mon Vrai et le Créateur sont ci-après désignés ensemble **« les Parties »**.
 
-## Article 2 — Objet du contrat
+## Article 2 : Objet du contrat
 
 Le présent contrat a pour objet d'encadrer une collaboration de création de photographies et de vidéos destinées à la communication de Mon Vrai.
 
@@ -41,7 +41,7 @@ La présente collaboration constitue une prestation de création de contenu.
 
 **Aucune publication sur les comptes personnels du Créateur n'est obligatoire.**
 
-## Article 3 — Produits remis et contrepartie
+## Article 3 : Produits remis et contrepartie
 
 Mon Vrai remet gratuitement au Créateur les produits suivants :
 
@@ -58,7 +58,7 @@ Les produits remis constituent la contrepartie en nature de la prestation défin
 
 Aucune rémunération financière supplémentaire n'est prévue, sauf accord écrit ultérieur.
 
-## Article 4 — Contenus à réaliser
+## Article 4 : Contenus à réaliser
 
 Le Créateur s'engage à transmettre à Mon Vrai :
 
@@ -71,7 +71,7 @@ Ils pourront notamment montrer les livres manipulés, leurs pages, les mains d'u
 
 Plusieurs photos ou vidéos peuvent être issues d'une même situation ou d'une même séance.
 
-## Article 5 — Caractéristiques techniques
+## Article 5 : Caractéristiques techniques
 
 Les fichiers transmis devront être fournis dans leur meilleure qualité disponible.
 
@@ -84,7 +84,7 @@ Ils devront être, dans la mesure du possible :
 
 Les vidéos verticales sont privilégiées pour les contenus destinés aux réseaux sociaux.
 
-## Article 6 — Délai de réalisation
+## Article 6 : Délai de réalisation
 
 Période de la campagne :
 **Du {{DATE_DEBUT_CAMPAGNE}} au {{DATE_FIN_DE_CAMPAGNE}}**
@@ -96,7 +96,7 @@ La date indicative de remise des contenus est :
 
 En cas d'imprévu, le Créateur s'engage à contacter Mon Vrai afin de convenir d'un nouveau délai.
 
-## Article 7 — Prototypes et exemplaires de présérie
+## Article 7 : Prototypes et exemplaires de présérie
 
 Lorsque les produits remis sont des prototypes ou exemplaires de présérie, le Créateur reconnaît avoir été informé qu'ils peuvent présenter certaines imperfections, coquilles, différences graphiques, décalages d'impression ou éléments qui seront corrigés dans la version commercialisée.
 
@@ -106,13 +106,13 @@ Statut des produits remis :
 Informations particulières communiquées au Créateur :
 **{{NOTES_PROTOTYPES}}**
 
-## Article 8 — Propriété intellectuelle
+## Article 8 : Propriété intellectuelle
 
 Le Créateur demeure auteur et titulaire des droits attachés aux photographies et vidéos qu'il réalise.
 
 Il accorde à Mon Vrai une autorisation d'exploitation non exclusive des contenus transmis dans les conditions définies ci-dessous.
 
-## Article 9 — Droits accordés à Mon Vrai
+## Article 9 : Droits accordés à Mon Vrai
 
 Le Créateur autorise Mon Vrai à reproduire, représenter et adapter les contenus UGC transmis dans le cadre du présent contrat.
 
@@ -144,7 +144,7 @@ Ces modifications ne devront pas porter atteinte à la dignité ou à l'image de
 
 **Durée : 24 mois à compter de la remise de chaque contenu.**
 
-## Article 10 — Publicités payantes
+## Article 10 : Publicités payantes
 
 L'autorisation accordée au titre du présent contrat ne comprend pas automatiquement l'utilisation des contenus dans des campagnes publicitaires payantes telles que Meta Ads, TikTok Ads, Pinterest Ads ou équivalent.
 
@@ -153,7 +153,7 @@ Utilisation publicitaire :
 
 Toute exploitation publicitaire non comprise dans le présent contrat devra faire l'objet d'un accord complémentaire entre les Parties.
 
-## Article 11 — Droit à l'image
+## Article 11 : Droit à l'image
 
 Mon Vrai n'exige pas qu'un enfant identifiable ou que son visage apparaisse dans les contenus.
 
@@ -165,43 +165,43 @@ Lorsqu'un mineur identifiable apparaît dans un contenu, le Créateur certifie d
 
 Une autorisation spécifique de droit à l'image pourra être demandée par Mon Vrai avant l'exploitation d'un contenu comprenant un mineur identifiable.
 
-## Article 12 — Absence d'obligation de publication
+## Article 12 : Absence d'obligation de publication
 
 Le Créateur n'est soumis à aucune obligation de publier les contenus sur ses comptes personnels.
 
 S'il décide spontanément de présenter les produits sur ses réseaux sociaux, il lui appartient de respecter les obligations légales éventuellement applicables à cette publication.
 
-## Article 13 — Absence d'exclusivité
+## Article 13 : Absence d'exclusivité
 
 Le présent contrat ne comporte aucune exclusivité.
 
 Le Créateur reste libre de travailler avec d'autres entreprises, marques ou éditeurs.
 
-## Article 14 — Impossibilité d'exécution
+## Article 14 : Impossibilité d'exécution
 
 Si le Créateur se trouve dans l'impossibilité de fournir les contenus prévus, il s'engage à prévenir Mon Vrai dans les meilleurs délais.
 
 Les Parties rechercheront prioritairement une solution amiable pouvant notamment prendre la forme d'un délai supplémentaire, d'une adaptation raisonnable des livrables ou, lorsque cela est pertinent et possible, du retour des produits.
 
-## Article 15 — Indépendance des Parties
+## Article 15 : Indépendance des Parties
 
 Le Créateur organise librement son travail.
 
 Le présent contrat ne crée aucun lien de subordination ni contrat de travail entre les Parties.
 
-## Article 16 — Données personnelles
+## Article 16 : Données personnelles
 
 Les données personnelles recueillies sont utilisées pour la gestion de la collaboration, l'établissement et la conservation du contrat, l'expédition des produits et le suivi du partenariat.
 
 Les modalités complètes de traitement figurent dans la politique de confidentialité de Mon Vrai.
 
-## Article 17 — Droit applicable
+## Article 17 : Droit applicable
 
 Le présent contrat est soumis au droit français.
 
 Les Parties s'engagent à rechercher prioritairement une solution amiable en cas de différend.
 
-## Article 18 — Acceptation électronique
+## Article 18 : Acceptation électronique
 
 Le Créateur reconnaît avoir pris connaissance :
 

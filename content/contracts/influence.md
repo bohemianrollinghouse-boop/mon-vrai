@@ -1,4 +1,4 @@
-# COLLABORATION INFLUENCE — MON VRAI
+# COLLABORATION INFLUENCE : MON VRAI
 
 ## Résumé
 
@@ -10,13 +10,13 @@ La nature commerciale de la collaboration devra être clairement indiquée aupr�
 
 ---
 
-# CONTRAT DE COLLABORATION D'INFLUENCE — MON VRAI
+# CONTRAT DE COLLABORATION D'INFLUENCE : MON VRAI
 
-## Article 1 — Les parties
+## Article 1 : Les parties
 
 Le présent contrat est conclu entre :
 
-**Bohemian Rolling House — Mon Vrai**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{ADRESSE_MON_VRAI}}**, immatriculée sous le numéro **{{SIREN_MON_VRAI}}**, représentée par **{{REPRESENTANT_MON_VRAI}}**,
+**Bohemian Rolling House (Mon Vrai)**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{ADRESSE_MON_VRAI}}**, immatriculée sous le numéro **{{SIREN_MON_VRAI}}**, représentée par **{{REPRESENTANT_MON_VRAI}}**,
 
 ci-après dénommée **« Mon Vrai »**,
 
@@ -36,11 +36,11 @@ Autre : **{{COMPTE_AUTRE_RESEAU}}**
 
 ci-après dénommé(e) **« le Créateur »**.
 
-## Article 2 — Objet
+## Article 2 : Objet
 
 Le présent contrat a pour objet d'encadrer une collaboration d'influence commerciale destinée à présenter les produits Mon Vrai auprès de la communauté du Créateur.
 
-## Article 3 — Produits et contrepartie
+## Article 3 : Produits et contrepartie
 
 Mon Vrai remet gratuitement :
 
@@ -55,7 +55,7 @@ Les produits constituent la contrepartie en nature des prestations prévues au p
 
 Aucune rémunération financière supplémentaire n'est prévue, sauf accord écrit contraire.
 
-## Article 4 — Contenus à publier
+## Article 4 : Contenus à publier
 
 Le Créateur s'engage à publier :
 
@@ -67,7 +67,7 @@ Plateformes prévues :
 
 Les publications peuvent être réparties sur plusieurs dates et plateformes.
 
-## Article 5 — Contenu de la présentation
+## Article 5 : Contenu de la présentation
 
 Le Créateur s'engage à présenter les produits de manière réelle et identifiable.
 
@@ -79,7 +79,7 @@ Il reste libre de son ton, de son montage, de ses formulations et de son opinion
 
 Mon Vrai n'impose pas d'avis positif.
 
-## Article 6 — Identification du caractère commercial
+## Article 6 : Identification du caractère commercial
 
 Le Créateur reconnaît recevoir les produits en contrepartie des publications prévues.
 
@@ -87,14 +87,14 @@ Il s'engage à informer clairement son audience du caractère commercial ou publ
 
 Cette information devra apparaître de manière immédiatement identifiable et compréhensible.
 
-## Article 7 — Calendrier
+## Article 7 : Calendrier
 
 Période de la campagne :
 **Du {{DATE_DEBUT_CAMPAGNE}} au {{DATE_FIN_DE_CAMPAGNE}}**
 
 Les publications devront être réalisées dans un délai de **{{DELAI_PUBLICATION_EN_JOURS}} jours** suivant la réception des produits, sauf autre accord entre les Parties.
 
-## Article 8 — Prototypes
+## Article 8 : Prototypes
 
 Statut des produits :
 **{{STATUT_DES_PRODUITS}}**
@@ -104,19 +104,19 @@ Lorsque les produits sont des prototypes ou exemplaires de présérie, le Créat
 Informations communiquées :
 **{{NOTES_PROTOTYPES}}**
 
-## Article 9 — Durée de disponibilité des publications
+## Article 9 : Durée de disponibilité des publications
 
 Sauf motif légitime ou impossibilité liée à la plateforme, les contenus permanents de type Reel ou TikTok devront rester accessibles pendant au moins **6 mois après leur publication**.
 
 Les Stories suivent leur durée normale de diffusion.
 
-## Article 10 — Propriété intellectuelle
+## Article 10 : Propriété intellectuelle
 
 Le Créateur demeure titulaire des droits attachés aux contenus réalisés.
 
 La réalisation et la publication du contenu ne transfèrent pas automatiquement l'ensemble des droits à Mon Vrai.
 
-## Article 11 — Repartage par Mon Vrai
+## Article 11 : Repartage par Mon Vrai
 
 Le Créateur autorise Mon Vrai, pendant **12 mois à compter de la publication**, à repartager les contenus de la collaboration sur ses comptes sociaux organiques.
 
@@ -124,7 +124,7 @@ Mon Vrai pourra utiliser notamment les fonctions natives de repost, partage ou p
 
 Le Créateur sera crédité lorsque cela est techniquement pertinent et possible.
 
-## Article 12 — Exploitations supplémentaires
+## Article 12 : Exploitations supplémentaires
 
 Les droits suivants ne sont pas automatiquement compris :
 
@@ -139,7 +139,7 @@ Autorisation supplémentaire éventuellement accordée :
 
 Toute utilisation non prévue devra être convenue entre les Parties.
 
-## Article 13 — Droit à l'image
+## Article 13 : Droit à l'image
 
 Mon Vrai n'impose pas l'apparition identifiable d'un enfant.
 
@@ -147,7 +147,7 @@ Lorsque le Créateur décide de montrer une personne identifiable, il certifie d
 
 En présence d'un mineur identifiable, les autorisations nécessaires des titulaires de l'autorité parentale doivent avoir été obtenues.
 
-## Article 14 — Statistiques
+## Article 14 : Statistiques
 
 Après publication, le Créateur s'engage à transmettre, lorsque ces informations sont disponibles, les principales statistiques des contenus réalisés :
 
@@ -159,34 +159,34 @@ Après publication, le Créateur s'engage à transmettre, lorsque ces informatio
 Le délai de transmission est de :
 **{{DELAI_ENVOI_STATISTIQUES}}**
 
-## Article 15 — Absence d'exclusivité
+## Article 15 : Absence d'exclusivité
 
 Aucune exclusivité n'est imposée, sauf mention spécifique suivante :
 **{{CONDITIONS_EXCLUSIVITE}}**
 
 En l'absence de mention particulière, aucune exclusivité ne s'applique.
 
-## Article 16 — Impossibilité d'exécution
+## Article 16 : Impossibilité d'exécution
 
 En cas d'impossibilité de réaliser tout ou partie des publications prévues, le Créateur doit prévenir Mon Vrai dans les meilleurs délais.
 
 Les Parties rechercheront une solution amiable adaptée.
 
-## Article 17 — Indépendance
+## Article 17 : Indépendance
 
 Le Créateur conserve son indépendance éditoriale et organisationnelle.
 
 Le présent contrat ne crée aucun lien de subordination.
 
-## Article 18 — Données personnelles
+## Article 18 : Données personnelles
 
 Les informations recueillies sont utilisées pour l'établissement et le suivi du contrat, l'envoi des produits et la gestion de la collaboration conformément à la politique de confidentialité de Mon Vrai.
 
-## Article 19 — Droit applicable
+## Article 19 : Droit applicable
 
 Le présent contrat est soumis au droit français.
 
-## Article 20 — Acceptation électronique
+## Article 20 : Acceptation électronique
 
 Le Créateur reconnaît avoir pris connaissance :
 
