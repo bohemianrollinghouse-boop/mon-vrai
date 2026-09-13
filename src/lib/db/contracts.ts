@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { Contract, ContractSignature } from "@/lib/domain/types";
+import { Contract, ContractSignature, type SignatureStatus } from "@/lib/domain/types";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
 /*
@@ -40,7 +40,7 @@ export async function deleteContract(id: string): Promise<void> {
   await contracts().doc(id).delete();
 }
 
-export type SignatureInput = Omit<ContractSignature, "id" | "acceptedAt" | "contractHash">;
+export type SignatureInput = Omit<ContractSignature, "id" | "acceptedAt" | "contractHash" | "state" | "cancelledAt" | "completedAt">;
 
 /*
  * Enregistre une acceptation. L'empreinte est calculée ici, sur la copie figée, et non
@@ -52,7 +52,7 @@ export async function recordSignature(input: SignatureInput): Promise<ContractSi
   const hash = createHash("sha256")
     .update([input.contractVersion, input.summarySnapshot, input.bodySnapshot, input.signerTypedName, String(acceptedAt)].join("\n---\n"))
     .digest("hex");
-  const doc = ContractSignature.parse({ ...input, id: newId("sig"), acceptedAt, contractHash: hash });
+  const doc = ContractSignature.parse({ ...input, id: newId("sig"), acceptedAt, contractHash: hash, state: "active" });
   await signatures().doc(doc.id).set(doc);
   return doc;
 }
@@ -66,4 +66,28 @@ export async function getSignature(id: string): Promise<ContractSignature | null
 export async function listSignaturesFor(influencerId: string): Promise<ContractSignature[]> {
   const list = await parseQuery(ContractSignature, signatures().where("influencerId", "==", influencerId).limit(50));
   return list.sort((a, b) => b.acceptedAt - a.acceptedAt);
+}
+
+/*
+ * Change l'état d'une collaboration signée. On n'efface jamais une signature — un
+ * contrat accepté se conserve, quoi qu'il advienne ensuite — on note seulement qu'il
+ * ne produit plus d'effet, ou qu'il est allé à son terme.
+ */
+export async function setSignatureState(id: string, state: SignatureStatus): Promise<void> {
+  const at = now();
+  await signatures()
+    .doc(id)
+    .update({
+      state,
+      ...(state === "cancelled" ? { cancelledAt: at } : {}),
+      ...(state === "completed" ? { completedAt: at } : {}),
+    });
+}
+
+/** La signature attachée à une commande, s'il y en a une. */
+export async function findSignatureByOrder(orderId: string): Promise<ContractSignature | null> {
+  if (!orderId) return null;
+  const snap = await signatures().where("orderId", "==", orderId).limit(1).get();
+  const doc = snap.docs[0];
+  return doc ? parseDoc(ContractSignature, doc) : null;
 }

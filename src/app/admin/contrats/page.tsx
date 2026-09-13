@@ -3,7 +3,7 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
 import { deleteContractAction, saveContractAction } from "@/lib/admin/actions/contracts";
 import { listContracts } from "@/lib/db/contracts";
-import { listInfluencers } from "@/lib/db/promos";
+import { listAllCampaigns } from "@/lib/db/campaigns";
 import { CollaborationType, COLLABORATION_LABELS, type Contract } from "@/lib/domain/types";
 import { manualPlaceholders, placeholdersIn } from "@/lib/promos/contract-template";
 import { AUTOMATIC_PLACEHOLDERS, VARIABLE_HELP, variableLabel } from "@/lib/promos/contract-variables";
@@ -21,13 +21,13 @@ export const dynamic = "force-dynamic";
 export default async function ContractsPage({ searchParams }: PageProps<"/admin/contrats">) {
   const sp = await searchParams;
   const wanted = typeof sp.id === "string" ? sp.id : "";
-  const [contracts, influencers] = await Promise.all([listContracts(), listInfluencers()]);
+  const [contracts, campaigns] = await Promise.all([listContracts(), listAllCampaigns()]);
   const isNew = wanted === "nouveau";
   const current = isNew ? null : contracts.find((c) => c.id === wanted) ?? contracts[0] ?? null;
 
-  /* Combien de partenaires dépendent de chaque contrat : on ne supprime pas à l'aveugle. */
+  /* Combien de campagnes dépendent de chaque contrat : on ne supprime pas à l'aveugle. */
   const used = new Map<string, number>();
-  for (const inf of influencers) if (inf.contractId) used.set(inf.contractId, (used.get(inf.contractId) ?? 0) + 1);
+  for (const c of campaigns) if (c.contractId) used.set(c.contractId, (used.get(c.contractId) ?? 0) + 1);
 
   return (
     <>
@@ -58,7 +58,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 </span>
                 <span className="text-[0.6875rem] text-subtle">
                   {c.version}
-                  {count > 0 && ` · ${count} partenaire${count > 1 ? "s" : ""}`}
+                  {count > 0 && ` · ${count} campagne${count > 1 ? "s" : ""}`}
                   {!c.active && " · retiré"}
                 </span>
               </Link>

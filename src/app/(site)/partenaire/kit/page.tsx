@@ -7,6 +7,7 @@ import { orderPartnerKitAction, signAndOrderKitAction } from "@/lib/auth/partner
 import { requireInfluencer } from "@/lib/auth/session";
 import { getMapToken } from "@/lib/boxtal/client";
 import { partnerKitSnapshot } from "@/lib/db/partner";
+import { currentCampaign } from "@/lib/db/campaigns";
 import { getInfluencerByUid } from "@/lib/db/promos";
 import { getSettings } from "@/lib/db/settings";
 import { shippingOptions } from "@/lib/checkout/quote";
@@ -31,7 +32,8 @@ export default async function PartnerKitPage() {
   const influencer = await getInfluencerByUid(user.uid);
   if (!influencer) notFound();
 
-  const kit = await partnerKitSnapshot(influencer);
+  const campaign = await currentCampaign(influencer.id);
+  const kit = await partnerKitSnapshot(influencer, campaign);
   if (!kit.offered || kit.order) redirect("/partenaire#kit");
   // Sans réseau renseigné, la demande n'a pas de sens : on renvoie à l'encart qui le demande.
   if (kit.socialsMissing) redirect("/partenaire#reseaux");
@@ -53,7 +55,7 @@ export default async function PartnerKitPage() {
    * directement. Le contenu envoyé au navigateur est celui du contrat en base, tel
    * qu'il sera figé dans la signature.
    */
-  const contract = influencer.signatureId ? null : await getContract(influencer.contractId);
+  const contract = !campaign || campaign.signatureId ? null : await getContract(campaign.contractId);
   const view: ContractOffer | undefined = contract
     ? {
         id: contract.id,
@@ -62,9 +64,9 @@ export default async function PartnerKitPage() {
         typeLabel: COLLABORATION_LABELS[contract.type],
         summary: contract.summary,
         body: contract.body,
-        /* Les réglages du partenaire recouvrent ceux du contrat : un délai ajusté pour
-           lui l'emporte, le reste continue de suivre le contrat. */
-        variables: { ...contract.variables, ...influencer.contractVariables },
+        /* Les réglages de la campagne recouvrent ceux du contrat : un délai ajusté pour
+           elle l'emporte, le reste continue de suivre le contrat. */
+        variables: { ...contract.variables, ...campaign!.contractVariables },
         requiredVariables: contract.requiredVariables,
       }
     : undefined;

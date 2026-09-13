@@ -182,6 +182,8 @@ export type KitOrderInput = {
   note?: string;
   /** Décompter les exemplaires du stock de vente (faux par défaut : stock à part). */
   deductStock?: boolean;
+  /** Rang de la collaboration : un partenaire peut recevoir un kit par collaboration. */
+  seq?: number;
 };
 
 /*
@@ -197,14 +199,17 @@ export type KitOrderInput = {
  * Idempotente sur l'influenceur : un double clic ne crée pas deux kits.
  */
 export async function createKitOrder(input: KitOrderInput): Promise<Order> {
-  const existing = await findKitOrder(input.influencerId);
+  const collabSeq = input.seq ?? 1;
+  /* Idempotent sur la COLLABORATION et non sur le partenaire : il peut en avoir
+     plusieurs dans le temps, chacune avec son kit. */
+  const existing = await findKitOrder(input.influencerId, collabSeq);
   if (existing) return existing;
 
   const id = newId("ord");
   const createdAt = now();
 
   return db().runTransaction(async (tx) => {
-    const dup = await tx.get(orders().where("kit.influencerId", "==", input.influencerId).limit(1));
+    const dup = await tx.get(orders().where("kit.influencerId", "==", input.influencerId).where("kit.seq", "==", collabSeq).limit(1));
     const dupDoc = dup.docs[0];
     if (dupDoc) {
       const found = parseDoc(Order, dupDoc);
@@ -245,7 +250,7 @@ export async function createKitOrder(input: KitOrderInput): Promise<Order> {
       shippingAddress: input.shippingAddress,
       livemode: input.livemode ?? true,
       delivery: input.delivery,
-      kit: { influencerId: input.influencerId, stock: deduct },
+      kit: { influencerId: input.influencerId, stock: deduct, seq: collabSeq },
       stripe: {},
       timeline: [{ at: createdAt, status: "paid", note: [input.note ?? "Kit de bienvenue partenaire", ...notes].join(" · "), by: "partenaire" }],
       createdAt,
@@ -258,9 +263,9 @@ export async function createKitOrder(input: KitOrderInput): Promise<Order> {
   });
 }
 
-/** La commande de kit d'un partenaire, s'il l'a déjà commandé. */
-export async function findKitOrder(influencerId: string): Promise<Order | null> {
-  const snap = await orders().where("kit.influencerId", "==", influencerId).limit(1).get();
+/** La commande de kit d'une collaboration donnée, si elle a été passée. */
+export async function findKitOrder(influencerId: string, seq = 1): Promise<Order | null> {
+  const snap = await orders().where("kit.influencerId", "==", influencerId).where("kit.seq", "==", seq).limit(1).get();
   const doc = snap.docs[0];
   return doc ? parseDoc(Order, doc) : null;
 }

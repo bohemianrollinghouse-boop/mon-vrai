@@ -16,7 +16,6 @@ import { statementRows } from "@/lib/promos/statements";
 import { now } from "@/lib/db/helpers";
 import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
 import { slugify } from "@/lib/domain/slug";
-import { CollaborationType } from "@/lib/domain/types";
 
 const Input = z.object({
   id: z.string().default(""),
@@ -29,9 +28,6 @@ const Input = z.object({
   email: z.string().trim().default(""),
   endAt: z.string().trim().default(""),
   active: z.boolean().default(true),
-  collaborationType: CollaborationType.default("UGC"),
-  /** Contrat à signer avant de recevoir le kit ; vide : aucun. */
-  contractId: z.string().trim().default(""),
   igHandle: z.string().trim().max(80).default(""),
   igUrl: z.string().trim().max(300).default(""),
   ttHandle: z.string().trim().max(80).default(""),
@@ -39,23 +35,6 @@ const Input = z.object({
   fbHandle: z.string().trim().max(80).default(""),
   fbUrl: z.string().trim().max(300).default(""),
 });
-
-/*
- * Variables du contrat ajustées pour ce partenaire, postées en `cvar:CLÉ`. On ne garde
- * que ce qui diffère : une valeur identique à celle du contrat n'a pas à être recopiée,
- * sans quoi un changement du contrat ne se répercuterait plus.
- */
-function contractVariablesFrom(formData: FormData): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [key, value] of formData.entries()) {
-    if (!key.startsWith("cvar:") || typeof value !== "string") continue;
-    const name = key.slice(5);
-    if (!/^[A-Z0-9_]{1,60}$/.test(name)) continue;
-    const base = String(formData.get(`cbase:${name}`) ?? "");
-    if (value.trim() !== base.trim()) out[name] = value.slice(0, 2000);
-  }
-  return out;
-}
 
 export async function saveInfluencerAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
@@ -87,9 +66,6 @@ export async function saveInfluencerAction(formData: FormData): Promise<AdminRes
     email: d.email,
     endAt,
     active: d.active,
-    collaborationType: d.collaborationType,
-    contractId: d.contractId,
-    contractVariables: contractVariablesFrom(formData),
     socials: {
       instagram: { handle: d.igHandle, url: d.igUrl },
       tiktok: { handle: d.ttHandle, url: d.ttUrl },
@@ -218,51 +194,6 @@ export async function markStatementPaidAction(formData: FormData): Promise<Admin
   return saved(`Relevé de ${month} marqué comme versé.`);
 }
 
-
-const KitInput = z.object({
-  id: z.string().min(1),
-  enabled: z.boolean().default(false),
-  deductStock: z.boolean().default(false),
-  prototype: z.boolean().default(false),
-  title: z.string().trim().max(80).default("Votre kit de bienvenue"),
-  text: z.string().trim().max(400).default(""),
-  /** Sélection sérialisée par l'éditeur : `slug:quantité`, séparés par des virgules. */
-  lines: z.string().default(""),
-});
-
-/*
- * Kit de bienvenue d'un partenaire : les livres qu'on lui offre, à lui. Il les commande
- * ensuite lui-même depuis son espace, et la commande part chez Boxtal comme les autres.
- *
- * `deductStock` dit si ces exemplaires sortent du stock de vente. Non par défaut : le
- * kit vient d'un stock à part réservé aux influenceurs.
- */
-export async function savePartnerKitAction(formData: FormData): Promise<AdminResult> {
-  const user = await assertAdmin();
-  const parsed = parseForm(KitInput, formData, { booleans: ["enabled", "deductStock", "prototype"] });
-  if (!parsed.ok) return failed(parsed.error, parsed.issues);
-  const d = parsed.data;
-
-  const influencer = await getInfluencer(d.id);
-  if (!influencer) return failed("Partenaire inconnu");
-
-  const lines = d.lines
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const [slug, qty] = part.split(":");
-      return { slug: slug.trim(), qty: Math.min(20, Math.max(1, Number(qty) || 1)) };
-    })
-    .filter((l) => l.slug);
-  if (d.enabled && lines.length === 0) return failed("Choisissez au moins un livre avant de proposer le kit.", { lines: "Sélection vide" });
-
-  await upsertInfluencer({ ...influencer, kit: { enabled: d.enabled, title: d.title, text: d.text, lines, deductStock: d.deductStock, prototype: d.prototype } });
-  await audit(user.email, "influencer.kit", `influencers/${d.id}`, `${lines.length} titre${lines.length > 1 ? "s" : ""}${d.enabled ? "" : " (non proposé)"}`);
-  revalidatePath(`/admin/influenceurs/${d.id}`);
-  revalidatePath("/partenaire");
-  return saved(d.enabled ? "Kit enregistré et proposé au partenaire." : "Kit enregistré (non proposé).");
-}
 
 /*
  * Note interne sur un partenaire. Elle ne sort jamais de l'admin : ni l'espace

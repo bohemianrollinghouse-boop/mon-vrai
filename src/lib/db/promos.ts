@@ -92,7 +92,7 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "handle" | "platform"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "collaborationSeq" | "handle" | "platform"
 > & {
   id?: string;
   uid?: string;
@@ -110,6 +110,7 @@ export type InfluencerInput = Omit<
   contractId?: string;
   contractVariables?: Record<string, string>;
   signatureId?: string;
+  collaborationSeq?: number;
 };
 
 /** Crée ou met à jour l'influenceur et son code promo (remise en pourcentage, cumulable avec rien par défaut). */
@@ -135,6 +136,7 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     contractId: input.contractId ?? existing?.contractId ?? "",
     contractVariables: input.contractVariables ?? existing?.contractVariables,
     signatureId: input.signatureId ?? existing?.signatureId ?? "",
+    collaborationSeq: input.collaborationSeq ?? existing?.collaborationSeq ?? 1,
     inviteToken: existing?.inviteToken ?? "",
     inviteExpiresAt: existing?.inviteExpiresAt,
     createdAt: existing?.createdAt ?? now(),

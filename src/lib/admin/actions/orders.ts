@@ -8,6 +8,8 @@ import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { addOrderNote, deleteOrder, getOrder, setTracking, transitionOrder } from "@/lib/db/orders";
+import { findSignatureByOrder, setSignatureState } from "@/lib/db/contracts";
+import { detachCampaignOrder, findCampaignByOrder } from "@/lib/db/campaigns";
 import { OrderStatus } from "@/lib/domain/types";
 import { sendOrderConfirmation, sendShippingNotice } from "@/lib/email/send";
 import { createLabelForOrder, syncBoxtal } from "@/lib/boxtal/shipment";
@@ -193,6 +195,12 @@ export async function deleteOrderAction(formData: FormData): Promise<AdminResult
     return failed((err as Error).message);
   }
   await audit(user.email, "order.delete", `orders/${id}`, `${order.number} · ${order.shippingAddress.name}`);
+  /*
+   * Un kit supprimé emporte la collaboration : la contrepartie n'ayant pas été remise,
+   * l'engagement tombe. La signature n'est pas effacée pour autant — un contrat accepté
+   * se conserve —, elle est marquée annulée, et le partenaire peut recommencer.
+   */
+  if (order.kit) await cancelCollaboration(order, user.email);
   revalidatePath("/admin/commandes");
   /*
    * Redirection côté serveur, et non `redirectTo` : une action serveur invalide la
@@ -200,4 +208,22 @@ export async function deleteOrderAction(formData: FormData): Promise<AdminResult
    * en 404 avant que la redirection n'aboutisse. `redirect()` coupe court.
    */
   redirect("/admin/commandes");
+}
+
+/* Annule la collaboration attachée à une commande de kit supprimée. */
+async function cancelCollaboration(order: NonNullable<Awaited<ReturnType<typeof getOrder>>>, by: string): Promise<void> {
+  const signature = await findSignatureByOrder(order.id).catch(() => null);
+  if (signature) {
+    await setSignatureState(signature.id, "cancelled").catch(() => undefined);
+    await audit(by, "contract.cancel", `contractSignatures/${signature.id}`, `commande ${order.number} supprimée`);
+  }
+  /*
+   * La campagne se détache de la commande et redevient ouverte : le partenaire retrouve
+   * un kit à commander, et le contrat annulé reste dans son histoire.
+   */
+  const campaign = await findCampaignByOrder(order.id).catch(() => null);
+  if (campaign) await detachCampaignOrder(campaign.id).catch(() => undefined);
+  if (!order.kit) return;
+  revalidatePath(`/admin/influenceurs/${order.kit.influencerId}`);
+  revalidatePath("/partenaire");
 }

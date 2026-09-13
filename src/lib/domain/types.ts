@@ -642,7 +642,7 @@ export const Order = z.object({
    * les exemplaires ont été décomptés du stock de vente — l'annulation doit les
    * rendre dans ce cas-là seulement, quoi qu'on ait réglé depuis.
    */
-  kit: z.object({ influencerId: z.string(), stock: z.boolean().default(false) }).optional(),
+  kit: z.object({ influencerId: z.string(), stock: z.boolean().default(false), seq: z.number().int().min(1).default(1) }).optional(),
   /** Vente attribuée à un influenceur : par son code, ou par son lien (cookie 30 jours). */
   attribution: z.object({ influencerId: z.string(), via: z.enum(["code", "link"]) }).optional(),
   /** Facturation Tiime (via Make) : identifiants renvoyés par le scénario. */
@@ -979,6 +979,22 @@ export const Contract = z.object({
 });
 export type Contract = z.infer<typeof Contract>;
 
+/*
+ * Où en est une collaboration signée.
+ *
+ * « annulée » n'efface rien : un contrat accepté se conserve, on note seulement qu'il
+ * ne produit plus d'effet. C'est ce qui arrive quand la commande du kit est supprimée —
+ * la contrepartie n'ayant jamais été remise, l'engagement tombe.
+ */
+export const SignatureStatus = z.enum(["active", "completed", "cancelled"]);
+export type SignatureStatus = z.infer<typeof SignatureStatus>;
+
+export const SIGNATURE_STATUS_LABELS: Record<SignatureStatus, string> = {
+  active: "En cours",
+  completed: "Terminée",
+  cancelled: "Annulée",
+};
+
 /** Statut déclaré par le signataire : le SIRET n'est exigé que d'un professionnel. */
 export const SignerStatus = z.enum(["individual", "sole_trader", "company"]);
 export type SignerStatus = z.infer<typeof SignerStatus>;
@@ -994,6 +1010,19 @@ export type SignerStatus = z.infer<typeof SignerStatus>;
 export const ContractSignature = z.object({
   id: z.string(),
   influencerId: z.string(),
+  /*
+   * Rang de la collaboration à laquelle elle appartient. Un partenaire peut en avoir
+   * plusieurs dans le temps : une nouvelle collaboration incrémente ce rang, et le kit
+   * comme la signature s'y rattachent.
+   */
+  seq: z.number().int().min(1).default(1),
+  /** Commande du kit correspondante. Supprimer cette commande annule la signature. */
+  orderId: z.string().default(""),
+  /* `state` et non `status` : `status` dit déjà la qualité du signataire (particulier,
+     micro-entrepreneur, société). */
+  state: SignatureStatus.default("active"),
+  cancelledAt: z.number().optional(),
+  completedAt: z.number().optional(),
   contractId: z.string(),
   contractName: z.string().default(""),
   contractType: CollaborationType,
@@ -1091,9 +1120,15 @@ export const Influencer = z.object({
    * sort que par le serveur, pour le partenaire lui-même ou un administrateur.
    */
   iban: z.string().trim().max(34).default(""),
-  /** Kit de bienvenue proposé à ce partenaire, et lui seul. */
+  /*
+   * ---- Repris par les campagnes (voir Campaign, plus bas) ----
+   *
+   * Le kit, le contrat et ses réglages décrivaient une collaboration ; ils vivent
+   * désormais dans une campagne, dont un partenaire a autant qu'on veut dans le temps.
+   * Ces champs restent lus par `scripts/migrate-campaigns.ts`, qui fabrique la première
+   * campagne de chaque partenaire. Plus rien d'autre ne les lit, et rien ne les écrit.
+   */
   kit: WelcomeKit.default(EMPTY_KIT),
-  /** Kit de bienvenue déjà commandé : identifiant de la commande, vide sinon. */
   kitOrderId: z.string().default(""),
   /** Note interne, visible des seuls administrateurs : jamais montrée au partenaire. */
   note: z.string().max(2000).default(""),
@@ -1102,22 +1137,67 @@ export const Influencer = z.object({
    * partenaire lui-même depuis son espace — c'est lui qui les connaît.
    */
   socials: PartnerSocials.default(EMPTY_SOCIALS),
-  /** Forme de la collaboration, décidée par l'administration. */
+  /** Forme de la dernière collaboration connue — repris par les campagnes. */
   collaborationType: CollaborationType.default("UGC"),
-  /** Contrat qu'il doit signer ; vide : aucun contrat exigé. */
   contractId: z.string().default(""),
-  /*
-   * Variables du contrat ajustées pour LUI : délais, plateformes, exclusivité… Elles
-   * recouvrent celles du contrat, qui restent la valeur de départ. Une variable absente
-   * d'ici prend donc celle du contrat, et tout changement du contrat s'y répercute.
-   */
   contractVariables: z.record(z.string(), z.string()).default({}),
-  /** Signature en cours de validité, s'il a signé (voir ContractSignature). */
   signatureId: z.string().default(""),
+  collaborationSeq: z.number().int().min(1).default(1),
+  /* ---- Fin des champs repris par les campagnes ---- */
   createdAt: z.number(),
   updatedAt: z.number(),
 });
 export type Influencer = z.infer<typeof Influencer>;
+
+/* ---------- Campagnes ---------- */
+
+/*
+ * Une campagne avec un partenaire.
+ *
+ * La fiche d'un partenaire décrit la PERSONNE — son identité, ses réseaux, son code,
+ * ses coordonnées bancaires. Ce qui se négocie se renouvelle : un kit, un contrat, des
+ * délais, une contrepartie. Ces choses-là vivent donc dans une campagne, et un
+ * partenaire peut en avoir plusieurs dans le temps.
+ *
+ * Une campagne est « ouverte » tant qu'elle n'a pas été signée, « en cours » une fois le
+ * contrat accepté et le kit commandé, puis « terminée » quand les engagements sont
+ * remplis. « Annulée » vient de la suppression du kit : la contrepartie n'ayant pas été
+ * remise, l'engagement tombe — sans que le contrat signé disparaisse pour autant.
+ */
+export const CampaignStatus = z.enum(["draft", "active", "completed", "cancelled"]);
+export type CampaignStatus = z.infer<typeof CampaignStatus>;
+
+export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
+  draft: "Ouverte",
+  active: "En cours",
+  completed: "Terminée",
+  cancelled: "Annulée",
+};
+
+export const Campaign = z.object({
+  id: z.string(),
+  influencerId: z.string(),
+  /** Rang d'affichage : « Campagne n° 2 ». */
+  seq: z.number().int().min(1).default(1),
+  /** Nom libre, pour s'y retrouver : « Lancement automne », « Réédition Légumes ». */
+  name: z.string().trim().max(80).default(""),
+  collaborationType: CollaborationType.default("UGC"),
+  /** Contrat à signer ; vide : aucun contrat exigé pour cette campagne. */
+  contractId: z.string().default(""),
+  /** Variables du contrat ajustées pour CETTE campagne. */
+  contractVariables: z.record(z.string(), z.string()).default({}),
+  /** Le kit offert dans cette campagne. */
+  kit: WelcomeKit.default(EMPTY_KIT),
+  kitOrderId: z.string().default(""),
+  signatureId: z.string().default(""),
+  status: CampaignStatus.default("draft"),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  completedAt: z.number().optional(),
+  cancelledAt: z.number().optional(),
+});
+export type Campaign = z.infer<typeof Campaign>;
+
 
 /*
  * Relevé mensuel de commission : une ligne par partenaire et par mois, figée à la

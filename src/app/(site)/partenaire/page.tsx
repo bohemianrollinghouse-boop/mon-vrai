@@ -13,8 +13,7 @@ import { Eyebrow, PillLink } from "@/components/site/ui";
 import { requireInfluencer } from "@/lib/auth/session";
 import { partnerSnapshot } from "@/lib/db/partner";
 import { getInfluencerByUid } from "@/lib/db/promos";
-import { getSignature } from "@/lib/db/contracts";
-import { COLLABORATION_LABELS } from "@/lib/domain/types";
+import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, type ContractSignature } from "@/lib/domain/types";
 import { formatEuro } from "@/lib/domain/money";
 import { PARTNER_PERIODS, type PartnerPeriod } from "@/lib/promos/partner";
 
@@ -38,7 +37,10 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   if (!influencer) notFound();
 
   const period = (PARTNER_PERIODS.some((p) => p.key === sp.periode) ? sp.periode : "30") as PartnerPeriod;
-  const [{ view, statements, kit }, signature] = await Promise.all([partnerSnapshot(influencer, period), getSignature(influencer.signatureId)]);
+  const { view, statements, kit, campaign, collaborations } = await partnerSnapshot(influencer, period);
+  /* Le contrat de la campagne en cours ; les précédents sont plus bas, en histoire. */
+  const signature = collaborations.find((c) => c.campaign.id === campaign?.id)?.signature ?? null;
+  const past = collaborations.filter((c) => c.campaign.id !== campaign?.id && c.signature);
 
   // L'origine configurée, pas un protocole deviné : en local le site n'est pas en https.
   const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
@@ -197,41 +199,28 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
         )}
       </div>
 
-      {/* ---------- Ma collaboration ---------- */}
-      <div className="mt-6 grid grid-cols-2 items-start gap-4 max-[899px]:grid-cols-1">
-        {signature ? (
-          <div className="flex flex-col gap-2.5 rounded-card bg-white p-7 text-[0.8125rem]">
-            <div className="flex flex-wrap items-baseline justify-between gap-3">
-              <span className="text-base font-extrabold">Ma collaboration</span>
-              <span className="rounded-pill bg-tint-green px-3 py-1.5 text-[0.6875rem] font-bold text-tint-green-ink">Contrat accepté</span>
-            </div>
-            <span className="text-subtle">
-              {COLLABORATION_LABELS[signature.contractType]} · {signature.contractName}
-            </span>
-            <span className="text-subtle">
-              Accepté le {new Date(signature.acceptedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} · version{" "}
-              {signature.contractVersion}
-            </span>
-            {/* Le résumé garde sa mise en forme : l'afficher brut donnerait des dièses à lire. */}
-            {signature.summarySnapshot.trim() && (
-              <div className="mt-1 border-t border-line-soft pt-2.5">
-                <ContractText text={signature.summarySnapshot} />
-              </div>
+      {/* ---------- Mes collaborations ---------- */}
+      {/* Celle en cours d'abord, les précédentes ensuite : un contrat signé se retrouve
+          des années après, avec le texte exact qui avait été accepté. */}
+      {(signature || past.length > 0) && (
+        <div className="mt-6 flex flex-col gap-4">
+          <h2 className="text-[1.75rem] font-extrabold tracking-[-0.01em]">Mes collaborations</h2>
+          <div className="grid grid-cols-2 items-start gap-4 max-[899px]:grid-cols-1">
+            {signature && <CollaborationCard signature={signature} title="Ma collaboration" statusLabel="Contrat accepté" current />}
+            {past.map(({ campaign: c, signature: sig }) =>
+              sig ? (
+                <CollaborationCard
+                  key={c.id}
+                  signature={sig}
+                  title={c.name || `Campagne n° ${c.seq}`}
+                  statusLabel={CAMPAIGN_STATUS_LABELS[c.status]}
+                  current={false}
+                />
+              ) : null,
             )}
-            <SignedContractView
-              title={signature.contractName}
-              version={signature.contractVersion}
-              acceptedAt={new Date(signature.acceptedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}
-              signerName={signature.signerTypedName}
-              reference={signature.id}
-              body={signature.bodySnapshot}
-            />
-            <span className="text-xs text-subtle">Référence {signature.id}</span>
           </div>
-        ) : (
-          <span />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ---------- Relevés et kit ---------- */}
       <div className="grid grid-cols-1 items-start gap-4">
@@ -302,6 +291,57 @@ function Tile({ tone, label, value, note, labelTone = "text-subtle", noteTone = 
       <span className={`text-xs font-bold ${labelTone}`}>{label}</span>
       <span className="text-[2rem] font-extrabold leading-none tracking-[-0.02em]">{value}</span>
       <span className={`text-xs font-semibold ${noteTone}`}>{note}</span>
+    </div>
+  );
+}
+
+/*
+ * Un contrat accepté, tel que le partenaire le retrouve. Le texte montré est la copie
+ * figée au moment de la signature — pas le contrat d'aujourd'hui, qui a pu changer.
+ */
+function CollaborationCard({
+  signature,
+  title,
+  statusLabel,
+  current,
+}: {
+  signature: ContractSignature;
+  title: string;
+  statusLabel: string;
+  current: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-2.5 rounded-card bg-white p-7 text-[0.8125rem]">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <span className="text-base font-extrabold">{title}</span>
+        <span
+          className={`rounded-pill px-3 py-1.5 text-[0.6875rem] font-bold ${current ? "bg-tint-green text-tint-green-ink" : "bg-paper text-subtle"}`}
+        >
+          {statusLabel}
+        </span>
+      </div>
+      <span className="text-subtle">
+        {COLLABORATION_LABELS[signature.contractType]} · {signature.contractName}
+      </span>
+      <span className="text-subtle">
+        Accepté le {new Date(signature.acceptedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} · version{" "}
+        {signature.contractVersion}
+      </span>
+      {/* Le résumé garde sa mise en forme : l'afficher brut donnerait des dièses à lire. */}
+      {current && signature.summarySnapshot.trim() && (
+        <div className="mt-1 border-t border-line-soft pt-2.5">
+          <ContractText text={signature.summarySnapshot} />
+        </div>
+      )}
+      <SignedContractView
+        title={signature.contractName}
+        version={signature.contractVersion}
+        acceptedAt={new Date(signature.acceptedAt).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}
+        signerName={signature.signerTypedName}
+        reference={signature.id}
+        body={signature.bodySnapshot}
+      />
+      <span className="text-xs text-subtle">Référence {signature.id}</span>
     </div>
   );
 }

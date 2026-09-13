@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireInfluencer } from "@/lib/auth/session";
 import { getInfluencerByUid, upsertInfluencer } from "@/lib/db/promos";
+import { currentCampaign, markCampaignSigned, upsertCampaign } from "@/lib/db/campaigns";
 import { createKitOrder } from "@/lib/db/orders";
 import { partnerKitSnapshot, type PartnerKit } from "@/lib/db/partner";
 import { getSettings } from "@/lib/db/settings";
@@ -16,7 +17,7 @@ import { isIban } from "@/lib/promos/statements";
 import { getContract, recordSignature } from "@/lib/db/contracts";
 import { fillContract, renderContract } from "@/lib/promos/contract-template";
 import { contractValues } from "@/lib/promos/contract-values";
-import { SignerStatus, type Address, type Influencer } from "@/lib/domain/types";
+import { SignerStatus, type Address, type Campaign, type Influencer } from "@/lib/domain/types";
 import { headers } from "next/headers";
 
 /*
@@ -92,8 +93,11 @@ export async function orderPartnerKitAction(formData: FormData): Promise<Partner
   const user = await requireInfluencer();
   const influencer = await getInfluencerByUid(user.uid);
   if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
+
+  const campaign = await currentCampaign(influencer.id);
+  if (!campaign) return { ok: false, error: "Aucune campagne en cours sur votre compte." };
   // Un contrat exigé ne se contourne pas en postant ce formulaire-ci.
-  if (influencer.contractId && !influencer.signatureId) return { ok: false, error: "Le contrat doit être accepté avant de commander." };
+  if (campaign.contractId && !campaign.signatureId) return { ok: false, error: "Le contrat doit être accepté avant de commander." };
   /*
    * Au moins un réseau renseigné : le contrat les cite, et un kit part pour être montré
    * quelque part. La demande n'a pas de sens sans eux.
@@ -102,13 +106,14 @@ export async function orderPartnerKitAction(formData: FormData): Promise<Partner
     return { ok: false, error: "Renseignez au moins un de vos réseaux dans votre espace avant de commander votre kit." };
   }
 
-  const kit = await partnerKitSnapshot(influencer);
+  const kit = await partnerKitSnapshot(influencer, campaign);
   if (!kit.offered) return { ok: false, error: "Le kit de bienvenue n'est pas disponible pour le moment." };
   if (kit.order) return { ok: false, error: "Votre kit a déjà été commandé." };
 
-  const done = await orderKit(influencer, formData, kit);
+  const done = await orderKit(influencer, campaign, formData, kit);
   if (!done.ok) return done;
-  await upsertInfluencer({ ...influencer, kitOrderId: done.orderId }).catch(() => undefined);
+  /* Sans contrat à signer, la campagne démarre à la commande du kit. */
+  await upsertCampaign({ ...campaign, kitOrderId: done.orderId, status: "active" }).catch(() => undefined);
   /* L'e-mail ne doit jamais faire échouer une commande déjà passée. */
   await sendKitConfirmation({
     to: influencer.email,
@@ -128,7 +133,7 @@ type OrderKitOutcome = { ok: true; orderId: string; number: string; address: Add
  * chemins — avec contrat et sans —, pour qu'il n'y ait qu'un seul endroit où une
  * adresse est validée et une commande créée.
  */
-async function orderKit(influencer: Influencer, formData: FormData, kit: PartnerKit): Promise<OrderKitOutcome> {
+async function orderKit(influencer: Influencer, campaign: Campaign, formData: FormData, kit: PartnerKit): Promise<OrderKitOutcome> {
   const parsed = KitOrder.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Formulaire incomplet." };
   const d = parsed.data;
@@ -168,7 +173,8 @@ async function orderKit(influencer: Influencer, formData: FormData, kit: Partner
     shippingAddress: address,
     delivery: { rateId: option.id, rateName: option.name, offerCode: optionOfferCode(option, d.country), relay },
     livemode: settings.payments.mode === "live",
-    deductStock: influencer.kit.deductStock,
+    deductStock: campaign.kit.deductStock,
+    seq: campaign.seq,
     note: `Kit de bienvenue · ${influencer.name}`,
   });
 
@@ -266,11 +272,14 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     return { ok: false, error: "Renseignez au moins un de vos réseaux dans votre espace avant de commander votre kit." };
   }
 
-  const kit = await partnerKitSnapshot(influencer);
+  const campaign = await currentCampaign(influencer.id);
+  if (!campaign) return { ok: false, error: "Aucune campagne en cours sur votre compte." };
+
+  const kit = await partnerKitSnapshot(influencer, campaign);
   if (!kit.offered) return { ok: false, error: "Le kit de bienvenue n'est pas disponible pour le moment." };
   if (kit.order) return { ok: false, error: "Votre kit a déjà été commandé." };
 
-  const contract = await getContract(influencer.contractId);
+  const contract = await getContract(campaign.contractId);
   if (!contract) return { ok: false, error: "Aucun contrat à signer pour ce compte." };
 
   const parsed = SignInput.safeParse(Object.fromEntries(formData));
@@ -300,7 +309,7 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     return { ok: false, error: "Le nom saisi pour signer doit être votre prénom suivi de votre nom." };
   }
 
-  const order = await orderKit(influencer, formData, kit);
+  const order = await orderKit(influencer, campaign, formData, kit);
   if (!order.ok) return order;
   const settings = await getSettings();
 
@@ -332,8 +341,8 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
    * figée soit identique à l'affichage, au caractère près.
    */
   const values = contractValues({
-    /* Mêmes réglages qu'à l'affichage : ceux du partenaire par-dessus ceux du contrat. */
-    contract: { id: contract.id, version: contract.version, variables: { ...contract.variables, ...influencer.contractVariables } },
+    /* Mêmes réglages qu'à l'affichage : ceux de la campagne par-dessus ceux du contrat. */
+    contract: { id: contract.id, version: contract.version, variables: { ...contract.variables, ...campaign.contractVariables } },
     seller: {
       address: [settings.legal.sellerName, ...settings.legal.sellerAddressLines].filter(Boolean).join(", "),
       siren: settings.legal.siret || settings.legal.vatNumber,
@@ -347,6 +356,8 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
 
   await recordSignature({
     influencerId: influencer.id,
+    seq: campaign.seq,
+    orderId: order.orderId,
     contractId: contract.id,
     contractName: contract.name,
     contractType: contract.type,
@@ -362,7 +373,7 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     ip: head.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "",
     userAgent: head.get("user-agent") ?? "",
   }).then(async (signature) => {
-    await upsertInfluencer({ ...influencer, kitOrderId: order.orderId, signatureId: signature.id });
+    await markCampaignSigned(campaign.id, order.orderId, signature.id);
     await sendKitConfirmation({
       to: signature.email,
       firstName: signature.firstName,
