@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
@@ -19,6 +20,10 @@ import { CollaborationType } from "@/lib/domain/types";
  * qu'on veut dans le temps, et une campagne passée n'est jamais réécrite — c'est ce qui
  * permet de retrouver, des deux côtés, ce qui avait été convenu l'an dernier.
  */
+
+/** La page d'une campagne, et l'onglet d'où l'on vient. */
+const campaignPath = (influencerId: string, campaignId: string) => `/admin/influenceurs/${influencerId}/campagnes/${campaignId}`;
+const campaignsTab = (influencerId: string) => `/admin/influenceurs/${influencerId}?onglet=campagnes`;
 
 const Input = z.object({
   id: z.string().default(""),
@@ -97,14 +102,15 @@ export async function saveCampaignAction(formData: FormData): Promise<AdminResul
 
   await audit(user.email, existing ? "campaign.update" : "campaign.create", `campaigns/${campaign.id}`, `${influencer.name} · campagne n° ${campaign.seq}`);
   revalidatePath(`/admin/influenceurs/${influencer.id}`);
+  revalidatePath(campaignPath(influencer.id, campaign.id));
   revalidatePath("/partenaire");
   return saved(`Campagne n° ${campaign.seq} enregistrée${d.enabled ? "" : " (kit non proposé)"}.`);
 }
 
 /*
- * Ouvre une campagne vide. Elle n'attend rien du formulaire : on la crée d'un clic,
- * puis on la remplit dans son bloc — c'est plus près du geste qu'on a en tête quand on
- * se dit « je relance untel à l'automne ».
+ * Ouvre une campagne vide, et l'ouvre au sens propre : on est aussitôt sur sa page,
+ * prêt à la remplir. C'est plus près du geste qu'on a en tête quand on se dit « je
+ * relance untel à l'automne ».
  */
 export async function createCampaignAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
@@ -112,10 +118,10 @@ export async function createCampaignAction(formData: FormData): Promise<AdminRes
   const influencer = await getInfluencer(influencerId);
   if (!influencer) return failed("Partenaire inconnu");
 
-  /* Une campagne encore vide en attente : inutile d'en empiler une seconde. */
+  /* Une campagne encore vide en attente : on y retourne plutôt que d'en empiler une. */
   const list = await listCampaigns(influencerId);
   const blank = list.find((c) => c.status === "draft" && c.kit.lines.length === 0 && !c.contractId);
-  if (blank) return failed("Une campagne vide est déjà ouverte : remplissez-la plutôt que d'en créer une autre.");
+  if (blank) return { ok: true, message: `Campagne n° ${blank.seq}, encore vide : à remplir.`, redirectTo: campaignPath(influencerId, blank.id) };
 
   const campaign = await upsertCampaign({
     influencerId,
@@ -130,7 +136,7 @@ export async function createCampaignAction(formData: FormData): Promise<AdminRes
   });
   await audit(user.email, "campaign.create", `campaigns/${campaign.id}`, `${influencer.name} · campagne n° ${campaign.seq}`);
   revalidatePath(`/admin/influenceurs/${influencerId}`);
-  return saved(`Campagne n° ${campaign.seq} ouverte.`);
+  return { ok: true, message: `Campagne n° ${campaign.seq} ouverte.`, redirectTo: campaignPath(influencerId, campaign.id) };
 }
 
 /*
@@ -149,6 +155,7 @@ export async function completeCampaignAction(formData: FormData): Promise<AdminR
 
   await audit(user.email, "campaign.complete", `campaigns/${id}`, `campagne n° ${campaign.seq}`);
   revalidatePath(`/admin/influenceurs/${campaign.influencerId}`);
+  revalidatePath(campaignPath(campaign.influencerId, id));
   revalidatePath("/partenaire");
   return saved(`Campagne n° ${campaign.seq} terminée.`);
 }
@@ -172,5 +179,10 @@ export async function deleteCampaignAction(formData: FormData): Promise<AdminRes
   await audit(user.email, "campaign.delete", `campaigns/${id}`, `campagne n° ${campaign.seq}`);
   revalidatePath(`/admin/influenceurs/${campaign.influencerId}`);
   revalidatePath("/partenaire");
-  return saved(`Campagne n° ${campaign.seq} supprimée.`);
+  /*
+   * Redirection côté serveur, et non `redirectTo` : une action serveur invalide la
+   * route courante, qui est ici la campagne qu'on vient d'effacer — elle se rendrait
+   * en 404 le temps que la redirection aboutisse.
+   */
+  redirect(campaignsTab(campaign.influencerId));
 }
