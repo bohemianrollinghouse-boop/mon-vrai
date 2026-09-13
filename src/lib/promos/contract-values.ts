@@ -54,10 +54,29 @@ export function contractValues(input: {
 
   const company = party.status === "individual" ? "" : [party.companyName, party.siret && `SIRET ${party.siret}`, party.vatNumber && `TVA ${party.vatNumber}`].filter(Boolean).join(" — ");
 
+  /*
+   * Les échéances se déduisent du délai plutôt que de se saisir : une date écrite à la
+   * main vieillit mal, et personne ne la corrige. Calculée depuis l'acceptation, elle
+   * est juste pour chaque signataire. Une date saisie explicitement dans la fiche du
+   * contrat l'emporte quand même — d'où le repli, et non l'écrasement.
+   */
+  const from = input.acceptedAt ?? Date.now();
+  const plusDays = (days: string | undefined) => {
+    const n = Number.parseInt((days ?? "").trim(), 10);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    return new Date(from + n * 86_400_000).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+  };
+  const v = contract.variables;
+  const deadlines: Record<string, string> = {};
+  if (!v.DATE_REMISE_CONTENUS?.trim()) deadlines.DATE_REMISE_CONTENUS = plusDays(v.DELAI_EN_JOURS);
+  if (!v.DATE_FIN_DE_CAMPAGNE?.trim()) deadlines.DATE_FIN_DE_CAMPAGNE = plusDays(v.DELAI_PUBLICATION_EN_JOURS ?? v.DELAI_EN_JOURS);
+
   return {
     /* Les valeurs de campagne d'abord : une variable automatique ne doit jamais pouvoir
-       être écrasée depuis la fiche du contrat. */
+       être écrasée depuis la fiche du contrat. Les échéances calculées viennent juste
+       après, et seulement là où rien n'a été saisi. */
     ...contract.variables,
+    ...deadlines,
 
     ADRESSE_MON_VRAI: seller.address,
     SIREN_MON_VRAI: seller.siren,

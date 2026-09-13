@@ -102,12 +102,20 @@ export const VARIABLE_HELP: Record<string, VariableHelp> = {
 
   /* ---------- À remplir ---------- */
   DELAI_EN_JOURS: { label: "Délai de remise des contenus", hint: "En jours après réception des produits. Un nombre seul : le contrat écrit « jours » ensuite.", example: "30" },
-  DATE_REMISE_CONTENUS: { label: "Date indicative de remise", hint: "Écrite telle quelle dans le contrat.", example: "15 novembre 2026" },
+  DATE_REMISE_CONTENUS: {
+    label: "Date indicative de remise",
+    hint: "Laissez vide : elle se calcule à la signature, depuis le délai ci-dessus. Ne remplissez que pour imposer une date fixe.",
+    example: "calculée depuis le délai",
+  },
   NOTES_PROTOTYPES: { label: "Précisions sur les prototypes", hint: "Ce qu'il faut signaler au créateur : coquilles connues, différences prévues…", example: "Aucune information particulière." },
   AUTORISATION_PUBLICITE_PAYANTE: { label: "Publicité payante", hint: "Ce qui est autorisé, ou non, en publicité payante (Meta Ads, TikTok Ads…).", example: "Non comprise." },
   PLATEFORMES_DE_PUBLICATION: { label: "Plateformes de publication", hint: "Où les contenus seront publiés.", example: "Instagram et TikTok" },
   DELAI_PUBLICATION_EN_JOURS: { label: "Délai de publication", hint: "En jours après réception des produits. Un nombre seul.", example: "30" },
-  DATE_FIN_DE_CAMPAGNE: { label: "Fin de campagne", hint: "Date indicative, écrite telle quelle.", example: "31 décembre 2026" },
+  DATE_FIN_DE_CAMPAGNE: {
+    label: "Fin de campagne",
+    hint: "Laissez vide : elle se calcule à la signature, depuis le délai de publication. Ne remplissez que pour imposer une date fixe.",
+    example: "calculée depuis le délai",
+  },
   DROITS_SUPPLEMENTAIRES: { label: "Droits d'usage supplémentaires", hint: "Au-delà du repartage : catalogue, revendeurs, publicité…", example: "Aucun droit supplémentaire accordé." },
   DELAI_ENVOI_STATISTIQUES: { label: "Délai d'envoi des statistiques", hint: "Sous quel délai le créateur transmet vues et interactions.", example: "15 jours après la publication" },
   CONDITIONS_EXCLUSIVITE: { label: "Exclusivité", hint: "« Aucune », ou les conditions convenues.", example: "Aucune" },

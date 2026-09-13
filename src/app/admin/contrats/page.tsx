@@ -5,8 +5,8 @@ import { deleteContractAction, saveContractAction } from "@/lib/admin/actions/co
 import { listContracts } from "@/lib/db/contracts";
 import { listInfluencers } from "@/lib/db/promos";
 import { CollaborationType, COLLABORATION_LABELS, type Contract } from "@/lib/domain/types";
-import { manualPlaceholders } from "@/lib/promos/contract-template";
-import { VARIABLE_HELP, variableLabel } from "@/lib/promos/contract-variables";
+import { manualPlaceholders, placeholdersIn } from "@/lib/promos/contract-template";
+import { AUTOMATIC_PLACEHOLDERS, VARIABLE_HELP, variableLabel } from "@/lib/promos/contract-variables";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +117,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 (identité du signataire, livres reçus, valeur, date d'acceptation).
               */}
               {current && !isNew && <ContractVariables contract={current} />}
+              {current && !isNew && <AutomaticVariables contract={current} />}
             </ActionForm>
           </Card>
 
@@ -192,5 +193,34 @@ function ContractVariables({ contract }: { contract: Contract }) {
         comptes, les livres offerts, leur valeur et la date d&apos;acceptation se remplissent tout seuls.
       </span>
     </div>
+  );
+}
+
+/*
+ * Les variables que le site remplit tout seul. Elles ne sont pas saisissables — les
+ * montrer évite de croire qu'on a oublié de les renseigner : voir vingt `{{…}}` dans
+ * le texte et quatre champs en dessous prête à confusion.
+ */
+function AutomaticVariables({ contract }: { contract: Contract }) {
+  const auto = new Set<string>(AUTOMATIC_PLACEHOLDERS);
+  const used = placeholdersIn(`${contract.summary}\n${contract.body}`).filter((k) => auto.has(k));
+  if (used.length === 0) return null;
+  return (
+    <details className="rounded-xl bg-paper p-3">
+      <summary className="cursor-pointer text-xs font-semibold text-subtle">
+        {used.length} variables remplies automatiquement — rien à saisir
+      </summary>
+      <div className="mt-2 flex flex-col gap-1.5">
+        {used.sort().map((key) => (
+          <span key={key} className="flex flex-col">
+            <span className="text-[0.8125rem] font-semibold">{variableLabel(key)}</span>
+            <span className="text-[0.6875rem] leading-relaxed text-subtle">
+              {VARIABLE_HELP[key]?.hint ?? "Remplie au moment de la signature."}
+            </span>
+            <span className="font-mono text-[0.625rem] text-faint">{`{{${key}}}`}</span>
+          </span>
+        ))}
+      </div>
+    </details>
   );
 }
