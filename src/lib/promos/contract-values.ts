@@ -59,34 +59,34 @@ export function contractValues(input: {
        être écrasée depuis la fiche du contrat. */
     ...contract.variables,
 
-    MONVRAI_ADDRESS: seller.address,
-    MONVRAI_SIREN: seller.siren,
-    MONVRAI_REPRESENTATIVE: seller.representative,
+    ADRESSE_MON_VRAI: seller.address,
+    SIREN_MON_VRAI: seller.siren,
+    REPRESENTANT_MON_VRAI: seller.representative,
 
-    CREATOR_FIRST_NAME: party.firstName,
-    CREATOR_LAST_NAME: party.lastName,
-    CREATOR_ADDRESS: oneLineAddress(party.address),
-    CREATOR_EMAIL: party.email,
-    CREATOR_TAX_COUNTRY: party.taxCountry,
-    CREATOR_STATUS: STATUS_LABEL[party.status],
-    CREATOR_COMPANY_DETAILS: company,
+    CREATEUR_PRENOM: party.firstName,
+    CREATEUR_NOM: party.lastName,
+    CREATEUR_ADRESSE: oneLineAddress(party.address),
+    CREATEUR_EMAIL: party.email,
+    CREATEUR_PAYS_FISCAL: party.taxCountry,
+    CREATEUR_QUALITE: STATUS_LABEL[party.status],
+    CREATEUR_SOCIETE_SIRET: company,
 
-    INSTAGRAM_ACCOUNT: account(party.socials.instagram),
-    TIKTOK_ACCOUNT: account(party.socials.tiktok),
-    OTHER_SOCIAL_ACCOUNT: account(party.socials.facebook),
+    COMPTE_INSTAGRAM: account(party.socials.instagram),
+    COMPTE_TIKTOK: account(party.socials.tiktok),
+    COMPTE_AUTRE_RESEAU: account(party.socials.facebook),
 
     /* La liste sert dans un paragraphe : une ligne par livre, prête à être lue. */
-    PRODUCTS_LIST: goods.map((g) => `${g.title}${g.qty > 1 ? ` × ${g.qty}` : ""} — ${formatEuro(g.unitValue * g.qty)}`).join("\n"),
-    PRODUCT_STATUS: input.prototype
+    LISTE_DES_PRODUITS: goods.map((g) => `${g.title}${g.qty > 1 ? ` × ${g.qty}` : ""} — ${formatEuro(g.unitValue * g.qty)}`).join("\n"),
+    STATUT_DES_PRODUITS: input.prototype
       ? "Exemplaires de présérie (prototypes) — ils peuvent différer de la version commercialisée."
       : "Exemplaires définitifs, identiques à la version commercialisée.",
-    PRODUCTS_QUANTITY: String(quantity),
-    PRODUCTS_TOTAL_VALUE: (total / 100).toFixed(2).replace(".", ","),
+    QUANTITE_DE_PRODUITS: String(quantity),
+    VALEUR_TOTALE_PRODUITS: (total / 100).toFixed(2).replace(".", ","),
 
-    CONTRACT_ACCEPTED_AT: input.acceptedAt
+    DATE_ACCEPTATION: input.acceptedAt
       ? new Date(input.acceptedAt).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "long", timeStyle: "short" })
       : "à la validation",
-    CONTRACT_VERSION: contract.version,
-    CONTRACT_ID: contract.id,
+    VERSION_DU_CONTRAT: contract.version,
+    REFERENCE_DU_CONTRAT: contract.id,
   };
 }

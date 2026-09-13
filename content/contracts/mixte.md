@@ -16,22 +16,22 @@ Aucun nombre précis de photos ou de rushs UGC n'est imposé.
 
 Le présent contrat est conclu entre :
 
-**Bohemian Rolling House — Mon Vrai**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{MONVRAI_ADDRESS}}**, immatriculée sous le numéro **{{MONVRAI_SIREN}}**, représentée par **{{MONVRAI_REPRESENTATIVE}}**,
+**Bohemian Rolling House — Mon Vrai**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{ADRESSE_MON_VRAI}}**, immatriculée sous le numéro **{{SIREN_MON_VRAI}}**, représentée par **{{REPRESENTANT_MON_VRAI}}**,
 
 ci-après dénommée **« Mon Vrai »**,
 
 et
 
-**{{CREATOR_FIRST_NAME}} {{CREATOR_LAST_NAME}}**,
-domicilié(e) à **{{CREATOR_ADDRESS}}**,
-adresse électronique : **{{CREATOR_EMAIL}}**,
-pays de résidence fiscale : **{{CREATOR_TAX_COUNTRY}}**,
-agissant en qualité de **{{CREATOR_STATUS}}**,
-raison sociale / SIRET le cas échéant : **{{CREATOR_COMPANY_DETAILS}}**,
+**{{CREATEUR_PRENOM}} {{CREATEUR_NOM}}**,
+domicilié(e) à **{{CREATEUR_ADRESSE}}**,
+adresse électronique : **{{CREATEUR_EMAIL}}**,
+pays de résidence fiscale : **{{CREATEUR_PAYS_FISCAL}}**,
+agissant en qualité de **{{CREATEUR_QUALITE}}**,
+raison sociale / SIRET le cas échéant : **{{CREATEUR_SOCIETE_SIRET}}**,
 
-Instagram : **{{INSTAGRAM_ACCOUNT}}**
-TikTok : **{{TIKTOK_ACCOUNT}}**
-Autre : **{{OTHER_SOCIAL_ACCOUNT}}**
+Instagram : **{{COMPTE_INSTAGRAM}}**
+TikTok : **{{COMPTE_TIKTOK}}**
+Autre : **{{COMPTE_AUTRE_RESEAU}}**
 
 ci-après dénommé(e) **« le Créateur »**.
 
@@ -49,13 +49,13 @@ et
 
 Mon Vrai remet gratuitement au Créateur :
 
-**{{PRODUCTS_LIST}}**
+**{{LISTE_DES_PRODUITS}}**
 
 Quantité :
-**{{PRODUCTS_QUANTITY}}**
+**{{QUANTITE_DE_PRODUITS}}**
 
 Valeur totale de l'avantage en nature :
-**{{PRODUCTS_TOTAL_VALUE}} €**
+**{{VALEUR_TOTALE_PRODUITS}} €**
 
 Ces produits constituent la contrepartie en nature des prestations prévues au présent contrat.
 
@@ -70,7 +70,7 @@ Le Créateur s'engage à publier :
 * une présentation naturelle de Mon Vrai auprès de sa communauté.
 
 Plateformes prévues :
-**{{PUBLICATION_PLATFORMS}}**
+**{{PLATEFORMES_DE_PUBLICATION}}**
 
 Le Créateur conserve sa liberté éditoriale, son style et son opinion.
 
@@ -84,7 +84,7 @@ Le Créateur s'engage également à transmettre à Mon Vrai :
 Aucun nombre minimum précis de photographies ou de vidéos n'est imposé.
 
 Quantité éventuellement convenue spécifiquement pour cette collaboration :
-**{{OPTIONAL_UGC_QUANTITY}}**
+**{{QUANTITE_UGC_CONVENUE}}**
 
 Les contenus devront être suffisamment exploitables pour permettre à Mon Vrai d'illustrer naturellement l'utilisation de ses produits.
 
@@ -108,20 +108,20 @@ Il s'engage à signaler clairement la nature commerciale ou publicitaire des pub
 ## Article 8 — Calendrier
 
 Les publications et contenus devront être réalisés dans un délai de :
-**{{DELIVERY_DEADLINE_DAYS}} jours après réception des produits.**
+**{{DELAI_EN_JOURS}} jours après réception des produits.**
 
 Date indicative de fin de collaboration :
-**{{CAMPAIGN_END_DATE}}**
+**{{DATE_FIN_DE_CAMPAGNE}}**
 
 Un autre calendrier peut être convenu entre les Parties.
 
 ## Article 9 — Prototypes
 
 Statut des produits :
-**{{PRODUCT_STATUS}}**
+**{{STATUT_DES_PRODUITS}}**
 
 Informations concernant les éventuels prototypes :
-**{{PROTOTYPE_NOTES}}**
+**{{NOTES_PROTOTYPES}}**
 
 Le Créateur reconnaît avoir été informé que des prototypes peuvent présenter des différences ou imperfections corrigées sur la version définitive.
 
@@ -136,7 +136,7 @@ Les droits accordés à Mon Vrai diffèrent selon qu'il s'agit des publications 
 Mon Vrai est autorisé à repartager sur ses propres réseaux sociaux organiques les publications réalisées par le Créateur pendant **12 mois à compter de leur publication**.
 
 Toute exploitation dépassant ce cadre doit respecter les droits supplémentaires éventuellement accordés ci-dessous :
-**{{INFLUENCE_ADDITIONAL_RIGHTS}}**
+**{{DROITS_SUPPLEMENTAIRES_INFLUENCE}}**
 
 ## Article 12 — Exploitation des contenus UGC
 
@@ -172,7 +172,7 @@ Les adaptations autorisées comprennent :
 La présente autorisation n'inclut pas automatiquement l'utilisation des contenus dans des campagnes publicitaires payantes.
 
 Autorisation publicitaire :
-**{{PAID_ADS_AUTHORIZATION}}**
+**{{AUTORISATION_PUBLICITE_PAYANTE}}**
 
 Toute utilisation non couverte devra faire l'objet d'un accord complémentaire.
 
@@ -195,12 +195,12 @@ Les Stories suivent leur durée habituelle de diffusion.
 Lorsque les informations sont disponibles, le Créateur transmet à Mon Vrai les principales statistiques des publications réalisées.
 
 Délai prévu :
-**{{STATS_DELIVERY_DELAY}}**
+**{{DELAI_ENVOI_STATISTIQUES}}**
 
 ## Article 17 — Absence d'exclusivité
 
 Conditions d'exclusivité :
-**{{EXCLUSIVITY_TERMS}}**
+**{{CONDITIONS_EXCLUSIVITE}}**
 
 Si ce champ indique « aucune », la collaboration ne comporte aucune exclusivité.
 
@@ -236,15 +236,15 @@ Le Créateur reconnaît avoir pris connaissance :
 * de l'absence de rémunération financière supplémentaire sauf accord contraire.
 
 Accepté électroniquement par :
-**{{CREATOR_FIRST_NAME}} {{CREATOR_LAST_NAME}}**
+**{{CREATEUR_PRENOM}} {{CREATEUR_NOM}}**
 
 Date et heure :
-**{{CONTRACT_ACCEPTED_AT}}**
+**{{DATE_ACCEPTATION}}**
 
 Version :
-**{{CONTRACT_VERSION}}**
+**{{VERSION_DU_CONTRAT}}**
 
 Référence :
-**{{CONTRACT_ID}}**
+**{{REFERENCE_DU_CONTRAT}}**
 
 La validation électronique depuis l'espace Créateur Mon Vrai matérialise l'acceptation du présent contrat.

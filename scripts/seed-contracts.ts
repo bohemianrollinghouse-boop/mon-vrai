@@ -26,10 +26,10 @@ const VARIABLES = process.argv.includes("--variables");
  * À relire et à ajuster dans l'admin pour chaque campagne.
  */
 const COMMON: Record<string, string> = {
-  PROTOTYPE_NOTES: "Aucune information particulière.",
-  PAID_ADS_AUTHORIZATION: "Non comprise. Toute utilisation publicitaire fera l'objet d'un accord complémentaire entre les Parties.",
-  EXCLUSIVITY_TERMS: "Aucune",
-  STATS_DELIVERY_DELAY: "15 jours après la publication",
+  NOTES_PROTOTYPES: "Aucune information particulière.",
+  AUTORISATION_PUBLICITE_PAYANTE: "Non comprise. Toute utilisation publicitaire fera l'objet d'un accord complémentaire entre les Parties.",
+  CONDITIONS_EXCLUSIVITE: "Aucune",
+  DELAI_ENVOI_STATISTIQUES: "15 jours après la publication",
 };
 
 const FILES: { file: string; name: string; type: CollaborationType; version: string; variables: Record<string, string> }[] = [
@@ -38,7 +38,7 @@ const FILES: { file: string; name: string; type: CollaborationType; version: str
     name: "Création de contenu UGC — Mon Vrai",
     type: "UGC",
     version: "UGC-2026-09-v1",
-    variables: { ...COMMON, DELIVERY_DEADLINE_DAYS: "30", CONTENT_DUE_DATE: "à convenir entre les Parties" },
+    variables: { ...COMMON, DELAI_EN_JOURS: "30", DATE_REMISE_CONTENUS: "à convenir entre les Parties" },
   },
   {
     file: "influence.md",
@@ -47,10 +47,10 @@ const FILES: { file: string; name: string; type: CollaborationType; version: str
     version: "INFLUENCE-2026-09-v1",
     variables: {
       ...COMMON,
-      PUBLICATION_PLATFORMS: "Instagram et TikTok",
-      PUBLICATION_DEADLINE_DAYS: "30",
-      CAMPAIGN_END_DATE: "à convenir entre les Parties",
-      ADDITIONAL_USAGE_RIGHTS: "Aucun droit supplémentaire accordé.",
+      PLATEFORMES_DE_PUBLICATION: "Instagram et TikTok",
+      DELAI_PUBLICATION_EN_JOURS: "30",
+      DATE_FIN_DE_CAMPAGNE: "à convenir entre les Parties",
+      DROITS_SUPPLEMENTAIRES: "Aucun droit supplémentaire accordé.",
     },
   },
   {
@@ -60,11 +60,11 @@ const FILES: { file: string; name: string; type: CollaborationType; version: str
     version: "MIXTE-2026-09-v1",
     variables: {
       ...COMMON,
-      PUBLICATION_PLATFORMS: "Instagram et TikTok",
-      DELIVERY_DEADLINE_DAYS: "30",
-      CAMPAIGN_END_DATE: "à convenir entre les Parties",
-      OPTIONAL_UGC_QUANTITY: "Aucune quantité minimale convenue.",
-      INFLUENCE_ADDITIONAL_RIGHTS: "Aucun droit supplémentaire accordé.",
+      PLATEFORMES_DE_PUBLICATION: "Instagram et TikTok",
+      DELAI_EN_JOURS: "30",
+      DATE_FIN_DE_CAMPAGNE: "à convenir entre les Parties",
+      QUANTITE_UGC_CONVENUE: "Aucune quantité minimale convenue.",
+      DROITS_SUPPLEMENTAIRES_INFLUENCE: "Aucun droit supplémentaire accordé.",
     },
   },
 ];

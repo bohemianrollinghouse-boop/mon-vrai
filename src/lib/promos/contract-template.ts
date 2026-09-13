@@ -1,9 +1,11 @@
+import { AUTOMATIC_PLACEHOLDERS, LEGACY_NAMES } from "./contract-variables";
+
 /*
  * Variables d'un contrat.
  *
  * Un contrat s'écrit une fois et vaut pour tous : ce qui change d'un signataire à
  * l'autre — son identité, ses comptes, les livres reçus, leur valeur — s'écrit
- * `{{CREATOR_FIRST_NAME}}` dans le texte et se remplit à l'affichage.
+ * `{{CREATEUR_PRENOM}}` dans le texte et se remplit à l'affichage.
  *
  * Deux familles :
  *  - les AUTOMATIQUES, déduites du signataire, du kit et des réglages. L'administration
@@ -25,30 +27,11 @@
  *    qu'elle soit — une rubrique qu'on veut voir figurer, même vide.
  */
 
-export const AUTOMATIC_PLACEHOLDERS = [
-  "MONVRAI_ADDRESS",
-  "MONVRAI_SIREN",
-  "MONVRAI_REPRESENTATIVE",
-  "CREATOR_FIRST_NAME",
-  "CREATOR_LAST_NAME",
-  "CREATOR_ADDRESS",
-  "CREATOR_EMAIL",
-  "CREATOR_TAX_COUNTRY",
-  "CREATOR_STATUS",
-  "CREATOR_COMPANY_DETAILS",
-  "INSTAGRAM_ACCOUNT",
-  "TIKTOK_ACCOUNT",
-  "OTHER_SOCIAL_ACCOUNT",
-  "PRODUCT_STATUS",
-  "PRODUCTS_LIST",
-  "PRODUCTS_QUANTITY",
-  "PRODUCTS_TOTAL_VALUE",
-  "CONTRACT_ACCEPTED_AT",
-  "CONTRACT_VERSION",
-  "CONTRACT_ID",
-] as const;
-
 const AUTO = new Set<string>(AUTOMATIC_PLACEHOLDERS);
+
+/* Un ancien nom anglais reste compris : il désigne la même valeur que son équivalent
+   français, le temps que les contrats rédigés avant la traduction soient repris. */
+const canonical = (key: string) => LEGACY_NAMES[key] ?? key;
 
 /** Les variables présentes dans un texte, sans doublon et dans l'ordre d'apparition. */
 export function placeholdersIn(text: string): string[] {
@@ -59,13 +42,14 @@ export function placeholdersIn(text: string): string[] {
 
 /** Celles que l'administration doit remplir : tout ce qui n'est pas automatique. */
 export function manualPlaceholders(text: string): string[] {
-  return placeholdersIn(text).filter((k) => !AUTO.has(k));
+  return placeholdersIn(text).filter((k) => !AUTO.has(canonical(k)));
 }
 
 const PLACEHOLDER = /\{\{\s*([A-Z0-9_]+)\s*\}\}/g;
 const UNSET = "non défini";
 
-const filled = (values: Record<string, string>, key: string) => Boolean(values[key]?.trim());
+const valueOf = (values: Record<string, string>, key: string) => values[key] ?? values[canonical(key)] ?? "";
+const filled = (values: Record<string, string>, key: string) => Boolean(valueOf(values, key).trim());
 
 /*
  * Une ligne qui ne porte QUE des variables et, au plus, un court intitulé suivi de deux
@@ -80,7 +64,7 @@ function onlyLabelAndVars(line: string): boolean {
 
 /** Remplace chaque variable dans une ligne ; les vides deviennent « non défini ». */
 const substitute = (line: string, values: Record<string, string>) =>
-  line.replace(PLACEHOLDER, (_, key: string) => (filled(values, key) ? values[key] : UNSET));
+  line.replace(PLACEHOLDER, (_, key: string) => (filled(values, key) ? valueOf(values, key) : UNSET));
 
 export function renderContract(text: string, values: Record<string, string>, required: Iterable<string> = []): string {
   const req = new Set(required);
@@ -94,7 +78,7 @@ export function renderContract(text: string, values: Record<string, string>, req
       continue;
     }
     const allEmpty = keys.every((k) => !filled(values, k));
-    const anyRequired = keys.some((k) => req.has(k));
+    const anyRequired = keys.some((k) => req.has(k) || req.has(canonical(k)));
 
     if (allEmpty && !anyRequired && onlyLabelAndVars(line)) {
       /* La rubrique disparaît. Son intitulé, s'il est sur la ligne au-dessus, part avec
@@ -118,5 +102,5 @@ export function renderContract(text: string, values: Record<string, string>, req
  * vaut pour elle-même.
  */
 export function fillContract(text: string, values: Record<string, string>): string {
-  return text.replace(PLACEHOLDER, (_, key: string) => (filled(values, key) ? values[key] : UNSET));
+  return text.replace(PLACEHOLDER, (_, key: string) => (filled(values, key) ? valueOf(values, key) : UNSET));
 }

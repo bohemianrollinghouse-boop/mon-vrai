@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { VARIABLE_HELP, variableLabel } from "@/lib/promos/contract-variables";
 
 /*
  * Choix du contrat d'un partenaire, et réglage de ses variables POUR LUI.
@@ -65,9 +66,10 @@ export function ContractPicker({
             return (
               <label key={key} className="flex flex-col gap-1">
                 <span className="flex items-baseline justify-between gap-2">
-                  <span className="font-mono text-[0.6875rem] text-faint">{key}</span>
+                  <span className="text-[0.8125rem] font-bold">{variableLabel(key)}</span>
                   {adjusted && <span className="text-[0.625rem] font-bold text-tint-sand-ink">ajusté</span>}
                 </span>
+                {VARIABLE_HELP[key]?.hint && <span className="text-[0.6875rem] leading-relaxed text-subtle">{VARIABLE_HELP[key].hint}</span>}
                 {/* La valeur du contrat voyage avec le champ : l'action ne conserve que
                     ce qui en diffère, pour que le reste continue de suivre le contrat. */}
                 <input type="hidden" name={`cbase:${key}`} value={base} />

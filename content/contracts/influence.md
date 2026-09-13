@@ -16,23 +16,23 @@ La nature commerciale de la collaboration devra être clairement indiquée aupr�
 
 Le présent contrat est conclu entre :
 
-**Bohemian Rolling House — Mon Vrai**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{MONVRAI_ADDRESS}}**, immatriculée sous le numéro **{{MONVRAI_SIREN}}**, représentée par **{{MONVRAI_REPRESENTATIVE}}**,
+**Bohemian Rolling House — Mon Vrai**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{ADRESSE_MON_VRAI}}**, immatriculée sous le numéro **{{SIREN_MON_VRAI}}**, représentée par **{{REPRESENTANT_MON_VRAI}}**,
 
 ci-après dénommée **« Mon Vrai »**,
 
 et
 
-**{{CREATOR_FIRST_NAME}} {{CREATOR_LAST_NAME}}**,
-domicilié(e) à **{{CREATOR_ADDRESS}}**,
-adresse électronique : **{{CREATOR_EMAIL}}**,
-pays de résidence fiscale : **{{CREATOR_TAX_COUNTRY}}**,
-agissant en qualité de **{{CREATOR_STATUS}}**,
-raison sociale / SIRET le cas échéant : **{{CREATOR_COMPANY_DETAILS}}**,
+**{{CREATEUR_PRENOM}} {{CREATEUR_NOM}}**,
+domicilié(e) à **{{CREATEUR_ADRESSE}}**,
+adresse électronique : **{{CREATEUR_EMAIL}}**,
+pays de résidence fiscale : **{{CREATEUR_PAYS_FISCAL}}**,
+agissant en qualité de **{{CREATEUR_QUALITE}}**,
+raison sociale / SIRET le cas échéant : **{{CREATEUR_SOCIETE_SIRET}}**,
 
 comptes utilisés dans le cadre de la collaboration :
-Instagram : **{{INSTAGRAM_ACCOUNT}}**
-TikTok : **{{TIKTOK_ACCOUNT}}**
-Autre : **{{OTHER_SOCIAL_ACCOUNT}}**
+Instagram : **{{COMPTE_INSTAGRAM}}**
+TikTok : **{{COMPTE_TIKTOK}}**
+Autre : **{{COMPTE_AUTRE_RESEAU}}**
 
 ci-après dénommé(e) **« le Créateur »**.
 
@@ -44,12 +44,12 @@ Le présent contrat a pour objet d'encadrer une collaboration d'influence commer
 
 Mon Vrai remet gratuitement :
 
-**{{PRODUCTS_LIST}}**
+**{{LISTE_DES_PRODUITS}}**
 
-Quantité : **{{PRODUCTS_QUANTITY}}**
+Quantité : **{{QUANTITE_DE_PRODUITS}}**
 
 Valeur totale de l'avantage en nature :
-**{{PRODUCTS_TOTAL_VALUE}} €**
+**{{VALEUR_TOTALE_PRODUITS}} €**
 
 Les produits constituent la contrepartie en nature des prestations prévues au présent contrat.
 
@@ -63,7 +63,7 @@ Le Créateur s'engage à publier :
 * **2 séquences de Stories**.
 
 Plateformes prévues :
-**{{PUBLICATION_PLATFORMS}}**
+**{{PLATEFORMES_DE_PUBLICATION}}**
 
 Les publications peuvent être réparties sur plusieurs dates et plateformes.
 
@@ -89,20 +89,20 @@ Cette information devra apparaître de manière immédiatement identifiable et c
 
 ## Article 7 — Calendrier
 
-Les publications devront être réalisées dans un délai de **{{PUBLICATION_DEADLINE_DAYS}} jours** suivant la réception des produits, sauf autre accord entre les Parties.
+Les publications devront être réalisées dans un délai de **{{DELAI_PUBLICATION_EN_JOURS}} jours** suivant la réception des produits, sauf autre accord entre les Parties.
 
 Date indicative de fin de campagne :
-**{{CAMPAIGN_END_DATE}}**
+**{{DATE_FIN_DE_CAMPAGNE}}**
 
 ## Article 8 — Prototypes
 
 Statut des produits :
-**{{PRODUCT_STATUS}}**
+**{{STATUT_DES_PRODUITS}}**
 
 Lorsque les produits sont des prototypes ou exemplaires de présérie, le Créateur reconnaît avoir été informé des éventuelles imperfections ou différences avec la version définitive.
 
 Informations communiquées :
-**{{PROTOTYPE_NOTES}}**
+**{{NOTES_PROTOTYPES}}**
 
 ## Article 9 — Durée de disponibilité des publications
 
@@ -135,7 +135,7 @@ Les droits suivants ne sont pas automatiquement compris :
 * whitelisting ou publicité diffusée depuis le compte du Créateur.
 
 Autorisation supplémentaire éventuellement accordée :
-**{{ADDITIONAL_USAGE_RIGHTS}}**
+**{{DROITS_SUPPLEMENTAIRES}}**
 
 Toute utilisation non prévue devra être convenue entre les Parties.
 
@@ -157,12 +157,12 @@ Après publication, le Créateur s'engage à transmettre, lorsque ces informatio
 * clics éventuels.
 
 Le délai de transmission est de :
-**{{STATS_DELIVERY_DELAY}}**
+**{{DELAI_ENVOI_STATISTIQUES}}**
 
 ## Article 15 — Absence d'exclusivité
 
 Aucune exclusivité n'est imposée, sauf mention spécifique suivante :
-**{{EXCLUSIVITY_TERMS}}**
+**{{CONDITIONS_EXCLUSIVITE}}**
 
 En l'absence de mention particulière, aucune exclusivité ne s'applique.
 
@@ -198,12 +198,12 @@ Le Créateur reconnaît avoir pris connaissance :
 * des droits d'utilisation prévus.
 
 Accepté électroniquement par :
-**{{CREATOR_FIRST_NAME}} {{CREATOR_LAST_NAME}}**
+**{{CREATEUR_PRENOM}} {{CREATEUR_NOM}}**
 
-Date et heure : **{{CONTRACT_ACCEPTED_AT}}**
+Date et heure : **{{DATE_ACCEPTATION}}**
 
-Version : **{{CONTRACT_VERSION}}**
+Version : **{{VERSION_DU_CONTRAT}}**
 
-Référence : **{{CONTRACT_ID}}**
+Référence : **{{REFERENCE_DU_CONTRAT}}**
 
 La validation électronique réalisée depuis l'espace Créateur Mon Vrai matérialise l'acceptation du présent contrat.

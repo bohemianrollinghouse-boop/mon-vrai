@@ -16,18 +16,18 @@ Les fichiers devront être transmis dans leur meilleure qualité disponible, san
 
 Le présent contrat est conclu entre :
 
-**Bohemian Rolling House — Mon Vrai**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{MONVRAI_ADDRESS}}**, immatriculée sous le numéro **{{MONVRAI_SIREN}}**, représentée par **{{MONVRAI_REPRESENTATIVE}}**,
+**Bohemian Rolling House — Mon Vrai**, micro-entreprise exploitant la marque Mon Vrai, dont le siège est situé à **{{ADRESSE_MON_VRAI}}**, immatriculée sous le numéro **{{SIREN_MON_VRAI}}**, représentée par **{{REPRESENTANT_MON_VRAI}}**,
 
 ci-après dénommée **« Mon Vrai »**,
 
 et
 
-**{{CREATOR_FIRST_NAME}} {{CREATOR_LAST_NAME}}**,
-domicilié(e) à **{{CREATOR_ADDRESS}}**,
-adresse électronique : **{{CREATOR_EMAIL}}**,
-pays de résidence fiscale : **{{CREATOR_TAX_COUNTRY}}**,
-agissant en qualité de **{{CREATOR_STATUS}}**,
-raison sociale / SIRET le cas échéant : **{{CREATOR_COMPANY_DETAILS}}**,
+**{{CREATEUR_PRENOM}} {{CREATEUR_NOM}}**,
+domicilié(e) à **{{CREATEUR_ADRESSE}}**,
+adresse électronique : **{{CREATEUR_EMAIL}}**,
+pays de résidence fiscale : **{{CREATEUR_PAYS_FISCAL}}**,
+agissant en qualité de **{{CREATEUR_QUALITE}}**,
+raison sociale / SIRET le cas échéant : **{{CREATEUR_SOCIETE_SIRET}}**,
 
 ci-après dénommé(e) **« le Créateur »**.
 
@@ -45,12 +45,12 @@ La présente collaboration constitue une prestation de création de contenu.
 
 Mon Vrai remet gratuitement au Créateur les produits suivants :
 
-**{{PRODUCTS_LIST}}**
+**{{LISTE_DES_PRODUITS}}**
 
-Quantité totale : **{{PRODUCTS_QUANTITY}}**
+Quantité totale : **{{QUANTITE_DE_PRODUITS}}**
 
 Valeur totale de l'avantage en nature au jour de la conclusion du contrat :
-**{{PRODUCTS_TOTAL_VALUE}} €**
+**{{VALEUR_TOTALE_PRODUITS}} €**
 
 Les frais d'expédition sont pris en charge par Mon Vrai, sauf accord contraire écrit entre les Parties.
 
@@ -86,10 +86,10 @@ Les vidéos verticales sont privilégiées pour les contenus destinés aux rése
 
 ## Article 6 — Délai de réalisation
 
-Les contenus devront être transmis dans un délai de **{{DELIVERY_DEADLINE_DAYS}} jours** suivant la réception des produits, sauf autre accord écrit entre les Parties.
+Les contenus devront être transmis dans un délai de **{{DELAI_EN_JOURS}} jours** suivant la réception des produits, sauf autre accord écrit entre les Parties.
 
 La date indicative de remise des contenus est :
-**{{CONTENT_DUE_DATE}}**
+**{{DATE_REMISE_CONTENUS}}**
 
 En cas d'imprévu, le Créateur s'engage à contacter Mon Vrai afin de convenir d'un nouveau délai.
 
@@ -98,10 +98,10 @@ En cas d'imprévu, le Créateur s'engage à contacter Mon Vrai afin de convenir 
 Lorsque les produits remis sont des prototypes ou exemplaires de présérie, le Créateur reconnaît avoir été informé qu'ils peuvent présenter certaines imperfections, coquilles, différences graphiques, décalages d'impression ou éléments qui seront corrigés dans la version commercialisée.
 
 Statut des produits remis :
-**{{PRODUCT_STATUS}}**
+**{{STATUT_DES_PRODUITS}}**
 
 Informations particulières communiquées au Créateur :
-**{{PROTOTYPE_NOTES}}**
+**{{NOTES_PROTOTYPES}}**
 
 ## Article 8 — Propriété intellectuelle
 
@@ -146,7 +146,7 @@ Ces modifications ne devront pas porter atteinte à la dignité ou à l'image de
 L'autorisation accordée au titre du présent contrat ne comprend pas automatiquement l'utilisation des contenus dans des campagnes publicitaires payantes telles que Meta Ads, TikTok Ads, Pinterest Ads ou équivalent.
 
 Utilisation publicitaire :
-**{{PAID_ADS_AUTHORIZATION}}**
+**{{AUTORISATION_PUBLICITE_PAYANTE}}**
 
 Toute exploitation publicitaire non comprise dans le présent contrat devra faire l'objet d'un accord complémentaire entre les Parties.
 
@@ -210,12 +210,12 @@ Le Créateur reconnaît avoir pris connaissance :
 * des conditions d'exploitation des contenus.
 
 Le présent contrat est accepté électroniquement par :
-**{{CREATOR_FIRST_NAME}} {{CREATOR_LAST_NAME}}**
+**{{CREATEUR_PRENOM}} {{CREATEUR_NOM}}**
 
-Date et heure d'acceptation : **{{CONTRACT_ACCEPTED_AT}}**
+Date et heure d'acceptation : **{{DATE_ACCEPTATION}}**
 
-Version du contrat : **{{CONTRACT_VERSION}}**
+Version du contrat : **{{VERSION_DU_CONTRAT}}**
 
-Référence du contrat : **{{CONTRACT_ID}}**
+Référence du contrat : **{{REFERENCE_DU_CONTRAT}}**
 
 La validation électronique réalisée depuis l'espace Créateur Mon Vrai matérialise l'acceptation du présent contrat.

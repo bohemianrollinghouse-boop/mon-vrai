@@ -6,6 +6,7 @@ import { listContracts } from "@/lib/db/contracts";
 import { listInfluencers } from "@/lib/db/promos";
 import { CollaborationType, COLLABORATION_LABELS, type Contract } from "@/lib/domain/types";
 import { manualPlaceholders } from "@/lib/promos/contract-template";
+import { VARIABLE_HELP, variableLabel } from "@/lib/promos/contract-variables";
 
 export const dynamic = "force-dynamic";
 
@@ -160,19 +161,27 @@ function ContractVariables({ contract }: { contract: Contract }) {
       {/* Une variable vide se lit « — » dans le contrat : mieux vaut le signaler ici. */}
       {empty.length > 0 && (
         <p className="rounded-xl bg-tint-sand px-4 py-3 text-[0.8125rem] leading-relaxed font-semibold text-tint-sand-ink">
-          {empty.length} variable{empty.length > 1 ? "s" : ""} sans valeur ({empty.join(", ")}). Leur rubrique disparaîtra du contrat — sauf si elle est
-          au milieu d&apos;une phrase, ou cochée ci-dessous, auquel cas on lira « non défini ».
+          {empty.length} rubrique{empty.length > 1 ? "s" : ""} sans valeur ({empty.map(variableLabel).join(", ")}). Elle{empty.length > 1 ? "s" : ""}{" "}
+          disparaîtra{empty.length > 1 ? "ont" : ""} du contrat — sauf au milieu d&apos;une phrase, ou si la case ci-dessous est cochée, auquel cas on
+          lira « non défini ».
         </p>
       )}
       <div className="grid grid-cols-2 gap-2.5 max-[899px]:grid-cols-1">
         {keys.map((key) => (
           <div key={key} className="flex flex-col gap-1">
-            <span className="font-mono text-[0.6875rem] text-faint">{`{{${key}}}`}</span>
-            <Input name={`var:${key}`} defaultValue={contract.variables[key] ?? ""} className="!rounded-xl !py-2.5 !text-[0.8125rem]" />
+            <span className="text-[0.8125rem] font-bold">{variableLabel(key)}</span>
+            {VARIABLE_HELP[key]?.hint && <span className="text-[0.6875rem] leading-relaxed text-subtle">{VARIABLE_HELP[key].hint}</span>}
+            <Input
+              name={`var:${key}`}
+              defaultValue={contract.variables[key] ?? ""}
+              placeholder={VARIABLE_HELP[key]?.example ?? ""}
+              className="!rounded-xl !py-2.5 !text-[0.8125rem]"
+            />
             <label className="flex cursor-pointer items-center gap-1.5 text-[0.6875rem] text-subtle">
               <input type="checkbox" name={`req:${key}`} defaultChecked={contract.requiredVariables.includes(key)} className="h-3.5 w-3.5 accent-black" />
               <span>Faire figurer la rubrique même sans valeur</span>
             </label>
+            <span className="font-mono text-[0.625rem] text-faint">{`{{${key}}}`}</span>
           </div>
         ))}
       </div>
