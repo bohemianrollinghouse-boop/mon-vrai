@@ -330,3 +330,16 @@ html:has(.admin-shell) {
 .admin-shell .admin-logo {
   filter: var(--logo-filter, none);
 }
+
+/*
+ * Le halo qui parcourt la barre du tableau de bord : il part avant le début de la barre
+ * et sort après sa fin, pour que le balayage paraisse traverser au lieu d'apparaître.
+ */
+@keyframes breakeven-halo {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(400%);
+  }
+}

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { Card, GridTable, Pill, Tile } from "@/components/admin/ui";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { orderRevenue, sumRevenue } from "@/lib/admin/revenue";
+import { breakEven } from "@/lib/admin/breakeven";
+import { BreakEvenBar } from "@/components/admin/BreakEvenBar";
 import { ADMIN_STATUS_LABELS, COUNTED, STATUS_TONE, TO_SHIP, capitalize, longDate, shortDate } from "@/lib/admin/order-ui";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatEuro } from "@/lib/domain/money";
@@ -67,6 +69,17 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
   const top = [...sold.values()].sort((a, b) => b.qty - a.qty).slice(0, 5);
   const max = top[0]?.qty ?? 1;
 
+  /*
+   * La marche vers le remboursement du tirage. Elle compte DEPUIS LE DÉBUT, quelle que
+   * soit la période affichée : un objectif ne se remet pas à zéro tous les trente jours.
+   * Les kits offerts n'y entrent pas, ni les exemplaires offerts par un code cadeau —
+   * ils ne rapportent rien, et c'est bien ce qu'on cumule ici.
+   */
+  const goal = breakEven(settings.costs);
+  const booksSold = orders
+    .filter((o) => counted(o) && !o.kit)
+    .reduce((n, o) => n + o.lines.filter((l) => l.unitPrice > 0).reduce((a, l) => a + l.qty, 0), 0);
+
   const preordersOpen = products.some((p) => p.status === "published" && p.preorder.enabled);
   const firstName = (user.name || user.email.split("@")[0]).split(" ")[0];
   const todo: { text: string; href: string }[] = [];
@@ -92,6 +105,10 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
           ))}
         </nav>
       </div>
+
+      {goal.target !== null && (
+        <BreakEvenBar sold={booksSold} target={goal.target} perBookLabel={formatEuro(goal.perBook)} />
+      )}
 
       <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">
         {/*

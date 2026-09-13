@@ -335,11 +335,23 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
             <Field label="Emballage (€)" hint="Carton, calage, par colis." name="costs.packagingCostEuros">
               <Input name="costs.packagingCostEuros" type="number" step="0.01" min="0" defaultValue={(costs.packagingCost / 100).toString()} className="!font-bold" />
             </Field>
+            <Field label="Un livre de kit (€)" hint="Exemplaire offert à un partenaire. Vide : même coût qu'une vente." name="costs.kitBookCostEuros">
+              <Input name="costs.kitBookCostEuros" type="number" step="0.01" min="0" defaultValue={costs.kitBookCost ? (costs.kitBookCost / 100).toString() : ""} className="!font-bold" />
+            </Field>
+            <Field label="Emballage de kit (€)" hint="Carton d'un kit. Vide : même coût qu'une vente." name="costs.kitPackagingCostEuros">
+              <Input name="costs.kitPackagingCostEuros" type="number" step="0.01" min="0" defaultValue={costs.kitPackagingCost ? (costs.kitPackagingCost / 100).toString() : ""} className="!font-bold" />
+            </Field>
             <Field label="Paiement (%)" hint="Part variable Stripe." name="costs.stripePct">
               <Input name="costs.stripePct" type="number" step="0.01" min="0" max="100" defaultValue={(costs.stripeBp / 100).toString()} className="!font-bold" />
             </Field>
             <Field label="Paiement (€ fixes)" hint="Par transaction." name="costs.stripeFixedEuros">
               <Input name="costs.stripeFixedEuros" type="number" step="0.01" min="0" defaultValue={(costs.stripeFixed / 100).toString()} className="!font-bold" />
+            </Field>
+            <Field label="Prix d'un imagier (€)" hint="Sert à l'objectif du tableau de bord." name="costs.bookPriceEuros">
+              <Input name="costs.bookPriceEuros" type="number" step="0.01" min="0" defaultValue={(costs.bookPrice / 100).toString()} className="!font-bold" />
+            </Field>
+            <Field label="Tirage à amortir (€)" hint="Ce que la production a coûté, en tout." name="costs.productionCostEuros">
+              <Input name="costs.productionCostEuros" type="number" step="1" min="0" defaultValue={costs.productionCost ? (costs.productionCost / 100).toString() : ""} className="!font-bold" />
             </Field>
           </div>
           <span className="text-[0.6875rem] leading-relaxed text-subtle">

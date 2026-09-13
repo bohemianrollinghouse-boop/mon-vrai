@@ -237,15 +237,31 @@ const CostsInput = z.object({
     urssafPct: z.number().min(0).max(100).default(0),
     bookCostEuros: z.number().min(0).default(0),
     packagingCostEuros: z.number().min(0).default(0),
+    /* Coûts propres aux kits offerts : à zéro, ceux d'une vente s'appliquent. */
+    kitBookCostEuros: z.number().min(0).default(0),
+    kitPackagingCostEuros: z.number().min(0).default(0),
     stripePct: z.number().min(0).max(100).default(0),
     stripeFixedEuros: z.number().min(0).default(0),
+    /* L'objectif du tableau de bord : le tirage à amortir et le prix d'un imagier. */
+    productionCostEuros: z.number().min(0).default(0),
+    bookPriceEuros: z.number().min(0).default(0),
   }),
 });
 
 export async function saveCostsAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const parsed = parseForm(CostsInput, formData, {
-    numbers: ["costs.urssafPct", "costs.bookCostEuros", "costs.packagingCostEuros", "costs.stripePct", "costs.stripeFixedEuros"],
+    numbers: [
+      "costs.urssafPct",
+      "costs.bookCostEuros",
+      "costs.packagingCostEuros",
+      "costs.kitBookCostEuros",
+      "costs.kitPackagingCostEuros",
+      "costs.stripePct",
+      "costs.stripeFixedEuros",
+      "costs.productionCostEuros",
+      "costs.bookPriceEuros",
+    ],
   });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const c = parsed.data.costs;
@@ -257,8 +273,12 @@ export async function saveCostsAction(formData: FormData): Promise<AdminResult> 
       urssafBp: Math.round(c.urssafPct * 100),
       bookCost: Math.round(c.bookCostEuros * 100),
       packagingCost: Math.round(c.packagingCostEuros * 100),
+      kitBookCost: Math.round(c.kitBookCostEuros * 100),
+      kitPackagingCost: Math.round(c.kitPackagingCostEuros * 100),
       stripeBp: Math.round(c.stripePct * 100),
       stripeFixed: Math.round(c.stripeFixedEuros * 100),
+      productionCost: Math.round(c.productionCostEuros * 100),
+      bookPrice: Math.round(c.bookPriceEuros * 100),
     },
     updatedAt: Date.now(),
   });

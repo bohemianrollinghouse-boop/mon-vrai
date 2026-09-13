@@ -63,8 +63,16 @@ export function orderRevenue(order: Order, settings: SiteSettings, costs: Costs 
   const books = order.lines.reduce((s, l) => s + l.qty, 0);
   const urssaf = partOf(revenue, costs.urssafBp);
   const stripeFee = revenue > 0 ? partOf(revenue, costs.stripeBp) + costs.stripeFixed : 0;
-  const bookCost = books * costs.bookCost;
-  const total = urssaf + stripeFee + bookCost + costs.packagingCost + ship.cents;
+  /*
+   * Un kit ne coûte pas ce que coûte une vente : exemplaires de petit tirage, carton
+   * d'un autre format. Les coûts propres au kit priment quand ils sont renseignés ; à
+   * zéro, on retombe sur ceux d'une vente.
+   */
+  const isKit = Boolean(order.kit);
+  const unitBook = isKit && costs.kitBookCost ? costs.kitBookCost : costs.bookCost;
+  const packagingCost = isKit && costs.kitPackagingCost ? costs.kitPackagingCost : costs.packagingCost;
+  const bookCost = books * unitBook;
+  const total = urssaf + stripeFee + bookCost + packagingCost + ship.cents;
   return {
     order,
     revenue,
@@ -74,11 +82,11 @@ export function orderRevenue(order: Order, settings: SiteSettings, costs: Costs 
     shippingMargin: shippingCharged - ship.cents,
     shippingKnown: ship.known,
     books,
-    isKit: Boolean(order.kit),
+    isKit,
     urssaf,
     stripeFee,
     bookCost,
-    packagingCost: costs.packagingCost,
+    packagingCost,
     costs: total,
     net: revenue - total,
   };

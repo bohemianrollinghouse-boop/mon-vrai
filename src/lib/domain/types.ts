@@ -376,16 +376,31 @@ export const EMPTY_SENDER: Sender = { firstName: "", lastName: "", company: "", 
 export const Costs = z.object({
   /** Cotisations URSSAF (et versement libératoire éventuel) sur le CA encaissé. */
   urssafBp: z.number().int().min(0).max(10_000).default(1230),
-  /** Fabrication d'un imagier, à l'unité. 0 = pas encore renseigné. */
+  /** Fabrication d'un imagier vendu, à l'unité. 0 = pas encore renseigné. */
   bookCost: Cents.default(0),
-  /** Emballage d'un colis : carton, calage, étiquette. 0 = pas encore renseigné. */
+  /** Emballage d'un colis client : carton, calage. 0 = pas encore renseigné. */
   packagingCost: Cents.default(0),
+  /*
+   * Ce que coûte un kit de partenaire, qui n'est pas ce que coûte une vente : les
+   * exemplaires offerts sortent de petits tirages, souvent de présérie, et partent dans
+   * un carton d'un autre format. Laissés à zéro, ces deux coûts reprennent ceux d'une
+   * vente — on ne suppose pas une différence qu'on ne nous a pas donnée.
+   */
+  kitBookCost: Cents.default(0),
+  kitPackagingCost: Cents.default(0),
   /** Commission du paiement : part variable (points de base) + part fixe par transaction. */
   stripeBp: z.number().int().min(0).max(10_000).default(150),
   stripeFixed: Cents.default(25),
+  /*
+   * L'objectif : le tirage à amortir, et le prix auquel un imagier se vend. De ces deux
+   * nombres et des coûts ci-dessus se déduit le livre à partir duquel la production est
+   * remboursée — celui que le tableau de bord met en ligne de mire.
+   */
+  productionCost: Cents.default(0),
+  bookPrice: Cents.default(1000),
 });
 export type Costs = z.infer<typeof Costs>;
-export const DEFAULT_COSTS: Costs = { urssafBp: 1230, bookCost: 0, packagingCost: 0, stripeBp: 150, stripeFixed: 25 };
+export const DEFAULT_COSTS: Costs = { urssafBp: 1230, bookCost: 0, packagingCost: 0, kitBookCost: 0, kitPackagingCost: 0, stripeBp: 150, stripeFixed: 25, productionCost: 0, bookPrice: 1000 };
 
 export const SiteSettings = z.object({
   shopName: z.string().min(1).default("Mon Vrai"),
