@@ -66,7 +66,8 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
     return (
       <>
         <PageHeader back={{ href: "/admin/influenceurs", label: "Influenceurs" }} title="Nouvel influenceur" subtitle="Un lien de suivi lui est attribué à l'enregistrement ; son code promo viendra de sa première campagne." />
-        <div className="max-w-[42rem]">
+        {/* Le formulaire range ses champs par deux : il lui faut de quoi les poser. */}
+        <div className="max-w-[58rem]">
           <Card title="Identité">
             <IdentityForm />
           </Card>
@@ -145,84 +146,87 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
       />
 
       {tab === "identite" ? (
-        /* Deux colonnes égales : à gauche ce qu'elle rapporte, à droite qui elle est. */
-        <div className="grid grid-cols-2 items-start gap-3 max-[1199px]:grid-cols-1">
-          <div className="flex flex-col gap-3">
-            {/* ---------- Ventes ---------- */}
-            <Card title={<span className="text-sm">Ventes attribuées</span>} aside={<span className="text-[0.6875rem] font-semibold text-subtle">14 derniers jours</span>} className="!gap-3">
-              <div className="flex h-[90px] items-end gap-1" aria-label="Ventes des 14 derniers jours">
-                {stats.spark.map((d) => (
-                  <span key={d.day} className="flex flex-1 flex-col justify-end gap-px" title={`${d.day} · ${d.code} code · ${d.link} lien`}>
-                    <span className="rounded-t bg-tint-green" style={{ height: `${Math.round((d.link / maxSpark) * 84)}px` }} />
-                    <span className="rounded-t bg-ink" style={{ height: `${Math.max(d.code + d.link ? 0 : 4, Math.round((d.code / maxSpark) * 84))}px` }} />
+        /*
+          Pleine largeur, l'un sous l'autre : les ventes se lisent mieux étalées, et la
+          fiche d'identité y gagne de pouvoir ranger ses champs côte à côte plutôt que de
+          les empiler dans une demi-colonne.
+        */
+        <div className="flex flex-col gap-3">
+          {/* ---------- Ventes ---------- */}
+          <Card title={<span className="text-sm">Ventes attribuées</span>} aside={<span className="text-[0.6875rem] font-semibold text-subtle">14 derniers jours</span>} className="!gap-3">
+            <div className="flex h-[90px] items-end gap-1" aria-label="Ventes des 14 derniers jours">
+              {stats.spark.map((d) => (
+                <span key={d.day} className="flex flex-1 flex-col justify-end gap-px" title={`${d.day} · ${d.code} code · ${d.link} lien`}>
+                  <span className="rounded-t bg-tint-green" style={{ height: `${Math.round((d.link / maxSpark) * 84)}px` }} />
+                  <span className="rounded-t bg-ink" style={{ height: `${Math.max(d.code + d.link ? 0 : 4, Math.round((d.code / maxSpark) * 84))}px` }} />
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-3 text-xs font-semibold text-muted">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-[3px] bg-ink" /> via code
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-[3px] bg-tint-green" /> via lien
+              </span>
+            </div>
+            <div className="flex flex-col border-t border-line-soft">
+              {stats.recent.length === 0 && <span className="py-3 text-xs text-subtle">Aucune vente attribuée sur la période.</span>}
+              {stats.recent.map(({ order, via }) => (
+                <Link key={order.id} href={`/admin/commandes/${order.id}`} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2.5 border-b border-line-soft py-2.5 text-xs hover:opacity-70">
+                  <span className="font-bold">{order.number.replace(/^MV-\d{4}-/, "#")}</span>
+                  <span className="truncate text-muted">{order.shippingAddress.name}</span>
+                  <span className={`rounded-pill px-2 py-[3px] text-[0.625rem] font-bold ${via === "code" ? "bg-ink text-on-ink" : "bg-tint-green text-tint-green-ink"}`}>{via === "code" ? `code ${order.promoCodes[0] ?? ""}`.trim() : "lien"}</span>
+                  <span className="whitespace-nowrap font-extrabold">{formatEuro(order.totals.total)}</span>
+                </Link>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="Identité">
+            <IdentityForm influencer={influencer} />
+          </Card>
+
+          {/* ---------- Relevés ---------- */}
+          {influencer.commission && (
+            <Card title="Relevés de commission" aside={<span className="text-[0.6875rem] font-semibold text-subtle">versés le 5 du mois</span>}>
+              {statements.length === 0 && <span className="text-[0.8125rem] text-subtle">Aucune vente attribuée pour l'instant.</span>}
+              {statements.map((st) => (
+                <div key={st.month} className="flex items-center justify-between gap-2 border-t border-line-soft pt-2.5 text-[0.8125rem] first:border-0 first:pt-0">
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-semibold capitalize">{monthLabel(st.month)}</span>
+                    <span className="text-[0.6875rem] text-subtle">
+                      {st.orders} vente{st.orders > 1 ? "s" : ""} · {formatEuro(st.revenue)}
+                      {st.clawbacks.length > 0 && ` · reprise ${formatEuro(st.clawbacks.reduce((a, c) => a + c.amount, 0))}`}
+                    </span>
                   </span>
-                ))}
-              </div>
-              <div className="flex gap-3 text-xs font-semibold text-muted">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-[3px] bg-ink" /> via code
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-[3px] bg-tint-green" /> via lien
-                </span>
-              </div>
-              <div className="flex flex-col border-t border-line-soft">
-                {stats.recent.length === 0 && <span className="py-3 text-xs text-subtle">Aucune vente attribuée sur la période.</span>}
-                {stats.recent.map(({ order, via }) => (
-                  <Link key={order.id} href={`/admin/commandes/${order.id}`} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-2.5 border-b border-line-soft py-2.5 text-xs hover:opacity-70">
-                    <span className="font-bold">{order.number.replace(/^MV-\d{4}-/, "#")}</span>
-                    <span className="truncate text-muted">{order.shippingAddress.name}</span>
-                    <span className={`rounded-pill px-2 py-[3px] text-[0.625rem] font-bold ${via === "code" ? "bg-ink text-on-ink" : "bg-tint-green text-tint-green-ink"}`}>{via === "code" ? `code ${order.promoCodes[0] ?? ""}`.trim() : "lien"}</span>
-                    <span className="whitespace-nowrap font-extrabold">{formatEuro(order.totals.total)}</span>
-                  </Link>
-                ))}
-              </div>
+                  <span className="flex items-center gap-2">
+                    <span className="whitespace-nowrap font-extrabold">{formatEuro(st.commission)}</span>
+                    {st.status === "current" ? (
+                      <Pill tone="warn">En cours</Pill>
+                    ) : (
+                      <ActionForm
+                        action={markStatementPaidAction}
+                        submitLabel={st.status === "paid" ? "Annuler" : "Marquer versée"}
+                        submitTone={st.status === "paid" ? "ghost" : "secondary"}
+                        className="!gap-0 [&>div:last-child]:justify-end [&_button]:!px-2 [&_button]:!py-1 [&_button]:!text-[0.6875rem]"
+                      >
+                        <input type="hidden" name="id" value={influencer.id} />
+                        <input type="hidden" name="month" value={st.month} />
+                        <input type="hidden" name="undo" value={st.status === "paid" ? "true" : "false"} />
+                      </ActionForm>
+                    )}
+                  </span>
+                </div>
+              ))}
+              <span className="text-[0.6875rem] leading-relaxed text-subtle">
+                Les montants sont figés au moment du marquage : un remboursement ultérieur ne réécrit pas un relevé versé.
+              </span>
             </Card>
+          )}
 
-            {/* ---------- Relevés ---------- */}
-            {influencer.commission && (
-              <Card title="Relevés de commission" aside={<span className="text-[0.6875rem] font-semibold text-subtle">versés le 5 du mois</span>}>
-                {statements.length === 0 && <span className="text-[0.8125rem] text-subtle">Aucune vente attribuée pour l'instant.</span>}
-                {statements.map((st) => (
-                  <div key={st.month} className="flex items-center justify-between gap-2 border-t border-line-soft pt-2.5 text-[0.8125rem] first:border-0 first:pt-0">
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate font-semibold capitalize">{monthLabel(st.month)}</span>
-                      <span className="text-[0.6875rem] text-subtle">
-                        {st.orders} vente{st.orders > 1 ? "s" : ""} · {formatEuro(st.revenue)}
-                        {st.clawbacks.length > 0 && ` · reprise ${formatEuro(st.clawbacks.reduce((a, c) => a + c.amount, 0))}`}
-                      </span>
-                    </span>
-                    <span className="flex items-center gap-2">
-                      <span className="whitespace-nowrap font-extrabold">{formatEuro(st.commission)}</span>
-                      {st.status === "current" ? (
-                        <Pill tone="warn">En cours</Pill>
-                      ) : (
-                        <ActionForm
-                          action={markStatementPaidAction}
-                          submitLabel={st.status === "paid" ? "Annuler" : "Marquer versée"}
-                          submitTone={st.status === "paid" ? "ghost" : "secondary"}
-                          className="!gap-0 [&>div:last-child]:justify-end [&_button]:!px-2 [&_button]:!py-1 [&_button]:!text-[0.6875rem]"
-                        >
-                          <input type="hidden" name="id" value={influencer.id} />
-                          <input type="hidden" name="month" value={st.month} />
-                          <input type="hidden" name="undo" value={st.status === "paid" ? "true" : "false"} />
-                        </ActionForm>
-                      )}
-                    </span>
-                  </div>
-                ))}
-                <span className="text-[0.6875rem] leading-relaxed text-subtle">
-                  Les montants sont figés au moment du marquage : un remboursement ultérieur ne réécrit pas un relevé versé.
-                </span>
-              </Card>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <Card title="Identité">
-              <IdentityForm influencer={influencer} />
-            </Card>
-
+          {/* Les trois petites cartes, elles, n'ont pas besoin de toute la largeur. */}
+          <div className="grid grid-cols-3 items-start gap-3 max-[1199px]:grid-cols-1">
             <Card title={<span className="text-sm">Accès à son espace</span>} className="!gap-2">
               <p className="text-[0.6875rem] leading-relaxed text-subtle">
                 {influencer.activatedAt
@@ -354,42 +358,64 @@ function NewCampaignTile({ influencerId }: { influencerId: string }) {
   );
 }
 
-/* Le même formulaire sert à créer et à modifier : un seul endroit où changer un champ. */
+/*
+ * Le même formulaire sert à créer et à modifier : un seul endroit où changer un champ.
+ *
+ * Il occupe toute la largeur de la fiche, d'où des champs par deux plutôt qu'empilés.
+ * Le nom garde sa ligne entière : c'est l'intitulé de la fiche, pas un champ parmi
+ * d'autres.
+ */
 function IdentityForm({ influencer }: { influencer?: Influencer }) {
   const inf = influencer ?? null;
+  const row = "grid grid-cols-2 items-start gap-3 max-[899px]:grid-cols-1";
   return (
     <ActionForm action={saveInfluencerAction} submitLabel={inf ? "Enregistrer" : "Créer le partenaire"}>
       <input type="hidden" name="id" value={inf?.id ?? ""} />
       <input type="hidden" name="active" value={inf ? (inf.active ? "on" : "") : "on"} />
+
       <Field label="Nom" name="name">
         <Input name="name" required defaultValue={inf?.name ?? ""} placeholder="Marie Petit-Pas" className="!rounded-xl !py-3 !text-[0.8125rem] !font-bold" />
       </Field>
-      <Field label="E-mail" hint="Sert au mot de passe de l'espace partenaire." name="email">
-        <Input name="email" type="email" defaultValue={inf?.email ?? ""} placeholder="marie@exemple.fr" className="!rounded-xl !py-3 !text-[0.8125rem]" />
-      </Field>
-      {/* Le démarchage, en amont de toute campagne : où en est la conversation. */}
-      <Field label="Où on en est" hint="Se change aussi d'un geste depuis la liste des influenceurs." name="outreach">
-        <Select name="outreach" defaultValue={inf?.outreach ?? "todo"} className="!rounded-xl !py-3 !text-[0.8125rem]">
-          {OutreachStatus.options.map((o) => (
-            <option key={o} value={o}>
-              {OUTREACH_LABELS[o]}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      <div className="flex flex-col gap-1.5">
-        <span className="text-xs font-semibold text-subtle">Lien de suivi</span>
-        <div className="flex items-center gap-2 rounded-xl bg-paper py-1.5 pl-3.5 pr-1.5">
-          <span className="min-w-0 flex-1 truncate text-xs font-semibold text-muted">
-            {site}/?ref=
-            <input name="slug" defaultValue={inf?.slug ?? ""} placeholder="marie" className="w-[40%] bg-transparent font-extrabold text-ink outline-none placeholder:font-semibold placeholder:text-faint" />
+
+      <div className={row}>
+        <Field label="E-mail" hint="Sert au mot de passe de l'espace partenaire." name="email">
+          <Input name="email" type="email" defaultValue={inf?.email ?? ""} placeholder="marie@exemple.fr" className="!rounded-xl !py-3 !text-[0.8125rem]" />
+        </Field>
+        {/* Le démarchage, en amont de toute campagne : où en est la conversation. */}
+        <Field label="Où on en est" hint="Se change aussi d'un geste depuis la liste des influenceurs." name="outreach">
+          <Select name="outreach" defaultValue={inf?.outreach ?? "todo"} className="!rounded-xl !py-3 !text-[0.8125rem]">
+            {OutreachStatus.options.map((o) => (
+              <option key={o} value={o}>
+                {OUTREACH_LABELS[o]}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+
+      <div className={row}>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold text-subtle">Lien de suivi</span>
+          <div className="flex items-center gap-2 rounded-xl bg-paper py-1.5 pl-3.5 pr-1.5">
+            <span className="min-w-0 flex-1 truncate text-xs font-semibold text-muted">
+              {site}/?ref=
+              <input name="slug" defaultValue={inf?.slug ?? ""} placeholder="marie" className="w-[40%] bg-transparent font-extrabold text-ink outline-none placeholder:font-semibold placeholder:text-faint" />
+            </span>
+          </div>
+          <span className="text-[0.6875rem] leading-relaxed text-subtle">
+            Cookie d&apos;attribution 30 jours. Le lien pose le code de la campagne en cours ; passée la campagne, il
+            continue d&apos;attribuer les ventes et de compter les visites, sans remise.
           </span>
         </div>
-        <span className="text-[0.6875rem] leading-relaxed text-subtle">
-          Cookie d&apos;attribution 30 jours. Le lien pose le code de la campagne en cours ; passée la campagne, il
-          continue d&apos;attribuer les ventes et de compter les visites, sans remise.
-        </span>
+        {/*
+          Commission facultative : sans elle, l'espace partenaire n'en montre rien et n'y
+          fait aucune allusion. Le taux reste saisissable pour qu'on puisse le préparer,
+          mais il n'est lu que si la case est cochée. Les dates, elles, appartiennent à
+          chaque campagne — une personne n'a pas de date de fin.
+        */}
+        <CommissionField enabled={inf?.commission ?? false} rate={inf?.rate ?? 10} />
       </div>
+
       {/*
         Ses comptes : renseignés ici si on les connaît, et modifiables par le partenaire
         lui-même depuis son espace — c'est lui qui les tient à jour. Les campagnes les
@@ -397,31 +423,22 @@ function IdentityForm({ influencer }: { influencer?: Influencer }) {
       */}
       <div className="flex flex-col gap-2">
         <span className="text-xs font-semibold text-subtle">Réseaux sociaux</span>
-        {(
-          [
-            ["ig", "Instagram", inf?.socials.instagram],
-            ["tt", "TikTok", inf?.socials.tiktok],
-            ["fb", "Facebook", inf?.socials.facebook],
-          ] as const
-        ).map(([key, label, account]) => (
-          <div key={key} className="grid grid-cols-[90px_1fr] items-center gap-2">
-            <span className="text-[0.6875rem] font-semibold text-subtle">{label}</span>
-            <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-3 max-[899px]:grid-cols-1">
+          {(
+            [
+              ["ig", "Instagram", inf?.socials.instagram],
+              ["tt", "TikTok", inf?.socials.tiktok],
+              ["fb", "Facebook", inf?.socials.facebook],
+            ] as const
+          ).map(([key, label, account]) => (
+            <div key={key} className="flex flex-col gap-1.5">
+              <span className="text-[0.6875rem] font-semibold text-subtle">{label}</span>
               <Input name={`${key}Handle`} defaultValue={account?.handle ?? ""} placeholder="@pseudo" className="!rounded-xl !py-2.5 !text-xs" />
               <Input name={`${key}Url`} defaultValue={account?.url ?? ""} placeholder="https://…" className="!rounded-xl !py-2.5 !text-xs" />
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
         <span className="text-[0.6875rem] text-subtle">Le partenaire peut les compléter lui-même depuis son espace.</span>
-      </div>
-      {/*
-        Commission facultative : sans elle, l'espace partenaire n'en montre rien et n'y
-        fait aucune allusion. Le taux reste saisissable pour qu'on puisse le préparer,
-        mais il n'est lu que si la case est cochée. Les dates, elles, appartiennent à
-        chaque campagne — une personne n'a pas de date de fin.
-      */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <CommissionField enabled={inf?.commission ?? false} rate={inf?.rate ?? 10} />
       </div>
     </ActionForm>
   );
