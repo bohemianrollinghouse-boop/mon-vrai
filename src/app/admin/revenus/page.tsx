@@ -3,7 +3,7 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { Card, Field, GridTable, Input, Notice, PageHeader, Pill, Tile } from "@/components/admin/ui";
 import { saveCostsAction } from "@/lib/admin/actions/settings";
 import { COUNTED, capitalize, shortDate } from "@/lib/admin/order-ui";
-import { marginPct, orderRevenue, sumRevenue, type OrderRevenue } from "@/lib/admin/revenue";
+import { ledger, marginPct, orderRevenue, type OrderRevenue } from "@/lib/admin/revenue";
 import { requireAdmin } from "@/lib/auth/session";
 import { now as clock } from "@/lib/db/helpers";
 import { listOrders } from "@/lib/db/orders";
@@ -53,13 +53,23 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
   const from = period.days ? now - period.days * 86_400_000 : period.key === "annee" ? yearStart : 0;
 
   const counted = all.filter((o) => o.livemode && COUNTED.includes(o.status));
-  const rows = counted.filter((o) => o.createdAt >= from).map((o) => orderRevenue(o, settings));
-  const t = sumRevenue(rows);
-  const margin = marginPct(t);
+  const period_ = counted.filter((o) => o.createdAt >= from).map((o) => orderRevenue(o, settings));
+  /*
+   * Les kits offerts aux partenaires sont des commandes comme les autres à l'expédition,
+   * mais pas en comptabilité : ils n'encaissent rien et coûtent les livres, le carton et
+   * l'étiquette. On les tient donc à part — sans quoi ils gonflaient la « fabrication »
+   * et l'« emballage » des ventes, et personne ne voyait ce que la prospection coûte.
+   */
+  const book = ledger(period_);
+  const t = book.sales;
+  const kits = book.kits;
+  const rows = period_.filter((r) => !r.isKit);
+  const kitRows = period_.filter((r) => r.isKit);
+  const margin = t.revenue > 0 ? (book.net / t.revenue) * 100 : null;
 
   // Période précédente de même durée, pour situer le revenu net.
-  const previous = period.days ? sumRevenue(counted.filter((o) => o.createdAt >= from - period.days * 86_400_000 && o.createdAt < from).map((o) => orderRevenue(o, settings))) : null;
-  const netDelta = previous && previous.net > 0 ? Math.round(((t.net - previous.net) / previous.net) * 100) : null;
+  const previous = period.days ? ledger(counted.filter((o) => o.createdAt >= from - period.days * 86_400_000 && o.createdAt < from).map((o) => orderRevenue(o, settings))) : null;
+  const netDelta = previous && previous.net > 0 ? Math.round(((book.net - previous.net) / previous.net) * 100) : null;
 
   // Décomposition : le CA en haut, chaque coût en dessous, le net en bas. Les barres sont
   // proportionnelles au chiffre d'affaires de la période.
@@ -70,6 +80,17 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
     { label: "Fabrication des livres", note: costs.bookCost ? `${fmt(t.books)} × ${formatEuro(costs.bookCost)}` : "coût unitaire non renseigné", value: t.bookCost, bar: "bg-tint-sand-ink", sign: -1 },
     { label: "Emballages", note: costs.packagingCost ? `${fmt(t.orders)} colis × ${formatEuro(costs.packagingCost)}` : "coût unitaire non renseigné", value: t.packagingCost, bar: "bg-tint-sand-ink", sign: -1 },
     { label: "Port réel (Boxtal)", note: `${formatEuro(t.shippingCharged)} facturés au client`, value: t.shippingCost, bar: "bg-tint-green-ink", sign: -1 },
+    ...(kits.orders > 0
+      ? [
+          {
+            label: "Kits offerts aux partenaires",
+            note: `${fmt(kits.orders)} kit${kits.orders > 1 ? "s" : ""} · ${fmt(kits.books)} livre${kits.books > 1 ? "s" : ""} ${formatEuro(kits.bookCost)} · cartons ${formatEuro(kits.packagingCost)} · étiquettes ${formatEuro(kits.shippingCost)}`,
+            value: kits.costs,
+            bar: "bg-tint-pink-ink",
+            sign: -1,
+          },
+        ]
+      : []),
   ];
   const barMax = Math.max(1, t.revenue);
 
@@ -87,11 +108,17 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
 
   // Mois par mois, du plus récent au plus ancien.
   const byMonth = new Map<string, OrderRevenue[]>();
-  for (const r of rows) {
+  for (const r of period_) {
     const k = monthKey(r.order.createdAt);
     byMonth.set(k, [...(byMonth.get(k) ?? []), r]);
   }
-  const months = [...byMonth.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([key, list]) => ({ key, ...sumRevenue(list) }));
+  /* Chaque mois porte ses propres kits : son net les retranche comme le total le fait. */
+  const months = [...byMonth.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, list]) => {
+      const m = ledger(list);
+      return { key, ...m.sales, costs: m.costs, net: m.net, kitCost: m.kits.costs, kitOrders: m.kits.orders };
+    });
 
   // Un coût unitaire laissé à zéro gonfle le revenu net : on le dit plutôt que de l'ignorer.
   const missing = [!costs.bookCost && "le coût de fabrication d'un livre", !costs.packagingCost && "le coût d'un emballage"].filter((x): x is string => Boolean(x));
@@ -120,9 +147,9 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
 
       <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">
         <Tile label="Chiffre d'affaires" value={formatEuro(t.revenue)} note={`${fmt(t.orders)} commande${t.orders > 1 ? "s" : ""} encaissée${t.orders > 1 ? "s" : ""}`} href="/admin/commandes" />
-        <Tile tone="sand" label="Coûts" value={minus(t.costs)} note={t.revenue ? `${pctLabel((t.costs / t.revenue) * 100, 0)} du chiffre d'affaires` : "aucune vente sur la période"} />
-        <Tile tone={t.net >= 0 ? "green" : "pink"} label="Revenu net" value={formatEuro(t.net)} note={netDelta === null ? "pas de période de comparaison" : `${netDelta >= 0 ? "+" : "−"}${Math.abs(netDelta)} % vs période préc.`} />
-        <Tile tone="dark" label="Marge nette" value={pctLabel(margin)} note={t.orders ? `${formatEuro(Math.round(t.net / t.orders))} par commande` : "–"} />
+        <Tile tone="sand" label="Coûts" value={minus(book.costs)} note={t.revenue ? `${pctLabel((book.costs / t.revenue) * 100, 0)} du chiffre d'affaires${kits.orders ? ` · dont ${formatEuro(kits.costs)} de kits` : ""}` : "aucune vente sur la période"} />
+        <Tile tone={book.net >= 0 ? "green" : "pink"} label="Revenu net" value={formatEuro(book.net)} note={netDelta === null ? "pas de période de comparaison" : `${netDelta >= 0 ? "+" : "−"}${Math.abs(netDelta)} % vs période préc.`} />
+        <Tile tone="dark" label="Marge nette" value={pctLabel(margin)} note={t.orders ? `${formatEuro(Math.round(book.net / t.orders))} par commande` : "–"} />
       </div>
 
       <div className="grid grid-cols-[1.4fr_1fr] items-start gap-3 max-[1099px]:grid-cols-1">
@@ -145,11 +172,12 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
               ))}
               <div className="flex items-baseline justify-between gap-3 border-t border-line-soft pt-3.5">
                 <span className="text-[0.9375rem] font-extrabold">Revenu net</span>
-                <span className="whitespace-nowrap text-[1.25rem] font-extrabold">{formatEuro(t.net)}</span>
+                <span className="whitespace-nowrap text-[1.25rem] font-extrabold">{formatEuro(book.net)}</span>
               </div>
               <span className="text-[0.6875rem] leading-relaxed text-subtle">
                 Les cotisations et la commission de paiement portent sur l'encaissement complet, port compris. Le port réel vient du barème fournisseur Boxtal (TTC) selon le transporteur, le pays et le poids du colis.
                 {t.unknownShipping > 0 && ` ${t.unknownShipping} commande${t.unknownShipping > 1 ? "s" : ""} sans coût Boxtal connu : le port facturé y sert de repli (marge nulle).`}
+                {kits.orders > 0 && " Les kits offerts n'encaissent rien : ni cotisations ni commission ne portent sur eux, seuls leurs coûts comptent."}
               </span>
             </>
           )}
@@ -197,7 +225,7 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
               </div>
               <div className="flex flex-col gap-1">
                 <span className="text-xs font-bold">Net</span>
-                <span className="text-base font-extrabold">{t.books ? formatEuro(Math.round(t.net / t.books)) : "–"}</span>
+                <span className="text-base font-extrabold">{t.books ? formatEuro(Math.round(book.net / t.books)) : "–"}</span>
               </div>
             </div>
             <span className="text-[0.6875rem] leading-relaxed">« Encaissé » = prix des livres hors port, divisé par le nombre d'exemplaires (cadeaux compris). « Net » répartit le revenu net sur ces mêmes exemplaires.</span>
@@ -214,9 +242,15 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
             key: m.key,
             cells: [
               <span key="m" className="font-bold">{capitalize(monthLabel(m.key))}</span>,
-              <span key="n" className="font-semibold">{fmt(m.orders)}</span>,
+              <span key="n" className="flex flex-col">
+                <span className="font-semibold">{fmt(m.orders)}</span>
+                {m.kitOrders > 0 && <span className="text-[0.6875rem] text-subtle">+ {fmt(m.kitOrders)} kit{m.kitOrders > 1 ? "s" : ""}</span>}
+              </span>,
               <span key="ca" className="font-semibold whitespace-nowrap">{formatEuro(m.revenue)}</span>,
-              <span key="c" className="text-subtle whitespace-nowrap">{minus(m.costs)}</span>,
+              <span key="c" className="flex flex-col whitespace-nowrap text-subtle">
+                <span>{minus(m.costs)}</span>
+                {m.kitCost > 0 && <span className="text-[0.6875rem]">dont {formatEuro(m.kitCost)} de kits</span>}
+              </span>,
               <span key="p" className={`whitespace-nowrap ${m.shippingMargin < 0 ? "text-danger" : "text-subtle"}`}>{formatEuro(m.shippingMargin)}</span>,
               <span key="net" className="font-extrabold whitespace-nowrap">{formatEuro(m.net)}</span>,
               <span key="t" className="font-bold whitespace-nowrap">{pctLabel(marginPct(m), 0)}</span>,
@@ -224,6 +258,44 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
           }))}
         />
       </Card>
+
+      {kitRows.length > 0 && (
+        <Card
+          title="Kits offerts aux partenaires"
+          aside={<span className="text-xs font-bold text-subtle">{formatEuro(kits.costs)} sur la période</span>}
+          className="!p-6 [&>div:last-child]:-mx-6 [&>div:last-child]:rounded-none [&>div:last-child]:py-0"
+        >
+          <p className="-mt-1 text-[0.8125rem] leading-relaxed text-subtle">
+            Ils n&apos;encaissent rien : ce qu&apos;ils coûtent, ce sont les livres, le carton et l&apos;étiquette. Le
+            revenu net de la période les a déjà retranchés.
+          </p>
+          <GridTable
+            columns="minmax(110px,auto) 70px 1fr 90px 100px 100px 100px"
+            head={["N°", "Date", "Livraison", "Livres", "Fabrication", "Étiquette", "Coût total"]}
+            empty="Aucun kit expédié sur la période."
+            rows={kitRows.map((r) => ({
+              key: r.order.id,
+              href: `/admin/commandes/${r.order.id}`,
+              cells: [
+                <span key="n" className="font-bold">{r.order.number}</span>,
+                <span key="d" className="text-subtle">{shortDate(r.order.createdAt)}</span>,
+                <span key="l" className="flex items-center gap-1.5">
+                  <span className="truncate font-semibold">{r.order.delivery?.rateName || "—"}</span>
+                  {!r.shippingKnown && <Pill tone="muted">port estimé</Pill>}
+                </span>,
+                <span key="b" className="font-semibold">{fmt(r.books)}</span>,
+                <span key="f" className="whitespace-nowrap text-subtle">{minus(r.bookCost)}</span>,
+                <span key="p" className="whitespace-nowrap text-subtle">{minus(r.shippingCost)}</span>,
+                <span key="c" className="whitespace-nowrap font-extrabold">{minus(r.costs)}</span>,
+              ],
+            }))}
+          />
+          <span className="text-[0.6875rem] leading-relaxed text-subtle">
+            Le carton ({formatEuro(costs.packagingCost)}) est compté une fois par colis ; il est inclus dans le coût
+            total mais n&apos;a pas de colonne, pour ne pas alourdir le tableau.
+          </span>
+        </Card>
+      )}
 
       <Card title="Par commande" aside={<span className="text-xs font-bold text-subtle">{rows.length > 20 ? "20 dernières de la période" : "toute la période"}</span>} className="!p-6 [&>div:last-child]:-mx-6 [&>div:last-child]:rounded-none [&>div:last-child]:py-0">
         <GridTable

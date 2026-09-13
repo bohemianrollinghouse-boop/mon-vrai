@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { marginPct, orderRevenue, shippingCostFor, sumRevenue } from "./revenue";
+import { ledger, marginPct, orderRevenue, shippingCostFor, sumRevenue } from "./revenue";
 import { DEFAULT_PARCEL, DEFAULT_SHIPPING_RATES, EMPTY_SENDER, Order, SiteSettings } from "@/lib/domain/types";
 
 /*
@@ -89,5 +89,47 @@ describe("Revenus - cumul", () => {
 
   it("ne divise pas par zéro sans vente", () => {
     expect(marginPct(sumRevenue([]))).toBeNull();
+  });
+});
+
+describe("Revenus - kits offerts aux partenaires", () => {
+  /* Le kit : trois livres, port offert, expédié en relais. Il n'encaisse rien. */
+  const kit = () =>
+    order({
+      lines: [{ productSlug: "les-fruits", title: "Les fruits", qty: 3, unitPrice: 1500, preorder: false }],
+      totals: { subtotal: 0, shipping: 0, discount: 0, tax: 0, total: 0, currency: "eur" },
+      kit: { influencerId: "inf_1", stock: false, seq: 1 },
+    });
+
+  it("ne coûte que les livres, le carton et l'étiquette", () => {
+    const r = orderRevenue(kit(), settings);
+    expect(r.isKit).toBe(true);
+    expect(r.revenue).toBe(0);
+    /* Ni cotisations ni commission : elles portent sur un encaissement, qui est nul. */
+    expect(r.urssaf).toBe(0);
+    expect(r.stripeFee).toBe(0);
+    expect(r.bookCost).toBe(1200); // 3 livres à 4,00 €
+    expect(r.packagingCost).toBe(50);
+    expect(r.shippingCost).toBe(377); // 3 × 100 g + 60 g → tranche « jusqu'à 500 g »
+    expect(r.net).toBe(-1627);
+  });
+
+  it("se retranche du net sans se mêler aux coûts des ventes", () => {
+    const l = ledger([orderRevenue(order(), settings), orderRevenue(kit(), settings)]);
+
+    expect(l.sales.orders).toBe(1);
+    expect(l.kits.orders).toBe(1);
+    // La fabrication des ventes ne compte que les livres vendus, pas ceux offerts.
+    expect(l.sales.books).toBe(2);
+    expect(l.kits.books).toBe(3);
+    expect(l.costs).toBe(l.sales.costs + l.kits.costs);
+    expect(l.net).toBe(l.sales.net - l.kits.costs);
+    expect(l.net).toBe(l.sales.net - 1627);
+  });
+
+  it("ne fait rien perdre quand il n'y a aucun kit", () => {
+    const l = ledger([orderRevenue(order(), settings)]);
+    expect(l.kits.orders).toBe(0);
+    expect(l.net).toBe(l.sales.net);
   });
 });

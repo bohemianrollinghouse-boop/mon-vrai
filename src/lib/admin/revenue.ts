@@ -46,6 +46,8 @@ export type OrderRevenue = {
   shippingKnown: boolean;
   /** Exemplaires expédiés, cadeaux compris : ils coûtent autant à fabriquer. */
   books: number;
+  /** Kit de bienvenue offert à un partenaire : il ne rapporte rien et coûte tout. */
+  isKit: boolean;
   urssaf: number;
   stripeFee: number;
   bookCost: number;
@@ -72,6 +74,7 @@ export function orderRevenue(order: Order, settings: SiteSettings, costs: Costs 
     shippingMargin: shippingCharged - ship.cents,
     shippingKnown: ship.known,
     books,
+    isKit: Boolean(order.kit),
     urssaf,
     stripeFee,
     bookCost,
@@ -117,6 +120,33 @@ export function sumRevenue(rows: OrderRevenue[]): RevenueTotals {
     if (!r.shippingKnown) t.unknownShipping += 1;
   }
   return t;
+}
+
+/*
+ * Le bilan d'une période, ventes et kits séparés.
+ *
+ * Un kit de bienvenue est une commande comme une autre pour l'expédition, mais pas pour
+ * la comptabilité : il n'encaisse rien et coûte trois choses — les livres, le carton et
+ * l'étiquette. Fondu dans les totaux, il gonflait silencieusement la « fabrication » et
+ * l'« emballage » des ventes sans qu'on puisse voir ce que la prospection coûte.
+ *
+ * D'où cette séparation : `sales` décrit ce qui se vend, `kits` ce qui s'offre, et le
+ * revenu net retranche le second du premier. Ni cotisations ni commission sur un kit :
+ * elles portent sur un encaissement, qui est nul.
+ */
+export type Ledger = {
+  sales: RevenueTotals;
+  kits: RevenueTotals;
+  /** Coûts de la période, kits compris. */
+  costs: number;
+  /** Ce qu'il reste vraiment : le net des ventes, moins ce que les kits ont coûté. */
+  net: number;
+};
+
+export function ledger(rows: OrderRevenue[]): Ledger {
+  const sales = sumRevenue(rows.filter((r) => !r.isKit));
+  const kits = sumRevenue(rows.filter((r) => r.isKit));
+  return { sales, kits, costs: sales.costs + kits.costs, net: sales.net - kits.costs };
 }
 
 /** Taux de marge nette, en pourcentage du chiffre d'affaires ; null sans chiffre d'affaires. */
