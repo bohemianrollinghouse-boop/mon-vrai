@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { KitOrderForm } from "@/components/site/KitOrderForm";
 import { Eyebrow } from "@/components/site/ui";
 import { orderPartnerKitAction, signAndOrderKitAction } from "@/lib/auth/partner-actions";
@@ -29,8 +29,13 @@ export const metadata = { title: "Commander mon kit" };
  */
 export default async function PartnerKitPage() {
   const user = await requireInfluencer();
+  /*
+   * Le jeton peut dire « partenaire » alors que la fiche n'existe plus : les rôles sont
+   * gravés dans la session à la connexion, et une fiche supprimée ne les réécrit pas.
+   * On renvoie donc au compte, plutôt que d'afficher une page introuvable.
+   */
   const influencer = await getInfluencerByUid(user.uid);
-  if (!influencer) notFound();
+  if (!influencer) redirect("/compte");
 
   const campaign = await currentCampaign(influencer.id);
   const kit = await partnerKitSnapshot(influencer, campaign);

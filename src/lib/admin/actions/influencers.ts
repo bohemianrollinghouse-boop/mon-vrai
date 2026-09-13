@@ -6,7 +6,7 @@ import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
-import { assertAdmin } from "@/lib/auth/session";
+import { assertAdmin, setInfluencerClaim } from "@/lib/auth/session";
 import { deleteInfluencer, getInfluencer, getInfluencerBySlug, influencerFootprint, issueInfluencerInvite, upsertInfluencer } from "@/lib/db/promos";
 import { sendInfluencerWelcome } from "@/lib/email/send";
 import { saveTemplateValues } from "@/lib/db/newsletter";
@@ -103,6 +103,12 @@ export async function deleteInfluencerAction(formData: FormData): Promise<AdminR
   const inf = await getInfluencer(id);
   if (!inf) return failed("Influenceur introuvable");
   const footprint = await influencerFootprint(id).catch(() => null);
+  /*
+   * Le rôle de partenaire s'en va avec la fiche. Sans cela, le compte gardait son bouton
+   * « Espace partenaire » et son jeton disait toujours « partenaire » : le bouton menait
+   * à une page introuvable. Le compte, lui, survit — la personne reste cliente.
+   */
+  if (inf.uid) await setInfluencerClaim(inf.uid, "").catch((err) => console.warn("[partenaire] rôle non retiré :", (err as Error).message));
   await deleteInfluencer(id);
   await audit(
     user.email,
@@ -112,6 +118,7 @@ export async function deleteInfluencerAction(formData: FormData): Promise<AdminR
   );
   revalidatePath("/admin/influenceurs");
   revalidatePath("/admin/codes-promo");
+  revalidatePath("/compte");
   /*
    * Redirection côté serveur, et non `redirectTo` : une action serveur invalide la
    * route courante, qui est ici la fiche qu'on vient de supprimer — elle se rendait

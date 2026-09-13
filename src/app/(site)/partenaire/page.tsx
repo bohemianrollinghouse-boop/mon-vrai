@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { CopyValue } from "@/components/site/CopyValue";
 import { IbanForm } from "@/components/site/IbanForm";
 import { PartnerKitBlock } from "@/components/site/PartnerKitBlock";
@@ -33,8 +33,13 @@ export const metadata = { title: "Espace partenaire" };
  */
 export default async function PartnerSpace({ searchParams }: PageProps<"/partenaire">) {
   const [user, sp] = await Promise.all([requireInfluencer(), searchParams]);
+  /*
+   * Le jeton peut dire « partenaire » alors que la fiche n'existe plus : les rôles sont
+   * gravés dans la session à la connexion, et une fiche supprimée ne les réécrit pas.
+   * On renvoie donc au compte, plutôt que d'afficher une page introuvable.
+   */
   const influencer = await getInfluencerByUid(user.uid);
-  if (!influencer) notFound();
+  if (!influencer) redirect("/compte");
 
   const period = (PARTNER_PERIODS.some((p) => p.key === sp.periode) ? sp.periode : "30") as PartnerPeriod;
   const { view, statements, kit, campaign, collaborations } = await partnerSnapshot(influencer, period);

@@ -9,6 +9,7 @@ import { addAddressAction, deleteAccountAction, deleteAddressAction, setNewslett
 import { signOut } from "@/lib/auth/actions";
 import { requireUser } from "@/lib/auth/session";
 import { getCustomer } from "@/lib/db/customers";
+import { getInfluencerByUid } from "@/lib/db/promos";
 import { listOrdersForUser } from "@/lib/db/orders";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
@@ -40,7 +41,18 @@ export default async function AccountPage({ searchParams }: PageProps<"/compte">
   const { onglet } = await searchParams;
   const tab: Tab = TABS.some((t) => t.key === onglet) ? (onglet as Tab) : "commandes";
   const user = await requireUser();
-  const [orders, customer, products, settings] = await Promise.all([listOrdersForUser(user.uid, user.emailVerified ? user.email : undefined), getCustomer(user.uid), listPublishedProducts(), getSettings()]);
+  const [orders, customer, products, settings, partner] = await Promise.all([
+    listOrdersForUser(user.uid, user.emailVerified ? user.email : undefined),
+    getCustomer(user.uid),
+    listPublishedProducts(),
+    getSettings(),
+    /*
+     * Le rôle est gravé dans la session à la connexion : il peut dire « partenaire »
+     * alors que la fiche a été supprimée depuis. On vérifie donc qu'elle existe avant
+     * de proposer le lien — sans quoi il mènerait dans le vide.
+     */
+    user.influencerId ? getInfluencerByUid(user.uid).catch(() => null) : Promise.resolve(null),
+  ]);
   /*
    * Le nom complet sert à saluer : un compte peut porter un nom de marque (« Les Trois
    * Vagabonds »), dont le premier mot n'est pas un prénom. Le formulaire, lui, a deux
@@ -59,7 +71,7 @@ export default async function AccountPage({ searchParams }: PageProps<"/compte">
         <h1 className="text-[clamp(2rem,3.5vw,2.75rem)] font-extrabold leading-[1.04] tracking-[-0.02em]">Bonjour {displayName || "vous"}</h1>
         <div className="flex items-center gap-4">
           {/* Un partenaire retrouve son espace depuis son compte, comme un admin son administration. */}
-          {user.influencerId && (
+          {partner && (
             <PillLink href="/partenaire" variant="dark" size="sm">
               Espace partenaire
             </PillLink>
