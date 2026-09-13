@@ -188,14 +188,20 @@ function OutreachList({ influencers }: { influencers: Influencer[] }) {
     n: influencers.filter((i) => i.outreach === status).length,
   }));
   /* Les moins avancés d'abord : c'est là qu'il reste quelque chose à faire. */
-  const order: Record<OutreachStatus, number> = { todo: 0, contacted: 1, talking: 2, validated: 3 };
+  const order: Record<OutreachStatus, number> = { todo: 0, contacted: 1, talking: 2, validated: 3, collab: 4 };
   const sorted = [...influencers].sort((a, b) => order[a.outreach] - order[b.outreach] || a.name.localeCompare(b.name, "fr"));
 
   return (
     <>
-      <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">
+      <div className="grid grid-cols-5 gap-3 max-[1399px]:grid-cols-3 max-[899px]:grid-cols-2">
         {counts.map(({ status, n }) => (
-          <Tile key={status} tone={status === "validated" ? "green" : status === "todo" ? "white" : "sand"} label={OUTREACH_LABELS[status]} value={n} note={n === 0 ? "personne" : n > 1 ? `${n} personnes` : "1 personne"} />
+          <Tile
+            key={status}
+            tone={status === "collab" ? "green" : status === "validated" ? "blue" : status === "todo" ? "white" : "sand"}
+            label={OUTREACH_LABELS[status]}
+            value={n}
+            note={n === 0 ? "personne" : n > 1 ? `${n} personnes` : "1 personne"}
+          />
         ))}
       </div>
 
@@ -238,7 +244,7 @@ function OutreachList({ influencers }: { influencers: Influencer[] }) {
                 <AutoSubmitSelect
                   name="outreach"
                   label={`Où on en est avec ${inf.name}`}
-                  defaultValue={inf.outreach}
+                  value={inf.outreach}
                   options={OutreachStatus.options.map((o) => ({ value: o, label: OUTREACH_LABELS[o] }))}
                 />
               </ActionForm>,

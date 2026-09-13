@@ -1090,10 +1090,14 @@ export type ContractSignature = z.infer<typeof ContractSignature>;
  * Où en est-on du démarchage d'un partenaire.
  *
  * Une fiche existe souvent bien avant qu'il ne se passe quoi que ce soit : on a repéré
- * quelqu'un, on lui a écrit, on attend. Ce statut ne dit rien de ses campagnes — il dit
- * seulement où en est la conversation.
+ * quelqu'un, on lui a écrit, on attend. Les quatre premiers états décrivent cette
+ * conversation, et se posent à la main.
+ *
+ * Le dernier, « collaboration en cours », ne se déclare pas : il se constate. Dès qu'un
+ * contrat signé court pour ce partenaire, il s'y met tout seul, et il en repart quand il
+ * n'y en a plus (voir db/outreach.ts).
  */
-export const OutreachStatus = z.enum(["todo", "contacted", "talking", "validated"]);
+export const OutreachStatus = z.enum(["todo", "contacted", "talking", "validated", "collab"]);
 export type OutreachStatus = z.infer<typeof OutreachStatus>;
 
 export const OUTREACH_LABELS: Record<OutreachStatus, string> = {
@@ -1101,6 +1105,8 @@ export const OUTREACH_LABELS: Record<OutreachStatus, string> = {
   contacted: "Contacté, en attente",
   talking: "Échange en cours",
   validated: "Validé",
+  /* Constaté, pas déclaré : un contrat signé court (voir db/outreach.ts). */
+  collab: "Collaboration en cours",
 };
 
 export const Influencer = z.object({

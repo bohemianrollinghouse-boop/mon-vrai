@@ -9,6 +9,7 @@ import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { deleteCampaign, getCampaign, listCampaigns, syncCampaignPromo, upsertCampaign } from "@/lib/db/campaigns";
 import { getSignature, setSignatureState } from "@/lib/db/contracts";
+import { refreshOutreach } from "@/lib/db/outreach";
 import { getInfluencer, getPromo } from "@/lib/db/promos";
 import { CollaborationType } from "@/lib/domain/types";
 
@@ -217,6 +218,9 @@ export async function completeCampaignAction(formData: FormData): Promise<AdminR
   if (influencer && campaign.code) {
     await syncCampaignPromo(influencer, campaign.code).catch((err) => console.warn("[campagne] code non éteint :", (err as Error).message));
   }
+
+  /* Plus de contrat qui court : le démarchage redescend de « collaboration » à « validé ». */
+  await refreshOutreach(campaign.influencerId).catch(() => undefined);
 
   await audit(user.email, "campaign.complete", `campaigns/${id}`, `campagne n° ${campaign.seq}`);
   revalidatePath(`/admin/influenceurs/${campaign.influencerId}`);

@@ -14,6 +14,7 @@
  */
 import { listCampaigns, syncCampaignPromo, upsertCampaign } from "@/lib/db/campaigns";
 import { listInfluencers, upsertInfluencer } from "@/lib/db/promos";
+import { refreshOutreach } from "@/lib/db/outreach";
 import { getSignature } from "@/lib/db/contracts";
 
 const APPLY = process.argv.includes("--apply");
@@ -95,6 +96,16 @@ async function main() {
     });
     /* Le document promo devient le reflet de la campagne : remise, dates, extinction. */
     if (inf.code) await syncCampaignPromo(inf, inf.code);
+  }
+
+  /*
+   * Dernier passage : « collaboration en cours » se constate. Il faut donc que les
+   * campagnes existent déjà — d'où cette boucle à part, après les autres.
+   */
+  if (APPLY) {
+    for (const inf of await listInfluencers()) await refreshOutreach(inf.id);
+    const after = await listInfluencers();
+    for (const inf of after.filter((i) => i.outreach === "collab")) console.log(`  ${inf.name.padEnd(22)} démarchage : collaboration en cours`);
   }
 
   console.log(APPLY ? "\nTerminé." : "\nRien écrit. Relancer avec --apply.");

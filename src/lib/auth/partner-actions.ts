@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireInfluencer } from "@/lib/auth/session";
 import { getInfluencerByUid, upsertInfluencer } from "@/lib/db/promos";
 import { currentCampaign, markCampaignSigned, upsertCampaign } from "@/lib/db/campaigns";
+import { refreshOutreach } from "@/lib/db/outreach";
 import { createKitOrder } from "@/lib/db/orders";
 import { partnerKitSnapshot, type PartnerKit } from "@/lib/db/partner";
 import { getSettings } from "@/lib/db/settings";
@@ -375,6 +376,8 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     userAgent: head.get("user-agent") ?? "",
   }).then(async (signature) => {
     await markCampaignSigned(campaign.id, order.orderId, signature.id);
+    /* Le démarchage passe à « collaboration en cours » : un contrat signé court. */
+    await refreshOutreach(influencer.id).catch(() => undefined);
     await sendKitConfirmation({
       to: signature.email,
       firstName: signature.firstName,
@@ -386,5 +389,6 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
   });
 
   revalidatePath("/partenaire");
+  revalidatePath("/admin/influenceurs");
   return { ok: true, message: `Contrat accepté et kit commandé — commande ${order.number}.` };
 }

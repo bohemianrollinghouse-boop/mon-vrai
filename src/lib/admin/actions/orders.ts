@@ -10,6 +10,7 @@ import { assertAdmin } from "@/lib/auth/session";
 import { addOrderNote, deleteOrder, getOrder, setTracking, transitionOrder } from "@/lib/db/orders";
 import { findSignatureByOrder, setSignatureState } from "@/lib/db/contracts";
 import { detachCampaignOrder, findCampaignByOrder } from "@/lib/db/campaigns";
+import { refreshOutreach } from "@/lib/db/outreach";
 import { OrderStatus } from "@/lib/domain/types";
 import { sendOrderConfirmation, sendShippingNotice } from "@/lib/email/send";
 import { createLabelForOrder, syncBoxtal } from "@/lib/boxtal/shipment";
@@ -224,6 +225,9 @@ async function cancelCollaboration(order: NonNullable<Awaited<ReturnType<typeof 
   const campaign = await findCampaignByOrder(order.id).catch(() => null);
   if (campaign) await detachCampaignOrder(campaign.id).catch(() => undefined);
   if (!order.kit) return;
+  /* Le contrat annulé ne court plus : le démarchage repasse à « validé ». */
+  await refreshOutreach(order.kit.influencerId).catch(() => undefined);
+  revalidatePath("/admin/influenceurs");
   revalidatePath(`/admin/influenceurs/${order.kit.influencerId}`);
   revalidatePath("/partenaire");
 }

@@ -395,7 +395,7 @@ function IdentityForm({ influencer }: { influencer?: Influencer }) {
           <Input name="email" type="email" defaultValue={inf?.email ?? ""} placeholder="marie@exemple.fr" className="!rounded-xl !py-3 !text-[0.8125rem]" />
         </Field>
         {/* Le démarchage, en amont de toute campagne : où en est la conversation. */}
-        <Field label="Où on en est" hint="Se change aussi d'un geste depuis la liste des influenceurs." name="outreach">
+        <Field label="Où on en est" hint="Se change aussi depuis la liste. « Collaboration en cours » se met seul dès qu'un contrat signé court." name="outreach">
           <Select name="outreach" defaultValue={inf?.outreach ?? "todo"} className="!rounded-xl !py-3 !text-[0.8125rem]">
             {OutreachStatus.options.map((o) => (
               <option key={o} value={o}>
