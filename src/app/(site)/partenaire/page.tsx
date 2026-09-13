@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { CopyValue } from "@/components/site/CopyValue";
 import { IbanForm } from "@/components/site/IbanForm";
 import { PartnerKitBlock } from "@/components/site/PartnerKitBlock";
+import { ContentDropBlock } from "@/components/site/ContentDropBlock";
 import { SocialsForm } from "@/components/site/SocialsForm";
 import { ContractText } from "@/components/site/ContractText";
 import { SignedContractView } from "@/components/site/SignedContractView";
@@ -12,6 +13,7 @@ import { maskIban, monthLabel } from "@/lib/promos/statements";
 import { Eyebrow, PillLink } from "@/components/site/ui";
 import { requireInfluencer } from "@/lib/auth/session";
 import { partnerSnapshot } from "@/lib/db/partner";
+import { getSettings } from "@/lib/db/settings";
 import { getInfluencerByUid } from "@/lib/db/promos";
 import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, type ContractSignature } from "@/lib/domain/types";
 import { formatEuro } from "@/lib/domain/money";
@@ -42,7 +44,10 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   if (!influencer) redirect("/compte");
 
   const period = (PARTNER_PERIODS.some((p) => p.key === sp.periode) ? sp.periode : "30") as PartnerPeriod;
-  const { view, statements, kit, campaign, collaborations } = await partnerSnapshot(influencer, period);
+  const [{ view, statements, kit, campaign, collaborations }, settings] = await Promise.all([
+    partnerSnapshot(influencer, period),
+    getSettings(),
+  ]);
   /* Le contrat de la campagne en cours ; les précédents sont plus bas, en histoire. */
   const signature = collaborations.find((c) => c.campaign.id === campaign?.id)?.signature ?? null;
   const past = collaborations.filter((c) => c.campaign.id !== campaign?.id && c.signature);
@@ -120,6 +125,10 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
       {/* ---------- Kit de bienvenue ---------- */}
       {/* Bon de commande tant qu'il n'a pas été commandé, suivi ensuite. */}
       <PartnerKitBlock kit={kit} />
+
+      {/* ---------- Où envoyer les contenus ---------- */}
+      {/* Juste après le kit : on reçoit les livres, on envoie les contenus. */}
+      <ContentDropBlock email={settings.contact.email ?? ""} prototype={kit.prototype} />
 
       {/* ---------- Résultats ---------- */}
       <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
