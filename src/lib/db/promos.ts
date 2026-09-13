@@ -1,7 +1,8 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
 import { Influencer, Promo, RefClicks, type CollaborationType, type PartnerSocials, type WelcomeKit } from "@/lib/domain/types";
-import { dropCampaignsOf } from "./campaigns";
+import { dropCampaignsOf, listCampaigns } from "./campaigns";
+import { listSignaturesFor } from "./contracts";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
 /*
@@ -50,6 +51,12 @@ export async function deletePromo(code: string): Promise<void> {
 
 export async function setPromoActive(code: string, active: boolean): Promise<void> {
   await promos().doc(code.toUpperCase()).update({ active, updatedAt: now() });
+}
+
+/** Tous les codes rattachés à un partenaire, y compris ceux devenus inactifs. */
+export async function listPromosOf(influencerId: string): Promise<Promo[]> {
+  if (!influencerId) return [];
+  return parseQuery(Promo, promos().where("influencerId", "==", influencerId).limit(200));
 }
 
 /** Une commande payée consomme une utilisation de chaque code appliqué. */
@@ -162,13 +169,54 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
 }
 
 /*
- * Supprime le partenaire et tout ce qui n'a de sens qu'avec lui : ses campagnes s'en
- * vont, leurs codes s'éteignent. Les commandes passées, elles, gardent leur attribution
- * et le code qu'elles citent — on n'efface pas une vente.
+ * Ce que la suppression d'un partenaire emporterait. Sert à l'annoncer AVANT de le
+ * faire : on ne supprime pas en cascade sans dire ce qui part.
+ */
+export type InfluencerFootprint = { campaigns: number; codes: string[]; statements: number; clickDays: number; signatures: number };
+
+export async function influencerFootprint(id: string): Promise<InfluencerFootprint> {
+  const [campaignList, promoList, statementSnap, clickSnap, signatureList] = await Promise.all([
+    listCampaigns(id).catch(() => []),
+    listPromosOf(id).catch(() => []),
+    col("statements").where("influencerId", "==", id).count().get().catch(() => null),
+    clicks().where("influencerId", "==", id).count().get().catch(() => null),
+    listSignaturesFor(id).catch(() => []),
+  ]);
+  return {
+    campaigns: campaignList.length,
+    codes: [...new Set([...promoList.map((p) => p.code), ...campaignList.map((c) => c.code)].filter(Boolean))].sort(),
+    statements: statementSnap?.data().count ?? 0,
+    clickDays: clickSnap?.data().count ?? 0,
+    signatures: signatureList.length,
+  };
+}
+
+/*
+ * Supprime le partenaire et, en cascade, tout ce qui n'a de sens qu'avec lui : ses
+ * campagnes, ses codes promo, ses relevés, ses compteurs de clics.
+ *
+ * Les codes sont EFFACÉS et non désactivés : un code éteint qui traîne interdirait de le
+ * réattribuer à quelqu'un d'autre, ce qui n'a pas de sens une fois la personne partie.
+ *
+ * Ce qui reste : les commandes passées (on n'efface pas une vente — elles gardent leur
+ * attribution et le code qu'elles citent, en texte) et les contrats signés, qui sont des
+ * pièces à conserver.
  */
 export async function deleteInfluencer(id: string): Promise<void> {
   const existing = await getInfluencer(id);
   if (existing) await dropCampaignsOf(existing).catch(() => undefined);
+
+  const [promoList, statementSnap, clickSnap] = await Promise.all([
+    listPromosOf(id).catch(() => []),
+    col("statements").where("influencerId", "==", id).limit(500).get().catch(() => null),
+    clicks().where("influencerId", "==", id).limit(2000).get().catch(() => null),
+  ]);
+  await Promise.all([
+    ...promoList.map((p) => promos().doc(p.code).delete().catch(() => undefined)),
+    ...(statementSnap?.docs ?? []).map((d) => d.ref.delete().catch(() => undefined)),
+    ...(clickSnap?.docs ?? []).map((d) => d.ref.delete().catch(() => undefined)),
+  ]);
+
   await influencers().doc(id).delete();
 }
 

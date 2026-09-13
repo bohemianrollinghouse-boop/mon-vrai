@@ -7,7 +7,7 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { deleteInfluencer, getInfluencer, getInfluencerBySlug, issueInfluencerInvite, upsertInfluencer } from "@/lib/db/promos";
+import { deleteInfluencer, getInfluencer, getInfluencerBySlug, influencerFootprint, issueInfluencerInvite, upsertInfluencer } from "@/lib/db/promos";
 import { sendInfluencerWelcome } from "@/lib/email/send";
 import { saveTemplateValues } from "@/lib/db/newsletter";
 import { listStatements, markStatementPaid, unmarkStatement } from "@/lib/db/statements";
@@ -89,14 +89,29 @@ export async function toggleInfluencerAction(formData: FormData): Promise<AdminR
   return saved(inf.active ? `${inf.name} en pause : code et lien inactifs.` : `${inf.name} réactivé.`);
 }
 
+/*
+ * Suppression en cascade : la fiche, ses campagnes, ses codes promo, ses relevés et ses
+ * compteurs de clics. Les codes sont effacés et non éteints, pour qu'on puisse les
+ * réattribuer — un code retenu par un partenaire disparu n'a plus de raison d'être.
+ *
+ * Ce que l'on garde : les commandes passées et les contrats signés. Le texte de
+ * confirmation, sur la fiche, énumère tout cela avant le clic.
+ */
 export async function deleteInfluencerAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const id = String(formData.get("id") ?? "");
   const inf = await getInfluencer(id);
   if (!inf) return failed("Influenceur introuvable");
+  const footprint = await influencerFootprint(id).catch(() => null);
   await deleteInfluencer(id);
-  await audit(user.email, "influencer.delete", `influencers/${id}`, inf.name);
+  await audit(
+    user.email,
+    "influencer.delete",
+    `influencers/${id}`,
+    footprint ? `${inf.name} · ${footprint.campaigns} campagne(s) · codes ${footprint.codes.join(", ") || "aucun"}` : inf.name,
+  );
   revalidatePath("/admin/influenceurs");
+  revalidatePath("/admin/codes-promo");
   /*
    * Redirection côté serveur, et non `redirectTo` : une action serveur invalide la
    * route courante, qui est ici la fiche qu'on vient de supprimer — elle se rendait

@@ -18,11 +18,12 @@ import { adminSnapshot } from "@/lib/admin/counts";
 import { listCampaigns } from "@/lib/db/campaigns";
 import { influencerAccount } from "@/lib/db/influencer-account";
 import { listContracts } from "@/lib/db/contracts";
-import { getInfluencer, listRefClicksSince } from "@/lib/db/promos";
+import { getInfluencer, influencerFootprint, listRefClicksSince } from "@/lib/db/promos";
 import { listStatements } from "@/lib/db/statements";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
 import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, OutreachStatus, OUTREACH_LABELS, type Campaign, type Influencer } from "@/lib/domain/types";
 import { campaignStart, liveCampaign } from "@/lib/promos/campaign";
+import type { InfluencerFootprint } from "@/lib/db/promos";
 import { mainAccount } from "@/lib/promos/socials";
 import { maskIban, monthLabel, statementRows } from "@/lib/promos/statements";
 import { influencerStats } from "@/lib/promos/stats";
@@ -86,6 +87,8 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
     listCampaigns(influencer.id),
     listContracts(),
   ]);
+  /* Ce que la suppression emporterait : annoncé sur la fiche, et redit à la confirmation. */
+  const footprint = await influencerFootprint(influencer.id).catch(() => null);
   const contractName = new Map(contracts.map((c) => [c.id, c.name]));
   /* Son code aujourd'hui : celui de sa campagne en cours. Sans campagne, il n'en a pas. */
   const live = liveCampaign(campaigns);
@@ -269,11 +272,21 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
             </Card>
 
             <Card title={<span className="text-sm">Zone dangereuse</span>} className="!gap-2">
+              {/* Dit d'abord, demandé ensuite : une cascade s'annonce avant de se confirmer. */}
+              <p className="text-[0.6875rem] leading-relaxed text-subtle">
+                Supprimer ce partenaire efface aussi {cascadeList(footprint)}.
+              </p>
+              <p className="text-[0.6875rem] leading-relaxed text-subtle">
+                Sont conservés : ses commandes, qui restent attribuées et gardent le code qu&apos;elles citent, et
+                {footprint && footprint.signatures > 0
+                  ? ` ses ${footprint.signatures} contrat${footprint.signatures > 1 ? "s" : ""} signé${footprint.signatures > 1 ? "s" : ""}, pièces à garder.`
+                  : " les contrats signés, pièces à garder."}
+              </p>
               <ActionForm
                 action={deleteInfluencerAction}
                 submitLabel="Supprimer ce partenaire"
                 submitTone="ghost"
-                confirm={`Supprimer ${influencer.name} ? Son code et son lien cesseront de fonctionner ; les ventes passées restent attribuées.`}
+                confirm={`Supprimer ${influencer.name} ?\n\nCela efface aussi ${cascadeList(footprint)}.\n\nLes commandes passées et les contrats signés sont conservés. Cette action est définitive.`}
                 className="!gap-0 [&>div:last-child]:justify-start [&_button]:!px-0 [&_button]:text-xs [&_button]:text-accent"
               >
                 <input type="hidden" name="id" value={influencer.id} />
@@ -442,4 +455,21 @@ function IdentityForm({ influencer }: { influencer?: Influencer }) {
       </div>
     </ActionForm>
   );
+}
+
+/*
+ * Ce qu'emporte la suppression d'un partenaire, en une phrase lisible. La même sert au
+ * texte de la fiche et à la fenêtre de confirmation : on annonce exactement ce qu'on va
+ * faire, et on le redit au moment de le faire.
+ */
+function cascadeList(footprint: InfluencerFootprint | null): string {
+  if (!footprint) return "ses campagnes, ses codes promo, ses relevés et ses compteurs de clics";
+  const n = (count: number, one: string, many = `${one}s`) => `${count} ${count > 1 ? many : one}`;
+  const parts: string[] = [];
+  if (footprint.campaigns) parts.push(n(footprint.campaigns, "campagne"));
+  if (footprint.codes.length) parts.push(`${footprint.codes.length > 1 ? "les codes" : "le code"} ${footprint.codes.join(", ")}`);
+  if (footprint.statements) parts.push(n(footprint.statements, "relevé versé", "relevés versés"));
+  if (footprint.clickDays) parts.push(n(footprint.clickDays, "journée de clics", "journées de clics"));
+  if (parts.length === 0) return "son lien de suivi — il n'a ni campagne ni code";
+  return parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} et ${parts[parts.length - 1]}`;
 }

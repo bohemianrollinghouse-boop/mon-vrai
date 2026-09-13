@@ -161,10 +161,19 @@ export async function campaignCodes(influencerId: string): Promise<string[]> {
   return [...new Set(list.map((c) => c.code).filter(Boolean))];
 }
 
-/** À la suppression d'un partenaire : ses campagnes s'en vont, ses codes s'éteignent. */
+/*
+ * À la suppression d'un partenaire : ses campagnes s'en vont, et leurs codes avec elles.
+ * Effacés, non éteints — un code qui survit à son partenaire interdirait de le
+ * réattribuer, alors que plus personne ne le porte (voir db/promos.deleteInfluencer).
+ */
 export async function dropCampaignsOf(influencer: Influencer): Promise<void> {
   const list = await listCampaigns(influencer.id);
   const codes = [...new Set(list.map((c) => c.code).filter(Boolean))];
   await Promise.all(list.map((c) => campaigns().doc(c.id).delete().catch(() => undefined)));
-  await Promise.all(codes.map((code) => syncCampaignPromo(influencer, code).catch(() => undefined)));
+  await Promise.all(
+    codes.map(async (code) => {
+      const existing = parseDoc(Promo, await promos().doc(code).get());
+      if (!existing || existing.influencerId === influencer.id) await promos().doc(code).delete().catch(() => undefined);
+    }),
+  );
 }
