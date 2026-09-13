@@ -4,6 +4,7 @@ import { CopyValue } from "@/components/site/CopyValue";
 import { IbanForm } from "@/components/site/IbanForm";
 import { PartnerKitBlock } from "@/components/site/PartnerKitBlock";
 import { ContentDropBlock } from "@/components/site/ContentDropBlock";
+import { ViewAsBanner } from "@/components/site/ViewAsBanner";
 import { SocialsForm } from "@/components/site/SocialsForm";
 import { ContractText } from "@/components/site/ContractText";
 import { SignedContractView } from "@/components/site/SignedContractView";
@@ -14,7 +15,7 @@ import { Eyebrow, PillLink } from "@/components/site/ui";
 import { requireInfluencer } from "@/lib/auth/session";
 import { partnerSnapshot } from "@/lib/db/partner";
 import { getSettings } from "@/lib/db/settings";
-import { getInfluencerByUid } from "@/lib/db/promos";
+import { getInfluencer, getInfluencerByUid } from "@/lib/db/promos";
 import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, type ContractSignature } from "@/lib/domain/types";
 import { formatEuro } from "@/lib/domain/money";
 import { PARTNER_PERIODS, type PartnerPeriod } from "@/lib/promos/partner";
@@ -40,7 +41,8 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
    * gravés dans la session à la connexion, et une fiche supprimée ne les réécrit pas.
    * On renvoie donc au compte, plutôt que d'afficher une page introuvable.
    */
-  const influencer = await getInfluencerByUid(user.uid);
+  /* En vue « en tant que », le partenaire visé vient du cookie et non du compte. */
+  const influencer = user.viewingAs ? await getInfluencer(user.influencerId) : await getInfluencerByUid(user.uid);
   if (!influencer) redirect("/compte");
 
   const period = (PARTNER_PERIODS.some((p) => p.key === sp.periode) ? sp.periode : "30") as PartnerPeriod;
@@ -68,6 +70,8 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
 
   return (
     <section className="site-wrap flex flex-col gap-4 py-4 pb-20">
+      {user.viewingAs && <ViewAsBanner name={influencer.name} />}
+
       {/* ---------- Héro ---------- */}
       <div className="grid grid-cols-[1.1fr_1fr] items-stretch gap-4 max-[899px]:grid-cols-1">
         <div className="flex flex-col justify-center gap-4 rounded-panel bg-tint-pink p-12 max-[749px]:p-8">

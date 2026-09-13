@@ -104,10 +104,33 @@ export async function setInfluencerClaim(uid: string, influencerId: string): Pro
   await mergeClaims(uid, { influencer: influencerId || null });
 }
 
-/** Réservé à l'espace partenaire : redirige si le compte n'en est pas un. */
-export async function requireInfluencer(): Promise<SessionUser & { influencerId: string }> {
+/*
+ * « Voir en tant que » : un administrateur regarde l'espace d'un partenaire.
+ *
+ * Le cookie ne fait pas autorité à lui seul — il n'est lu que si la session est
+ * administratrice, si bien que le poser à la main ne donne rien. Il ne remplace pas non
+ * plus le compte : l'uid reste celui de l'administrateur, ce qui suffit à ce qu'aucune
+ * action de partenaire n'aboutisse en son nom (elles se cherchent par uid). Les actions
+ * refusent d'ailleurs explicitement, plus bas dans auth/partner-actions.ts.
+ */
+export const VIEW_AS_COOKIE = "mv_view_as";
+export const VIEW_AS_MINUTES = 60;
+
+export async function readViewAs(): Promise<string> {
+  return (await cookies()).get(VIEW_AS_COOKIE)?.value ?? "";
+}
+
+/**
+ * Réservé à l'espace partenaire : redirige si le compte n'en est pas un.
+ *
+ * `viewingAs` dit qu'on regarde l'espace de quelqu'un d'autre : la page l'annonce, et
+ * rien ne s'y enregistre.
+ */
+export async function requireInfluencer(): Promise<SessionUser & { influencerId: string; viewingAs: boolean }> {
   const user = await getSessionUser();
   if (!user) redirect("/compte/connexion?retour=/partenaire");
+  const viewed = user.isAdmin ? await readViewAs() : "";
+  if (viewed) return { ...user, influencerId: viewed, viewingAs: true };
   if (!user.influencerId) redirect("/compte");
-  return user as SessionUser & { influencerId: string };
+  return { ...user, influencerId: user.influencerId, viewingAs: false };
 }

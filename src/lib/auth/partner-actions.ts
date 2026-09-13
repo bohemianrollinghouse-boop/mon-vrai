@@ -30,8 +30,23 @@ import { headers } from "next/headers";
 
 export type PartnerResult = { ok: true; message: string } | { ok: false; error: string };
 
+/*
+ * Une vue « en tant que » ne donne jamais la main.
+ *
+ * Un administrateur qui regarde l'espace d'un partenaire garde son propre compte : les
+ * actions ci-dessous, qui cherchent le partenaire par l'uid de la session, échoueraient
+ * déjà d'elles-mêmes. Mais elles échoueraient sur un message obscur, et le refus doit
+ * être dit pour ce qu'il est — surtout pour la signature d'un contrat, qui n'aurait
+ * aucune valeur si elle pouvait être apposée par quelqu'un d'autre.
+ */
+const VIEW_ONLY: PartnerResult = {
+  ok: false,
+  error: "Vous regardez cet espace en tant qu'administrateur : rien ne peut être enregistré ici.",
+};
+
 export async function savePartnerIbanAction(formData: FormData): Promise<PartnerResult> {
   const user = await requireInfluencer();
+  if (user.viewingAs) return VIEW_ONLY;
   const influencer = await getInfluencerByUid(user.uid);
   if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
   if (!influencer.commission) return { ok: false, error: "Aucun versement n'est prévu pour ce compte." };
@@ -92,6 +107,7 @@ function parseRelay(raw: string): z.infer<typeof Relay> | undefined {
  */
 export async function orderPartnerKitAction(formData: FormData): Promise<PartnerResult> {
   const user = await requireInfluencer();
+  if (user.viewingAs) return VIEW_ONLY;
   const influencer = await getInfluencerByUid(user.uid);
   if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
 
@@ -201,6 +217,7 @@ const looksLikeUrl = (v: string) => !v || /^https?:\/\/[^\s]+$/i.test(v);
  */
 export async function savePartnerSocialsAction(formData: FormData): Promise<PartnerResult> {
   const user = await requireInfluencer();
+  if (user.viewingAs) return VIEW_ONLY;
   const influencer = await getInfluencerByUid(user.uid);
   if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
 
@@ -262,6 +279,7 @@ const checked = (v: string | undefined) => v === "on" || v === "true";
 
 export async function signAndOrderKitAction(formData: FormData): Promise<PartnerResult> {
   const user = await requireInfluencer();
+  if (user.viewingAs) return VIEW_ONLY;
   const influencer = await getInfluencerByUid(user.uid);
   if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
 

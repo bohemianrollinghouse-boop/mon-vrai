@@ -14,6 +14,7 @@ import {
   toggleInfluencerAction,
 } from "@/lib/admin/actions/influencers";
 import { createCampaignAction } from "@/lib/admin/actions/campaigns";
+import { viewAsPartnerAction } from "@/lib/admin/actions/view-as";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { listCampaigns } from "@/lib/db/campaigns";
 import { influencerAccount } from "@/lib/db/influencer-account";
@@ -117,6 +118,14 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
         actions={
           <>
             <CopyButton text={`https://${site}/?ref=${influencer.slug}`} />
+            {/* Voir son espace tel qu'il le voit. Une vue d'administration : rien ne s'y
+                enregistre, et le bandeau noir le rappelle sur place. */}
+            <form action={viewAsPartnerAction}>
+              <input type="hidden" name="id" value={influencer.id} />
+              <button type="submit" className="whitespace-nowrap rounded-pill border-[1.5px] border-ink bg-transparent px-[1.125rem] py-3 text-[0.8125rem] font-bold hover:opacity-70">
+                Voir son espace
+              </button>
+            </form>
             <ActionForm action={toggleInfluencerAction} hideFooter className="!gap-0">
               <input type="hidden" name="id" value={influencer.id} />
               <AutoSubmitSwitch label={influencer.active ? "Mettre en pause" : "Réactiver"} defaultChecked={influencer.active} />

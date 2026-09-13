@@ -3,6 +3,7 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { AutoSubmitSelect } from "@/components/admin/AutoSubmitSelect";
 import { ButtonLink, Card, FilterPills, GridTable, PageHeader, Pill, Tile } from "@/components/admin/ui";
 import { savePartnerWelcomeAction, setInfluencerOutreachAction } from "@/lib/admin/actions/influencers";
+import { viewAsPartnerAction } from "@/lib/admin/actions/view-as";
 import { PartnerWelcomeEditor } from "@/components/admin/PartnerWelcomeEditor";
 import { getAllTemplateValues } from "@/lib/db/newsletter";
 import { getSettings } from "@/lib/db/settings";
@@ -206,8 +207,8 @@ function OutreachList({ influencers }: { influencers: Influencer[] }) {
       </div>
 
       <GridTable
-        columns="minmax(180px, 1fr) minmax(200px, 1.2fr) 200px minmax(200px, 1fr)"
-        head={["Nom", "Réseaux sociaux", "Où on en est", "E-mail"]}
+        columns="minmax(160px, 1fr) minmax(180px, 1.1fr) 200px minmax(180px, 1fr) 130px"
+        head={["Nom", "Réseaux sociaux", "Où on en est", "E-mail", "Son espace"]}
         empty="Personne pour l'instant. Ajoutez une fiche avec « Nouvel influenceur » : un nom suffit pour commencer à suivre un échange."
         rows={sorted.map((inf) => {
           const links = socialLinks(inf.socials);
@@ -255,6 +256,13 @@ function OutreachList({ influencers }: { influencers: Influencer[] }) {
               ) : (
                 <span key="e" className="text-[0.6875rem] text-subtle">Pas d&apos;adresse</span>
               ),
+              /* Voir la page telle qu'il la voit : une vue, jamais une connexion. */
+              <form key="v" action={viewAsPartnerAction} className="flex justify-end">
+                <input type="hidden" name="id" value={inf.id} />
+                <button type="submit" className="whitespace-nowrap rounded-pill bg-paper px-3 py-2 text-[0.6875rem] font-bold hover:opacity-70">
+                  Voir son espace
+                </button>
+              </form>,
             ],
           };
         })}

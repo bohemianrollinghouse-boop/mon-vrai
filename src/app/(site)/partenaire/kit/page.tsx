@@ -8,7 +8,7 @@ import { requireInfluencer } from "@/lib/auth/session";
 import { getMapToken } from "@/lib/boxtal/client";
 import { partnerKitSnapshot } from "@/lib/db/partner";
 import { currentCampaign } from "@/lib/db/campaigns";
-import { getInfluencerByUid } from "@/lib/db/promos";
+import { getInfluencer, getInfluencerByUid } from "@/lib/db/promos";
 import { getSettings } from "@/lib/db/settings";
 import { shippingOptions } from "@/lib/checkout/quote";
 import { bracketIndexForWeight } from "@/lib/shipping/tariffs";
@@ -34,7 +34,8 @@ export default async function PartnerKitPage() {
    * gravés dans la session à la connexion, et une fiche supprimée ne les réécrit pas.
    * On renvoie donc au compte, plutôt que d'afficher une page introuvable.
    */
-  const influencer = await getInfluencerByUid(user.uid);
+  /* En vue « en tant que », le partenaire visé vient du cookie et non du compte. */
+  const influencer = user.viewingAs ? await getInfluencer(user.influencerId) : await getInfluencerByUid(user.uid);
   if (!influencer) redirect("/compte");
 
   const campaign = await currentCampaign(influencer.id);
