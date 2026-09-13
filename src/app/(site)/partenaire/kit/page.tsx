@@ -62,7 +62,9 @@ export default async function PartnerKitPage() {
         typeLabel: COLLABORATION_LABELS[contract.type],
         summary: contract.summary,
         body: contract.body,
-        variables: contract.variables,
+        /* Les réglages du partenaire recouvrent ceux du contrat : un délai ajusté pour
+           lui l'emporte, le reste continue de suivre le contrat. */
+        variables: { ...contract.variables, ...influencer.contractVariables },
         requiredVariables: contract.requiredVariables,
       }
     : undefined;

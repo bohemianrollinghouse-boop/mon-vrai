@@ -332,7 +332,8 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
    * figée soit identique à l'affichage, au caractère près.
    */
   const values = contractValues({
-    contract: { id: contract.id, version: contract.version, variables: contract.variables },
+    /* Mêmes réglages qu'à l'affichage : ceux du partenaire par-dessus ceux du contrat. */
+    contract: { id: contract.id, version: contract.version, variables: { ...contract.variables, ...influencer.contractVariables } },
     seller: {
       address: [settings.legal.sellerName, ...settings.legal.sellerAddressLines].filter(Boolean).join(", "),
       siren: settings.legal.siret || settings.legal.vatNumber,

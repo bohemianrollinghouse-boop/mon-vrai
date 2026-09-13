@@ -1106,6 +1106,12 @@ export const Influencer = z.object({
   collaborationType: CollaborationType.default("UGC"),
   /** Contrat qu'il doit signer ; vide : aucun contrat exigé. */
   contractId: z.string().default(""),
+  /*
+   * Variables du contrat ajustées pour LUI : délais, plateformes, exclusivité… Elles
+   * recouvrent celles du contrat, qui restent la valeur de départ. Une variable absente
+   * d'ici prend donc celle du contrat, et tout changement du contrat s'y répercute.
+   */
+  contractVariables: z.record(z.string(), z.string()).default({}),
   /** Signature en cours de validité, s'il a signé (voir ContractSignature). */
   signatureId: z.string().default(""),
   createdAt: z.number(),

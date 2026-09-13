@@ -124,10 +124,15 @@ export function KitOrderForm({
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setS = (k: keyof typeof signer) => (e: React.ChangeEvent<HTMLInputElement>) => setSigner((f) => ({ ...f, [k]: e.target.value }));
   const setP = (k: keyof typeof party) => (e: React.ChangeEvent<HTMLInputElement>) => setParty((f) => ({ ...f, [k]: e.target.value }));
-  /* Cochée, la case ne copie pas : elle reflète, pour que corriger la livraison suive. */
-  const me = sameAsDelivery
-    ? { firstName: form.firstName, lastName: form.lastName, line1: form.line1, line2: form.line2, postalCode: form.postalCode, city: form.city, country }
-    : party;
+  /* Cochée, la case ne copie pas : elle reflète, pour que corriger la livraison suive.
+     Mémorisé, sinon le contrat serait recomposé à chaque frappe pour rien. */
+  const me = useMemo(
+    () =>
+      sameAsDelivery
+        ? { firstName: form.firstName, lastName: form.lastName, line1: form.line1, line2: form.line2, postalCode: form.postalCode, city: form.city, country }
+        : party,
+    [sameAsDelivery, form, country, party],
+  );
   const option = options.find((o) => o.id === rateId) ?? options[0];
   const professional = status !== "individual";
 

@@ -26,6 +26,8 @@ import { formatEuro, formatEuroShort } from "@/lib/domain/money";
 import { CollaborationType, COLLABORATION_LABELS, type Contract } from "@/lib/domain/types";
 import { mainAccount } from "@/lib/promos/socials";
 import { SignedContractView } from "@/components/site/SignedContractView";
+import { ContractPicker } from "@/components/admin/ContractPicker";
+import { manualPlaceholders } from "@/lib/promos/contract-template";
 import { maskIban, monthLabel, statementRows } from "@/lib/promos/statements";
 import { influencerStats } from "@/lib/promos/stats";
 
@@ -408,17 +410,20 @@ function IdentityForm({ influencer, contracts }: { influencer?: Awaited<ReturnTy
             ))}
           </Select>
         </Field>
-        <Field label="Contrat à signer" hint="Vide : aucun contrat exigé avant le kit." name="contractId">
-          <Select name="contractId" defaultValue={inf?.contractId ?? ""} className="!rounded-xl !py-3 !text-[0.8125rem]">
-            <option value="">Aucun</option>
-            {choices.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} · {c.version}
-              </option>
-            ))}
-          </Select>
-        </Field>
       </div>
+      {/* Le contrat, et ses réglages propres à ce partenaire. */}
+      <ContractPicker
+        contracts={choices.map((c) => ({
+          id: c.id,
+          label: `${c.name} · ${c.version}`,
+          keys: manualPlaceholders(`${c.summary}\n${c.body}`).sort(),
+          defaults: c.variables,
+        }))}
+        initialId={inf?.contractId ?? ""}
+        overrides={inf?.contractVariables ?? {}}
+        fieldClassName="w-full rounded-xl border border-line bg-paper px-3 py-3 text-[0.8125rem]"
+        labelClassName="text-xs font-semibold text-subtle"
+      />
       {/*
         Ses comptes : renseignés ici si on les connaît, et modifiables par le partenaire
         lui-même depuis son espace — c'est lui qui les tient à jour.

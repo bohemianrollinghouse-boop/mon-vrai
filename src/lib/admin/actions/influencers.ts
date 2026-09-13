@@ -40,6 +40,23 @@ const Input = z.object({
   fbUrl: z.string().trim().max(300).default(""),
 });
 
+/*
+ * Variables du contrat ajustées pour ce partenaire, postées en `cvar:CLÉ`. On ne garde
+ * que ce qui diffère : une valeur identique à celle du contrat n'a pas à être recopiée,
+ * sans quoi un changement du contrat ne se répercuterait plus.
+ */
+function contractVariablesFrom(formData: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("cvar:") || typeof value !== "string") continue;
+    const name = key.slice(5);
+    if (!/^[A-Z0-9_]{1,60}$/.test(name)) continue;
+    const base = String(formData.get(`cbase:${name}`) ?? "");
+    if (value.trim() !== base.trim()) out[name] = value.slice(0, 2000);
+  }
+  return out;
+}
+
 export async function saveInfluencerAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const parsed = parseForm(Input, formData, { numbers: ["discount", "rate"], booleans: ["active", "commission"] });
@@ -72,6 +89,7 @@ export async function saveInfluencerAction(formData: FormData): Promise<AdminRes
     active: d.active,
     collaborationType: d.collaborationType,
     contractId: d.contractId,
+    contractVariables: contractVariablesFrom(formData),
     socials: {
       instagram: { handle: d.igHandle, url: d.igUrl },
       tiktok: { handle: d.ttHandle, url: d.ttUrl },

@@ -92,7 +92,7 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "handle" | "platform"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "handle" | "platform"
 > & {
   id?: string;
   uid?: string;
@@ -108,6 +108,7 @@ export type InfluencerInput = Omit<
   platform?: Influencer["platform"];
   collaborationType?: CollaborationType;
   contractId?: string;
+  contractVariables?: Record<string, string>;
   signatureId?: string;
 };
 
@@ -132,6 +133,7 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     platform: input.platform ?? existing?.platform,
     collaborationType: input.collaborationType ?? existing?.collaborationType,
     contractId: input.contractId ?? existing?.contractId ?? "",
+    contractVariables: input.contractVariables ?? existing?.contractVariables,
     signatureId: input.signatureId ?? existing?.signatureId ?? "",
     inviteToken: existing?.inviteToken ?? "",
     inviteExpiresAt: existing?.inviteExpiresAt,
