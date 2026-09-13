@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card, GridTable, Pill, Tile } from "@/components/admin/ui";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { orderRevenue, sumRevenue } from "@/lib/admin/revenue";
-import { breakEven } from "@/lib/admin/breakeven";
+import { amortisation } from "@/lib/admin/breakeven";
 import { BreakEvenBar } from "@/components/admin/BreakEvenBar";
 import { ADMIN_STATUS_LABELS, COUNTED, STATUS_TONE, TO_SHIP, capitalize, longDate, shortDate } from "@/lib/admin/order-ui";
 import { requireAdmin } from "@/lib/auth/session";
@@ -70,15 +70,15 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
   const max = top[0]?.qty ?? 1;
 
   /*
-   * La marche vers le remboursement du tirage. Elle compte DEPUIS LE DÉBUT, quelle que
+   * La marche vers le remboursement du tirage. Elle cumule DEPUIS LE DÉBUT, quelle que
    * soit la période affichée : un objectif ne se remet pas à zéro tous les trente jours.
-   * Les kits offerts n'y entrent pas, ni les exemplaires offerts par un code cadeau —
-   * ils ne rapportent rien, et c'est bien ce qu'on cumule ici.
+   *
+   * Ce qu'on suit, ce sont des euros remboursés et non un nombre de livres : une remise
+   * fait rentrer moins, et le neuvième livre offert coûte sa fabrication sans rien
+   * rapporter. Compter les exemplaires ferait fêter un remboursement qui n'a pas eu lieu.
+   * Les kits partenaires sont dehors : ils ont leur propre ligne dans Revenus.
    */
-  const goal = breakEven(settings.costs);
-  const booksSold = orders
-    .filter((o) => counted(o) && !o.kit)
-    .reduce((n, o) => n + o.lines.filter((l) => l.unitPrice > 0).reduce((a, l) => a + l.qty, 0), 0);
+  const goal = amortisation(orders.filter((o) => counted(o) && !o.kit), settings.costs);
 
   const preordersOpen = products.some((p) => p.status === "published" && p.preorder.enabled);
   const firstName = (user.name || user.email.split("@")[0]).split(" ")[0];
@@ -106,8 +106,17 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
         </nav>
       </div>
 
-      {goal.target !== null && (
-        <BreakEvenBar sold={booksSold} target={goal.target} perBookLabel={formatEuro(goal.perBook)} />
+      {goal.production > 0 && (
+        <BreakEvenBar
+          books={goal.books}
+          gifted={goal.gifted}
+          amortisedLabel={formatEuro(Math.max(0, goal.amortised))}
+          productionLabel={formatEuro(goal.production)}
+          pct={goal.pct}
+          perBookLabel={formatEuro(goal.perBook)}
+          remaining={goal.remaining}
+          reached={goal.reached}
+        />
       )}
 
       <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">

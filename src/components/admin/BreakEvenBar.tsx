@@ -35,10 +35,29 @@ const readCelebrated = () => {
   }
 };
 
-export function BreakEvenBar({ sold, target, perBookLabel }: { sold: number; target: number; perBookLabel: string }) {
-  const reached = sold >= target;
-  const pct = Math.min(100, Math.round((sold / Math.max(1, target)) * 100));
-  const left = Math.max(0, target - sold);
+export function BreakEvenBar({
+  books,
+  gifted,
+  amortisedLabel,
+  productionLabel,
+  pct,
+  perBookLabel,
+  remaining,
+  reached,
+}: {
+  /** Exemplaires partis dans des ventes, cadeaux compris. */
+  books: number;
+  gifted: number;
+  amortisedLabel: string;
+  productionLabel: string;
+  pct: number;
+  /** Ce qu'un exemplaire a remboursé en moyenne, remises et cadeaux compris. */
+  perBookLabel: string;
+  /** Exemplaires restants à ce rythme ; null quand on ne peut pas encore l'estimer. */
+  remaining: number | null;
+  reached: boolean;
+}) {
+  const rounded = Math.round(pct);
 
   const celebrated = useSyncExternalStore(staticStore, readCelebrated, () => true);
   const [dismissed, setDismissed] = useState(false);
@@ -63,14 +82,22 @@ export function BreakEvenBar({ sold, target, perBookLabel }: { sold: number; tar
             {reached ? "Production remboursée" : "Vers le remboursement du tirage"}
           </span>
           <span className="text-[1.75rem] font-extrabold leading-none tracking-[-0.02em]">
-            {sold.toLocaleString("fr-FR")}
-            <span className="text-subtle"> / {target.toLocaleString("fr-FR")} livres</span>
+            {amortisedLabel}
+            <span className="text-subtle"> / {productionLabel}</span>
+          </span>
+          <span className="text-[0.8125rem] font-semibold text-subtle">
+            {`${books.toLocaleString("fr-FR")} livre${books > 1 ? "s" : ""} parti${books > 1 ? "s" : ""}`}
+            {gifted > 0 && `, dont ${gifted.toLocaleString("fr-FR")} offert${gifted > 1 ? "s" : ""}`}
           </span>
         </span>
         <span className="flex flex-col items-end gap-1 text-right">
-          <span className="text-[1.75rem] font-extrabold leading-none tracking-[-0.02em]">{pct} %</span>
+          <span className="text-[1.75rem] font-extrabold leading-none tracking-[-0.02em]">{rounded} %</span>
           <span className="text-[0.6875rem] font-semibold text-subtle">
-            {reached ? "objectif franchi" : `${left.toLocaleString("fr-FR")} livre${left > 1 ? "s" : ""} à vendre`}
+            {reached
+              ? "objectif franchi"
+              : remaining === null
+                ? "en attente d'une première vente"
+                : `encore ~${remaining.toLocaleString("fr-FR")} livre${remaining > 1 ? "s" : ""} à ce rythme`}
           </span>
         </span>
       </div>
@@ -79,7 +106,7 @@ export function BreakEvenBar({ sold, target, perBookLabel }: { sold: number; tar
       <div className="h-4 overflow-hidden rounded-pill bg-line-soft">
         <div
           className={`relative h-full overflow-hidden rounded-pill transition-[width] duration-700 ease-out ${reached ? "bg-tint-green-ink" : "bg-ink"}`}
-          style={{ width: `${Math.max(pct, sold > 0 ? 2 : 0)}%` }}
+          style={{ width: `${Math.max(rounded, books > 0 ? 2 : 0)}%` }}
         >
           <span
             aria-hidden="true"
@@ -91,13 +118,14 @@ export function BreakEvenBar({ sold, target, perBookLabel }: { sold: number; tar
       <p className="text-[0.8125rem] leading-relaxed text-subtle">
         {reached ? (
           <>
-            Le tirage est remboursé. Chaque exemplaire vendu à partir d&apos;ici est du bénéfice net :{" "}
-            <strong className="text-ink">{perBookLabel} par livre</strong>.
+            Le tirage est remboursé. Chaque exemplaire vendu à partir d&apos;ici est du bénéfice :{" "}
+            <strong className="text-ink">{perBookLabel} par livre</strong> en moyenne jusqu&apos;ici.
           </>
         ) : (
           <>
-            Un imagier vendu laisse <strong className="text-ink">{perBookLabel}</strong>, une fois retirés les
-            cotisations, la commission de paiement et sa fabrication. Le détail du calcul est dans Revenus.
+            Chaque exemplaire parti a remboursé <strong className="text-ink">{perBookLabel}</strong> en moyenne — remises
+            et livres offerts compris, une fois retirés les cotisations, la commission de paiement et la fabrication. Le
+            détail est dans Revenus.
           </>
         )}
       </p>
