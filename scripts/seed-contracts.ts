@@ -102,7 +102,7 @@ async function main() {
     }
     console.log(`~ ${entry.version.padEnd(24)} ${entry.name} · résumé ${summary.length} c · contrat ${body.length} c`);
     if (!APPLY) continue;
-    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: entry.variables, active: true });
+    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: entry.variables, requiredVariables: [], active: true });
     console.log(`  → ${saved.id}`);
   }
 

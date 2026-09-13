@@ -6,7 +6,7 @@ import { RelayPicker, type Relay } from "@/components/checkout/RelayPicker";
 import { AddressAutocomplete } from "@/components/checkout/AddressAutocomplete";
 import { ContractDialog } from "@/components/site/ContractDialog";
 import { ContractText } from "@/components/site/ContractText";
-import { fillContract } from "@/lib/promos/contract-template";
+import { fillContract, renderContract } from "@/lib/promos/contract-template";
 import { contractValues, type ContractGoods, type Seller } from "@/lib/promos/contract-values";
 import type { PartnerResult } from "@/lib/auth/partner-actions";
 import type { PartnerSocials, SignerStatus } from "@/lib/domain/types";
@@ -32,6 +32,7 @@ export type ContractOffer = {
   summary: string;
   body: string;
   variables: Record<string, string>;
+  requiredVariables: string[];
 };
 
 const field =
@@ -160,7 +161,7 @@ export function KitOrderForm({
       goods,
       prototype,
     });
-    return { summary: fillContract(contract.summary, values), body: fillContract(contract.body, values) };
+    return { summary: fillContract(contract.summary, values), body: renderContract(contract.body, values, contract.requiredVariables) };
   }, [contract, seller, me, email, signer, status, socials, goods, prototype]);
 
   /* Lu, et lu DANS SA VERSION ACTUELLE : comparer le texte est plus sûr que de suivre

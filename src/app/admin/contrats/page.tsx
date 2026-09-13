@@ -159,22 +159,28 @@ function ContractVariables({ contract }: { contract: Contract }) {
       <span className="text-xs font-semibold text-subtle">Variables de ce contrat</span>
       {/* Une variable vide se lit « — » dans le contrat : mieux vaut le signaler ici. */}
       {empty.length > 0 && (
-        <p className="rounded-xl bg-tint-sand px-4 py-3 text-[0.8125rem] font-semibold text-tint-sand-ink">
-          {empty.length} variable{empty.length > 1 ? "s" : ""} sans valeur : elle{empty.length > 1 ? "s s'afficheront" : " s'affichera"} en tiret dans le
-          contrat ({empty.join(", ")}).
+        <p className="rounded-xl bg-tint-sand px-4 py-3 text-[0.8125rem] leading-relaxed font-semibold text-tint-sand-ink">
+          {empty.length} variable{empty.length > 1 ? "s" : ""} sans valeur ({empty.join(", ")}). Leur rubrique disparaîtra du contrat — sauf si elle est
+          au milieu d&apos;une phrase, ou cochée ci-dessous, auquel cas on lira « non défini ».
         </p>
       )}
       <div className="grid grid-cols-2 gap-2.5 max-[899px]:grid-cols-1">
         {keys.map((key) => (
-          <label key={key} className="flex flex-col gap-1">
+          <div key={key} className="flex flex-col gap-1">
             <span className="font-mono text-[0.6875rem] text-faint">{`{{${key}}}`}</span>
             <Input name={`var:${key}`} defaultValue={contract.variables[key] ?? ""} className="!rounded-xl !py-2.5 !text-[0.8125rem]" />
-          </label>
+            <label className="flex cursor-pointer items-center gap-1.5 text-[0.6875rem] text-subtle">
+              <input type="checkbox" name={`req:${key}`} defaultChecked={contract.requiredVariables.includes(key)} className="h-3.5 w-3.5 accent-black" />
+              <span>Faire figurer la rubrique même sans valeur</span>
+            </label>
+          </div>
         ))}
       </div>
       <span className="text-[0.6875rem] leading-relaxed text-subtle">
-        Laissée vide, une variable s'affiche en tiret dans le contrat. L'identité du signataire, ses comptes, les livres
-        offerts, leur valeur et la date d'acceptation se remplissent tout seuls — ils ne sont pas listés ici.
+        Laissée vide, une variable fait disparaître sa rubrique du contrat, intitulé compris. Cochez la case pour que la
+        rubrique figure quand même, avec « non défini ». Au milieu d&apos;une phrase, la rubrique ne peut pas disparaître
+        sans perdre la clause : on lit alors « non défini » quoi qu&apos;il arrive. L&apos;identité du signataire, ses
+        comptes, les livres offerts, leur valeur et la date d&apos;acceptation se remplissent tout seuls.
       </span>
     </div>
   );

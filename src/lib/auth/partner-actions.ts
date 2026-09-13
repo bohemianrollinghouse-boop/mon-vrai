@@ -14,7 +14,7 @@ import { socialCount } from "@/lib/promos/socials";
 import { sendKitConfirmation } from "@/lib/email/send";
 import { isIban } from "@/lib/promos/statements";
 import { getContract, recordSignature } from "@/lib/db/contracts";
-import { fillContract } from "@/lib/promos/contract-template";
+import { fillContract, renderContract } from "@/lib/promos/contract-template";
 import { contractValues } from "@/lib/promos/contract-values";
 import { SignerStatus, type Address, type Influencer } from "@/lib/domain/types";
 import { headers } from "next/headers";
@@ -357,7 +357,7 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     newsletterOptIn: checked(d.newsletterOptIn),
     signerTypedName: d.signerTypedName,
     summarySnapshot: fillContract(contract.summary, values),
-    bodySnapshot: fillContract(contract.body, values),
+    bodySnapshot: renderContract(contract.body, values, contract.requiredVariables),
     ip: head.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "",
     userAgent: head.get("user-agent") ?? "",
   }).then(async (signature) => {

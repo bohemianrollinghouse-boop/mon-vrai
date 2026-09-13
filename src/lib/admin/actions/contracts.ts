@@ -29,14 +29,20 @@ const Input = z.object({
 
 /* Les variables de campagne arrivent en champs `var:CLÉ` : l'éditeur les détecte dans
    le texte, il n'y a donc pas de liste fixe à tenir ici. */
-function variablesFrom(formData: FormData): Record<string, string> {
-  const out: Record<string, string> = {};
+function variablesFrom(formData: FormData): { variables: Record<string, string>; requiredVariables: string[] } {
+  const variables: Record<string, string> = {};
+  const requiredVariables: string[] = [];
   for (const [key, value] of formData.entries()) {
-    if (!key.startsWith("var:") || typeof value !== "string") continue;
-    const name = key.slice(4);
-    if (/^[A-Z0-9_]{1,60}$/.test(name)) out[name] = value.slice(0, 2000);
+    if (typeof value !== "string") continue;
+    if (key.startsWith("var:")) {
+      const name = key.slice(4);
+      if (/^[A-Z0-9_]{1,60}$/.test(name)) variables[name] = value.slice(0, 2000);
+    } else if (key.startsWith("req:") && (value === "on" || value === "true")) {
+      const name = key.slice(4);
+      if (/^[A-Z0-9_]{1,60}$/.test(name)) requiredVariables.push(name);
+    }
   }
-  return out;
+  return { variables, requiredVariables };
 }
 
 export async function saveContractAction(formData: FormData): Promise<AdminResult> {
@@ -58,7 +64,7 @@ export async function saveContractAction(formData: FormData): Promise<AdminResul
     version: d.version,
     summary: d.summary,
     body: d.body,
-    variables: variablesFrom(formData),
+    ...variablesFrom(formData),
     active: d.active,
   });
   await audit(user.email, d.id ? "contract.update" : "contract.create", `contracts/${contract.id}`, `${contract.name} · ${contract.version}`);

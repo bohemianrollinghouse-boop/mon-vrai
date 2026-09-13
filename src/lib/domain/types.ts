@@ -966,6 +966,12 @@ export const Contract = z.object({
    * l'affichage et ne se saisissent pas ici (voir promos/contract-template.ts).
    */
   variables: z.record(z.string(), z.string()).default({}),
+  /*
+   * Variables dont la rubrique doit figurer même sans valeur : elles s'affichent alors
+   * « non défini ». Les autres, laissées vides, font disparaître leur rubrique — un
+   * contrat n'annonce pas un intitulé pour n'en rien dire.
+   */
+  requiredVariables: z.array(z.string()).default([]),
   /** Retiré : plus attribuable à personne, mais les signatures passées subsistent. */
   active: z.boolean().default(true),
   createdAt: z.number(),

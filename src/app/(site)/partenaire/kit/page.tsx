@@ -63,6 +63,7 @@ export default async function PartnerKitPage() {
         summary: contract.summary,
         body: contract.body,
         variables: contract.variables,
+        requiredVariables: contract.requiredVariables,
       }
     : undefined;
 
