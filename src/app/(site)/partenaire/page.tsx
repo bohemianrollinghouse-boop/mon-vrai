@@ -1,17 +1,14 @@
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CopyValue } from "@/components/site/CopyValue";
+import { PartnerTools } from "@/components/site/PartnerTools";
 import { IbanForm } from "@/components/site/IbanForm";
-import { PartnerKitBlock } from "@/components/site/PartnerKitBlock";
-import { ContentDropBlock } from "@/components/site/ContentDropBlock";
 import { ViewAsBanner } from "@/components/site/ViewAsBanner";
-import { SocialsForm } from "@/components/site/SocialsForm";
+import { SocialsForm, StepMark } from "@/components/site/SocialsForm";
 import { ContractText } from "@/components/site/ContractText";
 import { SignedContractView } from "@/components/site/SignedContractView";
-import { TrackingLink } from "@/components/site/TrackingLink";
 import { savePartnerIbanAction, savePartnerSocialsAction } from "@/lib/auth/partner-actions";
 import { maskIban, monthLabel } from "@/lib/promos/statements";
-import { Eyebrow, PillLink } from "@/components/site/ui";
 import { requireInfluencer } from "@/lib/auth/session";
 import { partnerSnapshot } from "@/lib/db/partner";
 import { getSettings } from "@/lib/db/settings";
@@ -24,7 +21,14 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Espace partenaire" };
 
 /*
- * Espace partenaire (maquette « Espace Influenceur »). Réservé aux comptes portant le
+ * Espace partenaire, en parcours (maquette « Partenaire redesign · 1c »).
+ *
+ * Le héros porte les deux outils — le code et le lien —, parce qu'on revient les chercher
+ * à chaque publication. Vient ensuite « Votre parcours » : quatre étapes numérotées qui
+ * disent ce qu'il reste à faire, des réseaux à renseigner jusqu'aux ventes à suivre.
+ * Les résultats, les contrats et les versements suivent, une teinte par section.
+ *
+ * Réservé aux comptes portant le
  * rôle : requireInfluencer() barre la route, il ne se contente pas de cacher des liens.
  *
  * La commission est facultative. Quand elle est fermée, `view.commission` vaut null et
@@ -68,17 +72,35 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   const code = campaign?.code ?? "";
   const discount = campaign?.discount ?? 0;
 
+  /* Les quatre étapes du parcours : ce qui est fait, ce qui reste. */
+  const socialsDone = !kit.socialsMissing;
+  const kitDone = Boolean(kit.order);
+  const stepsDone = [socialsDone, kitDone].filter(Boolean).length;
+  const contactEmail = settings.contact.email ?? "";
+  const kitTracking = kit.order?.tracking?.number || kit.order?.boxtal?.trackingNumber || "";
+  const kitSub = kit.order
+    ? kitTracking
+      ? `Commandé — suivi ${kitTracking}.`
+      : "Commandé. Vous recevrez le suivi dès l'expédition."
+    : kit.offered
+      ? kit.socialsMissing
+        ? "Renseignez d'abord un réseau (étape 1) pour pouvoir le commander."
+        : `${kit.items.reduce((n, i) => n + i.qty, 0)} imagiers, offerts, livraison comprise, en point relais.`
+      : "Aucun kit proposé pour l'instant.";
+
   return (
-    <section className="site-wrap flex flex-col gap-4 py-4 pb-20">
+    <section className="site-wrap flex flex-col gap-8 py-4 pb-20">
       {user.viewingAs && <ViewAsBanner name={influencer.name} />}
 
-      {/* ---------- Héro ---------- */}
-      <div className="grid grid-cols-[1.1fr_1fr] items-stretch gap-4 max-[899px]:grid-cols-1">
-        <div className="flex flex-col justify-center gap-4 rounded-panel bg-tint-pink p-12 max-[749px]:p-8">
-          <Eyebrow className="text-tint-pink-ink">{campaign?.name || (campaign ? "Campagne en cours" : "Votre espace")}</Eyebrow>
+      {/* ---------- Héros : qui vous êtes, et vos deux outils ---------- */}
+      <div className="grid grid-cols-2 items-center gap-10 rounded-panel bg-tint-pink p-11 max-[899px]:grid-cols-1 max-[899px]:gap-6 max-[749px]:p-7">
+        <div className="flex flex-col gap-3">
+          <span className="text-xs font-bold uppercase tracking-[0.12em] text-tint-pink-ink">
+            {campaign?.name || (campaign ? "Campagne en cours" : "Votre espace")}
+          </span>
           {/* Le nom en entier : un partenaire peut être une marque, sans prénom à extraire. */}
-          <h1 className="display-1 text-[clamp(1.875rem,4vw,2.75rem)]">Bonjour {influencer.name}, merci de faire grandir du vrai.</h1>
-          <p className="text-[0.9375rem] leading-relaxed text-tint-pink-ink">
+          <h1 className="display-1 text-[clamp(1.875rem,4vw,2.5rem)]">Bonjour {influencer.name}, merci de faire grandir du vrai.</h1>
+          <p className="text-sm font-medium leading-relaxed text-tint-pink-ink">
             Chaque commande passée avec votre code, ou dans les 30 jours suivant un clic sur votre lien, vous est
             attribuée.
             {view.commission !== null && (
@@ -91,240 +113,261 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
           <div className="flex flex-wrap gap-2 text-xs font-bold">
             <span className="rounded-pill bg-white px-3.5 py-2">{influencer.active ? "Active" : "En pause"}</span>
             {endAt && <span className="rounded-pill bg-white px-3.5 py-2">Fin de campagne · {endAt}</span>}
-            {code && <span className="rounded-pill bg-white px-3.5 py-2">−{discount} % pour votre communauté</span>}
           </div>
         </div>
+        <PartnerTools code={code} discount={discount} link={trackingUrl} />
+      </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 rounded-card bg-white p-7">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-faint">Votre code</span>
-              <span className="text-xs font-semibold text-subtle">{code ? `−${discount} % sur les livres` : "aucune campagne en cours"}</span>
-            </div>
-            {code ? (
-              <CopyValue value={code} label="Copier" display="code" />
-            ) : (
-              <p className="text-[0.8125rem] leading-relaxed text-subtle">
-                Votre code vous sera communiqué à l&apos;ouverture de votre prochaine campagne. Votre lien de suivi,
-                lui, continue de fonctionner.
-              </p>
-            )}
+      {/* ---------- Le parcours, et ce qu'il reste à faire ---------- */}
+      <div className="grid grid-cols-[440px_1fr] items-start gap-8 max-[1099px]:grid-cols-1">
+        <div className="flex flex-col gap-3.5 min-[1100px]:sticky min-[1100px]:top-6">
+          <div className="flex flex-col gap-0.5 px-1">
+            <span className="text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-subtle">Votre parcours</span>
+            <h2 className="text-[1.375rem] font-extrabold tracking-[-0.01em]">
+              {stepsDone === 2 ? "Tout est en place" : "Il reste à faire"}
+            </h2>
           </div>
-          <div className="flex flex-col gap-3 rounded-card bg-white p-7">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-faint">Votre lien de suivi</span>
-              <span className="text-xs font-semibold text-subtle">attribution 30 jours</span>
-            </div>
-            <TrackingLink url={trackingUrl} />
-          </div>
-        </div>
-      </div>
 
-      {/* ---------- Vos réseaux ---------- */}
-      {/* Haut de page : lui seul peut les donner, et le contrat s'en sert. */}
-      <div id="reseaux" className="scroll-mt-24">
-      <SocialsForm socials={influencer.socials} action={savePartnerSocialsAction} />
-      </div>
+          <div className="flex flex-col rounded-card bg-surface px-5">
+            <SocialsForm socials={influencer.socials} action={savePartnerSocialsAction} step={1} />
 
-      {/* ---------- Kit de bienvenue ---------- */}
-      {/* Bon de commande tant qu'il n'a pas été commandé, suivi ensuite. */}
-      <PartnerKitBlock kit={kit} />
-
-      {/* ---------- Où envoyer les contenus ---------- */}
-      {/* Juste après le kit : on reçoit les livres, on envoie les contenus. */}
-      <ContentDropBlock email={settings.contact.email ?? ""} prototype={kit.prototype} />
-
-      {/* ---------- Résultats ---------- */}
-      <div className="mt-6 flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-[1.75rem] font-extrabold tracking-[-0.01em]">Vos résultats</h2>
-          <span className="text-[0.8125rem] font-semibold text-subtle">Commandes réellement encaissées</span>
-        </div>
-        <nav className="flex gap-1.5 rounded-pill bg-white p-1.5 text-xs font-bold" aria-label="Période">
-          {PARTNER_PERIODS.map((p) => (
-            <Link
-              key={p.key}
-              href={`/partenaire?periode=${p.key}`}
-              aria-current={p.key === period ? "page" : undefined}
-              className={`rounded-pill px-3.5 py-2 ${p.key === period ? "bg-ink text-white" : "hover:bg-paper"}`}
-            >
-              {p.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
-
-      <div className={`grid gap-3 ${view.commission !== null ? "grid-cols-4" : "grid-cols-3"} max-[989px]:!grid-cols-2 max-[599px]:!grid-cols-1`}>
-        <Tile tone="bg-tint-green" label="Ventes attribuées" value={String(view.orders)} note={`${view.byCode} via code · ${view.byLink} via lien`} noteTone="text-tint-green-ink" />
-        <Tile tone="bg-white" label="Chiffre d'affaires attribué" value={formatEuro(view.revenue)} note="livres uniquement, hors port" />
-        {view.commission !== null && (
-          <Tile tone="bg-ink text-white" label="Votre commission" value={formatEuro(view.commission)} note={`${influencer.rate} % du CA attribué`} labelTone="text-[#bbb]" noteTone="text-[#bbb]" />
-        )}
-        <Tile tone="bg-white" label="Clics sur le lien" value={view.clicks.toLocaleString("fr-FR")} note={`taux de conversion ${view.conversion.toFixed(1).replace(".", ",")} %`} />
-      </div>
-
-      {/* ---------- Graphique et commandes ---------- */}
-      <div className="flex flex-col gap-4 rounded-card bg-white p-7">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <span className="text-base font-extrabold">Ventes par {view.days.length > 31 ? "semaine" : "jour"}</span>
-          <div className="flex gap-4 text-xs font-bold text-subtle">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-[3px] bg-ink" />
-              via code
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-[3px] bg-tint-green" />
-              via lien
-            </span>
-          </div>
-        </div>
-
-        {view.orders === 0 ? (
-          <p className="py-8 text-center text-sm text-muted">Aucune vente attribuée sur cette période.</p>
-        ) : (
-          <div className="flex h-[150px] items-end gap-1">
-            {view.days.map((d) => {
-              const total = d.code + d.link;
-              return (
-                <div
-                  key={d.day}
-                  title={`${new Date(`${d.day}T12:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })} · ${d.code} via code · ${d.link} via lien`}
-                  className="flex h-full flex-1 flex-col justify-end gap-px"
-                >
-                  <div className="rounded-t-[3px] bg-tint-green" style={{ height: `${(d.link / maxBar) * 100}%` }} />
-                  <div className="rounded-[2px] bg-ink" style={{ height: `${(d.code / maxBar) * 100}%` }} />
-                  {total === 0 && <div className="h-px bg-line-soft" />}
+            {/* ---------- 2 · Le kit ---------- */}
+            <div id="kit" className="grid scroll-mt-24 grid-cols-[28px_1fr] gap-3.5 border-b border-line-soft py-4">
+              <StepMark n={2} done={kitDone} />
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-2.5">
+                  <span className="text-sm font-extrabold">Kit de bienvenue</span>
+                  <span className={`whitespace-nowrap rounded-pill px-2.5 py-[5px] text-[0.6875rem] font-bold ${kitDone ? "bg-tint-green text-tint-green-ink" : kit.offered ? "bg-paper" : "bg-paper text-subtle"}`}>
+                    {kitDone ? "Commandé" : kit.offered ? "À commander" : "—"}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        {view.recent.length > 0 && (
-          <div className="flex flex-col border-t border-line-soft">
-            <div className={`grid gap-3 py-3 text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint ${view.commission !== null ? "grid-cols-[90px_1fr_120px_100px_100px]" : "grid-cols-[90px_1fr_120px_100px]"} max-[749px]:hidden`}>
-              <span>Commande</span>
-              <span>Date</span>
-              <span>Attribution</span>
-              <span className="text-right">Livres</span>
-              {view.commission !== null && <span className="text-right">Commission</span>}
+                <span className="text-xs leading-[1.5] text-muted">{kitSub}</span>
+                {kit.items.length > 0 && (
+                  <div className="flex gap-1.5 pt-1">
+                    {kit.items.map((item) =>
+                      item.image ? (
+                        <Image key={item.slug} src={item.image.url} alt={item.image.alt || item.title} width={44} height={44} className="h-11 w-11 rounded-[10px] bg-white object-cover" />
+                      ) : (
+                        <span key={item.slug} className="h-11 w-11 rounded-[10px] bg-paper" />
+                      ),
+                    )}
+                  </div>
+                )}
+                {kit.prototype && !kitDone && <span className="text-[0.6875rem] text-subtle">Ces exemplaires sont des prototypes : la version définitive peut différer légèrement.</span>}
+                {kit.offered && !kitDone && (
+                  kit.socialsMissing ? (
+                    <span className="w-fit cursor-not-allowed rounded-pill bg-ink px-[1.125rem] py-2.5 text-xs font-bold text-white opacity-40">Commander mon kit</span>
+                  ) : (
+                    <Link href="/partenaire/kit" className="w-fit rounded-pill bg-ink px-[1.125rem] py-2.5 text-xs font-bold text-white hover:opacity-80">
+                      Commander mon kit
+                    </Link>
+                  )
+                )}
+                {kitDone && kit.order && (
+                  <Link href={`/compte/commandes/${kit.order.id}`} className="w-fit border-b-[1.5px] border-ink text-xs font-bold">
+                    Voir la commande
+                  </Link>
+                )}
+              </div>
             </div>
-            {view.recent.map((o) => (
-              <div
-                key={o.number}
-                className={`grid items-center gap-3 border-t border-line-soft py-3 text-[0.8125rem] ${view.commission !== null ? "grid-cols-[90px_1fr_120px_100px_100px]" : "grid-cols-[90px_1fr_120px_100px]"} max-[749px]:grid-cols-2`}
-              >
-                <span className="font-bold">{o.number}</span>
-                <span className="text-subtle">{new Date(o.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}</span>
-                <span>
-                  <span className={`rounded-pill px-2.5 py-1 text-[0.6875rem] font-bold ${o.via === "code" ? "bg-ink text-white" : "bg-tint-green text-tint-green-ink"}`}>
-                    {o.via === "code" ? "code" : "lien"}
+
+            {/* ---------- 3 · Les contenus ---------- */}
+            {contactEmail && (
+              <div id="contenus" className="grid scroll-mt-24 grid-cols-[28px_1fr] gap-3.5 border-b border-line-soft py-4">
+                <StepMark n={3} done={false} />
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <div className="flex items-baseline justify-between gap-2.5">
+                    <span className="text-sm font-extrabold">Vos contenus</span>
+                    <a href="https://wetransfer.com" target="_blank" rel="noreferrer noopener" className="whitespace-nowrap border-b-[1.5px] border-ink text-xs font-bold">
+                      Ouvrir WeTransfer
+                    </a>
+                  </div>
+                  <span className="text-xs leading-[1.5] text-muted">
+                    Envoyez le lien de téléchargement à <strong className="text-ink">{contactEmail}</strong>. Qualité
+                    d&apos;origine, sans filigrane ni musique protégée, vertical de préférence.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* ---------- 4 · Les ventes ---------- */}
+            <div className="grid grid-cols-[28px_1fr] gap-3.5 py-4">
+              <StepMark n={4} done={false} />
+              <div className="flex min-w-0 flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-2.5">
+                  <span className="text-sm font-extrabold">Vos ventes</span>
+                  <span className="whitespace-nowrap text-xs font-semibold text-subtle">{PARTNER_PERIODS.find((p) => p.key === period)?.label}</span>
+                </div>
+                <span className="text-xs leading-[1.5] text-muted">
+                  {view.orders === 0
+                    ? "Aucune vente attribuée pour l'instant : partagez votre code dès la réception du kit."
+                    : `${view.orders} vente${view.orders > 1 ? "s" : ""} attribuée${view.orders > 1 ? "s" : ""} · ${view.clicks} clic${view.clicks > 1 ? "s" : ""} sur votre lien.`}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* ---------- Nous écrire ---------- */}
+          <div className="flex items-center justify-between gap-3 rounded-card bg-tint-sand px-[1.375rem] py-[1.125rem] max-[599px]:flex-col max-[599px]:items-start">
+            <span className="flex flex-col gap-0.5">
+              <span className="text-sm font-extrabold">Une question, une idée de contenu ?</span>
+              <span className="text-xs text-tint-sand-ink">Réponse sous 48 h ouvrées.</span>
+            </span>
+            <Link href="/contact" className="whitespace-nowrap rounded-pill bg-ink px-5 py-3 text-[0.8125rem] font-bold text-white hover:opacity-80">
+              Nous écrire
+            </Link>
+          </div>
+        </div>
+
+        {/* ---------- Résultats, contrats, versements ---------- */}
+        <div className="flex min-w-0 flex-col gap-8">
+          {/* ---------- Vos résultats ---------- */}
+          <div className="flex flex-col gap-3.5">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-subtle">Vos résultats</span>
+              <h2 className="text-[1.375rem] font-extrabold tracking-[-0.01em]">{PARTNER_PERIODS.find((p) => p.key === period)?.label}</h2>
+            </div>
+
+            <nav className="grid grid-cols-3 gap-1 rounded-pill bg-surface p-1 text-xs font-bold" aria-label="Période">
+              {PARTNER_PERIODS.map((p) => (
+                <Link
+                  key={p.key}
+                  href={p.key === "30" ? "/partenaire" : `/partenaire?periode=${p.key}`}
+                  aria-current={p.key === period ? "page" : undefined}
+                  className={`rounded-pill py-2.5 text-center ${p.key === period ? "bg-ink text-white" : "hover:opacity-70"}`}
+                >
+                  {p.label}
+                </Link>
+              ))}
+            </nav>
+
+            <div className="flex flex-col gap-[1.125rem] rounded-card bg-tint-green px-5 py-[1.375rem]">
+              <div className="flex items-end justify-between gap-3">
+                <span className="flex flex-col gap-1">
+                  <span className="text-xs font-bold text-tint-green-ink">{view.commission !== null ? "Commission estimée" : "CA attribué"}</span>
+                  <span className="text-[2.5rem] font-extrabold leading-none tracking-[-0.03em]">
+                    {formatEuro(view.commission !== null ? view.commission : view.revenue)}
                   </span>
                 </span>
-                <span className="text-right font-semibold">{formatEuro(o.merchandise)}</span>
-                {o.commission !== null && <span className="text-right font-extrabold">{formatEuro(o.commission)}</span>}
+                <span className="flex flex-col items-end gap-0.5 text-right text-xs font-semibold text-tint-green-ink">
+                  <span>
+                    <strong className="font-extrabold text-ink">{view.orders}</strong> vente{view.orders > 1 ? "s" : ""}
+                  </span>
+                  <span>
+                    <strong className="font-extrabold text-ink">{view.clicks}</strong> clic{view.clicks > 1 ? "s" : ""}
+                  </span>
+                  <span>{view.byCode} code · {view.byLink} lien</span>
+                </span>
               </div>
-            ))}
-            <span className="pt-3 text-xs leading-relaxed text-subtle">
-              Les acheteurs restent anonymes : seuls le numéro, la date et le montant des livres vous sont montrés.
-            </span>
-          </div>
-        )}
-      </div>
 
-      {/* ---------- Mes collaborations ---------- */}
-      {/* Celle en cours d'abord, les précédentes ensuite : un contrat signé se retrouve
-          des années après, avec le texte exact qui avait été accepté. */}
-      {(signature || past.length > 0) && (
-        <div className="mt-6 flex flex-col gap-4">
-          <h2 className="text-[1.75rem] font-extrabold tracking-[-0.01em]">Mes collaborations</h2>
-          <div className="grid grid-cols-2 items-start gap-4 max-[899px]:grid-cols-1">
-            {signature && <CollaborationCard signature={signature} title="Ma collaboration" statusLabel="Contrat accepté" current />}
-            {past.map(({ campaign: c, signature: sig }) =>
-              sig ? (
-                <CollaborationCard
-                  key={c.id}
-                  signature={sig}
-                  title={c.name || `Campagne n° ${c.seq}`}
-                  statusLabel={CAMPAIGN_STATUS_LABELS[c.status]}
-                  current={false}
-                />
-              ) : null,
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ---------- Relevés et kit ---------- */}
-      <div className="grid grid-cols-1 items-start gap-4">
-        {/* Les relevés n'existent que pour un partenaire commissionné. */}
-        {view.commission !== null && (
-          <div className="flex flex-col gap-3.5 rounded-card bg-white p-7">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-base font-extrabold">Vos commissions</span>
-              <span className="text-xs font-semibold text-subtle">versées le 5 du mois</span>
-            </div>
-            {statements.length === 0 ? (
-              <p className="text-sm text-muted">Aucune vente attribuée pour l'instant.</p>
-            ) : (
-              statements.slice(0, 6).map((st) => (
-                <div key={st.month} className="flex items-center justify-between gap-3 border-t border-line-soft pt-3 text-[0.8125rem]">
-                  <div className="flex min-w-0 flex-col">
-                    <span className="font-bold capitalize">{monthLabel(st.month)}</span>
-                    <span className="text-xs text-subtle">
-                      {st.status === "current" ? `en cours · ${st.orders} vente${st.orders > 1 ? "s" : ""} à ce jour` : `${st.orders} vente${st.orders > 1 ? "s" : ""}`}
-                      {st.paidAt ? ` · versée le ${new Date(st.paidAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}` : ""}
-                    </span>
-                    {/* Une reprise se dit, sinon le montant baisse sans explication. */}
-                    {st.clawbacks.map((c) => (
-                      <span key={c.orderNumber} className="text-xs text-tint-sand-ink">
-                        Reprise {formatEuro(c.amount)} · commande {c.orderNumber} remboursée
+              {view.orders > 0 ? (
+                <>
+                  <div className="flex h-[70px] items-end gap-[3px] border-t border-white/60 pt-3.5" aria-label="Ventes attribuées par jour">
+                    {view.days.map((d) => (
+                      <span key={d.day} className="flex h-full flex-1 flex-col justify-end gap-px" title={`${d.day} · ${d.code} code · ${d.link} lien`}>
+                        <span className="rounded-t-[3px] bg-white" style={{ height: `${Math.round((d.link / maxBar) * 100)}%` }} />
+                        <span className="rounded-[2px] bg-ink" style={{ height: `${Math.round((d.code / maxBar) * 100)}%` }} />
                       </span>
                     ))}
                   </div>
-                  <div className="flex items-center gap-2.5">
-                    <span className="whitespace-nowrap font-extrabold">{formatEuro(st.commission)}</span>
-                    <span
-                      className={`whitespace-nowrap rounded-pill px-2.5 py-1 text-[0.6875rem] font-bold ${
-                        st.status === "paid" ? "bg-tint-green text-tint-green-ink" : st.status === "current" ? "bg-tint-sand text-tint-sand-ink" : "bg-paper text-ink"
-                      }`}
-                    >
-                      {st.status === "paid" ? "Payée" : st.status === "current" ? "En cours" : "À venir"}
+                  <div className="flex gap-3 text-[0.6875rem] font-bold text-tint-green-ink">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-[3px] bg-ink" /> via code
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-[3px] bg-white" /> via lien
                     </span>
                   </div>
-                </div>
-              ))
+                </>
+              ) : (
+                <p className="border-t border-white/60 pt-3.5 text-[0.8125rem] text-tint-green-ink">
+                  Aucune vente pour l&apos;instant : partagez votre code dès la réception du kit.
+                </p>
+              )}
+            </div>
+
+            {view.recent.length > 0 && (
+              <div className="flex flex-col rounded-card bg-surface px-5">
+                {view.recent.map((o) => (
+                  <div key={o.number} className="flex items-center justify-between gap-3 border-b border-line-soft py-3 text-[0.8125rem]">
+                    <span className="flex flex-col gap-0.5">
+                      <span className="font-bold">{o.number}</span>
+                      <span className="text-xs text-subtle">
+                        {new Date(o.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} · via {o.via === "code" ? "code" : "lien"}
+                      </span>
+                    </span>
+                    <span className="flex flex-col items-end">
+                      <span className="font-bold">{formatEuro(o.merchandise)}</span>
+                      {o.commission !== null && <span className="text-[0.6875rem] font-semibold text-subtle">{formatEuro(o.commission)} pour vous</span>}
+                    </span>
+                  </div>
+                ))}
+                <span className="py-3 text-[0.6875rem] text-subtle">Les acheteurs restent anonymes.</span>
+              </div>
             )}
-            <IbanForm masked={maskIban(influencer.iban)} action={savePartnerIbanAction} />
           </div>
-        )}
 
-      </div>
+          {/* ---------- Vos contrats ---------- */}
+          {(signature || past.length > 0) && (
+            <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-subtle">Vos contrats</span>
+                <h2 className="text-[1.375rem] font-extrabold tracking-[-0.01em]">
+                  {signature ? "Un contrat en cours" : `${past.length} contrat${past.length > 1 ? "s" : ""} terminé${past.length > 1 ? "s" : ""}`}
+                </h2>
+              </div>
+              <div className="flex flex-col rounded-card bg-surface px-5">
+                {signature && <ContractRow signature={signature} name={campaign?.name || "Campagne en cours"} current />}
+                {past.map(({ campaign: c, signature: sig }) =>
+                  sig ? <ContractRow key={c.id} signature={sig} name={`${c.name || `Campagne n° ${c.seq}`} · ${CAMPAIGN_STATUS_LABELS[c.status]}`} current={false} /> : null,
+                )}
+              </div>
+              {signature?.summarySnapshot.trim() && (
+                <div className="flex flex-col gap-2 rounded-card bg-tint-green p-5 text-tint-green-ink">
+                  <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em]">Vos engagements</span>
+                  <ContractText text={signature.summarySnapshot} className="!text-tint-green-ink" />
+                </div>
+              )}
+            </div>
+          )}
 
-      {/* ---------- Contact ---------- */}
-      <div className="mt-6 grid grid-cols-[1fr_auto] items-center gap-8 rounded-panel bg-tint-green p-10 max-[899px]:grid-cols-1">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-[1.625rem] font-extrabold tracking-[-0.01em]">Une question, une idée de contenu ?</h2>
-          <p className="text-sm leading-relaxed text-tint-green-ink">
-            Écrivez-nous directement, nous répondons sous 48 h ouvrées. Envie de livres à offrir à votre communauté ?
-            Dites-le nous, on organise un jeu-concours ensemble.
-          </p>
+          {/* ---------- Vos versements ---------- */}
+          {view.commission !== null && (
+            <div className="flex flex-col gap-3.5">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-subtle">Vos versements</span>
+                <h2 className="text-[1.375rem] font-extrabold tracking-[-0.01em]">Le 5 de chaque mois</h2>
+              </div>
+              <div className="flex flex-col rounded-card bg-surface px-5">
+                {statements.length === 0 ? (
+                  <span className="py-4 text-[0.8125rem] text-muted">Aucune vente attribuée pour l&apos;instant.</span>
+                ) : (
+                  statements.slice(0, 6).map((st) => (
+                    <div key={st.month} className="flex items-center justify-between gap-3 border-b border-line-soft py-3.5 text-[0.8125rem]">
+                      <span className="flex flex-col gap-0.5">
+                        <span className="font-bold capitalize">{monthLabel(st.month)}</span>
+                        <span className="text-xs text-subtle">
+                          {st.orders} vente{st.orders > 1 ? "s" : ""} · {formatEuro(st.revenue)}
+                        </span>
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-extrabold">{formatEuro(st.commission)}</span>
+                        <span className={`rounded-pill px-2.5 py-1 text-[0.6875rem] font-bold ${st.status === "paid" ? "bg-tint-green text-tint-green-ink" : st.status === "current" ? "bg-tint-sand text-tint-sand-ink" : "bg-paper text-subtle"}`}>
+                          {st.status === "paid" ? "Versée" : st.status === "current" ? "En cours" : "À venir"}
+                        </span>
+                      </span>
+                    </div>
+                  ))
+                )}
+                <div className="py-3.5">
+                  <IbanForm masked={maskIban(influencer.iban)} action={savePartnerIbanAction} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <PillLink href="/contact" variant="dark" className="w-fit">
-          Nous écrire
-        </PillLink>
       </div>
     </section>
-  );
-}
-
-function Tile({ tone, label, value, note, labelTone = "text-subtle", noteTone = "text-subtle" }: { tone: string; label: string; value: string; note: string; labelTone?: string; noteTone?: string }) {
-  return (
-    <div className={`flex flex-col gap-1.5 rounded-card p-6 ${tone}`}>
-      <span className={`text-xs font-bold ${labelTone}`}>{label}</span>
-      <span className="text-[2rem] font-extrabold leading-none tracking-[-0.02em]">{value}</span>
-      <span className={`text-xs font-semibold ${noteTone}`}>{note}</span>
-    </div>
   );
 }
 
@@ -332,40 +375,18 @@ function Tile({ tone, label, value, note, labelTone = "text-subtle", noteTone = 
  * Un contrat accepté, tel que le partenaire le retrouve. Le texte montré est la copie
  * figée au moment de la signature — pas le contrat d'aujourd'hui, qui a pu changer.
  */
-function CollaborationCard({
-  signature,
-  title,
-  statusLabel,
-  current,
-}: {
-  signature: ContractSignature;
-  title: string;
-  statusLabel: string;
-  current: boolean;
-}) {
+function ContractRow({ signature, name, current }: { signature: ContractSignature; name: string; current: boolean }) {
   return (
-    <div className="flex flex-col gap-2.5 rounded-card bg-white p-7 text-[0.8125rem]">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <span className="text-base font-extrabold">{title}</span>
-        <span
-          className={`rounded-pill px-3 py-1.5 text-[0.6875rem] font-bold ${current ? "bg-tint-green text-tint-green-ink" : "bg-paper text-subtle"}`}
-        >
-          {statusLabel}
+    <div className="flex items-center justify-between gap-3 border-b border-line-soft py-4 last:border-0">
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span className={`truncate text-sm font-bold ${current ? "" : "text-muted"}`}>
+          {name} · {COLLABORATION_LABELS[signature.contractType]}
         </span>
-      </div>
-      <span className="text-subtle">
-        {COLLABORATION_LABELS[signature.contractType]} · {signature.contractName}
+        <span className="text-xs font-medium text-subtle">
+          Accepté le {new Date(signature.acceptedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })} · {signature.contractVersion} · réf.{" "}
+          {signature.id.slice(0, 11)}
+        </span>
       </span>
-      <span className="text-subtle">
-        Accepté le {new Date(signature.acceptedAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} · version{" "}
-        {signature.contractVersion}
-      </span>
-      {/* Le résumé garde sa mise en forme : l'afficher brut donnerait des dièses à lire. */}
-      {current && signature.summarySnapshot.trim() && (
-        <div className="mt-1 border-t border-line-soft pt-2.5">
-          <ContractText text={signature.summarySnapshot} />
-        </div>
-      )}
       <SignedContractView
         title={signature.contractName}
         version={signature.contractVersion}
@@ -373,8 +394,8 @@ function CollaborationCard({
         signerName={signature.signerTypedName}
         reference={signature.id}
         body={signature.bodySnapshot}
+        label="Relire"
       />
-      <span className="text-xs text-subtle">Référence {signature.id}</span>
     </div>
   );
 }
