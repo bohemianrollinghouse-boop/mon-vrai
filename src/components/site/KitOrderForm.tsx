@@ -278,16 +278,17 @@ export function KitOrderForm({
   const stepName = ["Où vous l'envoyer", "Le contrat", "Attester et signer"];
   const ctaLabel = !contract ? "Commander mon kit" : step === 1 ? "Continuer · le contrat" : step === 2 ? "Continuer · accepter" : "Accepter le contrat et commander";
 
+  /*
+   * Changer d'étape ne déplace pas la page : on reste où l'on est. Remonter d'autorité
+   * arrache l'écran sous les doigts de quelqu'un qui lisait — et la barre de progression
+   * suffit à dire qu'on a avancé.
+   */
   const onCta = () => {
     if (!contract || step === totalSteps) return submit();
     setStep(step + 1);
-    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const back = (to: number) => {
-    setStep(to);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const back = (to: number) => setStep(to);
 
   /* Une étape passée reste rendue : ses champs font partie du même formulaire. Sur un
      petit écran on la cache, sur un bureau elle reste sous les yeux. */
