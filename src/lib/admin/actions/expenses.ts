@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
@@ -154,5 +155,10 @@ export async function deleteExpenseAction(formData: FormData): Promise<AdminResu
   await deleteExpense(id);
   await audit(user.email, "expense.delete", `expenses/${id}`, existing.label);
   revalidatePath("/admin/depenses");
-  return { ok: true, message: "Ligne supprimée.", redirectTo: "/admin/depenses" };
+  /*
+   * Redirection côté serveur, et non `redirectTo` : une action serveur invalide la
+   * route courante, qui est ici la fiche qu'on vient de supprimer — elle se rendait
+   * en 404 avant que la redirection n'aboutisse. `redirect()` coupe court.
+   */
+  redirect("/admin/depenses");
 }
