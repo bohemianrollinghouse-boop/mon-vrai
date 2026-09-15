@@ -1356,29 +1356,50 @@ export const DayString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date attendue 
  * `amount` est toujours POSITIF, en centimes : le sens vient de `direction`. Montants TTC
  * — en franchise en base de TVA, il n'y a rien à déduire.
  */
-export const Expense = z.object({
-  id: z.string(),
-  direction: CashDirection.default("out"),
-  category: ExpenseCategory.default("other"),
-  label: z.string().min(1).max(120),
-  /** Fournisseur ou origine de l'argent. */
-  supplier: z.string().max(120).default(""),
-  amount: Cents,
-  date: DayString,
-  method: ExpenseMethod.default("card"),
-  /** « engagé » = facture reçue, pas encore payée : compté à part des sorties réelles. */
-  status: z.enum(["paid", "pending"]).default("paid"),
-  recurrence: ExpenseRecurrence.default("once"),
-  /** Titre auquel le frais se rattache (norme CE, tirage…) ; vide = frais de structure. */
-  productSlug: z.string().default(""),
-  /** Exemplaires couverts par ce frais, pour l'amortir à l'unité. 0 = non renseigné. */
-  units: z.number().int().min(0).default(0),
-  /** Justificatif : identifiant d'un document de la bibliothèque. */
-  documentId: z.string().default(""),
-  note: z.string().max(500).default(""),
-  createdAt: z.number(),
-  updatedAt: z.number(),
-});
+/*
+ * Reprise des premières lignes saisies : un frais ne portait alors qu'UN titre et UN
+ * justificatif, et comptait des exemplaires. On lit l'ancienne forme plutôt que de
+ * migrer la base — `parseDoc` lèverait sur ces documents, et l'écran entier tomberait.
+ */
+function upgradeExpense(value: unknown): unknown {
+  if (typeof value !== "object" || value === null) return value;
+  const v = { ...(value as Record<string, unknown>) };
+  if (v.productSlugs === undefined) v.productSlugs = typeof v.productSlug === "string" && v.productSlug ? [v.productSlug] : [];
+  if (v.documentIds === undefined) v.documentIds = typeof v.documentId === "string" && v.documentId ? [v.documentId] : [];
+  delete v.productSlug;
+  delete v.documentId;
+  delete v.units;
+  return v;
+}
+
+export const Expense = z.preprocess(
+  upgradeExpense,
+  z.object({
+    id: z.string(),
+    direction: CashDirection.default("out"),
+    category: ExpenseCategory.default("other"),
+    label: z.string().min(1).max(120),
+    /** Fournisseur ou origine de l'argent. */
+    supplier: z.string().max(120).default(""),
+    amount: Cents,
+    date: DayString,
+    method: ExpenseMethod.default("card"),
+    /** « engagé » = facture reçue, pas encore payée : compté à part des sorties réelles. */
+    status: z.enum(["paid", "pending"]).default("paid"),
+    recurrence: ExpenseRecurrence.default("once"),
+    /*
+     * Les titres que ce frais couvre. Une série d'essais ou une norme CE en concerne
+     * souvent plusieurs ; le montant se répartit alors entre eux (voir `byProduct`).
+     * Liste vide = frais de structure, qui ne se rattache à aucun livre.
+     */
+    productSlugs: z.array(Slug).max(50).default([]),
+    /** Justificatifs : les pièces de la bibliothèque attachées à ce mouvement. */
+    documentIds: z.array(z.string()).max(50).default([]),
+    note: z.string().max(500).default(""),
+    createdAt: z.number(),
+    updatedAt: z.number(),
+  }),
+);
 export type Expense = z.infer<typeof Expense>;
 
 /** Nature d'un document administratif. Libellés dans `lib/admin/expense-ui.ts`. */

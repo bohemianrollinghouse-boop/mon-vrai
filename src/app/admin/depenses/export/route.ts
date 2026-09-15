@@ -58,9 +58,8 @@ export async function GET(request: Request) {
       METHOD_LABELS[e.method],
       e.status === "paid" ? "Payé" : "Engagé",
       RECURRENCE_LABELS[e.recurrence],
-      e.productSlug ? titleOf(e.productSlug) : "",
-      e.units || "",
-      e.documentId ? docOf(e.documentId) : "",
+      e.productSlugs.map(titleOf).join(" | "),
+      e.documentIds.map(docOf).filter(Boolean).join(" | "),
       e.note.replace(/\r?\n/g, " "),
     ],
   }));
@@ -78,15 +77,15 @@ export async function GET(request: Request) {
     const rate = `${(settings.costs.urssafBp / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`;
     for (const [month, f] of byMonth) {
       const date = `${month}-01`;
-      rows.push({ date, cells: [date, "Entrée", "Ventes du site", `Ventes encaissées — ${month}`, "", euros(f.revenue), "calculé", "", "Payé", "Ponctuel", "", "", "", `${f.orders} commande(s), port compris`] });
-      rows.push({ date, cells: [date, "Sortie", CATEGORY_LABELS.taxes, `Cotisations URSSAF — ${month}`, "URSSAF", signed(f.urssaf, true), "calculé", "", "Provision", "Ponctuel", "", "", "", `${rate} des ventes du mois`] });
+      rows.push({ date, cells: [date, "Entrée", "Ventes du site", `Ventes encaissées — ${month}`, "", euros(f.revenue), "calculé", "", "Payé", "Ponctuel", "", "", `${f.orders} commande(s), port compris`] });
+      rows.push({ date, cells: [date, "Sortie", CATEGORY_LABELS.taxes, `Cotisations URSSAF — ${month}`, "URSSAF", signed(f.urssaf, true), "calculé", "", "Provision", "Ponctuel", "", "", `${rate} des ventes du mois`] });
     }
   }
 
   // Du plus ancien au plus récent : l'ordre d'un journal comptable.
   rows.sort((a, b) => a.date.localeCompare(b.date));
 
-  const head = ["Date", "Sens", "Poste", "Intitulé", "Fournisseur", "Montant TTC", "Origine", "Règlement", "État", "Rythme", "Titre concerné", "Exemplaires couverts", "Justificatif", "Note"];
+  const head = ["Date", "Sens", "Poste", "Intitulé", "Fournisseur", "Montant TTC", "Origine", "Règlement", "État", "Rythme", "Titres concernés", "Justificatifs", "Note"];
   const csv = `﻿${[head.map(cell).join(";"), ...rows.map((r) => r.cells.map(cell).join(";"))].join("\r\n")}\r\n`;
   return new NextResponse(csv, {
     headers: {

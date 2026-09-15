@@ -52,7 +52,7 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/admin/
 
   const titleOf = (slug: string) => products.find((p) => p.slug === slug)?.title ?? slug;
   /** Ce que la pièce a coûté : la ligne de dépense qui la donne pour justificatif. */
-  const costOf = (id: string) => expenses.filter((e) => e.documentId === id).reduce((s, e) => s + e.amount, 0);
+  const costOf = (id: string) => expenses.filter((e) => e.documentIds.includes(id)).reduce((s, e) => s + e.amount, 0);
   const withIsbn = products.filter((p) => p.isbn).length;
 
   return (

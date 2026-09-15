@@ -38,8 +38,17 @@ export async function deleteExpense(id: string): Promise<void> {
   await expenses().doc(id).delete();
 }
 
-/** Lignes rattachées à un document : elles perdent leur justificatif s'il est supprimé. */
+/*
+ * Un document supprimé quitte les mouvements qui s'y adossaient. On relit puis on
+ * réécrit la liste amputée plutôt que d'utiliser `arrayRemove` : les toutes premières
+ * lignes portent encore l'ancien champ `documentId`, que le schéma convertit à la
+ * lecture — une écriture aveugle sur `documentIds` les laisserait avec les deux.
+ */
 export async function detachDocument(documentId: string): Promise<void> {
-  const linked = await parseQuery(Expense, expenses().where("documentId", "==", documentId));
-  await Promise.all(linked.map((e) => expenses().doc(e.id).update({ documentId: "", updatedAt: now() })));
+  const linked = await parseQuery(Expense, expenses().where("documentIds", "array-contains", documentId));
+  const legacy = await parseQuery(Expense, expenses().where("documentId", "==", documentId));
+  const all = new Map([...linked, ...legacy].map((e) => [e.id, e]));
+  await Promise.all(
+    [...all.values()].map((e) => upsertExpense({ ...e, documentIds: e.documentIds.filter((id) => id !== documentId) })),
+  );
 }

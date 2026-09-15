@@ -300,10 +300,11 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
           className="!p-6 [&>div:last-child]:-mx-6 [&>div:last-child]:rounded-none [&>div:last-child]:py-0"
         >
           <GridTable
-            columns="1fr 90px 130px 130px 130px"
-            head={["Titre", "Lignes", "Total engagé", "Exemplaires", "Par exemplaire"]}
+            columns="1fr 100px 150px 170px"
+            head={["Titre", "Lignes", "Partagées", "Total engagé"]}
             rows={perProduct.map((p) => ({
               key: p.slug,
+              href: `/admin/produits/${p.slug}`,
               cells: [
                 <span key="t" className="truncate font-bold">
                   {titleOf(p.slug)}
@@ -311,20 +312,18 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
                 <span key="n" className="text-subtle">
                   {fmt(p.count)}
                 </span>,
-                <span key="a" className="whitespace-nowrap font-semibold">
+                <span key="s" className="text-subtle">
+                  {p.shared > 0 ? `${fmt(p.shared)} avec d'autres titres` : "—"}
+                </span>,
+                <span key="a" className="whitespace-nowrap font-extrabold">
                   {minus(p.amount)}
-                </span>,
-                <span key="u" className="text-subtle">
-                  {p.units ? fmt(p.units) : "—"}
-                </span>,
-                <span key="pu" className="whitespace-nowrap font-extrabold">
-                  {p.perUnit === null ? "—" : formatEuro(p.perUnit)}
                 </span>,
               ],
             }))}
           />
           <span className="text-[0.6875rem] leading-relaxed text-subtle">
-            Le coût par exemplaire ne se calcule que sur les lignes où le nombre d'exemplaires couverts a été saisi (un tirage, une série d'essais) : sans quoi on rapporterait un tirage entier à un seul livre.
+            Un frais qui couvre plusieurs titres se partage entre eux à parts égales : la colonne « Partagées » dit combien de lignes sont dans ce cas. La somme de la colonne reste donc exacte — c'est bien l'argent parti,
+            jamais compté deux fois.
           </span>
         </Card>
       )}
@@ -377,15 +376,15 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
                 <span className="truncate font-bold">{e.label}</span>
                 {e.status === "pending" && <Pill tone="warn">engagé</Pill>}
                 {e.recurrence !== "once" && <Pill tone="muted">{RECURRENCE_LABELS[e.recurrence].toLowerCase()}</Pill>}
-                {e.documentId && <Pill tone="blue">pièce</Pill>}
+                {e.documentIds.length > 0 && <Pill tone="blue">{e.documentIds.length > 1 ? `${e.documentIds.length} pièces` : "1 pièce"}</Pill>}
               </span>
               {e.supplier && <span className="truncate text-xs text-subtle">{e.supplier}</span>}
             </span>,
             <span key="c" className="truncate text-subtle">
               {CATEGORY_LABELS[e.category]}
             </span>,
-            <span key="p" className="truncate text-subtle">
-              {e.productSlug ? titleOf(e.productSlug) : "—"}
+            <span key="p" className="truncate text-subtle" title={e.productSlugs.map(titleOf).join(", ")}>
+              {e.productSlugs.length === 0 ? "—" : e.productSlugs.length === 1 ? titleOf(e.productSlugs[0]) : `${e.productSlugs.length} titres`}
             </span>,
             <span key="m" className="text-subtle">
               {METHOD_LABELS[e.method]}

@@ -1,9 +1,9 @@
-import { CATEGORY_LABELS, IN_CATEGORIES, METHOD_LABELS, OUT_CATEGORIES, RECURRENCE_LABELS } from "@/lib/admin/expense-ui";
+import { CATEGORY_LABELS, DOC_KIND_LABELS, IN_CATEGORIES, METHOD_LABELS, OUT_CATEGORIES, RECURRENCE_LABELS, dayLabel, fileSize } from "@/lib/admin/expense-ui";
 import { now } from "@/lib/db/helpers";
 import type { BusinessDoc, Expense, ExpenseMethod, ExpenseRecurrence, Product } from "@/lib/domain/types";
 import { dayKey } from "@/lib/stats/keys";
 import { Field } from "./Field";
-import { Input, Segmented, Select, Textarea } from "./ui";
+import { Checkbox, Input, Segmented, Select, Textarea } from "./ui";
 
 /*
  * Les champs d'un mouvement d'argent, partagés par la saisie rapide de /admin/depenses
@@ -13,10 +13,19 @@ import { Input, Segmented, Select, Textarea } from "./ui";
  *
  * Le poste est un seul menu, en deux groupes : mettre les entrées ailleurs obligerait à
  * du JavaScript pour suivre le sens choisi, alors qu'un <optgroup> le dit aussi bien.
+ *
+ * Les titres et les pièces sont des CASES, pas des menus : on en coche plusieurs — une
+ * série d'essais couvre souvent tout le catalogue d'un coup —, et on voit du même coup
+ * ce qui est retenu. Les groupes de cases ne passent pas par <Field>, qui est un <label>
+ * : un label dans un label ne veut rien dire, et le clic finirait sur la mauvaise case.
  */
 export function ExpenseFields({ expense, products, documents }: { expense?: Expense; products: Product[]; documents: BusinessDoc[] }) {
   // Le jour de Paris, pas celui d'UTC : passé minuit l'été, les deux ne sont plus le même.
   const today = dayKey(now());
+  const chosenProducts = new Set(expense?.productSlugs ?? []);
+  const chosenDocs = new Set(expense?.documentIds ?? []);
+  // Les pièces déjà attachées d'abord : ce sont celles qu'on vient vérifier ou décrocher.
+  const listed = [...documents].sort((a, b) => Number(chosenDocs.has(b.id)) - Number(chosenDocs.has(a.id)));
 
   return (
     <>
@@ -99,31 +108,45 @@ export function ExpenseFields({ expense, products, documents }: { expense?: Expe
         </Field>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 max-[599px]:grid-cols-1">
-        <Field label="Titre concerné" hint="Vide = frais de structure." name="productSlug">
-          <Select name="productSlug" defaultValue={expense?.productSlug ?? ""}>
-            <option value="">Aucun (frais de structure)</option>
+      <fieldset className="flex flex-col gap-2.5 rounded-[14px] bg-paper p-4">
+        <legend className="px-1 text-[0.8125rem] font-bold">Titres concernés</legend>
+        <span className="text-xs text-subtle">
+          Cochez tous les livres que ce frais couvre — une norme CE, une série d'essais ou une commande d'ISBN en concerne souvent plusieurs. Le montant se répartit alors entre eux. Rien de coché : c'est un frais de
+          structure, qui n'appartient à aucun titre.
+        </span>
+        {products.length === 0 ? (
+          <span className="text-[0.8125rem] text-muted">Aucun titre au catalogue.</span>
+        ) : (
+          <div className="grid grid-cols-3 gap-x-4 gap-y-2 max-[899px]:grid-cols-2 max-[599px]:grid-cols-1">
             {products.map((p) => (
-              <option key={p.slug} value={p.slug}>
-                {p.title}
-              </option>
+              <Checkbox key={p.slug} name="productSlugs" value={p.slug} defaultChecked={chosenProducts.has(p.slug)} label={p.title} />
             ))}
-          </Select>
+          </div>
+        )}
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-2.5 rounded-[14px] bg-paper p-4">
+        <legend className="px-1 text-[0.8125rem] font-bold">Pièces justificatives</legend>
+        <Field label="Ajouter des fichiers" hint="PDF, photo, tableur ou ZIP — 40 Mo chacun. Ils rejoignent la bibliothèque privée et restent modifiables dans Documents." name="files">
+          <input type="file" name="files" multiple accept="application/pdf,image/*,text/csv,.doc,.docx,.xls,.xlsx,.zip" className="text-sm" />
         </Field>
-        <Field label="Exemplaires couverts" hint="Pour l'amortir à l'unité. 0 = sans objet." name="units">
-          <Input name="units" type="number" min="0" step="1" defaultValue={expense?.units ? String(expense.units) : "0"} />
-        </Field>
-        <Field label="Justificatif" hint="Une pièce de la bibliothèque de documents." name="documentId">
-          <Select name="documentId" defaultValue={expense?.documentId ?? ""}>
-            <option value="">Aucun</option>
-            {documents.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.title}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
+        {listed.length > 0 && (
+          <>
+            <span className="text-[0.8125rem] font-bold">Ou rattacher une pièce déjà déposée</span>
+            <div className="flex max-h-56 flex-col gap-2 overflow-y-auto">
+              {listed.map((doc) => (
+                <Checkbox
+                  key={doc.id}
+                  name="documentIds"
+                  value={doc.id}
+                  defaultChecked={chosenDocs.has(doc.id)}
+                  label={`${doc.title} — ${DOC_KIND_LABELS[doc.kind]}${doc.issuedAt ? `, ${dayLabel(doc.issuedAt)}` : ""} · ${fileSize(doc.size)}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </fieldset>
 
       <Field label="Note" name="note">
         <Textarea name="note" defaultValue={expense?.note ?? ""} maxLength={500} placeholder="Ce dont vous vous souviendrez utilement : numéro de devis, ce que couvre exactement la facture…" />

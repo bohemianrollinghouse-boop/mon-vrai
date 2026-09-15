@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Expense } from "@/lib/domain/types";
-import { NO_SALES, byCategory, byMonth, byProduct, cashTotals, daysBefore, fixedCharges, fixedMonthly, inPeriod, monthlyCost, sumExpenses, sumSales } from "./expenses";
+import { NO_SALES, byCategory, byMonth, byProduct, cashTotals, daysBefore, fixedCharges, fixedMonthly, inPeriod, monthlyCost, splitCents, sumExpenses, sumSales } from "./expenses";
 
 const make = (over: Partial<Expense>): Expense => ({
   id: over.id ?? "exp_1",
@@ -13,9 +13,8 @@ const make = (over: Partial<Expense>): Expense => ({
   method: "card",
   status: "paid",
   recurrence: "once",
-  productSlug: "",
-  units: 0,
-  documentId: "",
+  productSlugs: [],
+  documentIds: [],
   note: "",
   createdAt: 0,
   updatedAt: 0,
@@ -155,15 +154,34 @@ describe("fixedCharges", () => {
   });
 });
 
+describe("splitCents", () => {
+  it("répartit sans perdre ni inventer un centime", () => {
+    expect(splitCents(1_000, 3)).toEqual([334, 333, 333]);
+    expect(splitCents(1_000, 3).reduce((a, b) => a + b, 0)).toBe(1_000);
+    expect(splitCents(900, 3)).toEqual([300, 300, 300]);
+    expect(splitCents(500, 1)).toEqual([500]);
+    expect(splitCents(500, 0)).toEqual([]);
+  });
+});
+
 describe("byProduct", () => {
-  it("additionne ce qu'un titre a coûté et l'amortit sur les exemplaires couverts", () => {
+  it("additionne ce qu'un titre a coûté", () => {
     const rows = byProduct([
-      make({ id: "a", productSlug: "les-fruits", category: "certification", amount: 60_000 }),
-      make({ id: "b", productSlug: "les-fruits", category: "printing", amount: 240_000, units: 1_000 }),
-      make({ id: "c", productSlug: "les-animaux", category: "lab", amount: 30_000 }),
+      make({ id: "a", productSlugs: ["les-fruits"], category: "certification", amount: 60_000 }),
+      make({ id: "b", productSlugs: ["les-fruits"], category: "printing", amount: 240_000 }),
+      make({ id: "c", productSlugs: ["les-animaux"], category: "lab", amount: 30_000 }),
     ]);
-    expect(rows[0]).toMatchObject({ slug: "les-fruits", amount: 300_000, count: 2, units: 1_000, perUnit: 240 });
-    // Sans exemplaire couvert, pas de coût unitaire inventé.
-    expect(rows[1]).toMatchObject({ slug: "les-animaux", perUnit: null });
+    expect(rows[0]).toMatchObject({ slug: "les-fruits", amount: 300_000, count: 2, shared: 0 });
+    expect(rows[1]).toMatchObject({ slug: "les-animaux", amount: 30_000 });
+  });
+
+  it("répartit un frais qui couvre plusieurs titres, sans gonfler le total", () => {
+    const rows = byProduct([make({ id: "a", productSlugs: ["les-fruits", "les-animaux", "le-visage"], category: "certification", amount: 60_001 })]);
+    expect(rows.map((r) => r.amount).reduce((a, b) => a + b, 0)).toBe(60_001);
+    expect(rows.every((r) => r.shared === 1)).toBe(true);
+  });
+
+  it("ignore les frais de structure et les entrées", () => {
+    expect(byProduct([make({ id: "a", amount: 5_000 }), make({ id: "b", direction: "in", productSlugs: ["les-fruits"], amount: 5_000 })])).toEqual([]);
   });
 });

@@ -159,28 +159,41 @@ export function fixedCharges(list: Expense[]): FixedCharge[] {
 
 export const fixedMonthly = (list: Expense[]): number => fixedCharges(list).reduce((s, c) => s + c.monthly, 0);
 
-export type ProductCost = { slug: string; amount: number; count: number; units: number; perUnit: number | null };
+export type ProductCost = { slug: string; amount: number; count: number; shared: number };
 
 /*
- * Ce qu'un titre a coûté avant d'exister : sa norme CE, ses essais, son tirage. Le coût
- * par exemplaire ne se calcule que sur les lignes où le nombre d'exemplaires couverts a
- * été saisi — sinon on rapporterait un tirage entier à un exemplaire.
+ * Répartit un montant entre n parts, en centimes entiers dont la somme fait exactement
+ * le montant : les premières parts reçoivent le centime qui reste. 1 000 ÷ 3 donne donc
+ * 334, 333, 333 — et non trois fois 333,33 qu'on ne saurait pas écrire.
+ */
+export function splitCents(amount: number, parts: number): number[] {
+  if (parts <= 0) return [];
+  const base = Math.floor(amount / parts);
+  const extra = amount - base * parts;
+  return Array.from({ length: parts }, (_, i) => base + (i < extra ? 1 : 0));
+}
+
+/*
+ * Ce qu'un titre a coûté avant d'exister : sa norme CE, ses essais, son tirage.
+ *
+ * Un frais qui couvre PLUSIEURS titres — une série d'essais passée d'un coup, une
+ * commande d'ISBN — se répartit entre eux à parts égales. Le compter en entier pour
+ * chacun gonflerait le total de la colonne au point de la rendre insommable ; le
+ * répartir garde la somme juste. `shared` dit combien de ces lignes étaient partagées,
+ * pour que l'écran puisse le signaler plutôt que de laisser croire à un montant exact.
  */
 export function byProduct(list: Expense[]): ProductCost[] {
   const map = new Map<string, ProductCost>();
   for (const e of list) {
-    if (e.direction !== "out" || !e.productSlug) continue;
-    const row = map.get(e.productSlug) ?? { slug: e.productSlug, amount: 0, count: 0, units: 0, perUnit: null };
-    row.amount += e.amount;
-    row.count += 1;
-    row.units += e.units;
-    map.set(e.productSlug, row);
-  }
-  for (const row of map.values()) {
-    const covered = list.filter((e) => e.direction === "out" && e.productSlug === row.slug && e.units > 0);
-    const coveredAmount = covered.reduce((s, e) => s + e.amount, 0);
-    const coveredUnits = covered.reduce((s, e) => s + e.units, 0);
-    row.perUnit = coveredUnits > 0 ? Math.round(coveredAmount / coveredUnits) : null;
+    if (e.direction !== "out" || e.productSlugs.length === 0) continue;
+    const parts = splitCents(e.amount, e.productSlugs.length);
+    e.productSlugs.forEach((slug, i) => {
+      const row = map.get(slug) ?? { slug, amount: 0, count: 0, shared: 0 };
+      row.amount += parts[i];
+      row.count += 1;
+      if (e.productSlugs.length > 1) row.shared += 1;
+      map.set(slug, row);
+    });
   }
   return [...map.values()].sort((a, b) => b.amount - a.amount);
 }

@@ -96,9 +96,20 @@ Un PDF déjà déposé n'est jamais régénéré : c'est un document comptable f
   Un filtre par poste écarte les ventes : les totaux doivent porter sur ce que la liste
   montre. Calculs dans `lib/admin/expenses.ts` (fonctions pures, testées) : `cashTotals`
   marie les deux sources, plus postes, mois, **charges fixes** (un frais récurrent ne
-  compte qu'une fois — sa dernière occurrence) et **coût rattaché à un titre** (amorti
-  sur les exemplaires couverts, jamais deviné). Vocabulaire et filtres partagés avec
-  l'export CSV : `lib/admin/expense-ui.ts`.
+  compte qu'une fois — sa dernière occurrence) et **coût rattaché aux titres**. Un frais
+  couvre **plusieurs titres** (`productSlugs`) et porte **plusieurs justificatifs**
+  (`documentIds`) : une norme CE ou une série d'essais en concerne rarement un seul. Le
+  montant se partage alors à parts égales — `splitCents` donne des centimes entiers dont
+  la somme fait exactement le montant, pour que la colonne reste sommable. Le formulaire
+  sait aussi **déposer** des pièces directement : les fichiers joints deviennent des
+  documents de la bibliothèque et s'attachent au mouvement, avec date et nature devinées
+  d'après le poste. Vocabulaire et filtres partagés avec l'export CSV :
+  `lib/admin/expense-ui.ts`.
+- Le schéma d'`Expense` a changé une fois (un titre → plusieurs, un justificatif →
+  plusieurs, exemplaires retirés). Plutôt qu'une migration, `upgradeExpense` reprend
+  l'ancienne forme **à la lecture** (`z.preprocess`, comme `ShippingRate`) : `parseDoc`
+  lève sur un document invalide, et l'écran entier tomberait. `src/lib/domain/expense.test.ts`
+  garde ce filet en place — ne pas le retirer tant que des lignes d'avant subsistent.
 - La différence avec `/admin/revenus` tient en une phrase : là-bas on regarde ce qu'une
   **vente** laisse une fois tous ses coûts retirés (fabrication, port réel, commission) ;
   ici, ce que le **compte** fait sur une période, frais de structure compris.
