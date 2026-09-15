@@ -1300,3 +1300,119 @@ export type InfluencerStatement = z.infer<typeof InfluencerStatement>;
 /** Compteur de clics par jour : document `refClicks/<influencerId>_<AAAA-MM-JJ>`. */
 export const RefClicks = z.object({ influencerId: z.string(), day: z.string(), count: z.number().int().min(0) });
 export type RefClicks = z.infer<typeof RefClicks>;
+
+/* ---------- Gestion : mouvements d'argent et documents de la société ---------- */
+
+/*
+ * Ce que l'argent fait : il sort (un frais) ou il entre. Les ventes ne sont PAS saisies
+ * ici — elles viennent des commandes (voir /admin/revenus). Une entrée, ici, c'est ce
+ * que les commandes ignorent : un apport personnel, une subvention, un remboursement,
+ * une vente en salon ou à une librairie.
+ */
+export const CashDirection = z.enum(["out", "in"]);
+export type CashDirection = z.infer<typeof CashDirection>;
+
+/** Poste comptable d'un mouvement. Les libellés vivent dans `lib/admin/expense-ui.ts`. */
+export const ExpenseCategory = z.enum([
+  "certification",
+  "lab",
+  "isbn",
+  "printing",
+  "packaging",
+  "shipping",
+  "design",
+  "marketing",
+  "software",
+  "fees",
+  "accounting",
+  "taxes",
+  "insurance",
+  "supplies",
+  "travel",
+  "funding",
+  "refund",
+  "offline_sales",
+  "other",
+]);
+export type ExpenseCategory = z.infer<typeof ExpenseCategory>;
+
+export const ExpenseMethod = z.enum(["card", "transfer", "debit", "cash", "check", "other"]);
+export type ExpenseMethod = z.infer<typeof ExpenseMethod>;
+
+/** Un frais qui revient : ramené au mois, il donne les charges fixes (voir `monthlyCost`). */
+export const ExpenseRecurrence = z.enum(["once", "monthly", "quarterly", "yearly"]);
+export type ExpenseRecurrence = z.infer<typeof ExpenseRecurrence>;
+
+/** Jour civil, AAAA-MM-JJ. */
+export const DayString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date attendue au format AAAA-MM-JJ");
+
+/*
+ * Un mouvement d'argent saisi à la main.
+ *
+ * La date est un JOUR (AAAA-MM-JJ) et non un horodatage : une facture est datée du jour
+ * où elle est émise, sans heure ni fuseau, et les regroupements par mois se font alors
+ * par simple préfixe de chaîne. `createdAt` garde, lui, la trace de la saisie.
+ *
+ * `amount` est toujours POSITIF, en centimes : le sens vient de `direction`. Montants TTC
+ * — en franchise en base de TVA, il n'y a rien à déduire.
+ */
+export const Expense = z.object({
+  id: z.string(),
+  direction: CashDirection.default("out"),
+  category: ExpenseCategory.default("other"),
+  label: z.string().min(1).max(120),
+  /** Fournisseur ou origine de l'argent. */
+  supplier: z.string().max(120).default(""),
+  amount: Cents,
+  date: DayString,
+  method: ExpenseMethod.default("card"),
+  /** « engagé » = facture reçue, pas encore payée : compté à part des sorties réelles. */
+  status: z.enum(["paid", "pending"]).default("paid"),
+  recurrence: ExpenseRecurrence.default("once"),
+  /** Titre auquel le frais se rattache (norme CE, tirage…) ; vide = frais de structure. */
+  productSlug: z.string().default(""),
+  /** Exemplaires couverts par ce frais, pour l'amortir à l'unité. 0 = non renseigné. */
+  units: z.number().int().min(0).default(0),
+  /** Justificatif : identifiant d'un document de la bibliothèque. */
+  documentId: z.string().default(""),
+  note: z.string().max(500).default(""),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Expense = z.infer<typeof Expense>;
+
+/** Nature d'un document administratif. Libellés dans `lib/admin/expense-ui.ts`. */
+export const DocKind = z.enum(["certification", "lab", "isbn", "invoice", "contract", "insurance", "tax", "company", "other"]);
+export type DocKind = z.infer<typeof DocKind>;
+
+/*
+ * Une pièce administrative : attestation de conformité CE, rapport de laboratoire,
+ * attribution d'ISBN, facture fournisseur, contrat, assurance…
+ *
+ * Le fichier est déposé dans un dossier PRIVÉ du bucket (`documents/`), jamais public :
+ * il n'est servi que par /api/documents/<id>, après vérification de l'administrateur.
+ * C'est la différence avec la médiathèque, dont tout est lisible par le site.
+ */
+export const BusinessDoc = z.object({
+  id: z.string(),
+  title: z.string().min(1).max(160),
+  kind: DocKind.default("other"),
+  path: z.string().min(1),
+  filename: z.string().min(1),
+  mime: z.string().min(1),
+  size: z.number().int().min(0).default(0),
+  /** Date du document : émission, signature, essai. Vide si inconnue. */
+  issuedAt: z.union([DayString, z.literal("")]).default(""),
+  /** Fin de validité ; vide = sans échéance. Une échéance proche est signalée dans l'admin. */
+  expiresAt: z.union([DayString, z.literal("")]).default(""),
+  /** Titre concerné, quand le document ne vaut que pour un livre. */
+  productSlug: z.string().default(""),
+  /** ISBN porté par le document (attribution, dépôt légal). */
+  isbn: z.string().max(20).default(""),
+  /** Numéro de pièce : référence du laboratoire, du contrat, de la facture. */
+  reference: z.string().max(120).default(""),
+  note: z.string().max(500).default(""),
+  uploadedAt: z.number(),
+  updatedAt: z.number(),
+});
+export type BusinessDoc = z.infer<typeof BusinessDoc>;

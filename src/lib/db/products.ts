@@ -86,3 +86,12 @@ export async function adjustStock(slug: string, delta: number): Promise<{ stock:
   await ref.update({ stock: next, updatedAt: now() });
   return { stock: next, startedTracking };
 }
+
+/**
+ * Pose (ou retire) l'ISBN d'un titre, sans toucher au reste de la fiche. Écrit à part
+ * du formulaire produit : l'ISBN se saisit depuis la bibliothèque de documents, où l'on
+ * a l'attestation sous les yeux.
+ */
+export async function setProductIsbn(slug: string, isbn: string): Promise<void> {
+  await products().doc(slug).update({ isbn, updatedAt: now() });
+}

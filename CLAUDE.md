@@ -78,6 +78,36 @@ pdf-lib, dépôt privé dans `invoices/<année>/`). Appelée par le webhook Stri
 l'action admin, et à la volée par `/api/factures/[id]` (acheteur ou admin seulement).
 Un PDF déjà déposé n'est jamais régénéré : c'est un document comptable figé.
 
+## Gestion (dépenses et documents)
+
+Deux écrans, volontairement séparés de `/admin/revenus` : là-bas tout se calcule depuis
+les commandes, ici tout se saisit à la main.
+
+- `/admin/depenses` — les mouvements d'argent de la société (collection `expenses`) :
+  les frais, et les entrées que les commandes ignorent (apport, subvention,
+  remboursement, vente en salon). Un montant est **positif en centimes**, le sens vient
+  de `direction` ; la date est un **jour civil** (`AAAA-MM-JJ`) et non un horodatage —
+  une facture n'a ni heure ni fuseau, et les regroupements par mois se font par préfixe.
+  Une ligne « engagée » (reçue, pas payée) est comptée à part des sorties réelles.
+  Tous les calculs sont dans `lib/admin/expenses.ts` (fonctions pures, testées) : totaux,
+  postes, mois, **charges fixes** (un frais récurrent ne compte qu'une fois — sa dernière
+  occurrence) et **coût rattaché à un titre** (amorti sur les exemplaires couverts, jamais
+  deviné). Vocabulaire et filtres partagés avec l'export CSV : `lib/admin/expense-ui.ts`.
+- `/admin/documents` — les pièces administratives (collection `documents`) : normes CE,
+  rapports de laboratoire, attributions d'ISBN, contrats, assurances. **Rien n'est
+  public** : le fichier va sous `documents/` (fermé par `storage.rules`, comme
+  `invoices/`) et n'est servi que par `/api/documents/[id]`, à un administrateur. On ne
+  stocke donc pas d'URL, seulement le chemin dans le bucket — c'est toute la différence
+  avec la médiathèque. Une pièce porte une fin de validité : `lib/admin/doc-status.ts`
+  prévient deux mois avant l'échéance, pas le jour venu.
+
+Les **ISBN** s'attribuent au bas de `/admin/documents`, l'attestation sous les yeux, et
+non dans la fiche produit : `saveIsbnAction` écrit `Product.isbn` après avoir vérifié la
+clé de contrôle (`domain/isbn.ts`) et l'unicité du numéro dans le catalogue.
+
+Une dépense peut désigner un document pour justificatif ; supprimer le document délie
+les lignes (`db/expenses.detachDocument`) plutôt que de laisser un lien mort.
+
 ## Administration
 
 Coquille autonome (`src/app/admin/layout.tsx`, maquette « Mon Vrai - Admin ») : barre
