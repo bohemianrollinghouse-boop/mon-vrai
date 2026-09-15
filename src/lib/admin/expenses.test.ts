@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Expense } from "@/lib/domain/types";
-import { NO_SALES, byCategory, byMonth, byProduct, cashTotals, daysBefore, fixedCharges, fixedMonthly, inPeriod, monthlyCost, splitCents, sumExpenses, sumSales } from "./expenses";
+import { NO_SALES, byCategory, byMonth, byProduct, cashTotals, daysBefore, fixedCharges, fixedMonthly, inPeriod, monthlyCost, splitCents, sumExpenses, sumSales, urssafOn } from "./expenses";
 
 const make = (over: Partial<Expense>): Expense => ({
   id: over.id ?? "exp_1",
@@ -105,6 +105,28 @@ describe("sumSales", () => {
   });
 });
 
+describe("urssafOn", () => {
+  it("prélève sur une recette encaissée et marquée", () => {
+    expect(urssafOn(make({ direction: "in", category: "offline_sales", amount: 222_800, taxable: true }), 1_230)).toBe(27_404);
+  });
+
+  it("ne prélève rien ailleurs", () => {
+    expect(urssafOn(make({ direction: "in", amount: 50_000, taxable: false }), 1_230)).toBe(0);
+    expect(urssafOn(make({ direction: "in", amount: 50_000, taxable: true, status: "pending" }), 1_230)).toBe(0);
+    expect(urssafOn(make({ direction: "out", amount: 50_000, taxable: true }), 1_230)).toBe(0);
+  });
+
+  it("ce qui s'affiche par ligne fait exactement le total", () => {
+    const list = [
+      make({ id: "a", direction: "in", category: "offline_sales", amount: 222_800, taxable: true }),
+      make({ id: "b", direction: "in", category: "offline_sales", amount: 120_100, taxable: true }),
+      make({ id: "c", direction: "in", category: "funding", amount: 50_000, taxable: false }),
+    ];
+    const perRow = list.reduce((s, e) => s + urssafOn(e, 1_230), 0);
+    expect(cashTotals(list, NO_SALES, 1_230).urssaf).toBe(perRow);
+  });
+});
+
 describe("cashTotals", () => {
   it("met les ventes en entrée et les cotisations en sortie, avec les lignes saisies", () => {
     const t = cashTotals(
@@ -135,9 +157,9 @@ describe("cashTotals", () => {
       1_230,
     );
     expect(t.in).toBe(379_148);
-    // 4 459 sur la vente du site + 12,3 % de 342 900 saisis.
-    expect(t.urssaf).toBe(4_459 + 42_177);
-    expect(t.in - t.urssaf).toBe(332_512);
+    // 4 459 sur la vente du site, puis ligne à ligne : 27 404 + 14 772.
+    expect(t.urssaf).toBe(4_459 + 27_404 + 14_772);
+    expect(t.in - t.urssaf).toBe(332_513);
   });
 
   it("laisse passer un don sans rien prélever", () => {

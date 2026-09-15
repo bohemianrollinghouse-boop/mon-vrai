@@ -82,14 +82,27 @@ export type CashTotals = {
 /*
  * `urssafBp` à 0 ne retient rien : c'est le cas des appels qui ne s'intéressent qu'aux
  * montants bruts. Les cotisations des ventes du site arrivent déjà calculées dans
- * `sales` (commande par commande) ; les entrées saisies se cotisent ici, sur le total
- * de celles qui ont été marquées comme telles — on n'a pas de finesse plus grande à
- * leur sujet, et un don ou un apport n'a rien à y faire.
+ * `sales`, commande par commande ; celles des entrées saisies s'additionnent ici ligne
+ * par ligne, pour la même raison — ce qu'on affiche à côté de chaque montant doit faire
+ * le total, au centime.
  */
+/*
+ * Ce que l'URSSAF prend sur UN mouvement. Zéro dès qu'il n'est pas une recette encaissée :
+ * une sortie ne cotise rien, une entrée pas encore encaissée non plus, et un don ou un
+ * apport a vu sa case décochée à la saisie.
+ *
+ * C'est cette fonction qui s'affiche ligne par ligne dans la liste ET qui compose le
+ * total : les deux ne peuvent donc pas se contredire, même d'un centime — ce qui
+ * arriverait en appliquant le taux à la somme plutôt qu'à chaque ligne.
+ */
+export function urssafOn(e: Expense, bp: number): number {
+  return e.direction === "in" && e.status === "paid" && e.taxable ? partOf(e.amount, bp) : 0;
+}
+
 export function cashTotals(list: Expense[], sales: SalesFlow = NO_SALES, urssafBp = 0): CashTotals {
   const entered = sumExpenses(list);
   const enteredTurnover = list.filter((e) => e.direction === "in" && e.status === "paid" && e.taxable).reduce((s, e) => s + e.amount, 0);
-  const urssaf = sales.urssaf + partOf(enteredTurnover, urssafBp);
+  const urssaf = sales.urssaf + list.reduce((sum, e) => sum + urssafOn(e, urssafBp), 0);
   const cashIn = entered.in + sales.revenue;
   const cashOut = entered.out + urssaf + sales.stripeFee;
   return { entered, sales, enteredTurnover, urssaf, stripeFee: sales.stripeFee, in: cashIn, out: cashOut, pending: entered.pending, net: cashIn - cashOut };

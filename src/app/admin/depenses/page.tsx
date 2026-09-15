@@ -4,7 +4,7 @@ import { ExpenseFields } from "@/components/admin/ExpenseFields";
 import { ButtonLink, Card, FilterPills, GridTable, Notice, PageHeader, Pill, SearchBox, Tile } from "@/components/admin/ui";
 import { saveExpenseAction } from "@/lib/admin/actions/expenses";
 import { CATEGORY_LABELS, FAR_FUTURE, METHOD_LABELS, PERIODS, RECURRENCE_LABELS, dayLabel, findPeriod, matchesExpense, monthLabel, periodStart } from "@/lib/admin/expense-ui";
-import { NO_SALES, type SalesFlow, byCategory, byMonth, byProduct, cashTotals, fixedCharges, fixedMonthly, inPeriod, sumSales } from "@/lib/admin/expenses";
+import { NO_SALES, type SalesFlow, byCategory, byMonth, byProduct, cashTotals, fixedCharges, fixedMonthly, inPeriod, sumSales, urssafOn } from "@/lib/admin/expenses";
 import { COUNTED, capitalize } from "@/lib/admin/order-ui";
 import { partOf } from "@/lib/admin/revenue";
 import { requireAdmin } from "@/lib/auth/session";
@@ -33,10 +33,11 @@ export const dynamic = "force-dynamic";
  * don ou un apport n'en est pas —, et la COMMISSION Stripe sur les seules ventes du
  * site, qui sont les seules à passer par la carte.
  *
- * Les deux se calculent commande par commande pour les ventes, comme dans /admin/revenus,
- * pour que les deux écrans tombent sur le même chiffre. Conséquence assumée : l'URSSAF
- * étant arrondie séparément sur les ventes et sur les entrées saisies, le total peut
- * s'écarter d'un centime du taux appliqué à la somme.
+ * Tout se calcule LIGNE À LIGNE — commande par commande pour les ventes, comme dans
+ * /admin/revenus ; mouvement par mouvement pour les entrées saisies, dont la retenue
+ * s'affiche à côté du montant. Les deux écrans tombent ainsi sur le même chiffre, et ce
+ * qu'on lit sur chaque ligne fait exactement le total. Conséquence assumée : cette somme
+ * d'arrondis peut s'écarter d'un centime ou deux du taux appliqué au total.
  *
  * La différence avec /admin/revenus tient en une phrase : là-bas on regarde ce qu'une
  * VENTE laisse une fois tous ses coûts retirés (fabrication, port réel, commission) ;
@@ -408,7 +409,7 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
       </div>
 
       <GridTable
-        columns="90px 1fr 170px 120px 110px 110px"
+        columns="90px 1fr 170px 120px 100px 170px"
         head={["Date", "Intitulé", "Poste", "Titre", "Règlement", "Montant"]}
         empty={all.length === 0 ? "Rien de saisi pour l'instant : ajoutez votre premier frais ci-dessus." : "Aucune ligne ne correspond."}
         rows={rows.map((e) => ({
@@ -436,8 +437,17 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
             <span key="m" className="text-subtle">
               {METHOD_LABELS[e.method]}
             </span>,
-            <span key="a" className={`whitespace-nowrap font-extrabold ${e.direction === "in" ? "text-tint-green-ink" : ""}`}>
-              {e.direction === "in" ? formatEuro(e.amount) : minus(e.amount)}
+            /*
+             * Sur une entrée cotisée, le montant brut ne dit pas ce qui reste : on écrit
+             * la retenue et le net juste en dessous, là où l'œil les cherche.
+             */
+            <span key="a" className="flex flex-col items-end">
+              <span className={`whitespace-nowrap font-extrabold ${e.direction === "in" ? "text-tint-green-ink" : ""}`}>{e.direction === "in" ? formatEuro(e.amount) : minus(e.amount)}</span>
+              {urssafOn(e, urssafBp) > 0 && (
+                <span className="whitespace-nowrap text-[0.6875rem] text-subtle">
+                  {minus(urssafOn(e, urssafBp))} URSSAF · reste {formatEuro(e.amount - urssafOn(e, urssafBp))}
+                </span>
+              )}
             </span>,
           ],
         }))}

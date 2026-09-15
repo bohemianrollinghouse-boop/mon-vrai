@@ -5,7 +5,7 @@ import { ExpenseFields } from "@/components/admin/ExpenseFields";
 import { ButtonLink, Card, PageHeader, Pill, Tile } from "@/components/admin/ui";
 import { deleteExpenseAction, saveExpenseAction } from "@/lib/admin/actions/expenses";
 import { CATEGORY_LABELS, DOC_KIND_LABELS, METHOD_LABELS, RECURRENCE_LABELS, dayLabel, fileSize } from "@/lib/admin/expense-ui";
-import { monthlyCost, splitCents } from "@/lib/admin/expenses";
+import { monthlyCost, splitCents, urssafOn } from "@/lib/admin/expenses";
 import { requireAdmin } from "@/lib/auth/session";
 import { listDocuments } from "@/lib/db/documents";
 import { getExpense } from "@/lib/db/expenses";
@@ -28,6 +28,9 @@ export default async function ExpensePage({ params }: PageProps<"/admin/depenses
 
   const [products, documents, settings] = await Promise.all([listAllProducts(), listDocuments(), getSettings()]);
   const monthly = monthlyCost(expense.amount, expense.recurrence);
+  const urssafBp = settings.costs.urssafBp;
+  const urssaf = urssafOn(expense, urssafBp);
+  const rate = `${(urssafBp / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`;
 
   /* Ce que chaque titre porte de ce frais : la même répartition que dans les totaux. */
   const parts = splitCents(expense.amount, expense.productSlugs.length);
@@ -57,8 +60,18 @@ export default async function ExpensePage({ params }: PageProps<"/admin/depenses
         }
       />
 
-      <div className="grid grid-cols-3 gap-3 max-[1099px]:grid-cols-1">
+      <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2 max-[599px]:grid-cols-1">
         <Tile tone={expense.direction === "in" ? "green" : "sand"} label="Montant TTC" value={formatEuro(expense.amount)} note={expense.status === "paid" ? "réglé" : "à régler"} />
+        {expense.direction === "in" ? (
+          <Tile
+            tone="pink"
+            label="Cotisations URSSAF"
+            value={urssaf > 0 ? `− ${formatEuro(urssaf)}` : "—"}
+            note={urssaf > 0 ? `${rate} · il reste ${formatEuro(expense.amount - urssaf)}` : expense.taxable ? "entrée pas encore encaissée" : "entrée non soumise aux cotisations"}
+          />
+        ) : (
+          <Tile label="Cotisations URSSAF" value="—" note="une sortie ne cotise rien" />
+        )}
         <Tile label="Rythme" value={RECURRENCE_LABELS[expense.recurrence]} note={monthly > 0 ? `${formatEuro(monthly)} par mois` : "sans effet sur les charges fixes"} />
         <Tile
           label="Titres concernés"
@@ -118,7 +131,7 @@ export default async function ExpensePage({ params }: PageProps<"/admin/depenses
 
       <Card title="Modifier">
         <ActionForm action={saveExpenseAction} submitLabel="Enregistrer" secondary={<ButtonLink href="/admin/depenses">Retour à la liste</ButtonLink>}>
-          <ExpenseFields expense={expense} products={products} documents={documents} urssafBp={settings.costs.urssafBp} />
+          <ExpenseFields expense={expense} products={products} documents={documents} urssafBp={urssafBp} />
         </ActionForm>
       </Card>
     </>

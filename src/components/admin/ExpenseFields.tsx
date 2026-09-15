@@ -3,6 +3,7 @@ import { now } from "@/lib/db/helpers";
 import type { BusinessDoc, Expense, ExpenseMethod, ExpenseRecurrence, Product } from "@/lib/domain/types";
 import { dayKey } from "@/lib/stats/keys";
 import { Field } from "./Field";
+import { UrssafNote } from "./UrssafNote";
 import { Checkbox, Input, Segmented, Select, Switch, Textarea } from "./ui";
 
 /*
@@ -114,13 +115,14 @@ export function ExpenseFields({ expense, products, documents, urssafBp }: { expe
        * vente en salon cotise, un don ou un apport non, et les deux se rangent volontiers
        * sous le même poste. Coché par défaut : une entrée est une recette neuf fois sur dix.
        */}
-      <div className="rounded-[14px] bg-paper p-4">
+      <div className="flex flex-col gap-2 rounded-[14px] bg-paper p-4">
         <Switch
           name="taxable"
           defaultChecked={expense ? expense.taxable : true}
           label={`Déduire les ${urssafLabel} d'URSSAF`}
           hint="Pour une entrée qui est du chiffre d'affaires : vente en salon, chez un libraire. Un don, un apport personnel ou un remboursement n'y est pas soumis. Sans effet sur une sortie."
         />
+        <UrssafNote bp={urssafBp} />
       </div>
 
       <fieldset className="flex flex-col gap-2.5 rounded-[14px] bg-paper p-4">

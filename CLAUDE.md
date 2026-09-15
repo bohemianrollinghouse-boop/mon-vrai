@@ -92,9 +92,11 @@ Un PDF déjà déposé n'est jamais régénéré : c'est un document comptable f
   dont le drapeau `taxable` est posé : une vente en salon est du chiffre d'affaires, un
   don ou un apport non, et aucune règle ne les distingue à coup sûr — d'où une case à la
   saisie plutôt qu'une déduction du poste. La commission Stripe, elle, ne concerne que
-  les ventes du site : une vente en espèces ne passe pas par la carte. Arrondissant
-  séparément les deux assiettes, le total d'URSSAF peut s'écarter d'un centime du taux
-  appliqué à la somme — c'est le prix d'un calcul commande par commande, et c'est voulu.
+  les ventes du site : une vente en espèces ne passe pas par la carte. Tout se calcule
+  **ligne à ligne** (`urssafOn`) : la retenue s'affiche à côté de chaque montant et à la
+  saisie (`UrssafNote`, qui écoute le formulaire), et la somme de ces lignes EST le total
+  — les deux ne peuvent donc pas se contredire. Cette somme d'arrondis peut en revanche
+  s'écarter d'un centime ou deux du taux appliqué au total : c'est voulu.
   Ces cotisations sont une **provision**, pas un versement : ressaisir le paiement à
   l'URSSAF le compterait deux fois, et la page le signale quand elle en repère un. Un montant saisi est **positif en centimes**, le sens
   vient de `direction` ; la date est un **jour civil** (`AAAA-MM-JJ`) et non un
