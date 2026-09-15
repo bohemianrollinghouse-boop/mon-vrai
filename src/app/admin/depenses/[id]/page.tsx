@@ -10,6 +10,7 @@ import { requireAdmin } from "@/lib/auth/session";
 import { listDocuments } from "@/lib/db/documents";
 import { getExpense } from "@/lib/db/expenses";
 import { listAllProducts } from "@/lib/db/products";
+import { getSettings } from "@/lib/db/settings";
 import { formatEuro } from "@/lib/domain/money";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +26,7 @@ export default async function ExpensePage({ params }: PageProps<"/admin/depenses
   const expense = await getExpense(id);
   if (!expense) notFound();
 
-  const [products, documents] = await Promise.all([listAllProducts(), listDocuments()]);
+  const [products, documents, settings] = await Promise.all([listAllProducts(), listDocuments(), getSettings()]);
   const monthly = monthlyCost(expense.amount, expense.recurrence);
 
   /* Ce que chaque titre porte de ce frais : la même répartition que dans les totaux. */
@@ -117,7 +118,7 @@ export default async function ExpensePage({ params }: PageProps<"/admin/depenses
 
       <Card title="Modifier">
         <ActionForm action={saveExpenseAction} submitLabel="Enregistrer" secondary={<ButtonLink href="/admin/depenses">Retour à la liste</ButtonLink>}>
-          <ExpenseFields expense={expense} products={products} documents={documents} />
+          <ExpenseFields expense={expense} products={products} documents={documents} urssafBp={settings.costs.urssafBp} />
         </ActionForm>
       </Card>
     </>

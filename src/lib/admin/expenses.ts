@@ -1,4 +1,5 @@
 import type { Expense, ExpenseCategory, ExpenseRecurrence } from "@/lib/domain/types";
+import { partOf } from "./revenue";
 
 /*
  * Ce que deviennent les mouvements : totaux, poste par poste, mois par mois, charges
@@ -36,15 +37,21 @@ export type ExpenseTotals = {
 export type SalesFlow = {
   /** Commandes encaissées (hors kits offerts, qui n'encaissent rien). */
   orders: number;
-  /** Encaissé, port compris : c'est l'assiette des cotisations. */
+  /** Encaissé, port compris : c'est l'assiette des cotisations et de la commission. */
   revenue: number;
   urssaf: number;
+  /*
+   * Commission Stripe, part variable + part fixe par transaction. Elle ne concerne QUE
+   * les ventes du site : une vente en salon réglée en espèces ou par virement ne passe
+   * pas par Stripe et ne coûte rien.
+   */
+  stripeFee: number;
 };
 
-export const NO_SALES: SalesFlow = { orders: 0, revenue: 0, urssaf: 0 };
+export const NO_SALES: SalesFlow = { orders: 0, revenue: 0, urssaf: 0, stripeFee: 0 };
 
 export function sumSales(list: SalesFlow[]): SalesFlow {
-  return list.reduce((t, s) => ({ orders: t.orders + s.orders, revenue: t.revenue + s.revenue, urssaf: t.urssaf + s.urssaf }), NO_SALES);
+  return list.reduce((t, s) => ({ orders: t.orders + s.orders, revenue: t.revenue + s.revenue, urssaf: t.urssaf + s.urssaf, stripeFee: t.stripeFee + s.stripeFee }), NO_SALES);
 }
 
 /*
@@ -57,20 +64,35 @@ export type CashTotals = {
   entered: ExpenseTotals;
   /** Ventes du site sur la même période. */
   sales: SalesFlow;
+  /** Chiffre d'affaires saisi à la main : cotisable au même titre qu'une vente. */
+  enteredTurnover: number;
+  /** Cotisations sur TOUT le chiffre d'affaires de la période, saisi et encaissé en ligne. */
+  urssaf: number;
+  /** Commission de paiement retenue par Stripe sur les ventes du site. */
+  stripeFee: number;
   /** Tout ce qui entre : ventes + entrées saisies. */
   in: number;
-  /** Tout ce qui sort : cotisations + frais payés. */
+  /** Tout ce qui sort : cotisations, commission de paiement, et frais payés. */
   out: number;
   /** Sorties engagées, pas encore payées : à part, elles n'ont pas quitté le compte. */
   pending: number;
   net: number;
 };
 
-export function cashTotals(list: Expense[], sales: SalesFlow = NO_SALES): CashTotals {
+/*
+ * `urssafBp` à 0 ne retient rien : c'est le cas des appels qui ne s'intéressent qu'aux
+ * montants bruts. Les cotisations des ventes du site arrivent déjà calculées dans
+ * `sales` (commande par commande) ; les entrées saisies se cotisent ici, sur le total
+ * de celles qui ont été marquées comme telles — on n'a pas de finesse plus grande à
+ * leur sujet, et un don ou un apport n'a rien à y faire.
+ */
+export function cashTotals(list: Expense[], sales: SalesFlow = NO_SALES, urssafBp = 0): CashTotals {
   const entered = sumExpenses(list);
+  const enteredTurnover = list.filter((e) => e.direction === "in" && e.status === "paid" && e.taxable).reduce((s, e) => s + e.amount, 0);
+  const urssaf = sales.urssaf + partOf(enteredTurnover, urssafBp);
   const cashIn = entered.in + sales.revenue;
-  const cashOut = entered.out + sales.urssaf;
-  return { entered, sales, in: cashIn, out: cashOut, pending: entered.pending, net: cashIn - cashOut };
+  const cashOut = entered.out + urssaf + sales.stripeFee;
+  return { entered, sales, enteredTurnover, urssaf, stripeFee: sales.stripeFee, in: cashIn, out: cashOut, pending: entered.pending, net: cashIn - cashOut };
 }
 
 export function sumExpenses(list: Expense[]): ExpenseTotals {
@@ -118,14 +140,14 @@ export type MonthTotal = { month: string } & CashTotals;
  * chose : une ligne saisie OU une vente — d'où l'union des deux jeux de clés, sinon un
  * mois sans frais mais plein de ventes n'apparaîtrait pas du tout.
  */
-export function byMonth(list: Expense[], sales: Map<string, SalesFlow> = new Map()): MonthTotal[] {
+export function byMonth(list: Expense[], sales: Map<string, SalesFlow> = new Map(), urssafBp = 0): MonthTotal[] {
   const map = new Map<string, Expense[]>();
   for (const e of list) {
     const key = e.date.slice(0, 7);
     map.set(key, [...(map.get(key) ?? []), e]);
   }
   const months = new Set([...map.keys(), ...sales.keys()]);
-  return [...months].sort((a, b) => b.localeCompare(a)).map((month) => ({ month, ...cashTotals(map.get(month) ?? [], sales.get(month) ?? NO_SALES) }));
+  return [...months].sort((a, b) => b.localeCompare(a)).map((month) => ({ month, ...cashTotals(map.get(month) ?? [], sales.get(month) ?? NO_SALES, urssafBp) }));
 }
 
 /** Ce que pèse un frais récurrent sur un mois. Un frais ponctuel ne pèse rien de fixe. */

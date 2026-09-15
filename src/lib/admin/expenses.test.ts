@@ -15,6 +15,7 @@ const make = (over: Partial<Expense>): Expense => ({
   recurrence: "once",
   productSlugs: [],
   documentIds: [],
+  taxable: false,
   note: "",
   createdAt: 0,
   updatedAt: 0,
@@ -80,20 +81,23 @@ describe("byMonth", () => {
   });
 
   it("fait exister un mois qui n'a vu que des ventes", () => {
-    const rows = byMonth([make({ id: "a", date: "2026-08-02", amount: 1_000 })], new Map([["2026-09", { orders: 4, revenue: 100_000, urssaf: 12_300 }]]));
+    const rows = byMonth([make({ id: "a", date: "2026-08-02", amount: 1_000 })], new Map([["2026-09", { orders: 4, revenue: 100_000, urssaf: 12_300, stripeFee: 0 }]]));
     expect(rows.map((r) => r.month)).toEqual(["2026-09", "2026-08"]);
     expect(rows[0]).toMatchObject({ in: 100_000, out: 12_300, net: 87_700 });
   });
 
   it("additionne ventes et frais du même mois", () => {
-    const rows = byMonth([make({ id: "a", date: "2026-09-10", amount: 20_000 })], new Map([["2026-09", { orders: 4, revenue: 100_000, urssaf: 12_300 }]]));
+    const rows = byMonth([make({ id: "a", date: "2026-09-10", amount: 20_000 })], new Map([["2026-09", { orders: 4, revenue: 100_000, urssaf: 12_300, stripeFee: 0 }]]));
     expect(rows[0]).toMatchObject({ in: 100_000, out: 32_300, net: 67_700 });
   });
 });
 
 describe("sumSales", () => {
   it("additionne des mois de ventes", () => {
-    expect(sumSales([{ orders: 3, revenue: 60_000, urssaf: 7_380 }, { orders: 2, revenue: 40_000, urssaf: 4_920 }])).toEqual({ orders: 5, revenue: 100_000, urssaf: 12_300 });
+    expect(sumSales([
+      { orders: 3, revenue: 60_000, urssaf: 7_380, stripeFee: 975 },
+      { orders: 2, revenue: 40_000, urssaf: 4_920, stripeFee: 650 },
+    ])).toEqual({ orders: 5, revenue: 100_000, urssaf: 12_300, stripeFee: 1_625 });
   });
 
   it("sans vente, tout est à zéro", () => {
@@ -105,7 +109,7 @@ describe("cashTotals", () => {
   it("met les ventes en entrée et les cotisations en sortie, avec les lignes saisies", () => {
     const t = cashTotals(
       [make({ id: "a", amount: 30_000 }), make({ id: "b", direction: "in", category: "funding", amount: 50_000 }), make({ id: "c", amount: 9_000, status: "pending" })],
-      { orders: 8, revenue: 200_000, urssaf: 24_600 },
+      { orders: 8, revenue: 200_000, urssaf: 24_600, stripeFee: 0 },
     );
     expect(t.in).toBe(250_000); // 200 000 de ventes + 50 000 d'apport
     expect(t.out).toBe(54_600); // 24 600 de cotisations + 30 000 de frais payés
@@ -120,8 +124,43 @@ describe("cashTotals", () => {
     expect(t.sales).toEqual(NO_SALES);
   });
 
+  it("cotise une entrée saisie marquée comme du chiffre d'affaires", () => {
+    // 2 228 € + 1 201 € de ventes hors site, 362,48 € encaissés sur le site.
+    const t = cashTotals(
+      [
+        make({ id: "a", direction: "in", category: "offline_sales", amount: 222_800, taxable: true }),
+        make({ id: "b", direction: "in", category: "offline_sales", amount: 120_100, taxable: true }),
+      ],
+      { orders: 1, revenue: 36_248, urssaf: 4_459, stripeFee: 0 },
+      1_230,
+    );
+    expect(t.in).toBe(379_148);
+    // 4 459 sur la vente du site + 12,3 % de 342 900 saisis.
+    expect(t.urssaf).toBe(4_459 + 42_177);
+    expect(t.in - t.urssaf).toBe(332_512);
+  });
+
+  it("laisse passer un don sans rien prélever", () => {
+    const t = cashTotals([make({ direction: "in", category: "funding", amount: 50_000, taxable: false })], NO_SALES, 1_230);
+    expect(t.urssaf).toBe(0);
+    expect(t.enteredTurnover).toBe(0);
+    expect(t.net).toBe(50_000);
+  });
+
+  it("ne cotise pas une entrée seulement attendue, même marquée", () => {
+    const t = cashTotals([make({ direction: "in", category: "offline_sales", amount: 50_000, taxable: true, status: "pending" })], NO_SALES, 1_230);
+    expect(t.urssaf).toBe(0);
+  });
+
+  it("sort la commission Stripe avec les cotisations", () => {
+    const t = cashTotals([], { orders: 2, revenue: 100_000, urssaf: 12_300, stripeFee: 1_550 }, 1_230);
+    expect(t.stripeFee).toBe(1_550);
+    expect(t.out).toBe(13_850);
+    expect(t.net).toBe(86_150);
+  });
+
   it("garde les lignes saisies lisibles à part des ventes", () => {
-    const t = cashTotals([make({ direction: "in", category: "funding", amount: 50_000 })], { orders: 1, revenue: 10_000, urssaf: 1_230 });
+    const t = cashTotals([make({ direction: "in", category: "funding", amount: 50_000 })], { orders: 1, revenue: 10_000, urssaf: 1_230, stripeFee: 0 });
     expect(t.entered.in).toBe(50_000);
     expect(t.sales.revenue).toBe(10_000);
   });

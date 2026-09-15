@@ -36,6 +36,7 @@ const Input = z.object({
   method: ExpenseMethod,
   status: z.enum(["paid", "pending"]),
   recurrence: ExpenseRecurrence,
+  taxable: z.boolean().default(false),
   note: z.string().trim().max(500).default(""),
 });
 
@@ -67,7 +68,7 @@ export async function saveExpenseAction(formData: FormData): Promise<AdminResult
   formData.delete("documentIds");
   formData.delete("files");
 
-  const parsed = parseForm(Input, formData);
+  const parsed = parseForm(Input, formData, { booleans: ["taxable"] });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
 
@@ -135,6 +136,7 @@ export async function saveExpenseAction(formData: FormData): Promise<AdminResult
     recurrence: d.recurrence,
     productSlugs: slugs,
     documentIds: [...docIds, ...uploaded],
+    taxable: d.taxable,
     note: d.note,
   });
 

@@ -49,6 +49,19 @@ describe("Expense, reprise de l'ancienne forme", () => {
     expect(e.productSlugs).toEqual(["les-animaux", "le-visage"]);
   });
 
+  it("devine au poste si une ancienne entrée cotisait", () => {
+    expect(Expense.parse({ ...base, direction: "in", category: "offline_sales" }).taxable).toBe(true);
+    expect(Expense.parse({ ...base, direction: "in", category: "funding" }).taxable).toBe(false);
+    expect(Expense.parse({ ...base, direction: "in", category: "refund" }).taxable).toBe(false);
+    // Une sortie ne cotise rien, quel que soit son poste.
+    expect(Expense.parse({ ...base, direction: "out", category: "other" }).taxable).toBe(false);
+  });
+
+  it("respecte la case quand elle a été posée", () => {
+    expect(Expense.parse({ ...base, direction: "in", category: "funding", taxable: true }).taxable).toBe(true);
+    expect(Expense.parse({ ...base, direction: "in", category: "offline_sales", taxable: false }).taxable).toBe(false);
+  });
+
   it("lit la forme nouvelle sans rien faire", () => {
     const e = Expense.parse({ ...base, productSlugs: ["les-fruits"], documentIds: ["doc_1", "doc_2"] });
     expect(e.productSlugs).toEqual(["les-fruits"]);

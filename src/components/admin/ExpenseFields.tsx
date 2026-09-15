@@ -3,7 +3,7 @@ import { now } from "@/lib/db/helpers";
 import type { BusinessDoc, Expense, ExpenseMethod, ExpenseRecurrence, Product } from "@/lib/domain/types";
 import { dayKey } from "@/lib/stats/keys";
 import { Field } from "./Field";
-import { Checkbox, Input, Segmented, Select, Textarea } from "./ui";
+import { Checkbox, Input, Segmented, Select, Switch, Textarea } from "./ui";
 
 /*
  * Les champs d'un mouvement d'argent, partagés par la saisie rapide de /admin/depenses
@@ -19,9 +19,10 @@ import { Checkbox, Input, Segmented, Select, Textarea } from "./ui";
  * ce qui est retenu. Les groupes de cases ne passent pas par <Field>, qui est un <label>
  * : un label dans un label ne veut rien dire, et le clic finirait sur la mauvaise case.
  */
-export function ExpenseFields({ expense, products, documents }: { expense?: Expense; products: Product[]; documents: BusinessDoc[] }) {
+export function ExpenseFields({ expense, products, documents, urssafBp }: { expense?: Expense; products: Product[]; documents: BusinessDoc[]; urssafBp: number }) {
   // Le jour de Paris, pas celui d'UTC : passé minuit l'été, les deux ne sont plus le même.
   const today = dayKey(now());
+  const urssafLabel = `${(urssafBp / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`;
   const chosenProducts = new Set(expense?.productSlugs ?? []);
   const chosenDocs = new Set(expense?.documentIds ?? []);
   // Les pièces déjà attachées d'abord : ce sont celles qu'on vient vérifier ou décrocher.
@@ -106,6 +107,20 @@ export function ExpenseFields({ expense, products, documents }: { expense?: Expe
             ))}
           </Select>
         </Field>
+      </div>
+
+      {/*
+       * Le choix se fait à la saisie, parce qu'aucune règle ne le devine à coup sûr : une
+       * vente en salon cotise, un don ou un apport non, et les deux se rangent volontiers
+       * sous le même poste. Coché par défaut : une entrée est une recette neuf fois sur dix.
+       */}
+      <div className="rounded-[14px] bg-paper p-4">
+        <Switch
+          name="taxable"
+          defaultChecked={expense ? expense.taxable : true}
+          label={`Déduire les ${urssafLabel} d'URSSAF`}
+          hint="Pour une entrée qui est du chiffre d'affaires : vente en salon, chez un libraire. Un don, un apport personnel ou un remboursement n'y est pas soumis. Sans effet sur une sortie."
+        />
       </div>
 
       <fieldset className="flex flex-col gap-2.5 rounded-[14px] bg-paper p-4">

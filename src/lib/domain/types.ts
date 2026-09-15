@@ -1366,6 +1366,12 @@ function upgradeExpense(value: unknown): unknown {
   const v = { ...(value as Record<string, unknown>) };
   if (v.productSlugs === undefined) v.productSlugs = typeof v.productSlug === "string" && v.productSlug ? [v.productSlug] : [];
   if (v.documentIds === undefined) v.documentIds = typeof v.documentId === "string" && v.documentId ? [v.documentId] : [];
+  /*
+   * Lignes d'avant le réglage : on devine au poste ce que la case dirait aujourd'hui.
+   * Une vente hors site — ou une entrée qu'on n'a pas su nommer — est du chiffre
+   * d'affaires ; un apport, un don et un remboursement n'en sont pas.
+   */
+  if (v.taxable === undefined) v.taxable = v.direction === "in" && (v.category === "offline_sales" || v.category === "other");
   delete v.productSlug;
   delete v.documentId;
   delete v.units;
@@ -1395,6 +1401,13 @@ export const Expense = z.preprocess(
     productSlugs: z.array(Slug).max(50).default([]),
     /** Justificatifs : les pièces de la bibliothèque attachées à ce mouvement. */
     documentIds: z.array(z.string()).max(50).default([]),
+    /*
+     * Entrée soumise aux cotisations URSSAF. Une vente en salon ou chez un libraire en
+     * est ; un don, un apport personnel ou un remboursement n'en sont pas — d'où un
+     * choix explicite à la saisie plutôt qu'une règle devinée du poste. Sans effet sur
+     * une sortie, qui ne cotise rien par définition.
+     */
+    taxable: z.boolean().default(false),
     note: z.string().max(500).default(""),
     createdAt: z.number(),
     updatedAt: z.number(),

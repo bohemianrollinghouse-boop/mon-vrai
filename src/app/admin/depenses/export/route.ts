@@ -32,6 +32,7 @@ export async function GET(request: Request) {
   const q = url.searchParams.get("q") ?? "";
 
   const [all, products, documents, orders, settings] = await Promise.all([listExpenses(), listAllProducts(), listDocuments(), listOrders({ limit: 2000 }), getSettings()]);
+  const { urssafBp, stripeBp, stripeFixed } = settings.costs;
   const today = dayKey(Date.now());
   const from = periodStart(period, today);
 
@@ -72,13 +73,39 @@ export async function GET(request: Request) {
       if (from && day < from) continue;
       const month = day.slice(0, 7);
       const f = byMonth.get(month) ?? { ...NO_SALES };
-      byMonth.set(month, { orders: f.orders + 1, revenue: f.revenue + o.totals.total, urssaf: f.urssaf + partOf(o.totals.total, settings.costs.urssafBp) });
+      const total = o.totals.total;
+      byMonth.set(month, {
+        orders: f.orders + 1,
+        revenue: f.revenue + total,
+        urssaf: f.urssaf + partOf(total, urssafBp),
+        stripeFee: f.stripeFee + (total > 0 ? partOf(total, stripeBp) + stripeFixed : 0),
+      });
     }
-    const rate = `${(settings.costs.urssafBp / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`;
-    for (const [month, f] of byMonth) {
+    /*
+     * Les cotisations portent aussi sur les entrées saisies marquées comme du chiffre
+     * d'affaires : on les ajoute au mois où elles tombent, sans quoi le fichier et
+     * l'écran ne diraient pas la même chose.
+     */
+    const taxedByMonth = new Map<string, number>();
+    for (const e of entered) {
+      if (e.direction !== "in" || e.status !== "paid" || !e.taxable) continue;
+      const month = e.date.slice(0, 7);
+      taxedByMonth.set(month, (taxedByMonth.get(month) ?? 0) + e.amount);
+    }
+    const pct = (bp: number) => `${(bp / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`;
+    for (const month of new Set([...byMonth.keys(), ...taxedByMonth.keys()])) {
+      const f = byMonth.get(month) ?? { ...NO_SALES };
       const date = `${month}-01`;
-      rows.push({ date, cells: [date, "Entrée", "Ventes du site", `Ventes encaissées — ${month}`, "", euros(f.revenue), "calculé", "", "Payé", "Ponctuel", "", "", `${f.orders} commande(s), port compris`] });
-      rows.push({ date, cells: [date, "Sortie", CATEGORY_LABELS.taxes, `Cotisations URSSAF — ${month}`, "URSSAF", signed(f.urssaf, true), "calculé", "", "Provision", "Ponctuel", "", "", `${rate} des ventes du mois`] });
+      const urssaf = f.urssaf + partOf(taxedByMonth.get(month) ?? 0, urssafBp);
+      if (f.revenue > 0) {
+        rows.push({ date, cells: [date, "Entrée", "Ventes du site", `Ventes encaissées — ${month}`, "", euros(f.revenue), "calculé", "", "Payé", "Ponctuel", "", "", `${f.orders} commande(s), port compris`] });
+      }
+      if (urssaf > 0) {
+        rows.push({ date, cells: [date, "Sortie", CATEGORY_LABELS.taxes, `Cotisations URSSAF — ${month}`, "URSSAF", signed(urssaf, true), "calculé", "", "Provision", "Ponctuel", "", "", `${pct(urssafBp)} du chiffre d'affaires du mois`] });
+      }
+      if (f.stripeFee > 0) {
+        rows.push({ date, cells: [date, "Sortie", CATEGORY_LABELS.fees, `Commission Stripe — ${month}`, "Stripe", signed(f.stripeFee, true), "calculé", "", "Payé", "Ponctuel", "", "", `${pct(stripeBp)} + ${euros(stripeFixed)} € par commande`] });
+      }
     }
   }
 

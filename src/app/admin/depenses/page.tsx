@@ -24,18 +24,26 @@ export const dynamic = "force-dynamic";
  * Dépenses : toute la trésorerie de la société, dans un seul compte.
  *
  * Deux sources s'y rejoignent. Les lignes SAISIES — les frais, et les entrées d'un autre
- * bord (apport, subvention, remboursement, vente en salon). Et les VENTES du site, qui ne
- * se saisissent pas : elles sont déduites des commandes encaissées, et elles emportent
- * avec elles les cotisations URSSAF, prélevées sur chaque encaissement au taux des
- * réglages (`costs.urssafBp`, 12,30 % par défaut — modifiable dans Revenus).
+ * bord (apport, don, remboursement, vente en salon). Et les VENTES du site, qui ne se
+ * saisissent pas : elles sont déduites des commandes encaissées.
+ *
+ * Deux prélèvements s'appliquent, au taux des réglages (`costs`, modifiables dans
+ * Revenus) : les COTISATIONS URSSAF sur tout le chiffre d'affaires — les ventes du site,
+ * et les entrées saisies dont la case « Déduire les 12,3 % » est restée cochée, car un
+ * don ou un apport n'en est pas —, et la COMMISSION Stripe sur les seules ventes du
+ * site, qui sont les seules à passer par la carte.
+ *
+ * Les deux se calculent commande par commande pour les ventes, comme dans /admin/revenus,
+ * pour que les deux écrans tombent sur le même chiffre. Conséquence assumée : l'URSSAF
+ * étant arrondie séparément sur les ventes et sur les entrées saisies, le total peut
+ * s'écarter d'un centime du taux appliqué à la somme.
  *
  * La différence avec /admin/revenus tient en une phrase : là-bas on regarde ce qu'une
  * VENTE laisse une fois tous ses coûts retirés (fabrication, port réel, commission) ;
  * ici on regarde ce que le COMPTE fait sur une période, frais de structure compris.
  *
- * Les cotisations affichées ici sont une PROVISION, calculée sur les ventes — pas un
- * versement constaté. Saisir en plus le paiement à l'URSSAF le compterait deux fois :
- * l'écran le signale si le cas se présente.
+ * Les cotisations affichées ici sont une PROVISION, pas un versement constaté. Saisir en
+ * plus le paiement à l'URSSAF le compterait deux fois : l'écran le signale.
  *
  * Un mouvement porte son jour (AAAA-MM-JJ), son poste, éventuellement un titre et un
  * justificatif de la bibliothèque de documents. Les calculs vivent dans
@@ -54,7 +62,7 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
   const search = typeof q === "string" ? q.trim() : "";
 
   const [all, products, documents, orders, settings] = await Promise.all([listExpenses(), listAllProducts(), listDocuments(), listOrders({ limit: 2000 }), getSettings()]);
-  const urssafBp = settings.costs.urssafBp;
+  const { urssafBp, stripeBp, stripeFixed } = settings.costs;
 
   const today = dayKey(clock());
   const from = periodStart(period, today);
@@ -76,7 +84,14 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
     if (from && day < from) continue;
     const month = day.slice(0, 7);
     const flow = salesByMonth.get(month) ?? { ...NO_SALES };
-    salesByMonth.set(month, { orders: flow.orders + 1, revenue: flow.revenue + o.totals.total, urssaf: flow.urssaf + partOf(o.totals.total, urssafBp) });
+    const total = o.totals.total;
+    salesByMonth.set(month, {
+      orders: flow.orders + 1,
+      revenue: flow.revenue + total,
+      urssaf: flow.urssaf + partOf(total, urssafBp),
+      // Part variable + part fixe, par transaction : c'est ainsi que Stripe facture.
+      stripeFee: flow.stripeFee + (total > 0 ? partOf(total, stripeBp) + stripeFixed : 0),
+    });
   }
 
   /*
@@ -87,9 +102,9 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
   const narrowed = Boolean(category || search);
   const sales = narrowed ? NO_SALES : sumSales([...salesByMonth.values()]);
 
-  const t = cashTotals(rows, sales);
+  const t = cashTotals(rows, sales, urssafBp);
   const incomes = byCategory(rows, "in");
-  const months = byMonth(rows, narrowed ? new Map() : salesByMonth);
+  const months = byMonth(rows, narrowed ? new Map() : salesByMonth, urssafBp);
   const pending = rows.filter((e) => e.status === "pending").length;
 
   /** Conserve les filtres courants d'un lien à l'autre ; « annee » est la valeur par défaut, donc implicite. */
@@ -111,7 +126,10 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
    * dans le classement à leur place, et c'est presque toujours la première.
    */
   const slices = [
-    ...(sales.urssaf > 0 ? [{ key: "urssaf", label: "Cotisations URSSAF", amount: sales.urssaf, note: `${bpLabel(urssafBp)} de ${formatEuro(sales.revenue)} encaissés`, href: undefined as string | undefined }] : []),
+    ...(t.urssaf > 0 ? [{ key: "urssaf", label: "Cotisations URSSAF", amount: t.urssaf, note: `${bpLabel(urssafBp)} de ${formatEuro(sales.revenue + t.enteredTurnover)} de chiffre d'affaires`, href: undefined as string | undefined }] : []),
+    ...(t.stripeFee > 0
+      ? [{ key: "stripe", label: "Commission de paiement (Stripe)", amount: t.stripeFee, note: `${bpLabel(stripeBp)} + ${formatEuro(stripeFixed)} par commande · ${fmt(sales.orders)} commande${sales.orders > 1 ? "s" : ""}`, href: undefined as string | undefined }]
+      : []),
     ...byCategory(rows).map((c) => ({
       key: c.category,
       label: CATEGORY_LABELS[c.category],
@@ -190,8 +208,8 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
           note={sales.revenue > 0 ? `dont ${formatEuro(sales.revenue)} de ventes · ${fmt(sales.orders)} commande${sales.orders > 1 ? "s" : ""}` : "aucune vente encaissée sur la période"}
           href="/admin/revenus"
         />
-        <Tile tone="pink" label="Cotisations URSSAF" value={minus(sales.urssaf)} note={`${bpLabel(urssafBp)} des ventes encaissées`} />
-        <Tile tone="sand" label="Frais payés" value={minus(t.entered.out)} note={`${fmt(rows.filter((e) => e.direction === "out" && e.status === "paid").length)} paiement(s) saisi(s)`} />
+        <Tile tone="pink" label="Cotisations URSSAF" value={minus(t.urssaf)} note={`${bpLabel(urssafBp)} du chiffre d'affaires`} />
+        <Tile tone="sand" label="Frais payés" value={minus(t.entered.out + t.stripeFee)} note={t.stripeFee > 0 ? `dont ${formatEuro(t.stripeFee)} de commission Stripe` : `${fmt(rows.filter((e) => e.direction === "out" && e.status === "paid").length)} paiement(s) saisi(s)`} />
         <Tile tone={t.net >= 0 ? "green" : "pink"} label="Solde" value={formatEuro(t.net)} note="entrées − cotisations − frais" />
       </div>
 
@@ -208,7 +226,7 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
                     <span className="whitespace-nowrap text-[0.8125rem] font-extrabold">{minus(s.amount)}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-pill bg-line-soft">
-                    <div className={`h-full rounded-pill ${s.key === "urssaf" ? "bg-tint-pink-ink" : "bg-ink"}`} style={{ width: `${Math.max(2, Math.round((s.amount / barMax) * 100))}%` }} />
+                    <div className={`h-full rounded-pill ${s.key === "urssaf" ? "bg-tint-pink-ink" : s.key === "stripe" ? "bg-tint-blue-ink" : "bg-ink"}`} style={{ width: `${Math.max(2, Math.round((s.amount / barMax) * 100))}%` }} />
                   </div>
                   <span className="text-xs text-subtle">{s.note}</span>
                 </>
@@ -226,7 +244,8 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
           )}
           {sales.urssaf > 0 && (
             <span className="text-[0.6875rem] leading-relaxed text-subtle">
-              Les cotisations ne se saisissent pas : elles sont calculées sur chaque commande encaissée, au taux des réglages. C'est une provision — le versement réel, lui, n'a pas à être ressaisi. Le taux se change dans{" "}
+              Cotisations et commission ne se saisissent pas : elles sont calculées sur le chiffre d'affaires de la période, commande par commande pour les ventes du site. Les cotisations sont une provision — le versement
+              réel, lui, n'a pas à être ressaisi. Les taux se changent dans{" "}
               <Link href="/admin/revenus" className="font-bold underline">
                 Revenus
               </Link>
@@ -277,17 +296,45 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
                   <span className="font-extrabold">{formatEuro(c.amount)}</span>
                 </div>
               ))}
-              {sales.revenue > 0 && (
-                <>
-                  <div className="flex items-baseline justify-between gap-3 border-t border-current/20 pt-2.5 text-[0.8125rem]">
-                    <span className="font-bold">Une fois l'URSSAF retirée</span>
-                    <span className="font-extrabold">{formatEuro(t.in - sales.urssaf)}</span>
-                  </div>
-                  <span className="text-[0.6875rem] leading-relaxed">
-                    Les kits offerts aux partenaires ne sont pas là : ils n'encaissent rien. Ce que chaque vente laisse une fois TOUS ses coûts retirés (fabrication, port réel, commission) se lit dans Revenus.
+
+              {/*
+               * Le détail des retenues, ligne à ligne : c'est ce qu'on veut pouvoir
+               * refaire de tête quand un total surprend. Le brut en haut, chaque
+               * prélèvement en dessous, ce qui reste en bas.
+               */}
+              <div className="flex items-baseline justify-between gap-3 border-t border-current/20 pt-2.5 text-[0.8125rem]">
+                <span className="font-bold">Total encaissé</span>
+                <span className="font-extrabold">{formatEuro(t.in)}</span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
+                <span className="flex min-w-0 flex-col">
+                  <span>Cotisations URSSAF</span>
+                  <span className="text-xs opacity-70">
+                    {bpLabel(urssafBp)} de {formatEuro(sales.revenue + t.enteredTurnover)}
+                    {t.in > sales.revenue + t.enteredTurnover ? " — le reste n'y est pas soumis" : ""}
                   </span>
-                </>
+                </span>
+                <span className="whitespace-nowrap font-extrabold">{minus(t.urssaf)}</span>
+              </div>
+              {t.stripeFee > 0 && (
+                <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
+                  <span className="flex min-w-0 flex-col">
+                    <span>Commission Stripe</span>
+                    <span className="text-xs opacity-70">
+                      {bpLabel(stripeBp)} + {formatEuro(stripeFixed)} par commande
+                    </span>
+                  </span>
+                  <span className="whitespace-nowrap font-extrabold">{minus(t.stripeFee)}</span>
+                </div>
               )}
+              <div className="flex items-baseline justify-between gap-3 border-t border-current/20 pt-2.5">
+                <span className="text-[0.9375rem] font-extrabold">Ce qui reste</span>
+                <span className="whitespace-nowrap text-[1.25rem] font-extrabold">{formatEuro(t.in - t.urssaf - t.stripeFee)}</span>
+              </div>
+              <span className="text-[0.6875rem] leading-relaxed">
+                Les kits offerts aux partenaires ne sont pas là : ils n'encaissent rien. Une entrée saisie ne cotise que si la case « Déduire les {bpLabel(urssafBp)} d'URSSAF » a été laissée cochée — un don ou un apport
+                n'est pas du chiffre d'affaires. Ce que chaque vente laisse une fois TOUS ses coûts retirés (fabrication, port réel) se lit dans Revenus.
+              </span>
             </Card>
           )}
         </div>
@@ -336,7 +383,7 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
          * ne ferait pas l'affaire : un frais daté d'hier ne se met pas en tête.)
          */}
         <ActionForm key={`saisie-${all.length}`} action={saveExpenseAction} submitLabel="Ajouter" footerNote="Les ventes du site sont déjà comptées, commande par commande : à saisir ici, elles compteraient deux fois.">
-          <ExpenseFields products={products} documents={documents} />
+          <ExpenseFields products={products} documents={documents} urssafBp={urssafBp} />
         </ActionForm>
       </Card>
 
@@ -399,8 +446,8 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
       {months.length > 1 && (
         <Card title="Mois par mois" className="!p-6 [&>div:last-child]:-mx-6 [&>div:last-child]:rounded-none [&>div:last-child]:py-0">
           <GridTable
-            columns="1fr 120px 120px 120px 120px 120px"
-            head={["Mois", "Ventes", "Cotisations", "Frais payés", "Autres entrées", "Solde"]}
+            columns="1fr 110px 110px 110px 110px 110px 110px"
+            head={["Mois", "Ventes", "Cotisations", "Stripe", "Frais payés", "Autres entrées", "Solde"]}
             rows={months.map((m) => ({
               key: m.month,
               cells: [
@@ -411,7 +458,10 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
                   {m.sales.revenue > 0 ? formatEuro(m.sales.revenue) : "—"}
                 </span>,
                 <span key="u" className="whitespace-nowrap text-subtle">
-                  {m.sales.urssaf > 0 ? minus(m.sales.urssaf) : "—"}
+                  {m.urssaf > 0 ? minus(m.urssaf) : "—"}
+                </span>,
+                <span key="sf" className="whitespace-nowrap text-subtle">
+                  {m.stripeFee > 0 ? minus(m.stripeFee) : "—"}
                 </span>,
                 <span key="o" className="whitespace-nowrap text-subtle">
                   {m.entered.out > 0 ? minus(m.entered.out) : "—"}

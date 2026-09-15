@@ -85,11 +85,18 @@ Un PDF déjà déposé n'est jamais régénéré : c'est un document comptable f
   d'un autre bord : apport, subvention, remboursement, vente en salon), et les **ventes
   du site**, qui ne se saisissent pas. Elles sont déduites des commandes encaissées
   (mêmes règles qu'ailleurs : `livemode`, statuts `COUNTED`, kits offerts exclus) et
-  emportent avec elles les **cotisations URSSAF**, calculées commande par commande au
-  taux de `settings.costs.urssafBp` — c'est ce qui fait tomber cet écran et Revenus sur
-  le même chiffre au centime près. Ces cotisations sont une **provision**, pas un
-  versement : ressaisir le paiement à l'URSSAF le compterait deux fois, et la page le
-  signale quand elle en repère un. Un montant saisi est **positif en centimes**, le sens
+  emportent avec elles deux prélèvements, aux taux de `settings.costs` : les
+  **cotisations URSSAF** et la **commission Stripe** (part variable + part fixe par
+  transaction), calculées commande par commande — c'est ce qui fait tomber cet écran et
+  Revenus sur le même chiffre. Les cotisations portent aussi sur les **entrées saisies**
+  dont le drapeau `taxable` est posé : une vente en salon est du chiffre d'affaires, un
+  don ou un apport non, et aucune règle ne les distingue à coup sûr — d'où une case à la
+  saisie plutôt qu'une déduction du poste. La commission Stripe, elle, ne concerne que
+  les ventes du site : une vente en espèces ne passe pas par la carte. Arrondissant
+  séparément les deux assiettes, le total d'URSSAF peut s'écarter d'un centime du taux
+  appliqué à la somme — c'est le prix d'un calcul commande par commande, et c'est voulu.
+  Ces cotisations sont une **provision**, pas un versement : ressaisir le paiement à
+  l'URSSAF le compterait deux fois, et la page le signale quand elle en repère un. Un montant saisi est **positif en centimes**, le sens
   vient de `direction` ; la date est un **jour civil** (`AAAA-MM-JJ`) et non un
   horodatage — une facture n'a ni heure ni fuseau, et les mois se regroupent par préfixe.
   Une ligne « engagée » (reçue, pas payée) est comptée à part des sorties réelles.
