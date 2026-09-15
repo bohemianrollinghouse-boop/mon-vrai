@@ -23,7 +23,7 @@ export function ExpenseFields({ expense, products, documents }: { expense?: Expe
       {expense && <input type="hidden" name="id" value={expense.id} />}
 
       <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2 max-[599px]:grid-cols-1">
-        <Field label="Sens" hint="Les ventes du site ne se saisissent pas ici." name="direction">
+        <Field label="Sens" hint="Les ventes du site sont comptées toutes seules." name="direction">
           <Segmented
             name="direction"
             defaultValue={expense?.direction ?? "out"}

@@ -80,19 +80,28 @@ Un PDF déjà déposé n'est jamais régénéré : c'est un document comptable f
 
 ## Gestion (dépenses et documents)
 
-Deux écrans, volontairement séparés de `/admin/revenus` : là-bas tout se calcule depuis
-les commandes, ici tout se saisit à la main.
-
-- `/admin/depenses` — les mouvements d'argent de la société (collection `expenses`) :
-  les frais, et les entrées que les commandes ignorent (apport, subvention,
-  remboursement, vente en salon). Un montant est **positif en centimes**, le sens vient
-  de `direction` ; la date est un **jour civil** (`AAAA-MM-JJ`) et non un horodatage —
-  une facture n'a ni heure ni fuseau, et les regroupements par mois se font par préfixe.
+- `/admin/depenses` — **toute la trésorerie**, dans un seul compte. Deux sources s'y
+  rejoignent : les lignes **saisies** (collection `expenses` — les frais, et les entrées
+  d'un autre bord : apport, subvention, remboursement, vente en salon), et les **ventes
+  du site**, qui ne se saisissent pas. Elles sont déduites des commandes encaissées
+  (mêmes règles qu'ailleurs : `livemode`, statuts `COUNTED`, kits offerts exclus) et
+  emportent avec elles les **cotisations URSSAF**, calculées commande par commande au
+  taux de `settings.costs.urssafBp` — c'est ce qui fait tomber cet écran et Revenus sur
+  le même chiffre au centime près. Ces cotisations sont une **provision**, pas un
+  versement : ressaisir le paiement à l'URSSAF le compterait deux fois, et la page le
+  signale quand elle en repère un. Un montant saisi est **positif en centimes**, le sens
+  vient de `direction` ; la date est un **jour civil** (`AAAA-MM-JJ`) et non un
+  horodatage — une facture n'a ni heure ni fuseau, et les mois se regroupent par préfixe.
   Une ligne « engagée » (reçue, pas payée) est comptée à part des sorties réelles.
-  Tous les calculs sont dans `lib/admin/expenses.ts` (fonctions pures, testées) : totaux,
-  postes, mois, **charges fixes** (un frais récurrent ne compte qu'une fois — sa dernière
-  occurrence) et **coût rattaché à un titre** (amorti sur les exemplaires couverts, jamais
-  deviné). Vocabulaire et filtres partagés avec l'export CSV : `lib/admin/expense-ui.ts`.
+  Un filtre par poste écarte les ventes : les totaux doivent porter sur ce que la liste
+  montre. Calculs dans `lib/admin/expenses.ts` (fonctions pures, testées) : `cashTotals`
+  marie les deux sources, plus postes, mois, **charges fixes** (un frais récurrent ne
+  compte qu'une fois — sa dernière occurrence) et **coût rattaché à un titre** (amorti
+  sur les exemplaires couverts, jamais deviné). Vocabulaire et filtres partagés avec
+  l'export CSV : `lib/admin/expense-ui.ts`.
+- La différence avec `/admin/revenus` tient en une phrase : là-bas on regarde ce qu'une
+  **vente** laisse une fois tous ses coûts retirés (fabrication, port réel, commission) ;
+  ici, ce que le **compte** fait sur une période, frais de structure compris.
 - `/admin/documents` — les pièces administratives (collection `documents`) : normes CE,
   rapports de laboratoire, attributions d'ISBN, contrats, assurances. **Rien n'est
   public** : le fichier va sous `documents/` (fermé par `storage.rules`, comme

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Expense } from "@/lib/domain/types";
-import { byCategory, byMonth, byProduct, daysBefore, fixedCharges, fixedMonthly, inPeriod, monthlyCost, sumExpenses } from "./expenses";
+import { NO_SALES, byCategory, byMonth, byProduct, cashTotals, daysBefore, fixedCharges, fixedMonthly, inPeriod, monthlyCost, sumExpenses, sumSales } from "./expenses";
 
 const make = (over: Partial<Expense>): Expense => ({
   id: over.id ?? "exp_1",
@@ -78,6 +78,53 @@ describe("byMonth", () => {
       ["2026-09", 5_000],
       ["2026-08", 1_000],
     ]);
+  });
+
+  it("fait exister un mois qui n'a vu que des ventes", () => {
+    const rows = byMonth([make({ id: "a", date: "2026-08-02", amount: 1_000 })], new Map([["2026-09", { orders: 4, revenue: 100_000, urssaf: 12_300 }]]));
+    expect(rows.map((r) => r.month)).toEqual(["2026-09", "2026-08"]);
+    expect(rows[0]).toMatchObject({ in: 100_000, out: 12_300, net: 87_700 });
+  });
+
+  it("additionne ventes et frais du même mois", () => {
+    const rows = byMonth([make({ id: "a", date: "2026-09-10", amount: 20_000 })], new Map([["2026-09", { orders: 4, revenue: 100_000, urssaf: 12_300 }]]));
+    expect(rows[0]).toMatchObject({ in: 100_000, out: 32_300, net: 67_700 });
+  });
+});
+
+describe("sumSales", () => {
+  it("additionne des mois de ventes", () => {
+    expect(sumSales([{ orders: 3, revenue: 60_000, urssaf: 7_380 }, { orders: 2, revenue: 40_000, urssaf: 4_920 }])).toEqual({ orders: 5, revenue: 100_000, urssaf: 12_300 });
+  });
+
+  it("sans vente, tout est à zéro", () => {
+    expect(sumSales([])).toEqual(NO_SALES);
+  });
+});
+
+describe("cashTotals", () => {
+  it("met les ventes en entrée et les cotisations en sortie, avec les lignes saisies", () => {
+    const t = cashTotals(
+      [make({ id: "a", amount: 30_000 }), make({ id: "b", direction: "in", category: "funding", amount: 50_000 }), make({ id: "c", amount: 9_000, status: "pending" })],
+      { orders: 8, revenue: 200_000, urssaf: 24_600 },
+    );
+    expect(t.in).toBe(250_000); // 200 000 de ventes + 50 000 d'apport
+    expect(t.out).toBe(54_600); // 24 600 de cotisations + 30 000 de frais payés
+    expect(t.net).toBe(195_400);
+    // L'engagé reste dehors : il n'a pas quitté le compte.
+    expect(t.pending).toBe(9_000);
+  });
+
+  it("sans vente, revient aux seules lignes saisies", () => {
+    const t = cashTotals([make({ amount: 30_000 })]);
+    expect(t).toMatchObject({ in: 0, out: 30_000, net: -30_000 });
+    expect(t.sales).toEqual(NO_SALES);
+  });
+
+  it("garde les lignes saisies lisibles à part des ventes", () => {
+    const t = cashTotals([make({ direction: "in", category: "funding", amount: 50_000 })], { orders: 1, revenue: 10_000, urssaf: 1_230 });
+    expect(t.entered.in).toBe(50_000);
+    expect(t.sales.revenue).toBe(10_000);
   });
 });
 
