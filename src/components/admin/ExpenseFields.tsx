@@ -3,8 +3,8 @@ import { now } from "@/lib/db/helpers";
 import type { BusinessDoc, Expense, ExpenseMethod, ExpenseRecurrence, Product } from "@/lib/domain/types";
 import { dayKey } from "@/lib/stats/keys";
 import { Field } from "./Field";
-import { UrssafNote } from "./UrssafNote";
-import { Checkbox, Input, Segmented, Select, Switch, Textarea } from "./ui";
+import { UrssafField } from "./UrssafField";
+import { Checkbox, Input, Segmented, Select, Textarea } from "./ui";
 
 /*
  * Les champs d'un mouvement d'argent, partagés par la saisie rapide de /admin/depenses
@@ -23,7 +23,6 @@ import { Checkbox, Input, Segmented, Select, Switch, Textarea } from "./ui";
 export function ExpenseFields({ expense, products, documents, urssafBp }: { expense?: Expense; products: Product[]; documents: BusinessDoc[]; urssafBp: number }) {
   // Le jour de Paris, pas celui d'UTC : passé minuit l'été, les deux ne sont plus le même.
   const today = dayKey(now());
-  const urssafLabel = `${(urssafBp / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`;
   const chosenProducts = new Set(expense?.productSlugs ?? []);
   const chosenDocs = new Set(expense?.documentIds ?? []);
   // Les pièces déjà attachées d'abord : ce sont celles qu'on vient vérifier ou décrocher.
@@ -114,16 +113,9 @@ export function ExpenseFields({ expense, products, documents, urssafBp }: { expe
        * Le choix se fait à la saisie, parce qu'aucune règle ne le devine à coup sûr : une
        * vente en salon cotise, un don ou un apport non, et les deux se rangent volontiers
        * sous le même poste. Coché par défaut : une entrée est une recette neuf fois sur dix.
+       * Le bloc ne paraît que sur une entrée — voir UrssafField.
        */}
-      <div className="flex flex-col gap-2 rounded-[14px] bg-paper p-4">
-        <Switch
-          name="taxable"
-          defaultChecked={expense ? expense.taxable : true}
-          label={`Déduire les ${urssafLabel} d'URSSAF`}
-          hint="Pour une entrée qui est du chiffre d'affaires : vente en salon, chez un libraire. Un don, un apport personnel ou un remboursement n'y est pas soumis. Sans effet sur une sortie."
-        />
-        <UrssafNote bp={urssafBp} />
-      </div>
+      <UrssafField bp={urssafBp} defaultChecked={expense ? expense.taxable : true} defaultDirection={expense?.direction ?? "out"} />
 
       <fieldset className="flex flex-col gap-2.5 rounded-[14px] bg-paper p-4">
         <legend className="px-1 text-[0.8125rem] font-bold">Titres concernés</legend>
