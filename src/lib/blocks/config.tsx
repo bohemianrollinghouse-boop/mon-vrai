@@ -730,7 +730,7 @@ export const blockConfig: Config<Props> = {
         titre: "Dites-nous qui vous êtes, on s'occupe du reste.",
         texte: "Réponse sous 48 h ouvrées avec une proposition adaptée : tarif, quantités, délais. Pas de devis automatique, une vraie personne.",
         emailLabel: "E-mail direct",
-        email: "pro@monvrai.fr",
+        email: "contact@monvrai.fr",
         docsLabel: "Documents",
         docs: [],
         mentionLegale: "En envoyant ce formulaire, vous acceptez notre politique de confidentialité. Aucune newsletter sans votre accord.",
