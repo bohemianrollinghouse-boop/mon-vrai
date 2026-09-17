@@ -11,6 +11,7 @@ import { clockNow, getCampaign, listCampaigns } from "@/lib/db/campaigns";
 import { getSignature, listContracts } from "@/lib/db/contracts";
 import { findKitOrder } from "@/lib/db/orders";
 import { listAllProducts } from "@/lib/db/products";
+import { getOperation } from "@/lib/db/operations";
 import { getInfluencer } from "@/lib/db/promos";
 import { formatEuro } from "@/lib/domain/money";
 import { CAMPAIGN_STATUS_LABELS, CollaborationType, COLLABORATION_LABELS } from "@/lib/domain/types";
@@ -39,12 +40,13 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
   /* Une campagne ne s'ouvre que depuis la fiche de SON partenaire : l'adresse ne suffit pas. */
   if (!influencer || !campaign || campaign.influencerId !== influencer.id) notFound();
 
-  const [products, contracts, order, signature, siblings, at] = await Promise.all([
+  const [products, contracts, order, signature, siblings, operation, at] = await Promise.all([
     listAllProducts(),
     listContracts(),
     findKitOrder(influencer.id, campaign.seq).catch(() => null),
     getSignature(campaign.signatureId).catch(() => null),
     listCampaigns(influencer.id),
+    getOperation(campaign.operationId).catch(() => null),
     clockNow(),
   ]);
 
@@ -71,6 +73,21 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
         }
         subtitle={`Campagne n° ${campaign.seq} · ${COLLABORATION_LABELS[campaign.collaborationType]} · ouverte le ${new Date(campaign.createdAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}`}
       />
+
+      {/*
+        Née d'une campagne partagée : on le dit, et on y renvoie. Ce qui suit reste
+        modifiable pour ce partenaire seul — la campagne ne redescend pas sur ce qui est
+        déjà ouvert, et ce qu'on change ici n'y remonte pas.
+      */}
+      {operation && (
+        <p className="rounded-card bg-paper px-6 py-4 text-[0.8125rem] leading-relaxed text-subtle">
+          Participation à la campagne{" "}
+          <Link href={`/admin/campagnes/${operation.id}`} className="font-bold text-ink hover:opacity-70">
+            {operation.name} →
+          </Link>{" "}
+          · ce qui est réglé ici ne vaut que pour {influencer.name}.
+        </p>
+      )}
 
       {waiting && (
         <p className="rounded-card bg-tint-sand px-6 py-4 text-[0.8125rem] leading-relaxed text-tint-sand-ink">

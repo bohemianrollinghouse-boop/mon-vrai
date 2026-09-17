@@ -1228,6 +1228,12 @@ export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
 export const Campaign = z.object({
   id: z.string(),
   influencerId: z.string(),
+  /*
+   * La campagne partagée dont ceci est la participation, quand elle en vient (voir
+   * Operation, plus bas). Vide : campagne montée pour ce partenaire seul — c'est le cas
+   * de toutes celles d'avant, qui se relisent donc sans migration.
+   */
+  operationId: z.string().default(""),
   /** Rang d'affichage : « Campagne n° 2 ». */
   seq: z.number().int().min(1).default(1),
   /** Nom libre, pour s'y retrouver : « Lancement automne », « Réédition Légumes ». */
@@ -1264,6 +1270,52 @@ export const Campaign = z.object({
   cancelledAt: z.number().optional(),
 });
 export type Campaign = z.infer<typeof Campaign>;
+
+/* ---------- Campagnes partagées ---------- */
+
+/*
+ * UNE CAMPAGNE, au sens où on l'organise : un nom, des dates, un kit, un contrat, une
+ * remise — décidés une fois, puis appliqués à autant de partenaires qu'on veut.
+ *
+ * Elle ne nomme aucun influenceur. Ce qui se passe avec une personne — son code à elle,
+ * son kit commandé, son contrat signé, son avancement — vit dans sa PARTICIPATION,
+ * c'est-à-dire le document `Campaign` ci-dessus : un code promo appartient à quelqu'un
+ * (`promos/<CODE>` porte un `influencerId`), et deux partenaires sur la même campagne
+ * commandent deux kits et signent deux contrats. Rien de tout cela ne se mutualise.
+ *
+ * D'où le nom `Operation` ici : en base, « campagne » désignait déjà la participation,
+ * et la renommer aurait demandé une migration de production pour un simple mot.
+ * Vocabulaire des écrans : « campagne » = ceci, « participation » = `Campaign`.
+ */
+export const Operation = z.object({
+  id: z.string(),
+  name: z.string().trim().min(1).max(80),
+  collaborationType: CollaborationType.default("UGC"),
+  /*
+   * Début et fin, exigés : le code d'une participation ne vaut qu'entre les deux, et le
+   * contrat les cite ({{DATE_DEBUT_CAMPAGNE}}, {{DATE_FIN_DE_CAMPAGNE}}). L'état affiché
+   * s'en déduit — une campagne n'a pas de statut à tenir à jour à la main.
+   */
+  startAt: z.number(),
+  endAt: z.number(),
+  /** Remise offerte à leurs communautés, en pourcentage. */
+  discount: z.number().int().min(0).max(100).default(10),
+  /*
+   * Le code : un par partenaire (repris du sien, sinon dérivé de son pseudo), ou aucun
+   * — auquel cas seuls les liens de suivi attribuent les ventes.
+   */
+  codeMode: z.enum(["partner", "none"]).default("partner"),
+  /** Contrat proposé à chaque participant ; vide : aucun contrat exigé. */
+  contractId: z.string().default(""),
+  contractVariables: z.record(z.string(), z.string()).default({}),
+  /** Le kit offert. Chaque participant commande le sien. */
+  kit: WelcomeKit.default(EMPTY_KIT),
+  /** Note interne : jamais montrée aux partenaires. */
+  note: z.string().max(2000).default(""),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Operation = z.infer<typeof Operation>;
 
 
 /*

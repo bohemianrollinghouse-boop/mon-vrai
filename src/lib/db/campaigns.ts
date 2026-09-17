@@ -37,6 +37,16 @@ export async function listAllCampaigns(): Promise<Campaign[]> {
 }
 
 /*
+ * Les participations à une campagne partagée (voir db/operations.ts), un partenaire par
+ * ligne. Les campagnes montées pour une seule personne n'ont pas d'`operationId` : elles
+ * ne ressortent d'aucune campagne partagée, ce qui est exact.
+ */
+export async function listCampaignsByOperation(operationId: string): Promise<Campaign[]> {
+  if (!operationId) return [];
+  return parseQuery(Campaign, campaigns().where("operationId", "==", operationId).limit(500));
+}
+
+/*
  * L'horloge, lue par la base. Un composant serveur doit rester pur
  * (react-hooks/purity) : il ne lit pas l'heure lui-même, il la reçoit — c'est déjà ainsi
  * qu'adminSnapshot et partnerSnapshot la donnent.

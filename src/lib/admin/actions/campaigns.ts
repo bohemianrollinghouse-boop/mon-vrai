@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
+import { contractVariablesFrom, dayStamp, kitLines } from "@/lib/admin/campaign-form";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
@@ -46,43 +47,6 @@ const Input = z.object({
   /** Sélection sérialisée par l'éditeur : `slug:quantité`, séparés par des virgules. */
   lines: z.string().default(""),
 });
-
-/*
- * Variables du contrat ajustées pour CETTE campagne, postées en `cvar:CLÉ`. On ne garde
- * que ce qui diffère de la valeur du contrat : une valeur identique n'a pas à être
- * recopiée, sans quoi corriger un délai dans le contrat ne se répercuterait plus.
- */
-function contractVariablesFrom(formData: FormData): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [key, value] of formData.entries()) {
-    if (!key.startsWith("cvar:") || typeof value !== "string") continue;
-    const name = key.slice(5);
-    if (!/^[A-Z0-9_]{1,60}$/.test(name)) continue;
-    const base = String(formData.get(`cbase:${name}`) ?? "");
-    if (value.trim() !== base.trim()) out[name] = value.slice(0, 2000);
-  }
-  return out;
-}
-
-/** `slug:quantité, slug:quantité` — la forme que pose l'éditeur de kit. */
-function kitLines(raw: string): { slug: string; qty: number }[] {
-  return raw
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const [slug, qty] = part.split(":");
-      return { slug: slug.trim(), qty: Math.min(20, Math.max(1, Number(qty) || 1)) };
-    })
-    .filter((l) => l.slug);
-}
-
-/** Une date de formulaire (`AAAA-MM-JJ`) en horodatage ; la fin court jusqu'au soir. */
-function dayStamp(value: string, edge: "start" | "end"): number | null {
-  if (!value) return null;
-  const ts = new Date(`${value}T${edge === "start" ? "00:00:00" : "23:59:59"}`).getTime();
-  return Number.isNaN(ts) ? null : ts;
-}
 
 export async function saveCampaignAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
@@ -127,6 +91,8 @@ export async function saveCampaignAction(formData: FormData): Promise<AdminResul
     ...(existing ?? {}),
     id: existing?.id,
     influencerId: influencer.id,
+    /* Le rattachement à une campagne partagée ne se règle pas ici : il ne bouge pas. */
+    operationId: existing?.operationId ?? "",
     name: d.name,
     collaborationType: d.collaborationType,
     code,
@@ -181,6 +147,8 @@ export async function createCampaignAction(formData: FormData): Promise<AdminRes
   const previous = list[0] ?? null;
   const campaign = await upsertCampaign({
     influencerId,
+    /* Montée ici, donc pour lui seul : elle ne ressort d'aucune campagne partagée. */
+    operationId: "",
     name: "",
     collaborationType: previous?.collaborationType ?? influencer.collaborationType,
     code: previous?.code ?? "",
