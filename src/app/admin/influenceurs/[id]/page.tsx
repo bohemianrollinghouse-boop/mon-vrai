@@ -99,6 +99,16 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
   const statements = influencer.commission ? statementRows(influencer, snap.orders, stored, snap.now) : [];
   const maxSpark = Math.max(1, ...stats.spark.map((d) => d.code + d.link));
   const main = mainAccount(influencer);
+  /*
+   * Où en est son accès. « Envoyer l'e-mail de bienvenue » ne doit se lire qu'une fois :
+   * après, c'est un renvoi — et comme réémettre l'invitation tue le lien déjà parti
+   * (voir issueInfluencerInvite), il vaut mieux que le bouton le dise avant le clic.
+   */
+  const invitedOn = influencer.invitedAt;
+  const activatedOn = influencer.activatedAt;
+  const expiresOn = influencer.inviteExpiresAt;
+  /* Invitation partie, jamais utilisée, et périmée : le lien est mort de lui-même. */
+  const linkDead = Boolean(invitedOn && !activatedOn && (expiresOn ?? 0) < snap.now);
   const tone = PLATFORM_TONE[main.platform] ?? PLATFORM_TONE.Autre;
   const pct = (x: number) => `${(x * 100).toFixed(1).replace(".", ",")} %`;
 
@@ -239,20 +249,49 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
 
           {/* Les trois petites cartes, elles, n'ont pas besoin de toute la largeur. */}
           <div className="grid grid-cols-3 items-start gap-3 max-[1199px]:grid-cols-1">
-            <Card title={<span className="text-sm">Accès à son espace</span>} className="!gap-2">
+            <Card
+              title={
+                <span className="flex flex-wrap items-center gap-2 text-sm">
+                  Accès à son espace
+                  {/* L'état se voit avant de lire : c'est là qu'on cherche « l'ai-je déjà fait ? ». */}
+                  {activatedOn ? (
+                    <Pill tone="ok">Espace actif</Pill>
+                  ) : linkDead ? (
+                    <Pill tone="warn">Lien expiré</Pill>
+                  ) : invitedOn ? (
+                    <Pill tone="blue">E-mail envoyé</Pill>
+                  ) : (
+                    <Pill tone="muted">Jamais envoyé</Pill>
+                  )}
+                </span>
+              }
+              className="!gap-2"
+            >
               <p className="text-[0.6875rem] leading-relaxed text-subtle">
-                {influencer.activatedAt
-                  ? `Espace actif depuis le ${longDate(influencer.activatedAt)}.`
-                  : influencer.invitedAt
-                    ? `Invitation envoyée le ${longDate(influencer.invitedAt)}, en attente de son mot de passe.`
+                {activatedOn
+                  ? `Espace actif depuis le ${longDate(activatedOn)}.`
+                  : invitedOn
+                    ? linkDead
+                      ? `E-mail de bienvenue envoyé le ${longDate(invitedOn)} ; son lien a expiré${expiresOn ? ` le ${longDate(expiresOn)}` : ""} sans qu'il s'en serve.`
+                      : `E-mail de bienvenue envoyé le ${longDate(invitedOn)}${expiresOn ? `, lien valable jusqu'au ${longDate(expiresOn)}` : ""}. En attente de son mot de passe.`
                     : "Lui envoie un lien personnel pour choisir son mot de passe et ouvrir son espace."}
               </p>
               <ActionForm
                 action={sendInfluencerWelcomeAction}
-                submitLabel={influencer.activatedAt ? "Renvoyer l'invitation" : "Envoyer l'e-mail de bienvenue"}
+                submitLabel={activatedOn ? "Renvoyer l'invitation" : invitedOn ? "Renvoyer l'e-mail de bienvenue" : "Envoyer l'e-mail de bienvenue"}
                 submitTone="outline"
                 className="!gap-0 [&>div:last-child]:justify-start"
-                confirm={influencer.activatedAt ? "Renvoyer une invitation ? Le partenaire devra choisir un nouveau mot de passe, et l'ancien lien cessera de fonctionner." : undefined}
+                /*
+                 * On ne prévient que quand il y a quelque chose à casser : un lien encore
+                 * valable dans sa boîte. Expiré, il ne vaut déjà plus rien.
+                 */
+                confirm={
+                  activatedOn
+                    ? "Renvoyer une invitation ? Le partenaire devra choisir un nouveau mot de passe, et l'ancien lien cessera de fonctionner."
+                    : invitedOn && !linkDead
+                      ? `Renvoyer l'e-mail de bienvenue ? Celui du ${longDate(invitedOn)} est encore valable, et son lien cessera de fonctionner.`
+                      : undefined
+                }
               >
                 <input type="hidden" name="id" value={influencer.id} />
               </ActionForm>
