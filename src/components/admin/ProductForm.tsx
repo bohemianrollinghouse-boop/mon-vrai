@@ -4,7 +4,7 @@ import { ItemsEditor } from "@/components/admin/ItemsEditor";
 import { RichEditor } from "@/components/admin/RichEditor";
 import { Button, ButtonLink, Card, Field, Input, PageHeader, Segmented, Select, Switch, Textarea } from "@/components/admin/ui";
 import { deleteProductAction, saveProductAction } from "@/lib/admin/actions/products";
-import type { Product } from "@/lib/domain/types";
+import type { Media, Product } from "@/lib/domain/types";
 
 /*
  * Fiche produit, d'après la maquette : en-tête avec « Aperçu » et « Enregistrer »,
@@ -13,7 +13,7 @@ import type { Product } from "@/lib/domain/types";
  * que disposer les champs ; ActionForm, ImageList, ItemsEditor et RichEditor portent
  * le peu d'interactivité nécessaire.
  */
-export function ProductForm({ product }: { product: Product | null }) {
+export function ProductForm({ product, media }: { product: Product | null; media: Media[] }) {
   const p = product;
   const euros = (c?: number) => (c === undefined ? "" : (c / 100).toFixed(2).replace(".", ","));
   const formId = "product-form";
@@ -120,7 +120,7 @@ export function ProductForm({ product }: { product: Product | null }) {
             </Card>
 
             <Card title={<span className="text-[0.8125rem]">Photos</span>}>
-              <ImageList initial={p?.images ?? []} tint={p?.tint ?? "sand"} />
+              <ImageList initial={p?.images ?? []} tint={p?.tint ?? "sand"} library={media} />
             </Card>
 
             <Card title={<span className="text-[0.8125rem]">Prix &amp; stock</span>}>

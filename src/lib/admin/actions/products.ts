@@ -7,16 +7,17 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { uploadMedia } from "@/lib/db/media";
 import { deleteProduct, getProduct, upsertProduct } from "@/lib/db/products";
 import { parseEuroToCents } from "@/lib/domain/money";
 import { slugify } from "@/lib/domain/slug";
 import { Badge, ImageRef, Slug, Status, Tint } from "@/lib/domain/types";
 
 /*
- * Produits. Le formulaire porte les champs simples ; les images existantes arrivent en
- * JSON (ordre et alt éditables), les nouvelles en fichiers. Le prix est saisi en euros
- * et converti ici, jamais stocké en flottant.
+ * Produits. Le formulaire porte les champs simples ; les photos arrivent toutes en JSON
+ * (`imagesJson` : URL, texte alternatif, ordre). Aucune pièce jointe : elles sont
+ * déposées dans la médiathèque au moment où on les choisit (voir ImageList), si bien
+ * qu'enregistrer un livre ne fait que rattacher des images déjà en ligne. Le prix est
+ * saisi en euros et converti ici, jamais stocké en flottant.
  */
 
 const Input = z.object({
@@ -77,18 +78,7 @@ export async function saveProductAction(formData: FormData): Promise<AdminResult
   }
   const kept = z.array(ImageRef).safeParse(parsedImages);
   if (!kept.success) return failed("Liste d'images invalide");
-  const images = [...kept.data];
-  for (const file of formData.getAll("newImages")) {
-    if (!(file instanceof File) || file.size === 0) continue;
-    // uploadMedia refuse un type ou une taille : c'est une erreur de saisie, pas une
-    // panne — elle doit revenir dans le formulaire, pas en erreur serveur.
-    try {
-      const media = await uploadMedia({ bytes: Buffer.from(await file.arrayBuffer()), mime: file.type, filename: file.name, alt: d.title });
-      images.push({ url: media.url, alt: media.alt, width: media.width, height: media.height });
-    } catch (e) {
-      return failed(`${file.name} : ${(e as Error).message}`, { newImages: "Photo refusée" });
-    }
-  }
+  const images = kept.data;
 
   const existing = d.originalSlug ? await getProduct(d.originalSlug) : null;
   await upsertProduct({
