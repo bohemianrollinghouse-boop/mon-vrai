@@ -152,16 +152,22 @@ export function proToBlocks(): BlockDocument {
         docs: [],
         mentionLegale: "En envoyant ce formulaire, vous acceptez notre politique de confidentialité. Aucune newsletter sans votre accord.",
       }),
-      block("Temoignage", {
-        titre: "Ils travaillent déjà avec nous",
-        citation:
-          "Les photos changent tout : les enfants reconnaissent la cuillère de la cantine, le chat de la voisine. On les sort à chaque temps calme.",
-        auteur: "Directrice de micro-crèche, Lyon 3ᵉ",
-      }),
+      /*
+       * Pas de témoignage ici. Il y en avait un — « Directrice de micro-crèche, Lyon 3ᵉ »
+       * —, inventé pour meubler la maquette. Un avis client fabriqué n'a rien à faire
+       * sur une page de vente : quand il y en aura de vrais, ils se poseront dans
+       * l'éditeur, avec le nom de qui les a dits.
+       */
       block("Encadre", {
         teinte: "sand",
+        /*
+         * Pas de mention d'origine. « Livres imprimés en France » figurait ici : c'est
+         * faux, et une allégation d'origine fausse n'est pas une maladresse de
+         * rédaction — elle engage. Ne rien dire de l'impression tant qu'on ne peut pas
+         * dire le vrai.
+         */
         contenu:
-          "<h2>Bon à savoir</h2><ul><li>Facturation avec SIRET et mandat administratif possible</li><li>Livraison groupée en un seul colis, France, Belgique, Luxembourg</li><li>Livres imprimés en France, encres végétales, coins arrondis</li></ul>",
+          "<h2>Bon à savoir</h2><ul><li>Facturation avec SIRET et mandat administratif possible</li><li>Livraison groupée en un seul colis, France, Belgique, Luxembourg</li><li>Coins arrondis, pages épaisses, conformes aux exigences EN 71</li></ul>",
       }),
     ],
   };
