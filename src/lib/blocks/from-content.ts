@@ -161,13 +161,14 @@ export function proToBlocks(): BlockDocument {
       block("Encadre", {
         teinte: "sand",
         /*
-         * Pas de mention d'origine. « Livres imprimés en France » figurait ici : c'est
+         * Pas de mention d'origine. « Livres imprimés EN FRANCE » figurait ici : c'est
          * faux, et une allégation d'origine fausse n'est pas une maladresse de
-         * rédaction — elle engage. Ne rien dire de l'impression tant qu'on ne peut pas
-         * dire le vrai.
+         * rédaction — elle engage. Ne rien dire du lieu d'impression tant qu'on ne peut
+         * pas dire le vrai. Ce qui reste est ce qui s'annonce déjà partout ailleurs sur
+         * le site : papier, encre, finition, norme.
          */
         contenu:
-          "<h2>Bon à savoir</h2><ul><li>Facturation avec SIRET et mandat administratif possible</li><li>Livraison groupée en un seul colis, France, Belgique, Luxembourg</li><li>Coins arrondis, pages épaisses, conformes aux exigences EN 71</li></ul>",
+          "<h2>Bon à savoir</h2><ul><li>Facturation avec SIRET et mandat administratif possible</li><li>Livraison groupée en un seul colis, France, Belgique, Luxembourg</li><li>Papier FSC, encre de soja, coins arrondis, conformes aux exigences EN 71</li></ul>",
       }),
     ],
   };
