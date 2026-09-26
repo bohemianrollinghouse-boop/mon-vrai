@@ -15,6 +15,7 @@ import { listOrders } from "@/lib/db/orders";
 import { listAllProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import { formatEuro } from "@/lib/domain/money";
+import { offeredOrder } from "@/lib/domain/order-state";
 import type { ExpenseCategory } from "@/lib/domain/types";
 import { dayKey } from "@/lib/stats/keys";
 
@@ -75,12 +76,12 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
   /*
    * Les ventes, mois par mois. Mêmes règles de comptage que le tableau de bord et
    * /admin/revenus — commandes réelles (livemode), statuts encaissés, kits offerts mis
-   * de côté : un kit n'encaisse rien. La retenue se calcule commande par commande, pour
+   * de côté : un colis offert n'encaisse rien. La retenue se calcule commande par commande, pour
    * que les deux écrans tombent au centime près sur le même chiffre.
    */
   const salesByMonth = new Map<string, SalesFlow>();
   for (const o of orders) {
-    if (!o.livemode || !COUNTED.includes(o.status) || o.kit) continue;
+    if (!o.livemode || !COUNTED.includes(o.status) || offeredOrder(o)) continue;
     const day = dayKey(o.createdAt);
     if (from && day < from) continue;
     const month = day.slice(0, 7);

@@ -12,7 +12,7 @@ import { getOrder, listOrdersForEmail } from "@/lib/db/orders";
 import { getProductsBySlugs } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import { formatEuro } from "@/lib/domain/money";
-import { canTransition } from "@/lib/domain/order-state";
+import { canTransition, offeredOrder } from "@/lib/domain/order-state";
 import { OrderStatus } from "@/lib/domain/types";
 
 export const dynamic = "force-dynamic";
@@ -56,9 +56,10 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
             <Pill tone={STATUS_TONE[order.status]}>{ADMIN_STATUS_LABELS[order.status]}</Pill>
             {!order.livemode && <Pill tone="muted">Test</Pill>}
             {order.kit && <Pill tone="ok">Kit partenaire</Pill>}
+            {order.prize && <Pill tone="ok">Lot de concours</Pill>}
           </span>
         }
-        subtitle={`${longDate(order.createdAt)} · ${order.kit ? "kit de bienvenue, offert" : "payée par carte"} · ${a.name}`}
+        subtitle={`${longDate(order.createdAt)} · ${order.kit ? "kit de bienvenue, offert" : order.prize ? "lot de concours, offert" : "payée par carte"} · ${a.name}`}
         actions={
           <>
             {refundable && (
@@ -66,6 +67,9 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                 Rembourser dans Stripe ↗
               </ButtonLink>
             )}
+            <ButtonLink href={`/api/bons/${order.id}`} target="_blank" tone="secondary">
+              Bon de livraison
+            </ButtonLink>
             {order.invoice?.number && (
               <ButtonLink href={`/api/factures/${order.id}`} target="_blank" tone="secondary">
                 Facture PDF
@@ -333,9 +337,14 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
                 "Identique à la livraison"
               )}
             </Block>
-            <Block label="Facture Tiime">
-              {order.kit ? (
-                "Kit de bienvenue : commande offerte, jamais facturée"
+            <Block label="Documents">
+              {offeredOrder(order) ? (
+                <>
+                  {order.prize ? "Lot de concours" : "Kit de bienvenue"} : commande offerte, jamais facturée.{" "}
+                  <a href={`/api/bons/${order.id}`} target="_blank" className="underline">
+                    Bon de livraison (PDF)
+                  </a>
+                </>
               ) : order.invoice ? (
                 <a href={`/api/factures/${order.id}`} target="_blank" className="underline">
                   {order.invoice.number} (PDF)
@@ -375,7 +384,7 @@ export default async function OrderDetail({ params }: PageProps<"/admin/commande
             </Card>
           )}
 
-          {makeConfigured() && paidOrder && !order.kit && (
+          {makeConfigured() && paidOrder && !offeredOrder(order) && (
             <Card title={<span className="text-sm">Tiime (via Make)</span>} className="!gap-2">
               {order.tiime?.invoiceId ? (
                 <p className="text-xs text-subtle">

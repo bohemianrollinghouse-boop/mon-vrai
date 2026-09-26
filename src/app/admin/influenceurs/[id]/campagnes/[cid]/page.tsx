@@ -208,6 +208,10 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
                 <Link href={`/admin/commandes/${order.id}`} className="text-[0.8125rem] font-bold hover:opacity-70">
                   {order.number} · {order.shippingAddress.name} →
                 </Link>
+                {/* Un kit n'est jamais facturé : le bon de livraison est le seul document qui dise ce qui est parti. */}
+                <a href={`/api/bons/${order.id}`} target="_blank" className="text-[0.6875rem] font-bold underline">
+                  Bon de livraison (PDF)
+                </a>
                 <span className="text-[0.6875rem] leading-relaxed text-subtle">
                   {order.tracking?.number || order.boxtal?.trackingNumber
                     ? `Suivi ${order.tracking?.number ?? order.boxtal?.trackingNumber} — visible dans son espace.`

@@ -1,13 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { ContestPanel } from "@/components/site/ContestPanel";
 import { PartnerTools } from "@/components/site/PartnerTools";
 import { IbanForm } from "@/components/site/IbanForm";
 import { ViewAsBanner } from "@/components/site/ViewAsBanner";
 import { SocialsForm, StepMark } from "@/components/site/SocialsForm";
 import { ContractText } from "@/components/site/ContractText";
 import { SignedContractView } from "@/components/site/SignedContractView";
-import { savePartnerIbanAction, savePartnerSocialsAction } from "@/lib/auth/partner-actions";
+import { declareContestWinnerAction, savePartnerIbanAction, savePartnerSocialsAction, saveContestReportAction } from "@/lib/auth/partner-actions";
 import { maskIban, monthLabel } from "@/lib/promos/statements";
 import { requireInfluencer } from "@/lib/auth/session";
 import { partnerSnapshot } from "@/lib/db/partner";
@@ -50,7 +51,7 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   if (!influencer) redirect("/compte");
 
   const period = (PARTNER_PERIODS.some((p) => p.key === sp.periode) ? sp.periode : "30") as PartnerPeriod;
-  const [{ view, statements, kit, campaign, collaborations }, settings] = await Promise.all([
+  const [{ view, statements, kit, campaign, collaborations, contests }, settings] = await Promise.all([
     partnerSnapshot(influencer, period),
     getSettings(),
   ]);
@@ -306,6 +307,14 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
               </div>
             )}
           </div>
+
+          {/* ---------- Vos concours ---------- */}
+          {/*
+            Ce qu'il monte avec nous, et les deux seules choses qu'il est seul à savoir :
+            qui a gagné chez lui, et ce que sa publication a donné. Rien ne s'affiche
+            tant qu'aucun concours ne le nomme (voir ContestPanel).
+          */}
+          <ContestPanel contests={contests} declare={declareContestWinnerAction} report={saveContestReportAction} />
 
           {/* ---------- Vos contrats ---------- */}
           {(signature || past.length > 0) && (

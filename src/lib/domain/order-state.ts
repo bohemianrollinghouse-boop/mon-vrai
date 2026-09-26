@@ -60,3 +60,20 @@ export function formatInvoiceNumber(seq: number, issuedAt: number, test = false)
   const year = new Date(issuedAt).getUTCFullYear();
   return `F-${test ? "TEST-" : ""}${year}-${String(seq).padStart(5, "0")}`;
 }
+
+/*
+ * Une commande OFFERTE : kit de partenaire, ou lot de concours. Elle n'encaisse rien,
+ * ne donne pas lieu à facture et ne compte pas dans le chiffre d'affaires — trois règles
+ * qui ne dépendent pas de la raison du cadeau. D'où un seul prédicat, plutôt qu'un
+ * `order.kit` recopié partout qui oublierait les lots le jour où ils sont arrivés.
+ */
+/*
+ * Cette commande a-t-elle pris sur le stock de vente ? Une vente, toujours ; un colis
+ * offert — kit ou lot —, seulement si on l'a demandé. L'annulation doit rendre
+ * exactement ce qui avait été pris, quoi qu'on ait réglé depuis ; et un exemplaire qui
+ * n'a pas été pris n'est pas « réservé ».
+ */
+export const tookSaleStock = (order: { kit?: { stock: boolean }; prize?: { stock: boolean } }): boolean =>
+  order.kit ? order.kit.stock : order.prize ? order.prize.stock : true;
+
+export const offeredOrder = (order: { kit?: unknown; prize?: unknown }): boolean => Boolean(order.kit || order.prize);

@@ -670,7 +670,15 @@ export const Order = z.object({
    * les exemplaires ont été décomptés du stock de vente — l'annulation doit les
    * rendre dans ce cas-là seulement, quoi qu'on ait réglé depuis.
    */
-  kit: z.object({ influencerId: z.string(), stock: z.boolean().default(false), seq: z.number().int().min(1).default(1) }).optional(),
+  kit: z.object({ influencerId: z.string(), stock: z.boolean().default(false), seq: z.number().int().min(1).default(1) }).optional(),  /*
+   * Lot d'un concours : offert lui aussi, jamais facturé, jamais compté en chiffre
+   * d'affaires. Même rôle que `kit` juste au-dessus — `offeredOrder()` (domain/order-state)
+   * réunit les deux partout où la distinction ne tient qu'à « cette commande n'a rien
+   * encaissé ». Deux champs et non un seul parce qu'ils ne désignent pas la même chose :
+   * un kit appartient à un partenaire, un lot à un gagnant qu'on ne reverra pas.
+   */
+  prize: z.object({ contestId: z.string(), winnerId: z.string(), stock: z.boolean().default(false) }).optional(),
+
   /** Vente attribuée à un influenceur : par son code, ou par son lien (cookie 30 jours). */
   attribution: z.object({ influencerId: z.string(), via: z.enum(["code", "link"]) }).optional(),
   /** Facturation Tiime (via Make) : identifiants renvoyés par le scénario. */
@@ -1329,6 +1337,133 @@ export const Operation = z.object({
   updatedAt: z.number(),
 });
 export type Operation = z.infer<typeof Operation>;
+/* ---------- Concours ---------- */
+
+/*
+ * UN CONCOURS : un lot mis en jeu devant une communauté, des dates, un tirage.
+ *
+ * Ce n'est pas une campagne. Une campagne négocie une contrepartie avec quelqu'un qu'on
+ * connaît — un kit contre des contenus, un code contre une commission ; un concours
+ * n'échange rien : il promet un lot à quelqu'un qu'on ne connaît pas encore. D'où une
+ * collection à part, dont les champs — le lot, le tirage, les gagnants — n'ont
+ * d'équivalent nulle part ailleurs.
+ *
+ * Un concours monté seul et un concours monté avec d'autres créateurs sont le MÊME
+ * document : seule diffère la liste des co-organisateurs, vide ou non. Leur mécanique
+ * est la même, et deux schémas auraient dédoublé chaque écran pour un mot.
+ */
+export const ContestPlatform = z.enum(["instagram", "tiktok", "facebook", "youtube", "site", "other"]);
+export type ContestPlatform = z.infer<typeof ContestPlatform>;
+
+export const CONTEST_PLATFORM_LABELS: Record<ContestPlatform, string> = {
+  instagram: "Instagram",
+  tiktok: "TikTok",
+  facebook: "Facebook",
+  youtube: "YouTube",
+  site: "Le site",
+  other: "Ailleurs",
+};
+
+/*
+ * Un co-organisateur. `influencerId` le relie à sa fiche partenaire — et c'est à cette
+ * condition SEULEMENT que le concours apparaît dans son espace. Un créateur invité pour
+ * un jeu ponctuel n'a pas de fiche : on garde son nom et son pseudo, rien de plus, et
+ * c'est nous qui tenons ses chiffres.
+ *
+ * `id` vaut l'identifiant du partenaire quand il en a un : le même partenaire ne peut
+ * donc pas être ajouté deux fois, et ce que les gagnants désignent reste stable.
+ */
+export const ContestHost = z.object({
+  id: z.string(),
+  influencerId: z.string().default(""),
+  name: z.string().trim().min(1).max(80),
+  handle: z.string().trim().max(80).default(""),
+  /** Ce qu'il déclare depuis son espace : sa publication, et ce qu'elle a donné. */
+  postUrl: z.string().trim().max(300).default(""),
+  participants: z.number().int().min(0).default(0),
+  followers: z.number().int().default(0),
+});
+export type ContestHost = z.infer<typeof ContestHost>;
+
+/*
+ * Le lot, UN pour tout le concours : chaque gagnant reçoit le même. Des livres du
+ * catalogue — la commande qui en naît vaut 0 €, comme un kit — et, s'il y a lieu, ce qui
+ * n'est pas au catalogue et ne part pas d'ici, écrit en clair.
+ */
+export const ContestPrize = z.object({
+  lines: z.array(z.object({ slug: Slug, qty: z.number().int().min(1).max(20) })).default([]),
+  extra: z.string().trim().max(200).default(""),
+  /** Décompter ces exemplaires du stock de vente. Non par défaut, comme pour un kit. */
+  deductStock: z.boolean().default(false),
+});
+export type ContestPrize = z.infer<typeof ContestPrize>;
+
+/*
+ * Un gagnant. Son lot part comme un kit : une commande offerte, expédiable par Boxtal,
+ * avec son bon de livraison — `orderId` la retient, et son absence dit qu'il reste à
+ * envoyer. L'adresse est facultative : on peut désigner un gagnant avant de savoir où
+ * le joindre.
+ */
+export const ContestWinner = z.object({
+  id: z.string(),
+  /** Le co-organisateur qui l'a tiré ; vide : tiré sur nos propres réseaux. */
+  hostId: z.string().default(""),
+  handle: z.string().trim().max(80).default(""),
+  name: z.string().trim().max(120).default(""),
+  email: z.string().trim().max(160).default(""),
+  address: Address.optional(),
+  /** Qui l'a déclaré : nous, ou le co-organisateur depuis son espace. */
+  declaredBy: z.enum(["admin", "partner"]).default("admin"),
+  declaredAt: z.number(),
+  /** La commande offerte du lot, une fois créée. */
+  orderId: z.string().default(""),
+  note: z.string().trim().max(500).default(""),
+});
+export type ContestWinner = z.infer<typeof ContestWinner>;
+
+export const Contest = z.object({
+  id: z.string(),
+  name: z.string().trim().min(1).max(80),
+  platform: ContestPlatform.default("instagram"),
+  /*
+   * Ouverture et clôture. La clôture est la date du tirage : passée elle, l'état du
+   * concours dit qu'il reste des gagnants à désigner (voir lib/contests/state.ts). Comme
+   * pour une campagne, l'état se déduit — il n'y a pas de statut à tenir à jour.
+   */
+  startAt: z.number(),
+  endAt: z.number(),
+  /** Ce qu'il faut faire pour participer : montré aux co-organisateurs, à recopier. */
+  mechanic: z.string().trim().max(1000).default(""),
+  /** Le règlement, ou son adresse. */
+  rules: z.string().trim().max(2000).default(""),
+  prize: ContestPrize.default({ lines: [], extra: "", deductStock: false }),
+  /** Combien de gagnants sont attendus : c'est ce qui dit quand le tirage est fait. */
+  winnersWanted: z.number().int().min(1).max(50).default(1),
+  hosts: z.array(ContestHost).default([]),
+  /*
+   * Les partenaires co-organisateurs, à plat. Firestore ne sait pas interroger un champ
+   * imbriqué dans un tableau d'objets, et l'espace partenaire cherche précisément par
+   * là. Déduit de `hosts` à l'écriture, jamais saisi.
+   */
+  hostInfluencerIds: z.array(z.string()).default([]),
+  winners: z.array(ContestWinner).default([]),
+  /*
+   * Publié : les co-organisateurs qui ont une fiche partenaire le voient dans leur
+   * espace et peuvent y déclarer leur gagnant. Tant que c'est faux, le concours se
+   * prépare et ne se lit que d'ici.
+   */
+  published: z.boolean().default(false),
+  /** Notre propre publication, et ce qu'elle a donné. */
+  postUrl: z.string().trim().max(300).default(""),
+  participants: z.number().int().min(0).default(0),
+  /** Note interne : jamais montrée aux co-organisateurs. */
+  note: z.string().trim().max(2000).default(""),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type Contest = z.infer<typeof Contest>;
+
+
 
 
 /*

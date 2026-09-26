@@ -1,4 +1,5 @@
 import { parcelWeightKg } from "@/lib/boxtal/request";
+import { offeredOrder } from "@/lib/domain/order-state";
 import type { Costs, Order, SiteSettings } from "@/lib/domain/types";
 import { bracketIndexForWeight, supplierCost } from "@/lib/shipping/tariffs";
 
@@ -46,8 +47,8 @@ export type OrderRevenue = {
   shippingKnown: boolean;
   /** Exemplaires expédiés, cadeaux compris : ils coûtent autant à fabriquer. */
   books: number;
-  /** Kit de bienvenue offert à un partenaire : il ne rapporte rien et coûte tout. */
-  isKit: boolean;
+  /** Colis offert — kit de partenaire ou lot de concours : il ne rapporte rien et coûte tout. */
+  offered: boolean;
   urssaf: number;
   stripeFee: number;
   bookCost: number;
@@ -64,13 +65,14 @@ export function orderRevenue(order: Order, settings: SiteSettings, costs: Costs 
   const urssaf = partOf(revenue, costs.urssafBp);
   const stripeFee = revenue > 0 ? partOf(revenue, costs.stripeBp) + costs.stripeFixed : 0;
   /*
-   * Un kit ne coûte pas ce que coûte une vente : exemplaires de petit tirage, carton
-   * d'un autre format. Les coûts propres au kit priment quand ils sont renseignés ; à
-   * zéro, on retombe sur ceux d'une vente.
+   * Un colis offert ne coûte pas ce que coûte une vente : exemplaires de petit tirage,
+   * carton d'un autre format. Les coûts propres au kit priment quand ils sont renseignés
+   * — un lot de concours part du même stock et du même carton ; à zéro, on retombe sur
+   * ceux d'une vente.
    */
-  const isKit = Boolean(order.kit);
-  const unitBook = isKit && costs.kitBookCost ? costs.kitBookCost : costs.bookCost;
-  const packagingCost = isKit && costs.kitPackagingCost ? costs.kitPackagingCost : costs.packagingCost;
+  const offered = offeredOrder(order);
+  const unitBook = offered && costs.kitBookCost ? costs.kitBookCost : costs.bookCost;
+  const packagingCost = offered && costs.kitPackagingCost ? costs.kitPackagingCost : costs.packagingCost;
   const bookCost = books * unitBook;
   const total = urssaf + stripeFee + bookCost + packagingCost + ship.cents;
   return {
@@ -82,7 +84,7 @@ export function orderRevenue(order: Order, settings: SiteSettings, costs: Costs 
     shippingMargin: shippingCharged - ship.cents,
     shippingKnown: ship.known,
     books,
-    isKit,
+    offered,
     urssaf,
     stripeFee,
     bookCost,
@@ -131,30 +133,31 @@ export function sumRevenue(rows: OrderRevenue[]): RevenueTotals {
 }
 
 /*
- * Le bilan d'une période, ventes et kits séparés.
+ * Le bilan d'une période, ventes et colis offerts séparés.
  *
- * Un kit de bienvenue est une commande comme une autre pour l'expédition, mais pas pour
+ * Un kit de bienvenue, comme le lot d'un concours, est une commande comme une autre pour
+ * l'expédition, mais pas pour
  * la comptabilité : il n'encaisse rien et coûte trois choses — les livres, le carton et
  * l'étiquette. Fondu dans les totaux, il gonflait silencieusement la « fabrication » et
  * l'« emballage » des ventes sans qu'on puisse voir ce que la prospection coûte.
  *
- * D'où cette séparation : `sales` décrit ce qui se vend, `kits` ce qui s'offre, et le
- * revenu net retranche le second du premier. Ni cotisations ni commission sur un kit :
+ * D'où cette séparation : `sales` décrit ce qui se vend, `gifts` ce qui s'offre, et le
+ * revenu net retranche le second du premier. Ni cotisations ni commission sur un cadeau :
  * elles portent sur un encaissement, qui est nul.
  */
 export type Ledger = {
   sales: RevenueTotals;
-  kits: RevenueTotals;
-  /** Coûts de la période, kits compris. */
+  gifts: RevenueTotals;
+  /** Coûts de la période, colis offerts compris. */
   costs: number;
-  /** Ce qu'il reste vraiment : le net des ventes, moins ce que les kits ont coûté. */
+  /** Ce qu'il reste vraiment : le net des ventes, moins ce que les cadeaux ont coûté. */
   net: number;
 };
 
 export function ledger(rows: OrderRevenue[]): Ledger {
-  const sales = sumRevenue(rows.filter((r) => !r.isKit));
-  const kits = sumRevenue(rows.filter((r) => r.isKit));
-  return { sales, kits, costs: sales.costs + kits.costs, net: sales.net - kits.costs };
+  const sales = sumRevenue(rows.filter((r) => !r.offered));
+  const gifts = sumRevenue(rows.filter((r) => r.offered));
+  return { sales, gifts, costs: sales.costs + gifts.costs, net: sales.net - gifts.costs };
 }
 
 /** Taux de marge nette, en pourcentage du chiffre d'affaires ; null sans chiffre d'affaires. */

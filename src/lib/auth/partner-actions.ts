@@ -7,6 +7,7 @@ import { getInfluencerByUid, upsertInfluencer } from "@/lib/db/promos";
 import { currentCampaign, markCampaignSigned, upsertCampaign } from "@/lib/db/campaigns";
 import { refreshOutreach } from "@/lib/db/outreach";
 import { createKitOrder } from "@/lib/db/orders";
+import { addWinner, getContest, saveHostReport } from "@/lib/db/contests";
 import { partnerKitSnapshot, type PartnerKit } from "@/lib/db/partner";
 import { getSettings } from "@/lib/db/settings";
 import { optionOfferCode, shippingOptions } from "@/lib/checkout/quote";
@@ -412,3 +413,101 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
   revalidatePath("/admin/influenceurs");
   return { ok: true, message: `Contrat accepté et kit commandé — commande ${order.number}.` };
 }
+/* ---------- Concours ---------- */
+
+/*
+ * Ce qu'un co-organisateur fait lui-même dans un concours : déclarer son gagnant, et
+ * dire ce que sa publication a donné.
+ *
+ * Le concours n'est jamais cru sur parole du formulaire : on le relit, on vérifie qu'il
+ * est publié et que ce partenaire y figure bien. Sans quoi n'importe quel partenaire
+ * pourrait s'inviter dans le jeu d'un autre — et lui prendre un lot.
+ */
+
+const WinnerDeclaration = z.object({
+  contestId: z.string().trim().min(1),
+  handle: z.string().trim().min(1, "Indiquez le pseudo du gagnant").max(80),
+  name: z.string().trim().min(1, "Indiquez son nom et son prénom").max(120),
+  email: z.email("Indiquez une adresse e-mail valable"),
+  line1: z.string().trim().min(1, "Indiquez l'adresse").max(160),
+  line2: z.string().trim().max(160).default(""),
+  postalCode: z.string().trim().min(1, "Indiquez le code postal").max(12),
+  city: z.string().trim().min(1, "Indiquez la ville").max(80),
+  country: z.string().trim().length(2).default("FR"),
+  phone: z.string().trim().max(30).default(""),
+});
+
+export async function declareContestWinnerAction(formData: FormData): Promise<PartnerResult> {
+  const user = await requireInfluencer();
+  if (user.viewingAs) return VIEW_ONLY;
+  const influencer = await getInfluencerByUid(user.uid);
+  if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
+
+  const parsed = WinnerDeclaration.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Formulaire incomplet." };
+  const d = parsed.data;
+
+  const contest = await getContest(d.contestId);
+  const host = contest?.hosts.find((h) => h.influencerId === influencer.id);
+  if (!contest || !host || !contest.published) return { ok: false, error: "Ce concours n'est pas le vôtre." };
+  if (contest.startAt > Date.now()) return { ok: false, error: "Ce concours n'a pas encore commencé." };
+
+  const done = await addWinner(contest.id, {
+    hostId: host.id,
+    handle: d.handle,
+    name: d.name,
+    email: d.email.trim().toLowerCase(),
+    address: {
+      name: d.name,
+      line1: d.line1,
+      line2: d.line2 || undefined,
+      postalCode: d.postalCode,
+      city: d.city,
+      country: d.country.toUpperCase(),
+      phone: d.phone || undefined,
+    },
+    declaredBy: "partner",
+    note: "",
+  });
+  /*
+   * Les places sont communes : à plusieurs, le premier qui déclare prend le lot. Le refus
+   * vient de la relecture en transaction (voir db/contests.addWinner), pas d'un compte
+   * fait ici — deux déclarations simultanées se départagent en base.
+   */
+  if (!done) return { ok: false, error: "Tous les lots de ce concours ont déjà trouvé preneur." };
+
+  revalidatePath("/partenaire");
+  revalidatePath(`/admin/concours/${contest.id}`);
+  revalidatePath("/admin/concours");
+  return { ok: true, message: `${d.handle} est déclaré gagnant. Nous lui envoyons son lot.` };
+}
+
+const ContestReport = z.object({
+  contestId: z.string().trim().min(1),
+  postUrl: z.string().trim().max(300).default(""),
+  participants: z.coerce.number().int().min(0).max(1_000_000).default(0),
+  followers: z.coerce.number().int().min(-1_000_000).max(1_000_000).default(0),
+});
+
+/** Ce que sa publication a donné : lui seul le sait, ces chiffres ne se déduisent d'aucune vente. */
+export async function saveContestReportAction(formData: FormData): Promise<PartnerResult> {
+  const user = await requireInfluencer();
+  if (user.viewingAs) return VIEW_ONLY;
+  const influencer = await getInfluencerByUid(user.uid);
+  if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
+
+  const parsed = ContestReport.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Formulaire invalide." };
+  const d = parsed.data;
+  if (d.postUrl && !looksLikeUrl(d.postUrl)) return { ok: false, error: "L'adresse de la publication doit commencer par https://" };
+
+  const contest = await getContest(d.contestId);
+  const host = contest?.hosts.find((h) => h.influencerId === influencer.id);
+  if (!contest || !host || !contest.published) return { ok: false, error: "Ce concours n'est pas le vôtre." };
+
+  await saveHostReport(contest.id, host.id, { postUrl: d.postUrl, participants: d.participants, followers: d.followers });
+  revalidatePath("/partenaire");
+  revalidatePath(`/admin/concours/${contest.id}`);
+  return { ok: true, message: "Vos chiffres sont enregistrés." };
+}
+

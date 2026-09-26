@@ -3,6 +3,7 @@ import { getCustomer, updateCustomer } from "@/lib/db/customers";
 import { addOrderNote, getOrder, setTiime } from "@/lib/db/orders";
 import { storeInvoice } from "@/lib/invoice/issue";
 import type { InvoiceData } from "@/lib/invoice/pdf";
+import { offeredOrder } from "@/lib/domain/order-state";
 import { buildTiimePayload } from "./payload";
 
 /*
@@ -26,7 +27,7 @@ export async function sendOrderToMake(orderId: string, by = "système"): Promise
   const order = await getOrder(orderId);
   if (!order) return { ok: false, error: "Commande introuvable" };
   // Un kit de bienvenue est offert : rien à facturer, donc rien à envoyer en compta.
-  if (order.kit) return { ok: false, error: "Kit de bienvenue : commande offerte, sans facture" };
+  if (offeredOrder(order)) return { ok: false, error: "Commande offerte (kit ou lot de concours) : sans facture" };
   const customer = order.customerUid ? await getCustomer(order.customerUid) : null;
   const payload = buildTiimePayload(order, customer);
 

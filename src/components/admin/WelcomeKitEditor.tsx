@@ -4,14 +4,18 @@ import { useState } from "react";
 import { Thumb } from "@/components/admin/ui";
 
 /*
- * Sélection des livres du kit de bienvenue. La liste complète des titres, une case par
- * livre et une quantité ; le tout se sérialise dans un champ caché `slug:quantité`,
- * pour rester un simple formulaire (pas de state serveur à synchroniser).
+ * Sélection des livres du kit de bienvenue — ou du LOT d'un concours : dans les deux cas
+ * des titres du catalogue offerts, choisis de la même façon. La liste complète des
+ * titres, une case par livre et une quantité ; le tout se sérialise dans un champ caché
+ * `slug:quantité`, pour rester un simple formulaire (pas de state serveur à synchroniser).
+ *
+ * `note` dit d'où sortent ces exemplaires : la phrase n'est pas la même pour un kit que
+ * pour un lot, et c'est la seule chose qui change d'un usage à l'autre.
  */
 
 export type KitChoice = { slug: string; title: string; image?: string; tint: "green" | "blue" | "pink" | "sand"; stock: number | null };
 
-export function WelcomeKitEditor({ products, initial }: { products: KitChoice[]; initial: { slug: string; qty: number }[] }) {
+export function WelcomeKitEditor({ products, initial, note }: { products: KitChoice[]; initial: { slug: string; qty: number }[]; note?: string }) {
   const [picked, setPicked] = useState<Record<string, number>>(() => Object.fromEntries(initial.map((l) => [l.slug, l.qty])));
 
   const toggle = (slug: string) =>
@@ -55,8 +59,8 @@ export function WelcomeKitEditor({ products, initial }: { products: KitChoice[];
         );
       })}
       <span className="text-[0.6875rem] leading-relaxed text-subtle">
-        Ces exemplaires viennent du stock influenceurs : ils ne sont pas décomptés du stock de vente, et la commande créée
-        vaut 0 € (jamais facturée).
+        {note ??
+          "Ces exemplaires viennent du stock influenceurs : ils ne sont pas décomptés du stock de vente, et la commande créée vaut 0 € (jamais facturée)."}
       </span>
     </div>
   );

@@ -1,7 +1,7 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "@/lib/firebase/admin";
-import { assertTransition, formatInvoiceNumber, formatOrderNumber, stockIsReserved } from "@/lib/domain/order-state";
+import { assertTransition, formatInvoiceNumber, formatOrderNumber, stockIsReserved, tookSaleStock } from "@/lib/domain/order-state";
 import { Order, Product, type Address, type OrderLine, type OrderStatus } from "@/lib/domain/types";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
@@ -172,8 +172,12 @@ export async function createPaidOrder(input: PaidOrderInput): Promise<Order> {
   });
 }
 
-export type KitOrderInput = {
-  influencerId: string;
+/*
+ * Une commande OFFERTE : ce qui est dans le colis et où il va. Ce qui change entre un
+ * kit de partenaire et un lot de concours n'est pas là-dedans — c'est la marque qu'elle
+ * porte, juste en dessous.
+ */
+type GiftOrderInput = {
   lines: OrderLine[];
   email: string;
   shippingAddress: Address;
@@ -182,34 +186,56 @@ export type KitOrderInput = {
   note?: string;
   /** Décompter les exemplaires du stock de vente (faux par défaut : stock à part). */
   deductStock?: boolean;
+};
+
+export type KitOrderInput = GiftOrderInput & {
+  influencerId: string;
   /** Rang de la collaboration : un partenaire peut recevoir un kit par collaboration. */
   seq?: number;
 };
 
+export type PrizeOrderInput = GiftOrderInput & { contestId: string; winnerId: string };
+
 /*
- * Commande du kit de bienvenue d'un partenaire. C'est une commande comme une autre —
- * même collection, même numérotation, même passage chez Boxtal — à deux différences
- * près : elle naît « payée » sans passer par Stripe, et elle n'est jamais facturée.
- *
- * Le stock, lui, dépend du kit : il ne bouge pas quand les livres viennent du stock
- * à part réservé aux influenceurs (le cas ordinaire), et se décrémente comme une vente
- * quand on a réglé le contraire. Ce qui a été fait est inscrit sur la commande, pour
- * que l'annulation rende exactement ce qui avait été pris.
- *
- * Idempotente sur l'influenceur : un double clic ne crée pas deux kits.
+ * Ce qui rend une commande offerte reconnaissable — et retrouvable. Chaque sorte porte
+ * de quoi dire « celle-ci existe déjà » : le rang d'une collaboration pour un kit,
+ * l'identifiant du gagnant pour un lot. Sans quoi un double clic créerait deux colis.
  */
-export async function createKitOrder(input: KitOrderInput): Promise<Order> {
-  const collabSeq = input.seq ?? 1;
-  /* Idempotent sur la COLLABORATION et non sur le partenaire : il peut en avoir
-     plusieurs dans le temps, chacune avec son kit. */
-  const existing = await findKitOrder(input.influencerId, collabSeq);
+type GiftMark =
+  | { kind: "kit"; influencerId: string; seq: number }
+  | { kind: "prize"; contestId: string; winnerId: string };
+
+const markOf = (mark: GiftMark, stock: boolean): Pick<Order, "kit" | "prize"> =>
+  mark.kind === "kit"
+    ? { kit: { influencerId: mark.influencerId, stock, seq: mark.seq } }
+    : { prize: { contestId: mark.contestId, winnerId: mark.winnerId, stock } };
+
+const markQuery = (mark: GiftMark) =>
+  mark.kind === "kit"
+    ? orders().where("kit.influencerId", "==", mark.influencerId).where("kit.seq", "==", mark.seq).limit(1)
+    : orders().where("prize.winnerId", "==", mark.winnerId).limit(1);
+
+/*
+ * Commande d'un colis offert — kit de bienvenue d'un partenaire, ou lot d'un concours.
+ *
+ * C'est une commande comme une autre : même collection, même numérotation, même passage
+ * chez Boxtal, avec son bon de livraison. À deux différences près : elle naît « payée »
+ * sans passer par Stripe, et elle n'est jamais facturée (voir `offeredOrder`).
+ *
+ * Le stock ne bouge pas quand les livres viennent du stock à part réservé aux
+ * partenaires et aux jeux (le cas ordinaire), et se décrémente comme une vente quand on
+ * a réglé le contraire. Ce qui a été fait est inscrit sur la commande, pour que
+ * l'annulation rende exactement ce qui avait été pris.
+ */
+async function createGiftOrder(input: GiftOrderInput, mark: GiftMark, defaultNote: string): Promise<Order> {
+  const existing = await findGiftOrder(mark);
   if (existing) return existing;
 
   const id = newId("ord");
   const createdAt = now();
 
   return db().runTransaction(async (tx) => {
-    const dup = await tx.get(orders().where("kit.influencerId", "==", input.influencerId).where("kit.seq", "==", collabSeq).limit(1));
+    const dup = await tx.get(markQuery(mark));
     const dupDoc = dup.docs[0];
     if (dupDoc) {
       const found = parseDoc(Order, dupDoc);
@@ -250,9 +276,9 @@ export async function createKitOrder(input: KitOrderInput): Promise<Order> {
       shippingAddress: input.shippingAddress,
       livemode: input.livemode ?? true,
       delivery: input.delivery,
-      kit: { influencerId: input.influencerId, stock: deduct, seq: collabSeq },
+      ...markOf(mark, deduct),
       stripe: {},
-      timeline: [{ at: createdAt, status: "paid", note: [input.note ?? "Kit de bienvenue partenaire", ...notes].join(" · "), by: "partenaire" }],
+      timeline: [{ at: createdAt, status: "paid", note: [input.note ?? defaultNote, ...notes].join(" · "), by: mark.kind === "kit" ? "partenaire" : "concours" }],
       createdAt,
       updatedAt: createdAt,
     });
@@ -263,11 +289,31 @@ export async function createKitOrder(input: KitOrderInput): Promise<Order> {
   });
 }
 
-/** La commande de kit d'une collaboration donnée, si elle a été passée. */
-export async function findKitOrder(influencerId: string, seq = 1): Promise<Order | null> {
-  const snap = await orders().where("kit.influencerId", "==", influencerId).where("kit.seq", "==", seq).limit(1).get();
+async function findGiftOrder(mark: GiftMark): Promise<Order | null> {
+  const snap = await markQuery(mark).get();
   const doc = snap.docs[0];
   return doc ? parseDoc(Order, doc) : null;
+}
+
+/** Commande du kit de bienvenue d'un partenaire, une par collaboration. */
+export async function createKitOrder(input: KitOrderInput): Promise<Order> {
+  /* Idempotent sur la COLLABORATION et non sur le partenaire : il peut en avoir
+     plusieurs dans le temps, chacune avec son kit. */
+  return createGiftOrder(input, { kind: "kit", influencerId: input.influencerId, seq: input.seq ?? 1 }, "Kit de bienvenue partenaire");
+}
+
+/*
+ * Commande du lot d'un gagnant de concours, une par gagnant. Le gagnant n'est pas un
+ * client : il n'a pas de compte, et l'adresse vient de ce qu'il a donné au tirage.
+ */
+export async function createPrizeOrder(input: PrizeOrderInput): Promise<Order> {
+  return createGiftOrder(input, { kind: "prize", contestId: input.contestId, winnerId: input.winnerId }, "Lot de concours");
+}
+
+
+/** La commande de kit d'une collaboration donnée, si elle a été passée. */
+export async function findKitOrder(influencerId: string, seq = 1): Promise<Order | null> {
+  return findGiftOrder({ kind: "kit", influencerId, seq });
 }
 
 /** Change le statut en respectant la machine à états, et rend le stock si l'on annule après paiement. */
@@ -278,8 +324,7 @@ export async function transitionOrder(id: string, to: OrderStatus, opts: { note?
     if (!order) throw new Error(`Commande ${id} introuvable`);
     assertTransition(order.status, to);
 
-    // Un kit ne rend au stock de vente que s'il y a été pris (voir createKitOrder).
-    const releasing = (!order.kit || order.kit.stock) && stockIsReserved(order.status) && !stockIsReserved(to);
+    const releasing = tookSaleStock(order) && stockIsReserved(order.status) && !stockIsReserved(to);
     if (releasing) {
       // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
       const prefs = order.lines.map((line) => col("products").doc(line.productSlug));
@@ -360,7 +405,7 @@ export async function deleteOrder(id: string): Promise<void> {
     if (!order) throw new Error(`Commande ${id} introuvable`);
     if (order.invoice) throw new Error("Cette commande porte une facture : elle ne peut pas être supprimée.");
 
-    const releasing = (!order.kit || order.kit.stock) && stockIsReserved(order.status);
+    const releasing = tookSaleStock(order) && stockIsReserved(order.status);
     if (releasing) {
       // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
       const prefs = order.lines.map((line) => col("products").doc(line.productSlug));

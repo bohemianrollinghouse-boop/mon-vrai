@@ -2,6 +2,7 @@ import { ButtonLink, FilterPills, GridTable, PageHeader, Pill, SearchBox } from 
 import { ADMIN_STATUS_LABELS, ORDER_FILTERS, STATUS_TONE, bookCount, itemsSummary, matchesQuery, shortDate } from "@/lib/admin/order-ui";
 import { listOrders } from "@/lib/db/orders";
 import { formatEuro } from "@/lib/domain/money";
+import { offeredOrder } from "@/lib/domain/order-state";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +73,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/com
                         <span className="rounded-lg bg-paper px-2 py-[3px] text-[0.625rem] font-bold text-subtle">offre collection</span>
                       )}
                       {o.totals.discount > 0 && <span className="text-[0.625rem] font-bold text-accent">− {formatEuro(o.totals.discount)}</span>}
-                      {books.gifted > 0 && !o.kit && (
+                      {books.gifted > 0 && !offeredOrder(o) && (
                         <span className="text-[0.625rem] font-semibold text-subtle">
                           {books.gifted} offert{books.gifted > 1 ? "s" : ""}
                         </span>
@@ -86,6 +87,7 @@ export default async function OrdersPage({ searchParams }: PageProps<"/admin/com
               <Pill tone={STATUS_TONE[o.status]}>{ADMIN_STATUS_LABELS[o.status]}</Pill>
               {!o.livemode && <Pill tone="muted">Test</Pill>}
               {o.kit && <Pill tone="ok">Kit</Pill>}
+              {o.prize && <Pill tone="ok">Lot</Pill>}
             </span>,
             <span key="l" className="truncate font-semibold text-muted">{o.tracking?.carrier ?? "-"}</span>,
             <span key="d" className="text-subtle">{shortDate(o.createdAt)}</span>,

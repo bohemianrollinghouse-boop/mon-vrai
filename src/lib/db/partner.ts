@@ -2,14 +2,16 @@ import "server-only";
 import { findKitOrder, listOrders } from "./orders";
 import { listRefClicksSince } from "./promos";
 import { listCampaigns } from "./campaigns";
+import { listContestsForInfluencer } from "./contests";
 import { getSignature } from "./contracts";
 import { partnerView, periodStart, type PartnerPeriod, type PartnerView } from "@/lib/promos/partner";
 import { statementRows, type StatementRow } from "@/lib/promos/statements";
 import { listStatements } from "./statements";
 import { listAllProducts } from "./products";
 import { kitItems, kitOffered, type KitItem } from "@/lib/promos/kit";
+import { CONTEST_STATE_LABELS, contestState, seatsLeft, winnersOf, type ContestState } from "@/lib/contests/state";
 import { socialCount } from "@/lib/promos/socials";
-import type { Campaign, ContractSignature, Influencer, Order } from "@/lib/domain/types";
+import { CONTEST_PLATFORM_LABELS, type Campaign, type ContractSignature, type Influencer, type Order } from "@/lib/domain/types";
 import { now } from "./helpers";
 
 /*
@@ -61,6 +63,65 @@ export type PartnerCollaboration = { campaign: Campaign; signature: ContractSign
 export const liveCampaign = (list: Campaign[]): Campaign | null =>
   list.find((c) => c.status === "active") ?? list.find((c) => c.status === "draft") ?? null;
 
+
+/*
+ * Un concours tel que le co-organisateur le voit : ce qui est convenu, ce qu'il a
+ * déclaré, et ce qu'il peut encore faire. Tout est préparé ici plutôt que dans la page —
+ * l'espace partenaire n'a pas à connaître la forme d'un `Contest`, ni à refaire les
+ * calculs de `lib/contests/state.ts`.
+ *
+ * Ne remontent que les concours PUBLIÉS où il figure comme partenaire (voir
+ * `listContestsForInfluencer`) : un jeu en préparation ne se montre pas.
+ */
+export type PartnerContest = {
+  id: string;
+  name: string;
+  platform: string;
+  startAt: number;
+  endAt: number;
+  state: ContestState;
+  stateLabel: string;
+  mechanic: string;
+  rules: string;
+  prize: { items: { slug: string; title: string; qty: number; image?: string }[]; extra: string };
+  winnersWanted: number;
+  /** Places restantes, communes à tous les co-organisateurs : les lots ne se dédoublent pas. */
+  seatsLeft: number;
+  /** Le tirage est ouvert : le concours a commencé et il reste un lot à attribuer. */
+  canDeclare: boolean;
+  /** Les gagnants qu'il a lui-même déclarés. */
+  mine: { id: string; handle: string; name: string; sent: boolean }[];
+  /** Ce qu'il a déclaré de sa propre publication. */
+  report: { postUrl: string; participants: number; followers: number };
+};
+
+export async function partnerContests(influencer: Influencer, at: number): Promise<PartnerContest[]> {
+  const [contests, products] = await Promise.all([listContestsForInfluencer(influencer.id).catch(() => []), listAllProducts()]);
+  return contests.map((c) => {
+    /* L'identifiant du co-organisateur EST celui du partenaire (voir actions/contests.ts). */
+    const host = c.hosts.find((h) => h.influencerId === influencer.id);
+    const state = contestState(c, at);
+    const left = seatsLeft(c);
+    return {
+      id: c.id,
+      name: c.name,
+      platform: CONTEST_PLATFORM_LABELS[c.platform],
+      startAt: c.startAt,
+      endAt: c.endAt,
+      state,
+      stateLabel: CONTEST_STATE_LABELS[state],
+      mechanic: c.mechanic,
+      rules: c.rules,
+      prize: { items: kitItems(c.prize, products).map((i) => ({ slug: i.slug, title: i.title, qty: i.qty, image: i.image?.url })), extra: c.prize.extra },
+      winnersWanted: c.winnersWanted,
+      seatsLeft: left,
+      canDeclare: c.startAt <= at && left > 0,
+      mine: winnersOf(c, host?.id ?? "").map((w) => ({ id: w.id, handle: w.handle, name: w.name, sent: Boolean(w.orderId) })),
+      report: { postUrl: host?.postUrl ?? "", participants: host?.participants ?? 0, followers: host?.followers ?? 0 },
+    };
+  });
+}
+
 /*
  * Tout ce que l'espace partenaire affiche, en une lecture. L'horloge est lue ici et
  * non dans la page : un composant serveur doit rester pur (react-hooks/purity), et
@@ -69,7 +130,7 @@ export const liveCampaign = (list: Campaign[]): Campaign | null =>
 export async function partnerSnapshot(
   influencer: Influencer,
   period: PartnerPeriod,
-): Promise<{ now: number; view: PartnerView; statements: StatementRow[]; kit: PartnerKit; campaign: Campaign | null; collaborations: PartnerCollaboration[] }> {
+): Promise<{ now: number; view: PartnerView; statements: StatementRow[]; kit: PartnerKit; campaign: Campaign | null; collaborations: PartnerCollaboration[]; contests: PartnerContest[] }> {
   const at = now();
   const since = periodStart(period, at);
   const sinceDay = new Date(since ?? influencer.createdAt).toISOString().slice(0, 10);
@@ -80,10 +141,11 @@ export async function partnerSnapshot(
     listCampaigns(influencer.id),
   ]);
   const campaign = liveCampaign(campaigns);
-  const [kit, collaborations] = await Promise.all([
+  const [kit, collaborations, contests] = await Promise.all([
     partnerKitSnapshot(influencer, campaign),
     /* Chaque campagne avec sa signature : une campagne sans contrat en a simplement pas. */
     Promise.all(campaigns.map(async (c) => ({ campaign: c, signature: await getSignature(c.signatureId).catch(() => null) }))),
+    partnerContests(influencer, at),
   ]);
   return {
     now: at,
@@ -93,5 +155,6 @@ export async function partnerSnapshot(
     kit,
     campaign,
     collaborations,
+    contests,
   };
 }

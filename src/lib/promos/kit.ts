@@ -16,8 +16,14 @@ import type { ImageRef, OrderLine, Product, WelcomeKit } from "@/lib/domain/type
    en nature, qui doit figurer au contrat et y être figée à la signature. */
 export type KitItem = { slug: string; title: string; qty: number; image?: ImageRef; weightG: number; unitValue: number };
 
-/** Les articles du kit, dans l'ordre choisi, en ignorant les produits disparus. */
-export function kitItems(kit: WelcomeKit, products: Product[]): KitItem[] {
+/*
+ * Les articles du kit, dans l’ordre choisi, en ignorant les produits disparus.
+ *
+ * Sert aussi au LOT d’un concours : les deux désignent des livres du catalogue offerts,
+ * et rien ne les distingue une fois le colis fait — d’où un seul chemin jusqu’à la
+ * commande (voir lib/contests/state.ts).
+ */
+export function kitItems(kit: Pick<WelcomeKit, "lines">, products: Product[]): KitItem[] {
   const bySlug = new Map(products.map((p) => [p.slug, p]));
   return kit.lines.flatMap((line) => {
     const product = bySlug.get(line.slug);

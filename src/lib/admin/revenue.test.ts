@@ -103,7 +103,7 @@ describe("Revenus - kits offerts aux partenaires", () => {
 
   it("ne coûte que les livres, le carton et l'étiquette", () => {
     const r = orderRevenue(kit(), settings);
-    expect(r.isKit).toBe(true);
+    expect(r.offered).toBe(true);
     expect(r.revenue).toBe(0);
     /* Ni cotisations ni commission : elles portent sur un encaissement, qui est nul. */
     expect(r.urssaf).toBe(0);
@@ -118,18 +118,18 @@ describe("Revenus - kits offerts aux partenaires", () => {
     const l = ledger([orderRevenue(order(), settings), orderRevenue(kit(), settings)]);
 
     expect(l.sales.orders).toBe(1);
-    expect(l.kits.orders).toBe(1);
+    expect(l.gifts.orders).toBe(1);
     // La fabrication des ventes ne compte que les livres vendus, pas ceux offerts.
     expect(l.sales.books).toBe(2);
-    expect(l.kits.books).toBe(3);
-    expect(l.costs).toBe(l.sales.costs + l.kits.costs);
-    expect(l.net).toBe(l.sales.net - l.kits.costs);
+    expect(l.gifts.books).toBe(3);
+    expect(l.costs).toBe(l.sales.costs + l.gifts.costs);
+    expect(l.net).toBe(l.sales.net - l.gifts.costs);
     expect(l.net).toBe(l.sales.net - 1627);
   });
 
   it("ne fait rien perdre quand il n'y a aucun kit", () => {
     const l = ledger([orderRevenue(order(), settings)]);
-    expect(l.kits.orders).toBe(0);
+    expect(l.gifts.orders).toBe(0);
     expect(l.net).toBe(l.sales.net);
   });
 });

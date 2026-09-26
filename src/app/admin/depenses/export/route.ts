@@ -9,6 +9,7 @@ import { listExpenses } from "@/lib/db/expenses";
 import { listOrders } from "@/lib/db/orders";
 import { listAllProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
+import { offeredOrder } from "@/lib/domain/order-state";
 import { dayKey } from "@/lib/stats/keys";
 
 /*
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
   if (!poste && !q) {
     const byMonth = new Map<string, SalesFlow>();
     for (const o of orders) {
-      if (!o.livemode || !COUNTED.includes(o.status) || o.kit) continue;
+      if (!o.livemode || !COUNTED.includes(o.status) || offeredOrder(o)) continue;
       const day = dayKey(o.createdAt);
       if (from && day < from) continue;
       const month = day.slice(0, 7);

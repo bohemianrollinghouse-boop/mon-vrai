@@ -71,12 +71,74 @@ Webhooks : `/api/boxtal/webhook` (HMAC `x-bxt-signature`), souscriptions déclar
 `pnpm boxtal:subscribe`. L'étiquette est copiée dans le bucket (`labels/`), servie par
 `/api/etiquettes/[id]` (admin). Le suivi fait passer la commande en expédiée / livrée.
 
-## Factures
+## Factures et bons de livraison
 
 `src/lib/invoice/issue.ts` émet la facture (numéro séquentiel via transaction, PDF
 pdf-lib, dépôt privé dans `invoices/<année>/`). Appelée par le webhook Stripe, par
 l'action admin, et à la volée par `/api/factures/[id]` (acheteur ou admin seulement).
 Un PDF déjà déposé n'est jamais régénéré : c'est un document comptable figé.
+
+Le **bon de livraison** (`src/lib/pdf/order-slip.ts`, `/api/bons/[id]`, administrateurs
+seulement) dit l'autre moitié : à qui part le colis et ce qu'il y a dedans. Il existe
+pour les **commandes offertes** — le kit d'un partenaire, le lot d'un gagnant de concours
+—, qui ne sont jamais facturées : sans lui, rien dans l'admin ne dit ce qu'on a envoyé.
+Rien n'y porte de prix : des prix à zéro laisseraient croire à un document de vente.
+Il se rend **à la volée**, sans rien déposer dans le bucket : une commande change
+(adresse corrigée, suivi ajouté) et le bon suit, tout le contraire d'une facture.
+
+C'est `offeredOrder()` (`domain/order-state.ts`) qui réunit les deux sortes de colis
+offert partout où la distinction ne tient qu'à « cette commande n'a rien encaissé » :
+chiffre d'affaires, facturation, dépenses, tableau de bord. `tookSaleStock()`, à côté,
+dit si les exemplaires ont été pris sur le stock de vente — un cadeau ne rend que ce
+qu'il a pris.
+
+La page A4, la palette, les vignettes produit et le `Writer` des deux documents vivent
+dans `src/lib/pdf/layout.ts` : ce qui sert aux deux va là, ce qui n'appartient qu'à un
+document reste chez lui.
+
+## Concours
+
+`/admin/concours` — les jeux : ceux montés sur nos seuls réseaux et ceux montés **avec
+d'autres créateurs**, dans un même écran et un même document (collection `contests`).
+Un concours n'est pas une campagne : une campagne négocie une contrepartie avec
+quelqu'un qu'on connaît (un kit contre des contenus, un code contre une commission) ; un
+concours promet un lot à quelqu'un qu'on ne connaît pas encore. D'où une collection à
+part, et non un `Operation` de plus.
+
+- **Un seul lot pour tout le concours** (`prize`) : des titres du catalogue, plus ce qui
+  n'en est pas (`extra`, écrit en clair). Chaque gagnant reçoit le même — c'est
+  `winnersWanted` qui dit combien de fois.
+- **L'état se déduit** (`lib/contests/state.ts`, pur et testé) : brouillon tant que
+  `published` est faux, puis à venir, en cours, **tirage à faire** (la clôture est
+  passée, les gagnants manquent), **lots à envoyer**, terminé. Aucun statut à tenir à
+  jour, donc aucun qui puisse mentir — c'est la règle des campagnes. Le badge de la barre
+  latérale compte les deux états qui attendent quelque chose de nous.
+- **Les co-organisateurs** (`hosts`) sont de deux sortes. Un **partenaire de la base**
+  (`influencerId` renseigné) voit le concours dans son espace dès qu'il est publié ; un
+  **créateur invité** pour ce jeu-là n'a qu'un nom et un pseudo, et ne voit rien — c'est
+  nous qui tenons ses chiffres. L'identifiant du co-organisateur EST celui du partenaire
+  quand il en a un : il ne peut donc pas figurer deux fois, et ses gagnants gardent leur
+  rattachement. `hostInfluencerIds` répète ces identifiants à plat, seule forme que
+  Firestore sache interroger (`array-contains`).
+- **Les places sont communes** : un concours à trois lots monté à deux ne fait pas six
+  gagnants. Le premier qui déclare prend la place, et le refus vient de la **relecture en
+  transaction** (`db/contests.addWinner`), pas d'un compte fait dans l'écran — deux
+  déclarations simultanées se départagent en base.
+- **Le lot part comme un kit** : `createPrizeOrder` crée une commande offerte, à 0 €,
+  marquée `prize` sur la commande (`Order.prize`, à côté de `Order.kit`). Elle s'expédie
+  par Boxtal depuis /admin/commandes, porte un bon de livraison, ne donne jamais lieu à
+  facture, et son étiquette s'inscrit toute seule en dépense. À **domicile seulement** :
+  un gagnant donne son adresse, il n'y a pas de carte de points relais à lui montrer.
+  Idempotent sur le gagnant — un double clic n'envoie pas deux colis.
+- Côté partenaire (`components/site/ContestPanel.tsx`, actions dans
+  `lib/auth/partner-actions.ts`) : il lit ce qui est convenu, **déclare son gagnant**
+  (pseudo, nom, e-mail, adresse) et **déclare ses chiffres** (publication, participants,
+  abonnés gagnés — que rien d'autre ne nous apprendrait). Le concours est toujours relu
+  en base et son appartenance vérifiée : sans quoi un partenaire s'inviterait dans le jeu
+  d'un autre, et lui prendrait un lot.
+- Supprimer un concours est refusé dès qu'un lot est parti : sa commande resterait sans
+  rien pour l'expliquer. Retirer un co-organisateur ne supprime pas ses gagnants — un lot
+  promis reste dû.
 
 ## Gestion (dépenses et documents)
 
@@ -114,6 +176,21 @@ Un PDF déjà déposé n'est jamais régénéré : c'est un document comptable f
   documents de la bibliothèque et s'attachent au mouvement, avec date et nature devinées
   d'après le poste. Vocabulaire et filtres partagés avec l'export CSV :
   `lib/admin/expense-ui.ts`.
+- **L'étiquette d'un colis offert s'inscrit toute seule** (`lib/admin/gift-expense.ts`,
+  écrite par `lib/boxtal/shipment.ts` à la création de l'expédition) — le kit d'un
+  partenaire comme le lot d'un concours. Le colis est offert à qui le reçoit, port
+  compris — pas à la maison, qui paie Boxtal ; et comme cet écran écarte les commandes
+  offertes des ventes, la sortie n'apparaissait nulle part. Une ligne par colis,
+  poste « Port & affranchissement », fournisseur Boxtal, sous l'identifiant
+  `exp_kit_<commande>` ou `exp_lot_<commande>` — déduit et non tiré au sort, pour qu'elle
+  ne puisse pas s'empiler (et `exp_kit_` reste ce qu'il était : les lignes déjà posées
+  doivent continuer de se retrouver). Le montant vient du
+  prix rendu par Boxtal (HT, passé en TTC), à défaut du barème de `shipping/tariffs.ts` ;
+  faute des deux, la ligne est posée à zéro et « engagée », à compléter à la main. Les
+  ventes ne passent pas par là : leur port réel est déjà retiré du revenu dans
+  /admin/revenus, commande par commande. Conséquence assumée : le port d'un colis offert
+  se lit aux deux endroits — retranché du net dans Revenus, et en dépense ici.
+
 - Le schéma d'`Expense` a changé une fois (un titre → plusieurs, un justificatif →
   plusieurs, exemplaires retirés). Plutôt qu'une migration, `upgradeExpense` reprend
   l'ancienne forme **à la lecture** (`z.preprocess`, comme `ShippingRate`) : `parseDoc`

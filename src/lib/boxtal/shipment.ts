@@ -1,10 +1,17 @@
 import "server-only";
+import { giftLabelExpense } from "@/lib/admin/gift-expense";
 import { storage } from "@/lib/firebase/admin";
+import { getContest } from "@/lib/db/contests";
+import { upsertExpense } from "@/lib/db/expenses";
+import { now } from "@/lib/db/helpers";
 import { getOrder, setBoxtal, setTracking, transitionOrder } from "@/lib/db/orders";
+import { getInfluencer } from "@/lib/db/promos";
 import { getSettings } from "@/lib/db/settings";
 import { getProductsBySlugs } from "@/lib/db/products";
-import type { Order } from "@/lib/domain/types";
+import { offeredOrder } from "@/lib/domain/order-state";
+import type { Order, SiteSettings } from "@/lib/domain/types";
 import { sendShippingNotice } from "@/lib/email/send";
+import { dayKey } from "@/lib/stats/keys";
 import { carrierOf } from "./offers";
 import { createShippingOrder, getShippingDocuments, getShippingTracking, type BoxtalMode, type PackageTracking } from "./client";
 import { buildShippingOrderRequest } from "./request";
@@ -39,10 +46,28 @@ export async function createLabelForOrder(orderId: string, by: string): Promise<
   const req = buildShippingOrderRequest(order, settings, new Map([...catalog].map(([slug, p]) => [slug, p.price])));
   const created = await createShippingOrder(req, mode);
   await setBoxtal(orderId, { orderId: created.id, status: created.status, mode, createdAt: Date.now(), updatedAt: Date.now() });
+  // Le colis est offert à qui le reçoit, pas à la maison : son étiquette devient une dépense.
+  if (offeredOrder(order)) await recordGiftLabelExpense(order, settings, created.deliveryPriceExclTax?.value).catch((err) => console.warn("[boxtal] dépense de l'étiquette du colis offert :", err));
   if (order.status === "paid") await transitionOrder(orderId, "preparing", { note: `Étiquette Boxtal demandée (${req.shippingOfferCode}, réf. ${created.id})`, by });
   // L'étiquette et le suivi arrivent souvent tout de suite : on tente, sans dépendre du webhook.
   await syncBoxtal(orderId).catch((err) => console.warn("[boxtal] synchro après création :", err));
   return (await getOrder(orderId)) ?? order;
+}
+
+/*
+ * Inscrit dans /admin/depenses ce que l'étiquette d'un colis offert a coûté — le kit d'un
+ * partenaire, le lot d'un gagnant de concours. Ni le colis ni son port n'étant facturés,
+ * rien d'autre ne porterait cette sortie ; la ligne est écrite une seule fois, sous un
+ * identifiant déduit de la commande, et reste modifiable à la main — c'est une dépense
+ * comme les autres une fois posée. Un échec ici ne doit pas priver d'étiquette une
+ * commande qui est, elle, bel et bien partie : l'appelant l'absorbe.
+ */
+async function recordGiftLabelExpense(order: Order, settings: SiteSettings, priceExclTax?: number): Promise<void> {
+  /* Le nom qui rend la ligne reconnaissable : le partenaire, ou le concours. */
+  const named = order.prize
+    ? (await getContest(order.prize.contestId).catch(() => null))?.name
+    : (await getInfluencer(order.kit?.influencerId ?? "").catch(() => null))?.name;
+  await upsertExpense(giftLabelExpense(order, settings, named ?? "", dayKey(now()), priceExclTax));
 }
 
 /** Relit documents et suivi chez Boxtal et met la commande à jour (appelé par l'admin et le webhook). */

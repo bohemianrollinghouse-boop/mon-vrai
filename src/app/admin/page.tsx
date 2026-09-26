@@ -7,6 +7,7 @@ import { BreakEvenBar } from "@/components/admin/BreakEvenBar";
 import { ADMIN_STATUS_LABELS, COUNTED, STATUS_TONE, TO_SHIP, bookCount, capitalize, longDate, shortDate } from "@/lib/admin/order-ui";
 import { requireAdmin } from "@/lib/auth/session";
 import { formatEuro } from "@/lib/domain/money";
+import { offeredOrder } from "@/lib/domain/order-state";
 import type { Order } from "@/lib/domain/types";
 
 export const dynamic = "force-dynamic";
@@ -42,15 +43,16 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
   const previous = period.days ? orders.filter((o) => counted(o) && inRange(o, now - 2 * span, now - span)) : [];
 
   /*
-   * Un kit de partenaire est une commande pour l'expédition, pas pour le commerce : il
+   * Un colis offert — kit de partenaire, lot de concours — est une commande pour
+   * l'expédition, pas pour le commerce : il
    * n'encaisse rien. Le compter parmi les commandes diluait le panier moyen et gonflait
    * un chiffre qui doit dire ce qui s'est vendu. On les sépare donc ici aussi.
    */
-  const sales = current.filter((o) => !o.kit);
+  const sales = current.filter((o) => !offeredOrder(o));
   const kitOrders = current.length - sales.length;
 
   const revenue = sales.reduce((s, o) => s + o.totals.total, 0);
-  const prevRevenue = previous.filter((o) => !o.kit).reduce((s, o) => s + o.totals.total, 0);
+  const prevRevenue = previous.filter((o) => !offeredOrder(o)).reduce((s, o) => s + o.totals.total, 0);
   const delta = prevRevenue > 0 ? Math.round(((revenue - prevRevenue) / prevRevenue) * 100) : null;
   const basket = sales.length ? Math.round(revenue / sales.length) : 0;
 
@@ -61,7 +63,7 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
    * bord, qui doit dire ce qui rentre et ce qu'il faudra en reverser.
    */
   const net = dashboardNet(sales, settings.costs);
-  const prevNet = dashboardNet(previous.filter((o) => !o.kit), settings.costs);
+  const prevNet = dashboardNet(previous.filter((o) => !offeredOrder(o)), settings.costs);
   const netDelta = prevNet.net > 0 ? Math.round(((net.net - prevNet.net) / prevNet.net) * 100) : null;
   const costsIncomplete = !settings.costs.bookCost;
   /* Les remises s'expriment en livres non vendus : 1,00 € de remise = un dixième d'imagier. */
@@ -90,9 +92,9 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
    * Ce qu'on suit, ce sont des euros remboursés et non un nombre de livres : une remise
    * fait rentrer moins, et le neuvième livre offert coûte sa fabrication sans rien
    * rapporter. Compter les exemplaires ferait fêter un remboursement qui n'a pas eu lieu.
-   * Les kits partenaires sont dehors : ils ont leur propre ligne dans Revenus.
+   * Les colis offerts sont dehors : ils ont leur propre ligne dans Revenus.
    */
-  const goal = amortisation(orders.filter((o) => counted(o) && !o.kit), settings.costs);
+  const goal = amortisation(orders.filter((o) => counted(o) && !offeredOrder(o)), settings.costs);
 
   const preordersOpen = products.some((p) => p.status === "published" && p.preorder.enabled);
   const firstName = (user.name || user.email.split("@")[0]).split(" ")[0];
@@ -245,7 +247,7 @@ export default async function AdminHome({ searchParams }: PageProps<"/admin">) {
                     <span key="b" className="flex min-w-0 flex-col gap-0.5">
                       <span className="font-semibold">
                         {books.total}
-                        {books.gifted > 0 && !o.kit && <span className="text-subtle">{` dont ${books.gifted} offert${books.gifted > 1 ? "s" : ""}`}</span>}
+                        {books.gifted > 0 && !offeredOrder(o) && <span className="text-subtle">{` dont ${books.gifted} offert${books.gifted > 1 ? "s" : ""}`}</span>}
                       </span>
                       {o.totals.discount > 0 && (
                         <span className="truncate text-[0.625rem] font-bold text-subtle">

@@ -55,16 +55,17 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
   const counted = all.filter((o) => o.livemode && COUNTED.includes(o.status));
   const period_ = counted.filter((o) => o.createdAt >= from).map((o) => orderRevenue(o, settings));
   /*
-   * Les kits offerts aux partenaires sont des commandes comme les autres à l'expédition,
+   * Les colis offerts — kits de partenaires, lots de concours — sont des commandes comme
+   * les autres à l'expédition,
    * mais pas en comptabilité : ils n'encaissent rien et coûtent les livres, le carton et
    * l'étiquette. On les tient donc à part — sans quoi ils gonflaient la « fabrication »
    * et l'« emballage » des ventes, et personne ne voyait ce que la prospection coûte.
    */
   const book = ledger(period_);
   const t = book.sales;
-  const kits = book.kits;
-  const rows = period_.filter((r) => !r.isKit);
-  const kitRows = period_.filter((r) => r.isKit);
+  const kits = book.gifts;
+  const rows = period_.filter((r) => !r.offered);
+  const kitRows = period_.filter((r) => r.offered);
   const margin = t.revenue > 0 ? (book.net / t.revenue) * 100 : null;
 
   // Période précédente de même durée, pour situer le revenu net.
@@ -83,8 +84,8 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
     ...(kits.orders > 0
       ? [
           {
-            label: "Kits offerts aux partenaires",
-            note: `${fmt(kits.orders)} kit${kits.orders > 1 ? "s" : ""} · ${fmt(kits.books)} livre${kits.books > 1 ? "s" : ""} ${formatEuro(kits.bookCost)} · cartons ${formatEuro(kits.packagingCost)} · étiquettes ${formatEuro(kits.shippingCost)}`,
+            label: "Kits et lots offerts",
+            note: `${fmt(kits.orders)} colis · ${fmt(kits.books)} livre${kits.books > 1 ? "s" : ""} ${formatEuro(kits.bookCost)} · cartons ${formatEuro(kits.packagingCost)} · étiquettes ${formatEuro(kits.shippingCost)}`,
             value: kits.costs,
             bar: "bg-tint-pink-ink",
             sign: -1,
@@ -112,12 +113,12 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
     const k = monthKey(r.order.createdAt);
     byMonth.set(k, [...(byMonth.get(k) ?? []), r]);
   }
-  /* Chaque mois porte ses propres kits : son net les retranche comme le total le fait. */
+  /* Chaque mois porte ses propres cadeaux : son net les retranche comme le total le fait. */
   const months = [...byMonth.entries()]
     .sort((a, b) => b[0].localeCompare(a[0]))
     .map(([key, list]) => {
       const m = ledger(list);
-      return { key, ...m.sales, costs: m.costs, net: m.net, kitCost: m.kits.costs, kitOrders: m.kits.orders };
+      return { key, ...m.sales, costs: m.costs, net: m.net, kitCost: m.gifts.costs, kitOrders: m.gifts.orders };
     });
 
   // Un coût unitaire laissé à zéro gonfle le revenu net : on le dit plutôt que de l'ignorer.
@@ -147,7 +148,7 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
 
       <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">
         <Tile label="Chiffre d'affaires" value={formatEuro(t.revenue)} note={`${fmt(t.orders)} commande${t.orders > 1 ? "s" : ""} encaissée${t.orders > 1 ? "s" : ""}`} href="/admin/commandes" />
-        <Tile tone="sand" label="Coûts" value={minus(book.costs)} note={t.revenue ? `${pctLabel((book.costs / t.revenue) * 100, 0)} du chiffre d'affaires${kits.orders ? ` · dont ${formatEuro(kits.costs)} de kits` : ""}` : "aucune vente sur la période"} />
+        <Tile tone="sand" label="Coûts" value={minus(book.costs)} note={t.revenue ? `${pctLabel((book.costs / t.revenue) * 100, 0)} du chiffre d'affaires${kits.orders ? ` · dont ${formatEuro(kits.costs)} de colis offerts` : ""}` : "aucune vente sur la période"} />
         <Tile tone={book.net >= 0 ? "green" : "pink"} label="Revenu net" value={formatEuro(book.net)} note={netDelta === null ? "pas de période de comparaison" : `${netDelta >= 0 ? "+" : "−"}${Math.abs(netDelta)} % vs période préc.`} />
         <Tile tone="dark" label="Marge nette" value={pctLabel(margin)} note={t.orders ? `${formatEuro(Math.round(book.net / t.orders))} par commande` : "–"} />
       </div>
@@ -177,7 +178,7 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
               <span className="text-[0.6875rem] leading-relaxed text-subtle">
                 Les cotisations et la commission de paiement portent sur l'encaissement complet, port compris. Le port réel vient du barème fournisseur Boxtal (TTC) selon le transporteur, le pays et le poids du colis.
                 {t.unknownShipping > 0 && ` ${t.unknownShipping} commande${t.unknownShipping > 1 ? "s" : ""} sans coût Boxtal connu : le port facturé y sert de repli (marge nulle).`}
-                {kits.orders > 0 && " Les kits offerts n'encaissent rien : ni cotisations ni commission ne portent sur eux, seuls leurs coûts comptent."}
+                {kits.orders > 0 && " Les kits et les lots offerts n'encaissent rien : ni cotisations ni commission ne portent sur eux, seuls leurs coûts comptent."}
               </span>
             </>
           )}
@@ -244,12 +245,12 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
               <span key="m" className="font-bold">{capitalize(monthLabel(m.key))}</span>,
               <span key="n" className="flex flex-col">
                 <span className="font-semibold">{fmt(m.orders)}</span>
-                {m.kitOrders > 0 && <span className="text-[0.6875rem] text-subtle">+ {fmt(m.kitOrders)} kit{m.kitOrders > 1 ? "s" : ""}</span>}
+                {m.kitOrders > 0 && <span className="text-[0.6875rem] text-subtle">+ {fmt(m.kitOrders)} offert{m.kitOrders > 1 ? "s" : ""}</span>}
               </span>,
               <span key="ca" className="font-semibold whitespace-nowrap">{formatEuro(m.revenue)}</span>,
               <span key="c" className="flex flex-col whitespace-nowrap text-subtle">
                 <span>{minus(m.costs)}</span>
-                {m.kitCost > 0 && <span className="text-[0.6875rem]">dont {formatEuro(m.kitCost)} de kits</span>}
+                {m.kitCost > 0 && <span className="text-[0.6875rem]">dont {formatEuro(m.kitCost)} offerts</span>}
               </span>,
               <span key="p" className={`whitespace-nowrap ${m.shippingMargin < 0 ? "text-danger" : "text-subtle"}`}>{formatEuro(m.shippingMargin)}</span>,
               <span key="net" className="font-extrabold whitespace-nowrap">{formatEuro(m.net)}</span>,
@@ -261,7 +262,7 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
 
       {kitRows.length > 0 && (
         <Card
-          title="Kits offerts aux partenaires"
+          title="Kits et lots offerts"
           aside={<span className="text-xs font-bold text-subtle">{formatEuro(kits.costs)} sur la période</span>}
           className="!p-6 [&>div:last-child]:-mx-6 [&>div:last-child]:rounded-none [&>div:last-child]:py-0"
         >
@@ -272,7 +273,7 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
           <GridTable
             columns="minmax(110px,auto) 70px 1fr 90px 100px 100px 100px"
             head={["N°", "Date", "Livraison", "Livres", "Fabrication", "Étiquette", "Coût total"]}
-            empty="Aucun kit expédié sur la période."
+            empty="Aucun colis offert sur la période."
             rows={kitRows.map((r) => ({
               key: r.order.id,
               href: `/admin/commandes/${r.order.id}`,
