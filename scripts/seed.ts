@@ -192,6 +192,7 @@ async function main() {
       vatNumber: "",
       vatNote: "TVA non applicable, art. 293 B du CGI",
     },
+    stats: { excludedIps: [] },
     seo: {
       title: "Mon Vrai — imagiers réalistes 6–18 mois",
       description: "Des imagiers réalistes pour les 6–18 mois : une illustration réaliste par double-page, sur fond blanc.",

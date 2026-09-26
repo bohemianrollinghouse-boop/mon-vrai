@@ -10,6 +10,7 @@ import { getSettings, saveSettings } from "@/lib/db/settings";
 import { findOffer } from "@/lib/boxtal/offers";
 import { parseEuroToCents } from "@/lib/domain/money";
 import { slugify } from "@/lib/domain/slug";
+import { ipKey, isIpAddress } from "@/lib/stats/keys";
 import { SiteSettings } from "@/lib/domain/types";
 
 /*
@@ -22,7 +23,7 @@ import { SiteSettings } from "@/lib/domain/types";
 
 const boolish = z.union([z.boolean(), z.string()]).default(false).transform((v) => v === true || v === "true" || v === "on");
 
-const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true, socials: true, legal: true, payments: true }).extend({
+const Input = SiteSettings.omit({ updatedAt: true, contact: true, shipping: true, socials: true, legal: true, payments: true, stats: true }).extend({
   // Le mode test/production n'est plus ici : il est piloté par le slider en haut de l'admin
   // (setSiteModeAction). Le formulaire de réglages ne touche que PayPal.
   payments: z.object({ paypal: z.boolean().default(false) }),
@@ -83,6 +84,8 @@ export async function saveSettingsAction(formData: FormData): Promise<AdminResul
     // vient de /admin/livraison et doit survivre à un enregistrement des réglages.
     shipping: { ...current.shipping, preorderShipFrom: d.shipping.preorderShipFrom || undefined },
     inventory: d.inventory,
+    // La fréquentation se règle dans /admin/statistiques : ses adresses survivent ici.
+    stats: current.stats,
     updatedAt: Date.now(),
   });
   if (!next.success) return failed(next.error.issues[0]?.message ?? "Réglages invalides");
@@ -288,4 +291,40 @@ export async function saveCostsAction(formData: FormData): Promise<AdminResult> 
   await audit(user.email, "settings.costs", "settings/site");
   revalidatePath("/admin", "layout");
   return saved("Coûts enregistrés.");
+}
+
+/*
+ * Fréquentation (page /admin/statistiques) : les adresses IP à ne pas compter comme des
+ * visites. Une par ligne. Action séparée, comme les coûts : elle relit les réglages et ne
+ * réécrit que `stats`.
+ */
+const StatsInput = z.object({ ips: z.string().max(1000).default("") });
+
+export async function saveStatsSettingsAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const parsed = parseForm(StatsInput, formData);
+  if (!parsed.ok) return failed(parsed.error, parsed.issues);
+
+  const lines = parsed.data.ips.split(/[\n,;]/).map((l) => l.trim()).filter(Boolean);
+  const bad = lines.find((l) => !isIpAddress(l));
+  if (bad) return failed(`« ${bad} » n'est pas une adresse IP.`, { ips: "Une adresse par ligne" });
+  if (lines.length > 20) return failed("Vingt adresses au maximum.", { ips: "Trop d'adresses" });
+
+  /*
+   * Doublons écartés sur la forme COMPARÉE, pas sur le texte : deux écritures de la même
+   * adresse IPv6 sont la même exclusion, et la garder deux fois laisserait croire à deux
+   * appareils couverts. On conserve la première orthographe saisie.
+   */
+  const seen = new Map<string, string>();
+  for (const l of lines) if (!seen.has(ipKey(l))) seen.set(ipKey(l), l);
+
+  const current = await getSettings();
+  const next = SiteSettings.safeParse({ ...current, stats: { excludedIps: [...seen.values()] }, updatedAt: Date.now() });
+  if (!next.success) return failed(next.error.issues[0]?.message ?? "Adresses invalides");
+
+  await saveSettings(next.data);
+  await audit(user.email, "settings.stats", "settings/site", `${seen.size} adresse${seen.size > 1 ? "s" : ""} exclue${seen.size > 1 ? "s" : ""}`);
+  revalidatePath("/admin/statistiques");
+  const n = seen.size;
+  return saved(n ? `${n} adresse${n > 1 ? "s" : ""} exclue${n > 1 ? "s" : ""} du comptage.` : "Plus aucune adresse exclue.");
 }

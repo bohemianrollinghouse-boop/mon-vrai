@@ -97,6 +97,64 @@ export function visitorHash(salt: string, day: string, id: string): string {
   return createHash("sha256").update(`${salt}|${day}|${id}`).digest("base64url").slice(0, 16);
 }
 
+/*
+ * ---------- Ne pas se compter soi-même ----------
+ *
+ * L'adresse IP du visiteur est LUE pour être comparée aux adresses exclues des réglages,
+ * puis jetée : elle n'est ni hachée, ni cumulée, ni écrite nulle part (voir `visitorHash`,
+ * qui s'en passe volontairement). C'est le seul endroit du code où elle sert à quelque
+ * chose, et elle n'en sort pas.
+ */
+
+/** Adresse du visiteur d'après le proxy (App Hosting pose `x-forwarded-for`). */
+export function clientIp(headers: Headers): string {
+  const forwarded = headers.get("x-forwarded-for")?.split(",")[0];
+  return (forwarded ?? headers.get("x-real-ip") ?? "").trim();
+}
+
+/*
+ * Forme comparable d'une adresse.
+ *
+ * En IPv4, l'adresse entière. En IPv6, les quatre premiers groupes seulement — le /64 :
+ * les box en France en donnent un stable par foyer, alors que la fin de l'adresse change
+ * toute seule (extensions de vie privée), et une exclusion posée sur l'adresse complète
+ * aurait cessé d'agir au bout de quelques heures. Une adresse IPv4 encapsulée en IPv6
+ * (« ::ffff:88.1.2.3 ») revient à son IPv4, et un port collé est retiré.
+ */
+export function ipKey(raw: string): string {
+  let ip = (raw ?? "").trim().toLowerCase();
+  const bracket = ip.indexOf("]");
+  if (ip.startsWith("[")) ip = ip.slice(1, bracket > 0 ? bracket : undefined);
+  if (/^\d{1,3}(\.\d{1,3}){3}:\d+$/.test(ip)) ip = ip.slice(0, ip.indexOf(":"));
+  const v4 = /(\d{1,3}(?:\.\d{1,3}){3})$/.exec(ip);
+  if (v4 && (!ip.includes(":") || ip.includes("::ffff:"))) return v4[1];
+  if (!ip.includes(":")) return ip;
+  const [head, tail] = ip.split("::");
+  const h = head ? head.split(":") : [];
+  const t = tail !== undefined && tail ? tail.split(":") : [];
+  const groups = ip.includes("::") ? [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill("0"), ...t] : ip.split(":");
+  return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "") || "0").join(":");
+}
+
+/*
+ * Est-ce que cela ressemble à une adresse IP ? Vérification grossière, comme `isBot` :
+ * elle est là pour qu'une faute de frappe soit refusée à la saisie plutôt qu'enregistrée
+ * en silence — une adresse fautive ne protège personne et ne se voit pas.
+ */
+export function isIpAddress(raw: string): boolean {
+  const ip = raw.trim().toLowerCase();
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return ip.split(".").every((n) => Number(n) < 256);
+  if (!ip.includes(":") || (ip.match(/::/g)?.length ?? 0) > 1) return false;
+  return ip.split(":").filter(Boolean).every((g) => /^[0-9a-f]{1,4}$/.test(g) || /^\d{1,3}(\.\d{1,3}){3}$/.test(g));
+}
+
+/** Cette visite vient-elle d'une adresse qu'on a demandé de ne pas compter ? */
+export function isExcludedIp(ip: string, excluded: string[]): boolean {
+  const key = ipKey(ip);
+  if (!key) return false;
+  return excluded.some((e) => ipKey(e) === key);
+}
+
 export type DeviceKind = "mobile" | "tablette" | "ordinateur";
 
 /** Famille d'appareil d'après le navigateur : assez pour un partage mobile / tablette / ordinateur. */

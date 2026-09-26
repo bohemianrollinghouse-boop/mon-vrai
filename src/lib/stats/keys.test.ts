@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bucketPath, dayKey, deviceKind, hourKey, isBot, lastDays, OTHER_PAGE, pickUserAgent, referrerHost, sourceKey, sourceMeta, visitorHash } from "./keys";
+import { bucketPath, clientIp, dayKey, deviceKind, hourKey, ipKey, isBot, isExcludedIp, isIpAddress, lastDays, OTHER_PAGE, pickUserAgent, referrerHost, sourceKey, sourceMeta, visitorHash } from "./keys";
 
 describe("clés de temps (Europe/Paris)", () => {
   it("bascule de jour à minuit heure de Paris, pas UTC", () => {
@@ -89,5 +89,42 @@ describe("deviceKind / sourceKey / sourceMeta", () => {
     expect(sourceMeta("utm:newsletter").name).toBe("Newsletter");
     expect(sourceMeta("(direct)").name).toBe("Accès direct");
     expect(sourceMeta("blog-parents.fr")).toEqual({ name: "blog-parents.fr", ini: "BL", tone: "sand" });
+  });
+});
+
+describe("visites qu'on ne compte pas", () => {
+  it("lit l'adresse du visiteur derrière le proxy, la première de la chaîne", () => {
+    expect(clientIp(new Headers({ "x-forwarded-for": "88.120.4.17, 35.191.0.1" }))).toBe("88.120.4.17");
+    expect(clientIp(new Headers({ "x-real-ip": "88.120.4.17" }))).toBe("88.120.4.17");
+    expect(clientIp(new Headers())).toBe("");
+  });
+
+  it("ramène une IPv6 à son /64 : la fin de l'adresse change toute seule", () => {
+    expect(ipKey("2a01:cb00:1234:5600:1c2d:3e4f:5a6b:7c8d")).toBe("2a01:cb00:1234:5600");
+    expect(isExcludedIp("2a01:cb00:1234:5600:9999:8888:7777:6666", ["2a01:cb00:1234:5600:1c2d:3e4f:5a6b:7c8d"])).toBe(true);
+    expect(isExcludedIp("2a01:cb00:1234:5601:1c2d:3e4f:5a6b:7c8d", ["2a01:cb00:1234:5600:1c2d:3e4f:5a6b:7c8d"])).toBe(false);
+  });
+
+  it("déplie « :: » et ramène une IPv4 encapsulée à son IPv4", () => {
+    expect(ipKey("2a01:cb00::1")).toBe("2a01:cb00:0:0");
+    expect(ipKey("::ffff:88.120.4.17")).toBe("88.120.4.17");
+    expect(ipKey("[2a01:cb00:1234:5600::1]")).toBe("2a01:cb00:1234:5600");
+    expect(ipKey("88.120.4.17:54321")).toBe("88.120.4.17");
+  });
+
+  it("compare une IPv4 en entier, et ne s'exclut pas sans adresse", () => {
+    expect(isExcludedIp("88.120.4.17", ["88.120.4.17"])).toBe(true);
+    expect(isExcludedIp("88.120.4.18", ["88.120.4.17"])).toBe(false);
+    expect(isExcludedIp("", ["88.120.4.17"])).toBe(false);
+    expect(isExcludedIp("88.120.4.17", [])).toBe(false);
+  });
+
+  it("refuse à la saisie ce qui n'est pas une adresse", () => {
+    expect(isIpAddress("88.120.4.17")).toBe(true);
+    expect(isIpAddress("2a01:cb00:1234:5600::1")).toBe(true);
+    expect(isIpAddress("::ffff:88.120.4.17")).toBe(true);
+    expect(isIpAddress("999.1.1.1")).toBe(false);
+    expect(isIpAddress("mon adresse")).toBe(false);
+    expect(isIpAddress("88.120.4")).toBe(false);
   });
 });

@@ -1,14 +1,18 @@
+import { headers } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ActionForm } from "@/components/admin/ActionForm";
 import { AutoRefresh } from "@/components/admin/AutoRefresh";
-import { Card, Tile } from "@/components/admin/ui";
+import { Card, Field, Pill, Textarea, Tile } from "@/components/admin/ui";
+import { saveStatsSettingsAction } from "@/lib/admin/actions/settings";
 import { COUNTED } from "@/lib/admin/order-ui";
 import { requireAdmin } from "@/lib/auth/session";
 import { now as clock } from "@/lib/db/helpers";
 import { listOrders } from "@/lib/db/orders";
 import { readDays, readPresence, type DayStats, type Present } from "@/lib/db/stats";
+import { getSettings } from "@/lib/db/settings";
 import { formatEuro } from "@/lib/domain/money";
-import { DIRECT, OTHER_PAGE, dayKey, hourKey, lastDays, sourceMeta, type DeviceKind } from "@/lib/stats/keys";
+import { DIRECT, OTHER_PAGE, clientIp, dayKey, hourKey, isExcludedIp, lastDays, sourceMeta, type DeviceKind } from "@/lib/stats/keys";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +89,11 @@ export default async function StatsPage({ searchParams }: PageProps<"/admin/stat
   const now = clock();
   const keys = lastDays(now, period.days);
   const prevKeys = lastDays(now - period.days * 86_400_000, period.days).filter((k) => !keys.includes(k));
-  const [days, prevDays, present, allOrders] = await Promise.all([readDays(keys), readDays(prevKeys), readPresence(), listOrders({ limit: 2000 })]);
+  const [days, prevDays, present, allOrders, settings, head] = await Promise.all([readDays(keys), readDays(prevKeys), readPresence(), listOrders({ limit: 2000 }), getSettings(), headers()]);
+  // L'adresse d'où l'on regarde cette page : c'est celle qu'on veut exclure neuf fois sur dix.
+  const myIp = clientIp(head);
+  const excluded = settings.stats.excludedIps;
+  const mine = isExcludedIp(myIp, excluded);
   const byDay = new Map(days.map((d) => [d.day, d]));
 
   // Commandes réelles encaissées sur la période (mêmes règles que le tableau de bord).
@@ -315,6 +323,41 @@ export default async function StatsPage({ searchParams }: PageProps<"/admin/stat
           </div>
         </Card>
       </div>
+
+      <Card title="Ne pas compter mes visites" aside={<span className="text-xs font-bold text-subtle">Fréquentation</span>}>
+        <p className="text-[0.8125rem] text-muted">
+          Un compte administrateur connecté n’est jamais compté : la balise l’écarte d’elle-même. Ces adresses IP écartent en plus les visites faites
+          <strong className="font-bold text-ink"> hors connexion</strong> — le téléphone, une fenêtre privée, un navigateur où la session n’est jamais ouverte.
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2.5 rounded-[14px] bg-paper px-4 py-3.5 text-[0.8125rem]">
+          <span className="font-bold">Votre adresse maintenant</span>
+          <code className="rounded-lg bg-surface px-2 py-1 font-mono text-xs font-bold">{myIp || "inconnue"}</code>
+          {mine ? (
+            <Pill tone="ok">déjà exclue</Pill>
+          ) : (
+            myIp && (
+              <ActionForm action={saveStatsSettingsAction} submitLabel="Exclure cette adresse" submitTone="outline" className="!gap-0 [&>div:last-child]:contents">
+                <input type="hidden" name="ips" value={[...excluded, myIp].join("\n")} />
+              </ActionForm>
+            )
+          )}
+        </div>
+
+        <ActionForm action={saveStatsSettingsAction} submitLabel="Enregistrer les adresses" footerNote="Prise en compte dans la minute.">
+          <Field
+            label="Adresses à ne pas compter"
+            hint="Une par ligne. En IPv6, seuls les quatre premiers groupes comptent (le /64) : la fin de l’adresse change toute seule, l’exclusion tiendrait un jour à peine sinon."
+            name="ips"
+          >
+            <Textarea name="ips" rows={3} defaultValue={excluded.join("\n")} placeholder="88.120.4.17" className="!min-h-0 font-mono text-xs" />
+          </Field>
+          <p className="text-xs text-subtle">
+            Une adresse d’accès internet change parfois (redémarrage de la box, 4G) : si vos visites réapparaissent dans les chiffres, revenez ici voir si celle du jour est
+            toujours la bonne. Elles sont comparées puis oubliées — rien n’en est enregistré dans les statistiques.
+          </p>
+        </ActionForm>
+      </Card>
     </>
   );
 }

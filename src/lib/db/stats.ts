@@ -4,6 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import type { DeviceKind } from "@/lib/stats/keys";
 import { dayKey } from "@/lib/stats/keys";
 import { col, now } from "./helpers";
+import { getSettings } from "./settings";
 
 /*
  * Fréquentation : un document par jour (`stats_days/AAAA-MM-JJ`) qui cumule, par
@@ -180,4 +181,21 @@ export async function readPresence(windowMs = 300_000): Promise<Present[]> {
 const processSalt = randomBytes(16).toString("hex");
 export function statsSalt(): string {
   return process.env.STATS_SALT || process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || processSalt;
+}
+
+/*
+ * Adresses à ne pas compter (réglées dans /admin/statistiques), relues au plus une fois
+ * par minute. La balise passe ici à chaque page vue ET toutes les 30 secondes pour la
+ * présence : sans cette mémoire courte, chaque onglet ouvert ferait relire le document
+ * de réglages deux fois par minute. Contrepartie : une adresse ajoutée ou retirée prend
+ * effet dans la minute.
+ */
+const EXCLUSIONS_TTL = 60_000;
+let exclusions: { at: number; ips: string[] } | null = null;
+
+export async function excludedIps(): Promise<string[]> {
+  if (exclusions && now() - exclusions.at < EXCLUSIONS_TTL) return exclusions.ips;
+  const ips = (await getSettings()).stats.excludedIps;
+  exclusions = { at: now(), ips };
+  return ips;
 }

@@ -479,6 +479,19 @@ export const SiteSettings = z.object({
       vatNote: z.string().default("TVA non applicable, art. 293 B du CGI"),
     })
     .default({ footerLine: "", sellerName: "", sellerAddressLines: [], siret: "", vatNumber: "", vatNote: "TVA non applicable, art. 293 B du CGI" }),
+  /*
+   * Fréquentation : ce qu'on refuse de compter. Un administrateur connecté est déjà
+   * écarté par la balise ; ces adresses écartent en plus les visites faites DÉCONNECTÉ —
+   * depuis la maison, un autre navigateur, le téléphone posé sur le même wifi.
+   *
+   * Elles sont comparées, jamais enregistrées : rien dans `stats_days` ni dans
+   * `stats_presence` ne porte d'adresse IP, et ce n'est pas ce réglage qui l'y met.
+   */
+  stats: z
+    .object({
+      excludedIps: z.array(z.string().trim().max(45)).max(20).default([]),
+    })
+    .default({ excludedIps: [] }),
   seo: Seo.default({}),
   updatedAt: z.number(),
 });

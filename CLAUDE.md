@@ -137,6 +137,27 @@ clé de contrôle (`domain/isbn.ts`) et l'unicité du numéro dans le catalogue.
 Une dépense peut désigner un document pour justificatif ; supprimer le document délie
 les lignes (`db/expenses.detachDocument`) plutôt que de laisser un lien mort.
 
+## Fréquentation
+
+Balise maison, sans cookie (`components/site/StatsBeacon` → `/api/stats/hit` →
+`lib/db/stats.ts`), lue dans `/admin/statistiques`. Trois choses ne sont jamais
+comptées : les robots (`isBot`), **les administrateurs connectés** (la session est
+vérifiée côté serveur dans la route de la balise), et les **adresses IP exclues**
+(`settings.stats.excludedIps`, réglées au bas de /admin/statistiques). Les deux
+dernières se complètent : la session couvre le navigateur où l'on est connecté,
+l'adresse couvre le téléphone et la fenêtre privée.
+
+L'adresse IP est **comparée puis jetée** — elle n'est ni hachée, ni stockée, ni
+cumulée (`visitorHash` s'en passe volontairement, voir `lib/stats/keys.ts`). Une IPv6
+est ramenée à son **/64** : le préfixe d'un foyer est stable, la fin de l'adresse
+change toute seule, et une exclusion posée sur l'adresse entière aurait cessé d'agir
+en quelques heures. La liste est relue **au plus une fois par minute**
+(`db/stats.excludedIps`) : la balise passe à chaque page vue et toutes les 30 s pour
+la présence, sans quoi chaque onglet ouvert ferait relire les réglages sans arrêt.
+Une adresse ajoutée prend donc effet dans la minute. L'ajout au panier
+(`lib/stats/record.ts`) applique les mêmes règles, sans quoi le parcours d'achat
+compterait un essai que le reste de l'écran ne compte pas.
+
 ## Administration
 
 Coquille autonome (`src/app/admin/layout.tsx`, maquette « Mon Vrai - Admin ») : barre

@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth/session";
-import { heartbeat, recordHit, statsSalt } from "@/lib/db/stats";
-import { bucketPath, dayKey, deviceKind, hourKey, isBot, pickUserAgent, sourceKey, visitorHash } from "@/lib/stats/keys";
+import { excludedIps, heartbeat, recordHit, statsSalt } from "@/lib/db/stats";
+import { bucketPath, clientIp, dayKey, deviceKind, hourKey, isBot, isExcludedIp, pickUserAgent, sourceKey, visitorHash } from "@/lib/stats/keys";
 
 /*
  * Balise de fréquentation (voir components/site/StatsBeacon). Deux messages : « view »
  * (une page s'affiche) et « ping » (l'onglet est toujours ouvert). On ne compte ni les
- * robots, ni les administrateurs connectés, ni l'admin lui-même. Réponse 204 dans tous
- * les cas : le navigateur n'attend rien.
+ * robots, ni les administrateurs connectés, ni l'admin lui-même, ni les adresses IP
+ * exclues dans les réglages. Réponse 204 dans tous les cas : le navigateur n'attend rien.
  */
 
 const Body = z.object({
@@ -37,6 +37,13 @@ export async function POST(request: Request) {
   // Un administrateur connecté qui parcourt sa boutique ne compte pas.
   const user = await getSessionUser().catch(() => null);
   if (user?.isAdmin) return ok();
+
+  /*
+   * Et pas davantage déconnecté, depuis une adresse qu'on a demandé d'écarter : c'est
+   * ce qui rattrape le téléphone, la fenêtre privée et le navigateur où l'on n'est
+   * jamais connecté. L'adresse sert à cette comparaison et à rien d'autre.
+   */
+  if (isExcludedIp(clientIp(request.headers), await excludedIps().catch(() => []))) return ok();
 
   const path = bucketPath(b.p);
   const at = Date.now();
