@@ -4,24 +4,23 @@ import { contestState } from "@/lib/contests/state";
 /*
  * Le stock INFLUENCE : les exemplaires mis de côté pour les partenaires et les jeux.
  *
- * Trois nombres, et pas un de plus :
+ * Deux nombres à l'écran, un troisième qui les relie :
  *
- * - **stock** : ce qui reste, tout simplement. Il baisse tout seul à la commande d'un
- *   kit ou d'un lot — c'est là que les livres partent vraiment.
- * - **réservé** : promis par une campagne ouverte ou un concours en cours, sans que
- *   personne ait encore commandé. Rien n'est décompté pour ces exemplaires-là, sans quoi
- *   une campagne appliquée à cinq partenaires viderait le stock cinq fois avant le
- *   premier envoi.
+ * - **stock** : ce qui reste, tout simplement. On l'augmente à la main quand un carton
+ *   arrive, et il baisse tout seul à la commande d'un kit ou d'un lot — c'est là que les
+ *   livres partent vraiment.
  * - **disponible** = stock − réservé : ce qu'on peut encore promettre.
+ * - **réservé**, qui ne fait pas une colonne : promis par une campagne ouverte ou un
+ *   concours en cours, sans que personne ait encore commandé. Un exemplaire promis n'est
+ *   plus disponible, et c'est tout ce qu'on a besoin d'en savoir — il se dit en une
+ *   ligne sous le titre, pour que l'écart entre les deux colonnes s'explique. Rien n'est
+ *   décompté pour lui, sans quoi une campagne appliquée à cinq partenaires viderait le
+ *   stock cinq fois avant le premier envoi.
  *
  * Un livre passe donc de « réservé » à « parti » d'un seul coup : au moment où le kit
  * est commandé, le stock baisse ET la promesse tombe, si bien que le disponible ne
  * bouge pas — il avait déjà été retenu. Il ne bouge que lorsqu'on promet davantage, ou
  * qu'on reçoit un carton.
- *
- * « Réservé » ne veut donc pas dire ici ce qu'il dit dans le tableau du stock de vente
- * (où il s'agit d'une commande payée, pas encore expédiée) : sur des exemplaires qui ne
- * se vendent pas, ce qui compte est ce qu'on a promis, pas ce qui attend le facteur.
  *
  * Tout est pur : l'écran, les décomptes et les tests doivent répondre la même chose.
  */

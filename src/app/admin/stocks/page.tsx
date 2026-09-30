@@ -106,16 +106,10 @@ export default async function StocksPage() {
         <h2 className="text-[1.375rem] font-extrabold tracking-[-0.01em]">Stock influence</h2>
         <p className="text-[0.8125rem] leading-relaxed text-subtle">
           Les exemplaires réservés aux partenaires et aux jeux : ils ne sont pas à vendre et n&apos;apparaissent nulle
-          part sur la boutique. <strong className="text-ink">Stock</strong> : ce qui reste.{" "}
-          <strong className="text-ink">Réservé</strong> : ce qu&apos;une campagne ou un concours promet, sans que
-          personne ait encore commandé. <strong className="text-ink">Disponible</strong> = stock − réservé : ce
-          qu&apos;on peut encore promettre.
-        </p>
-        <p className="text-[0.8125rem] leading-relaxed text-subtle">
-          Monter une campagne réserve les exemplaires ; le stock, lui, ne baisse qu&apos;à la commande du kit ou du lot,
-          quand les livres partent vraiment. Le disponible ne bouge donc pas à ce moment-là — il avait déjà été retenu —
-          et rien n&apos;est compté deux fois. (Ici « réservé » veut dire promis : ce n&apos;est pas le « réservé » du
-          tableau de la vente, qui désigne une commande payée pas encore expédiée.)
+          part sur la boutique. <strong className="text-ink">Stock</strong> : ce qui reste, à vous de l&apos;augmenter
+          quand un carton arrive. <strong className="text-ink">Disponible</strong> : ce que vous pouvez encore
+          promettre — une campagne montée ou un concours ouvert retient déjà ses exemplaires, et le stock baisse
+          ensuite tout seul quand le kit ou le lot est commandé.
         </p>
       </div>
 
@@ -128,8 +122,8 @@ export default async function StocksPage() {
 
       <div className="grid grid-cols-[1fr_340px] items-start gap-3 max-[1099px]:grid-cols-1">
         <GridTable
-          columns="56px 1fr 110px 110px 120px 150px"
-          head={["", "Produit", "Stock", "Réservé", "Disponible", "Ajuster"]}
+          columns="56px 1fr 120px 130px 150px"
+          head={["", "Produit", "Stock", "Disponible", "Ajuster"]}
           empty="Aucun titre au catalogue."
           rows={influence.map((r) => {
             const p = byTitle.get(r.slug);
@@ -141,10 +135,16 @@ export default async function StocksPage() {
                   <Link href={`/admin/produits/${r.slug}`} className="truncate font-bold hover:underline">
                     {r.title}
                   </Link>
-                  {r.available < 0 && <span className="text-[0.6875rem] font-semibold text-accent">{-r.available} ex. promis en trop</span>}
+                  {/* L'écart entre les deux nombres se dit ici, en petit : sans cela, un
+                      disponible plus bas que le stock resterait sans explication. */}
+                  {r.reserved > 0 && (
+                    <span className={`text-[0.6875rem] ${r.available < 0 ? "font-semibold text-accent" : "text-subtle"}`}>
+                      {r.reserved} promis par une campagne ou un concours
+                      {r.available < 0 && ` · ${-r.available} de trop`}
+                    </span>
+                  )}
                 </span>,
                 <span key="s" className="font-bold">{r.stock}</span>,
-                <span key="r" className="text-muted">{r.reserved > 0 ? r.reserved : <span className="text-faint">—</span>}</span>,
                 <span key="d">
                   <Pill tone={r.available < 0 ? "pink" : r.available === 0 ? "muted" : "ok"}>{r.available}</Pill>
                 </span>,

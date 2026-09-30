@@ -114,16 +114,15 @@ partenaires qu'on veut et viderait l'étagère plusieurs fois avant le premier e
 qui a été pris est inscrit sur la commande (`kit.stock`, `prize.stock`) : `releaseStock`
 rend à l'annulation exactement ce qui avait été prélevé, et au bon endroit.
 
-D'où trois nombres à l'écran (`lib/admin/influence-stock.ts`, pur et testé), et pas un de
-plus : **stock** (ce qui reste), **réservé** — promis par une participation ouverte ou un
-concours en cours, sans que personne ait encore commandé — et **disponible** = stock −
-réservé, ce qu'on peut encore promettre. Un kit commandé fait baisser le stock ET tomber
-la promesse : le disponible ne bouge pas à ce moment-là, il avait déjà été retenu. Il
-passe en négatif quand on a promis plus qu'on n'a : c'est une alerte, pas un blocage.
-
-Attention au mot : ici « réservé » veut dire PROMIS, quand le tableau du stock de vente
-l'emploie pour une commande payée non expédiée. Sur des exemplaires qui ne se vendent
-pas, ce qui compte est ce qu'on a promis, pas ce qui attend le facteur.
+D'où deux colonnes à l'écran (`lib/admin/influence-stock.ts`, pur et testé) : **stock**
+(ce qui reste, qu'on augmente à la main à l'arrivée d'un carton) et **disponible** (ce
+qu'on peut encore promettre). Entre les deux, ce qui est **réservé** — promis par une
+participation ouverte ou un concours en cours, sans que personne ait encore commandé.
+Un exemplaire promis n'est plus disponible : ce troisième nombre ne fait donc pas une
+colonne, il se dit en une ligne sous le titre pour que l'écart s'explique. Un kit
+commandé fait baisser le stock ET tomber la promesse : le disponible ne bouge pas à ce
+moment-là, il avait déjà été retenu. Il passe en négatif quand on a promis plus qu'on
+n'a : c'est une alerte, pas un blocage.
 Une commande de kit n'est jamais refusée faute de stock — un partenaire ne doit pas
 buter là-dessus ; le stock passe en négatif et la page le signale.
 
