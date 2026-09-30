@@ -114,14 +114,15 @@ partenaires qu'on veut et viderait l'étagère plusieurs fois avant le premier e
 qui a été pris est inscrit sur la commande (`kit.stock`, `prize.stock`) : `releaseStock`
 rend à l'annulation exactement ce qui avait été prélevé, et au bon endroit.
 
-D'où trois nombres à l'écran (`lib/admin/influence-stock.ts`, pur et testé) :
-**sur l'étagère** (ce que la fiche compte), **réservé** (sorti du compte, pas encore du
-carton : colis offert payé non expédié) et **engagé** — promis sans être sorti : les kits
-des participations ouvertes que personne n'a commandés, et les lots des concours qui
-n'ont pas trouvé preneur. `libre = étagère − engagé` dit ce qu'on peut encore promettre,
-et passe en négatif quand on a promis plus qu'on n'a : c'est une alerte, pas un blocage.
+D'où les colonnes de l'écran (`lib/admin/influence-stock.ts`, pur et testé), dont les
+trois premières sont celles du stock de vente, mêmes mots : **physique** (ce qu'il y a
+chez soi), **réservé** (dans un colis commandé, pas encore parti) et **disponible** (ce
+dans quoi le prochain kit puisera). S'y ajoutent **engagé** — promis sans être sorti :
+les kits des participations ouvertes que personne n'a commandés, les lots des concours
+sans preneur — et **libre** = disponible − engagé, ce qu'on peut encore promettre. Libre
+passe en négatif quand on a promis plus qu'on n'a : c'est une alerte, pas un blocage.
 Une commande de kit n'est jamais refusée faute de stock — un partenaire ne doit pas
-buter là-dessus ; l'étagère passe en négatif et la page le signale.
+buter là-dessus ; le disponible passe en négatif et la page le signale.
 
 ## Concours
 

@@ -8,17 +8,19 @@ import { TO_SHIP } from "./order-ui";
  *
  * Trois nombres, et ils ne disent pas la même chose :
  *
- * - **sur l'étagère** (`shelf`) : ce que la fiche du titre compte aujourd'hui. Il baisse
- *   tout seul à la commande d'un kit ou d'un lot, comme le stock de vente baisse au
- *   paiement — c'est le moment où les livres partent vraiment.
+ * - **disponible** (`available`) : ce que la fiche du titre compte aujourd'hui, et donc
+ *   ce dans quoi le prochain kit peut puiser. Il baisse tout seul à la commande d'un kit
+ *   ou d'un lot, comme le stock de vente baisse au paiement — c'est le moment où les
+ *   livres partent vraiment. Mêmes mots que le tableau du stock de vente, juste
+ *   au-dessus : les deux écrans se lisent de la même façon.
  * - **réservé** (`reserved`) : déjà sorti du compte, pas encore du carton (colis offert
- *   payé, pas encore expédié). L'étagère et le réservé additionnés donnent le physique :
- *   ce qu'on doit trouver en se levant.
+ *   payé, pas encore expédié). Disponible et réservé additionnés donnent le physique :
+ *   ce qu'on doit trouver chez soi en se levant.
  * - **engagé** (`committed`) : PROMIS, pas encore sorti — les kits des campagnes
  *   ouvertes que personne n'a encore commandés, les lots des concours qui n'ont pas
  *   trouvé preneur. Rien n'est décompté pour eux, sans quoi une campagne appliquée à
  *   cinq partenaires viderait l'étagère cinq fois avant le premier envoi. C'est
- *   `free` = étagère − engagé qui dit ce qu'on peut encore promettre.
+ *   `free` = disponible − engagé qui dit ce qu'on peut encore promettre.
  *
  * Tout est pur : l'écran, les décomptes et les tests doivent répondre la même chose.
  */
@@ -27,12 +29,12 @@ export type InfluenceRow = {
   slug: string;
   title: string;
   /** Ce que la fiche compte : disponible pour un prochain kit. */
-  shelf: number;
+  available: number;
   /** Sorti du compte, pas encore du carton. */
   reserved: number;
   /** Promis par une campagne ouverte ou un concours en cours. */
   committed: number;
-  /** Étagère − engagé : ce qu'on peut encore promettre sans se découvrir. */
+  /** Disponible − engagé : ce qu'on peut encore promettre sans se découvrir. */
   free: number;
 };
 
@@ -86,11 +88,11 @@ export function influenceRows(products: Product[], orders: Order[], campaigns: C
   const reserved = influenceReserved(orders);
   const committed = influenceCommitments(campaigns, contests, now);
   return products.map((p) => {
-    const shelf = p.influenceStock;
+    const available = p.influenceStock;
     const promised = committed.get(p.slug) ?? 0;
-    return { slug: p.slug, title: p.title, shelf, reserved: reserved.get(p.slug) ?? 0, committed: promised, free: shelf - promised };
+    return { slug: p.slug, title: p.title, available, reserved: reserved.get(p.slug) ?? 0, committed: promised, free: available - promised };
   });
 }
 
-/** Les titres dont les promesses dépassent l'étagère : c'est ce qui appelle un carton. */
+/** Les titres dont les promesses dépassent le disponible : c'est ce qui appelle un carton. */
 export const shortTitles = (rows: InfluenceRow[]): InfluenceRow[] => rows.filter((r) => r.free < 0);

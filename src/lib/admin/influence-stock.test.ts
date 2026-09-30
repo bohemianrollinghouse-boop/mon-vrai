@@ -111,7 +111,7 @@ describe("Ce qui est engagé sans être sorti", () => {
 describe("La ligne d'un titre", () => {
   it("laisse libre ce que les promesses n'ont pas pris", () => {
     const rows = influenceRows([produit("les-fruits", 10)], [], [participation({})], [concours({})], MAINTENANT);
-    expect(rows[0]).toMatchObject({ shelf: 10, reserved: 0, committed: 5, free: 5 });
+    expect(rows[0]).toMatchObject({ available: 10, reserved: 0, committed: 5, free: 5 });
   });
 
   it("passe en négatif quand on a promis plus qu'on n'a, et le signale", () => {
