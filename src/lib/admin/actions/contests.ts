@@ -10,7 +10,7 @@ import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { optionOfferCode, shippingOptions } from "@/lib/checkout/quote";
 import { prizeSaid } from "@/lib/contests/state";
-import { addHosts, addWinner, deleteContest, getContest, removeHost, removeWinner, updateWinner, upsertContest } from "@/lib/db/contests";
+import { addHosts, addWinner, deleteContest, getContest, removeHost, removeWinner, setContestPublished, updateWinner, upsertContest } from "@/lib/db/contests";
 import { createPrizeOrder } from "@/lib/db/orders";
 import { listAllProducts } from "@/lib/db/products";
 import { getInfluencer } from "@/lib/db/promos";
@@ -112,6 +112,32 @@ export async function saveContestAction(formData: FormData): Promise<AdminResult
   touched(contest.id);
   if (!existing) return { ok: true, message: `Concours « ${contest.name} » créé.`, redirectTo: contestPath(contest.id) };
   return saved(`Concours « ${contest.name} » enregistré.`);
+}
+
+/*
+ * Valider la proposition d'un partenaire : la mettre en ligne, d'un seul geste.
+ *
+ * Le même interrupteur est au bas du formulaire, parmi tout ce qui se règle — mais une
+ * proposition n'attend de nous qu'une chose, et elle doit se faire là où le bandeau
+ * l'annonce. L'action ne réécrit QUE la publication : ce que le partenaire a écrit et le
+ * lot qu'on vient d'enregistrer restent tels quels.
+ *
+ * Le lot reste exigé, comme à l'enregistrement : publier, c'est montrer le concours à des
+ * créateurs qui vont l'annoncer, et un lot vide n'annonce rien.
+ */
+export async function publishContestAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  const contest = await getContest(id);
+  if (!contest) return failed("Concours introuvable");
+  if (!prizeSaid(contest.prize)) return failed("Dites ce qui est en jeu avant de publier le concours.", { lines: "Lot vide" });
+
+  const next = await setContestPublished(id, true);
+  if (!next) return failed("Concours introuvable");
+
+  await audit(user.email, "contest.publish", `contests/${id}`, next.name);
+  touched(id);
+  return saved(`Concours « ${next.name} » publié : ses co-organisateurs le voient dans leur espace.`);
 }
 
 export async function deleteContestAction(formData: FormData): Promise<AdminResult> {

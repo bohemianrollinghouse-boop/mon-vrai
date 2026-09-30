@@ -8,6 +8,7 @@ import {
   addContestHostsAction,
   deleteContestAction,
   removeContestHostAction,
+  publishContestAction,
   removeWinnerAction,
   saveContestAction,
   saveWinnerAction,
@@ -16,7 +17,7 @@ import {
 import { dayValue } from "@/lib/admin/campaign-form";
 import { kitChoices } from "@/lib/admin/kit-choices";
 import { shippingOptions } from "@/lib/checkout/quote";
-import { CONTEST_STATE_LABELS, awaitingReview, contestState, hostOf, seatsLeft, shippable } from "@/lib/contests/state";
+import { CONTEST_STATE_LABELS, awaitingReview, contestState, hostOf, prizeSaid, seatsLeft, shippable } from "@/lib/contests/state";
 import { clockNow } from "@/lib/db/campaigns";
 import { getContest } from "@/lib/db/contests";
 import { listAllProducts } from "@/lib/db/products";
@@ -126,11 +127,29 @@ export default async function ContestPage({ params }: PageProps<"/admin/concours
             c'est ici que les deux gestes se font.
           */}
           {awaitingReview(contest) && (
-            <p className="rounded-[14px] bg-tint-sand px-4 py-3 text-[0.8125rem] leading-relaxed text-tint-sand-ink">
-              <strong className="font-bold">{proposer?.name ?? "Un partenaire"}</strong> a monté ce concours depuis son
-              espace. Posez le lot ci-dessous, puis cochez « Publier » : il ne pourra déclarer son gagnant qu&apos;une
-              fois le concours en ligne.
-            </p>
+            <div className="flex flex-col gap-2.5 rounded-[14px] bg-tint-sand px-4 py-3 text-[0.8125rem] leading-relaxed text-tint-sand-ink">
+              <p>
+                <strong className="font-bold">{proposer?.name ?? "Un partenaire"}</strong> a monté ce concours depuis son
+                espace. Il ne pourra déclarer son gagnant qu&apos;une fois le concours en ligne.
+              </p>
+              {/*
+                La validation se fait ICI, là où elle est annoncée, et pas seulement par
+                l'interrupteur du bas : une proposition n'attend de nous qu'un geste, et
+                le chercher au milieu de tout ce qui se règle revient à ne pas l'avoir.
+                Le bouton ne paraît qu'une fois le lot posé — c'est ce que la publication
+                exige, autant le dire avant le clic qu'après.
+              */}
+              {prizeSaid(contest.prize) ? (
+                <ActionForm action={publishContestAction} submitLabel="Publier le concours" className="!gap-0">
+                  <input type="hidden" name="id" value={contest.id} />
+                </ActionForm>
+              ) : (
+                <p className="font-semibold">
+                  Posez d&apos;abord le lot ci-dessous, puis enregistrez : le bouton « Publier le concours » paraîtra
+                  ici.
+                </p>
+              )}
+            </div>
           )}
           <ActionForm action={saveContestAction} submitLabel={creating ? "Créer le concours" : "Enregistrer le concours"}>
             {!creating && <input type="hidden" name="id" value={contest.id} />}

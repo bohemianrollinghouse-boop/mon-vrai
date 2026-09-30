@@ -194,7 +194,12 @@ part, et non un `Operation` de plus.
   donc `proposedBy` et reste `published: false` — `awaitingReview()` le dit, la liste et
   sa fiche l'affichent « À valider » plutôt que « Brouillon » (un brouillon qu'on a
   écrit et un brouillon qu'on nous soumet n'appellent pas le même geste), et le badge de
-  la barre latérale le compte comme un tirage à faire. Il est son propre co-organisateur
+  la barre latérale le compte comme un tirage à faire. **La validation se fait dans le
+  bandeau qui l'annonce** : un bouton « Publier le concours » (`publishContestAction` →
+  `setContestPublished`, qui ne réécrit que la publication), et non le seul interrupteur
+  du bas de formulaire — une proposition n'attend qu'un geste, le chercher au milieu de
+  tout ce qui se règle revient à ne pas l'avoir. Il ne paraît qu'une fois le lot posé :
+  publier sans lot est refusé là comme à l'enregistrement. Il est son propre co-organisateur
   dans `hosts` : c'est par là que le concours le retrouve, et ce qui lui donne une ligne
   de chiffres. `listContestsForInfluencer` lui montre ses propositions avant publication
   — les lui cacher reviendrait à le faire écrire dans le vide. Le droit se règle

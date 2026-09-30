@@ -95,6 +95,18 @@ async function mutate(id: string, apply: (contest: Contest) => Contest | null): 
 }
 
 /*
+ * Mettre en ligne (ou retirer de la ligne) un concours, sans toucher au reste.
+ *
+ * C'est le geste de validation d'une proposition de partenaire : on ne réécrit que la
+ * publication, et en transaction comme le reste — un co-organisateur peut déclarer son
+ * gagnant pendant qu'on valide, et réécrire le document entier depuis l'écran
+ * l'effacerait.
+ */
+export async function setContestPublished(contestId: string, published: boolean): Promise<Contest | null> {
+  return mutate(contestId, (c) => ({ ...c, published }));
+}
+
+/*
  * Ce qu'un partenaire autonome réécrit de son propre concours, en transaction comme le
  * reste : il corrige ses dates pendant qu'un autre co-organisateur déclare un gagnant.
  *
