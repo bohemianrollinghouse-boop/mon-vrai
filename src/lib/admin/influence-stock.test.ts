@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Campaign, Contest, Order, Product } from "@/lib/domain/types";
-import { influenceGone, influenceReserved, influenceRows, shortTitles } from "./influence-stock";
+import { influenceReserved, influenceRows, influenceSent, shortTitles } from "./influence-stock";
 
 /*
  * Ce qui compte vraiment ici : ne pas décompter deux fois. Une campagne promet, une
@@ -92,7 +92,7 @@ describe("Ce que les kits ont emporté", () => {
     const ancien = commande({ id: "o1", createdAt: 1, status: "delivered" });
     const recent = commande({ id: "o2", status: "paid" });
     const lot = commande({ id: "o3", kit: undefined, prize: { contestId: "cts_1", winnerId: "w1", stock: false }, lines: [ligne("les-fruits", 1)] });
-    expect(influenceGone([ancien, recent, lot]).get("les-fruits")).toBe(7);
+    expect(influenceSent([ancien, recent, lot]).get("les-fruits")).toBe(7);
   });
 
   it("oublie un colis annulé ou remboursé : ses exemplaires sont revenus", () => {
@@ -100,22 +100,27 @@ describe("Ce que les kits ont emporté", () => {
     const rembourse = commande({ id: "o2", status: "refunded" });
     /* Un kit pris sur le stock de vente n'a rien emporté ici. */
     const surVente = commande({ id: "o3", kit: { influencerId: "inf_1", stock: true, seq: 1 } });
-    expect(influenceGone([annule, rembourse, surVente]).size).toBe(0);
+    expect(influenceSent([annule, rembourse, surVente]).size).toBe(0);
   });
 });
 
 describe("La ligne d'un titre", () => {
   it("laisse disponible ce que les promesses n'ont pas retenu", () => {
     const rows = influenceRows([produit("les-fruits", 20)], [], [participation({})], [concours({})], MAINTENANT);
-    expect(rows[0]).toMatchObject({ stock: 20, reserved: 5, available: 15, gone: 0 });
+    expect(rows[0]).toMatchObject({ stock: 20, sent: 0, reserved: 5, available: 15 });
   });
 
   it("ne bouge pas le disponible quand un kit réservé est commandé", () => {
     const avant = influenceRows([produit("les-fruits", 20)], [], [participation({})], [], MAINTENANT)[0];
-    /* Le kit part : le stock perd ses 3 exemplaires, et la promesse tombe avec lui. */
-    const apres = influenceRows([produit("les-fruits", 17)], [commande({})], [participation({ kitOrderId: "ord_9", status: "active" })], [], MAINTENANT)[0];
-    expect(avant).toMatchObject({ stock: 20, reserved: 3, available: 17, gone: 0 });
-    expect(apres).toMatchObject({ stock: 17, reserved: 0, available: 17, gone: 3 });
+    /* Le kit part : le stock ne bouge pas, l'exemplaire passe de promis à envoyé. */
+    const apres = influenceRows([produit("les-fruits", 20)], [commande({})], [participation({ kitOrderId: "ord_9", status: "active" })], [], MAINTENANT)[0];
+    expect(avant).toMatchObject({ stock: 20, sent: 0, reserved: 3, available: 17 });
+    expect(apres).toMatchObject({ stock: 20, sent: 3, reserved: 0, available: 17 });
+  });
+
+  it("retranche du disponible ce qui est parti, même longtemps avant cet écran", () => {
+    const rows = influenceRows([produit("les-fruits", 20)], [commande({ createdAt: 1, status: "delivered" })], [], [], MAINTENANT);
+    expect(rows[0]).toMatchObject({ stock: 20, sent: 3, reserved: 0, available: 17 });
   });
 
   it("passe en négatif quand on a promis plus qu'on n'a, et le signale", () => {

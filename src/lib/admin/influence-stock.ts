@@ -5,29 +5,24 @@ import { contestState } from "@/lib/contests/state";
 /*
  * Le stock INFLUENCE : les exemplaires mis de côté pour les partenaires et les jeux.
  *
- * Deux nombres à l'écran, un troisième qui les relie :
+ * Trois colonnes, et une soustraction :
  *
- * - **stock** : ce qui reste, tout simplement. On l'augmente à la main quand un carton
- *   arrive, et il baisse tout seul à la commande d'un kit ou d'un lot — c'est là que les
- *   livres partent vraiment.
- * - **disponible** = stock − réservé : ce qu'on peut encore promettre.
- * - **réservé**, qui ne fait pas une colonne : promis par une campagne ouverte ou un
- *   concours en cours, sans que personne ait encore commandé. Un exemplaire promis n'est
- *   plus disponible, et c'est tout ce qu'on a besoin d'en savoir — il se dit en une
- *   ligne sous le titre, pour que l'écart entre les deux colonnes s'explique. Rien n'est
- *   décompté pour lui, sans quoi une campagne appliquée à cinq partenaires viderait le
- *   stock cinq fois avant le premier envoi.
+ * - **stock** : ce qu'on a mis de côté. Un nombre à soi, qui ne bouge QUE si on le
+ *   change — il ne se décompte pas tout seul (voir `createGiftOrder`).
+ * - **envoyé** : ce que les kits et les lots ont emporté, lu sur les commandes
+ *   elles-mêmes. D'où deux propriétés qu'un compteur n'aurait pas : les kits partis
+ *   AVANT l'existence de ce stock y figurent, et une commande annulée en sort d'elle-même.
+ * - **disponible** = stock − envoyé − réservé.
  *
- * À côté de ces trois-là, un quatrième qui ne se calcule pas pareil : **parti**, le
- * nombre d'exemplaires que les kits et les lots ont emportés depuis toujours. Il se lit
- * dans les commandes, et non dans le compteur — ce qui permet de recoller quand le
- * compteur ne sait pas tout, notamment pour les kits envoyés AVANT l'existence de ce
- * stock, que rien n'a jamais décomptés.
+ * `réservé` ne fait pas une colonne : c'est ce qu'une campagne ouverte ou un concours en
+ * cours a promis sans que personne ait encore commandé. Un exemplaire promis n'est plus
+ * disponible, mais il n'est pas parti non plus — il se dit en une ligne sous le titre,
+ * là où l'on explique l'écart. Rien n'est décompté pour lui, sans quoi une campagne
+ * appliquée à cinq partenaires viderait le stock cinq fois avant le premier envoi.
  *
- * Un livre passe donc de « réservé » à « parti » d'un seul coup : au moment où le kit
- * est commandé, le stock baisse ET la promesse tombe, si bien que le disponible ne
- * bouge pas — il avait déjà été retenu. Il ne bouge que lorsqu'on promet davantage, ou
- * qu'on reçoit un carton.
+ * Le jour où le kit est commandé, l'exemplaire passe de « réservé » à « envoyé » : le
+ * disponible ne bouge pas, il avait déjà été retenu. Il ne bouge que lorsqu'on promet
+ * davantage, ou qu'on met de côté un carton de plus.
  *
  * Tout est pur : l'écran, les décomptes et les tests doivent répondre la même chose.
  */
@@ -35,22 +30,22 @@ import { contestState } from "@/lib/contests/state";
 export type InfluenceRow = {
   slug: string;
   title: string;
-  /** Ce qui reste : le compteur du titre, déjà amputé des kits commandés. */
+  /** Ce qu'on a mis de côté, à la main. */
   stock: number;
+  /** Ce que les kits et les lots ont emporté, depuis toujours. */
+  sent: number;
   /** Promis par une campagne ouverte ou un concours en cours, pas encore commandé. */
   reserved: number;
-  /** Stock − réservé : ce qu'on peut encore promettre sans se découvrir. */
+  /** Stock − envoyé − réservé : ce qu'on peut encore promettre. */
   available: number;
-  /** Exemplaires emportés par des kits et des lots depuis toujours, compteur ou non. */
-  gone: number;
 };
 
 /*
  * Ce que les kits et les lots ont emporté, d'après les commandes elles-mêmes — toutes
  * celles qui ont pris sur ce stock, quel que soit leur âge. Une commande annulée ou
- * remboursée ne compte pas : ses exemplaires sont revenus (ou ne sont jamais partis).
+ * remboursée ne compte pas : ses exemplaires sont revenus, ou ne sont jamais partis.
  */
-export function influenceGone(orders: Order[]): Map<string, number> {
+export function influenceSent(orders: Order[]): Map<string, number> {
   const m = new Map<string, number>();
   for (const o of orders) {
     if (!offeredOrder(o) || tookSaleStock(o)) continue;
@@ -61,12 +56,12 @@ export function influenceGone(orders: Order[]): Map<string, number> {
 }
 
 /*
- * Ce qui est promis sans être encore sorti.
+ * Ce qui est promis sans être encore commandé.
  *
  * Une participation compte tant que son kit n'est pas commandé et qu'elle court
  * (ouverte ou en cours) : terminée ou annulée, elle ne doit plus rien. Un concours
- * compte autant de lots qu'il lui reste de gagnants à servir — ceux déjà expédiés ont
- * pris leur part du stock.
+ * compte autant de lots qu'il lui reste de gagnants à servir — ceux déjà expédiés sont
+ * comptés parmi les envois.
  */
 export function influenceReserved(campaigns: Campaign[], contests: Contest[], now: number): Map<string, number> {
   const m = new Map<string, number>();
@@ -82,8 +77,8 @@ export function influenceReserved(campaigns: Campaign[], contests: Contest[], no
     if (contest.prize.deductStock) continue;
     const state = contestState(contest, now);
     if (state === "draft" || state === "closed") continue;
-    const sent = contest.winners.filter((w) => w.orderId).length;
-    const owed = Math.max(0, contest.winnersWanted - sent);
+    const served = contest.winners.filter((w) => w.orderId).length;
+    const owed = Math.max(0, contest.winnersWanted - served);
     for (const l of contest.prize.lines) add(l.slug, l.qty * owed);
   }
 
@@ -92,17 +87,18 @@ export function influenceReserved(campaigns: Campaign[], contests: Contest[], no
 
 /*
  * Une ligne par titre, dans l'ordre du catalogue. Tous les titres y figurent, même à
- * zéro : un stock influence vide se règle en recevant un carton, et il faut pouvoir
- * désigner le titre pour le faire.
+ * zéro : un stock influence vide se règle en mettant des exemplaires de côté, et il faut
+ * pouvoir désigner le titre pour le faire.
  */
 export function influenceRows(products: Product[], orders: Order[], campaigns: Campaign[], contests: Contest[], now: number): InfluenceRow[] {
+  const sent = influenceSent(orders);
   const reserved = influenceReserved(campaigns, contests, now);
-  const gone = influenceGone(orders);
   return products.map((p) => {
+    const gone = sent.get(p.slug) ?? 0;
     const promised = reserved.get(p.slug) ?? 0;
-    return { slug: p.slug, title: p.title, stock: p.influenceStock, reserved: promised, available: p.influenceStock - promised, gone: gone.get(p.slug) ?? 0 };
+    return { slug: p.slug, title: p.title, stock: p.influenceStock, sent: gone, reserved: promised, available: p.influenceStock - gone - promised };
   });
 }
 
-/** Les titres dont les promesses dépassent le stock : c'est ce qui appelle un carton. */
+/** Les titres dont les envois et les promesses dépassent le stock : il en manque. */
 export const shortTitles = (rows: InfluenceRow[]): InfluenceRow[] => rows.filter((r) => r.available < 0);

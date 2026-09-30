@@ -106,33 +106,38 @@ en kit. Le stock influence est **interne** : rien ne l'affiche côté boutique, 
 règle que dans `/admin/stocks`, et la fiche produit n'y touche pas (`upsertProduct` le
 reprend tel quel — un enregistrement de fiche ne doit pas le remettre à zéro).
 
-Un colis **sort toujours d'un stock**, la seule question est lequel : `deductStock`
-coché sur le kit ou le lot → la vente ; sinon → l'influence. Le décompte se fait à la
-**commande** du kit ou du lot (`createGiftOrder`), c'est-à-dire au moment où les livres
-partent vraiment — jamais à la création d'une campagne, qui s'applique à autant de
-partenaires qu'on veut et viderait l'étagère plusieurs fois avant le premier envoi. Ce
-qui a été pris est inscrit sur la commande (`kit.stock`, `prize.stock`) : `releaseStock`
-rend à l'annulation exactement ce qui avait été prélevé, et au bon endroit.
+Un colis offert **sort de l'un des deux**, et `deductStock` (sur le kit ou sur le lot)
+dit lequel : coché → la vente, décomptée à la commande comme une vente l'est au paiement ;
+décoché → l'influence, qui ne se décompte pas (voir plus bas). Ce qui a été pris est
+inscrit sur la commande (`kit.stock`, `prize.stock`), et c'est lui qui dit à
+`releaseStock`, en cas d'annulation, s'il y a quelque chose à rendre au stock de vente.
 
-D'où deux colonnes à l'écran (`lib/admin/influence-stock.ts`, pur et testé) : **stock**
-(ce qui reste, qu'on augmente à la main à l'arrivée d'un carton) et **disponible** (ce
-qu'on peut encore promettre). Entre les deux, ce qui est **réservé** — promis par une
-participation ouverte ou un concours en cours, sans que personne ait encore commandé.
-Un exemplaire promis n'est plus disponible : ce troisième nombre ne fait donc pas une
-colonne, il se dit en une ligne sous le titre pour que l'écart s'explique. Un kit
-commandé fait baisser le stock ET tomber la promesse : le disponible ne bouge pas à ce
-moment-là, il avait déjà été retenu. Il passe en négatif quand on a promis plus qu'on
-n'a : c'est une alerte, pas un blocage.
+Le stock influence n'est PAS un compteur qui baisse : c'est une **déclaration** — ce
+qu'on a mis de côté — de laquelle on retranche ce que les commandes ont emporté. D'où
+trois colonnes (`lib/admin/influence-stock.ts`, pur et testé) : **stock** (le nombre
+qu'on écrit soi-même, et qui ne bouge que si on le réécrit), **envoyé** (`influenceSent`,
+lu sur les commandes : tous les kits et lots pris sur ce stock, annulés et remboursés
+exclus) et **disponible** = stock − envoyé − réservé.
 
-S'y ajoute **parti** (`influenceGone`), lu sur les commandes et non sur le compteur :
-combien de kits et de lots ont emporté ce titre depuis toujours. Il existe pour une
-raison précise — les kits envoyés AVANT la mise en place de ce stock n'en ont jamais été
-retirés, le compteur ne comptant que depuis qu'il existe. Le rattrapage ne se fait pas
-tout seul (il recompterait les kits déjà décomptés) : on saisit en stock ce qu'il y a
-vraiment sur l'étagère, et tout recolle.
+Ce choix n'est pas cosmétique. Un compteur décrémenté à la commande aurait ignoré tous
+les kits partis AVANT l'existence de ce stock, et il aurait fallu un rattrapage à la
+main, impossible à faire sans recompter les départs déjà décomptés. La soustraction, elle,
+retrouve l'histoire entière toute seule, et une commande annulée en sort d'elle-même.
+`createGiftOrder` ne touche donc au stock que lorsqu'il s'agit du stock de VENTE.
+
+**Réservé** ne fait pas une colonne : c'est ce qu'une participation ouverte ou un concours
+en cours a promis sans que personne ait encore commandé. L'exemplaire n'est plus
+disponible sans être parti — il se dit en une ligne sous le titre, là où l'on explique
+l'écart. Le jour où le kit est commandé il passe de « réservé » à « envoyé » : le
+disponible ne bouge pas, il avait déjà été retenu. Il passe en négatif quand on a promis
+plus qu'on n'a : c'est une alerte, pas un blocage.
+
+La correction ordinaire consiste donc à **réécrire le stock** (champ de la colonne Stock,
+`setInfluenceStockAction`) avec le nombre qu'on vient de compter sur l'étagère ; la carte
+« Réception influence » ajoute un carton sans avoir à connaître le total.
 
 Une commande de kit n'est jamais refusée faute de stock — un partenaire ne doit pas
-buter là-dessus ; le stock passe en négatif et la page le signale.
+buter là-dessus ; le disponible passe en négatif et la page le signale.
 
 ## Concours
 

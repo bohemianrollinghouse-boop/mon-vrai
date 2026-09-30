@@ -85,13 +85,25 @@ function stripHtml(s: string): string {
  * c'est le seul endroit où il se règle à la main — les sorties, elles, se font toutes
  * seules à la commande d'un kit ou d'un lot (voir `createGiftOrder`).
  */
+/*
+ * Pose le stock influence d'un titre au nombre qu'on vient de compter sur l'étagère.
+ * C'est la correction ordinaire : ce compteur ne baisse pas tout seul — ce qui est parti
+ * se lit sur les commandes —, il ne dit que ce qu'on a mis de côté.
+ */
+export async function setInfluenceStock(slug: string, value: number): Promise<number> {
+  const ref = col("products").doc(slug);
+  const product = parseDoc(Product, await ref.get());
+  if (!product) throw new Error(`Produit ${slug} introuvable`);
+  const next = Math.max(0, Math.round(value));
+  await ref.update({ influenceStock: next, updatedAt: now() });
+  return next;
+}
+
 export async function adjustInfluenceStock(slug: string, delta: number): Promise<number> {
   const ref = col("products").doc(slug);
   const product = parseDoc(Product, await ref.get());
   if (!product) throw new Error(`Produit ${slug} introuvable`);
-  /* Pas de plancher à zéro : une sortie a pu passer l'étagère en négatif, et un « +1 »
-     doit alors remonter de −3 à −2, pas sauter à 1. L'écran affiche le manque. */
-  const next = product.influenceStock + delta;
+  const next = Math.max(0, product.influenceStock + delta);
   await ref.update({ influenceStock: next, updatedAt: now() });
   return next;
 }

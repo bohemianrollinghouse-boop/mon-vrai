@@ -222,10 +222,14 @@ const markQuery = (mark: GiftMark) =>
  * chez Boxtal, avec son bon de livraison. À deux différences près : elle naît « payée »
  * sans passer par Stripe, et elle n'est jamais facturée (voir `offeredOrder`).
  *
- * Les exemplaires sortent du STOCK INFLUENCE — ceux mis de côté pour les partenaires et
- * les jeux (le cas ordinaire) — ou du stock de vente quand on a réglé le contraire. Ce
- * qui a été fait est inscrit sur la commande, pour que l'annulation rende exactement ce
- * qui avait été pris, et au bon endroit.
+ * Le stock de vente ne bouge que si on l'a demandé (`deductStock`). Sinon le colis sort
+ * du STOCK INFLUENCE, et RIEN n'est décompté ici : ce stock-là ne tient pas un compteur
+ * qui baisse, il affiche ce qui a été mis de côté d'un côté et ce que les commandes ont
+ * emporté de l'autre (voir `lib/admin/influence-stock.ts`). Décompter en plus
+ * compterait deux fois le même départ.
+ *
+ * Ce qui a été fait est tout de même inscrit sur la commande (`kit.stock`, `prize.stock`) :
+ * c'est lui qui dit, à l'annulation, s'il y a quelque chose à rendre au stock de vente.
  */
 async function createGiftOrder(input: GiftOrderInput, mark: GiftMark, defaultNote: string): Promise<Order> {
   const existing = await findGiftOrder(mark);
@@ -246,34 +250,25 @@ async function createGiftOrder(input: GiftOrderInput, mark: GiftMark, defaultNot
     const counterSnap = await tx.get(counterRef);
     const seq = ((counterSnap.data()?.seq as number | undefined) ?? 0) + 1;
 
-    /*
-     * Les exemplaires sortent TOUJOURS d'un stock — la seule question est lequel : celui
-     * de la vente quand on l'a demandé, sinon celui mis de côté pour l'influence. Un
-     * colis offert qui ne décompterait rien ferait disparaître des livres sans trace.
-     */
     // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
     const notes: string[] = [];
     const deduct = input.deductStock === true;
     const productRefs = input.lines.map((line) => col("products").doc(line.productSlug));
-    const productSnaps = await Promise.all(productRefs.map((ref) => tx.get(ref)));
-    input.lines.forEach((line, i) => {
-      const product = parseDoc(Product, productSnaps[i]);
-      if (!product) {
-        notes.push(`Produit ${line.productSlug} introuvable`);
-        return;
-      }
-      if (deduct) {
+    const productSnaps = deduct ? await Promise.all(productRefs.map((ref) => tx.get(ref))) : [];
+    if (deduct) {
+      input.lines.forEach((line, i) => {
+        const product = parseDoc(Product, productSnaps[i]);
+        if (!product) {
+          notes.push(`Produit ${line.productSlug} introuvable`);
+          return;
+        }
         /* Stock de vente : « non suivi » veut dire sans limite, on n'y touche pas. */
         if (product.stock === null) return;
         const remaining = product.stock - line.qty;
         if (remaining < 0) notes.push(`Stock négatif pour ${line.productSlug} (${remaining})`);
         tx.update(productRefs[i], { stock: FieldValue.increment(-line.qty), updatedAt: createdAt });
-        return;
-      }
-      const left = product.influenceStock - line.qty;
-      if (left < 0) notes.push(`Stock influence négatif pour ${line.productSlug} (${left})`);
-      tx.update(productRefs[i], { influenceStock: FieldValue.increment(-line.qty), updatedAt: createdAt });
-    });
+      });
+    }
 
     const order = Order.parse({
       id,
@@ -326,23 +321,24 @@ export async function findKitOrder(influencerId: string, seq = 1): Promise<Order
 }
 
 /*
- * Rend les exemplaires au stock d'où ils venaient — celui de la vente, ou celui de
- * l'influence. Ce qui a été pris est inscrit sur la commande (`kit.stock`, `prize.stock`),
- * et c'est lui qui décide : quoi qu'on ait réglé depuis, l'annulation rend exactement
- * ce qui avait été prélevé, et nulle part ailleurs.
+ * Rend au stock de vente les exemplaires qu'une commande annulée lui avait pris. Ce qui a
+ * été pris est inscrit sur la commande (`kit.stock`, `prize.stock`) : quoi qu'on ait
+ * réglé depuis, l'annulation rend exactement ce qui avait été prélevé.
+ *
+ * Rien à rendre au stock influence : il ne décompte pas les départs (voir
+ * `createGiftOrder`), et une commande annulée cesse d'elle-même de compter parmi les
+ * envois — c'est le propre d'un chiffre lu sur les commandes plutôt que tenu à part.
  */
 async function releaseStock(tx: Transaction, order: Order): Promise<void> {
-  const toSale = tookSaleStock(order);
+  if (!tookSaleStock(order)) return;
   // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
   const prefs = order.lines.map((line) => col("products").doc(line.productSlug));
   const snaps = await Promise.all(prefs.map((pref) => tx.get(pref)));
   order.lines.forEach((line, i) => {
     const product = parseDoc(Product, snaps[i]);
-    if (!product) return;
-    /* Un titre « non suivi » à la vente n'a rien à rendre : il se vend sans limite. */
-    if (toSale && product.stock === null) return;
-    const field = toSale ? "stock" : "influenceStock";
-    tx.update(prefs[i], { [field]: FieldValue.increment(line.qty), updatedAt: now() });
+    /* Un titre « non suivi » n'a rien à rendre : il se vend sans limite. */
+    if (!product || product.stock === null) return;
+    tx.update(prefs[i], { stock: FieldValue.increment(line.qty), updatedAt: now() });
   });
 }
 
