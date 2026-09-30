@@ -80,6 +80,15 @@ describe("Ce qu'une campagne réserve", () => {
     expect(influenceReserved([], [concours({ winners: [gagnantServi] })], MAINTENANT).get("les-fruits")).toBe(1);
   });
 
+  it("écarte celui qu'on modifie : on ne se retranche pas sa propre promesse", () => {
+    const deux = [participation({}), participation({ id: "cmp_2" })];
+    expect(influenceReserved(deux, [], MAINTENANT).get("les-fruits")).toBe(6);
+    expect(influenceReserved(deux, [], MAINTENANT, "cmp_1").get("les-fruits")).toBe(3);
+    /* Un concours en cours de réglage ne doit pas non plus se retenir ses propres lots. */
+    const rows = influenceRows([produit("les-fruits", 20)], [], [participation({})], [concours({})], MAINTENANT, "cts_1");
+    expect(rows[0]).toMatchObject({ reserved: 3, available: 17 });
+  });
+
   it("ignore un concours en brouillon ou terminé", () => {
     const brouillon = concours({ published: false });
     const fini = concours({ endAt: MAINTENANT - JOUR, winnersWanted: 1, winners: [gagnantServi] });

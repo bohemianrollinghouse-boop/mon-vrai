@@ -14,8 +14,9 @@ import {
   shipPrizeAction,
 } from "@/lib/admin/actions/contests";
 import { dayValue } from "@/lib/admin/campaign-form";
+import { kitChoices } from "@/lib/admin/kit-choices";
 import { shippingOptions } from "@/lib/checkout/quote";
-import { CONTEST_STATE_LABELS, contestState, hostOf, seatsLeft, shippable } from "@/lib/contests/state";
+import { CONTEST_STATE_LABELS, awaitingReview, contestState, hostOf, seatsLeft, shippable } from "@/lib/contests/state";
 import { clockNow } from "@/lib/db/campaigns";
 import { getContest } from "@/lib/db/contests";
 import { listAllProducts } from "@/lib/db/products";
@@ -55,6 +56,7 @@ const BLANK: Contest = {
   hostInfluencerIds: [],
   winners: [],
   published: false,
+  proposedBy: "",
   postUrl: "",
   participants: 0,
   note: "",
@@ -72,10 +74,16 @@ export default async function ContestPage({ params }: PageProps<"/admin/concours
 
   const [products, influencers, settings, at] = await Promise.all([listAllProducts(), listInfluencers(), getSettings(), clockNow()]);
 
+  /* Les titres du lot, avec ce qu'il reste à promettre — ce concours-ci mis à part : sa
+     propre promesse ne doit pas se retrancher de ce qu'il peut promettre. */
+  const kitBooks = await kitChoices(products, creating ? undefined : contest.id);
+
   const state = creating ? "draft" : contestState(contest, at);
   const items = kitItems(contest.prize, products);
   const books = items.reduce((n, i) => n + i.qty, 0);
   const engaged = new Set(contest.hosts.map((h) => h.influencerId).filter(Boolean));
+  /* Qui l'a proposé : son nom est déjà dans `hosts`, il s'y monte lui-même comme co-organisateur. */
+  const proposer = contest.proposedBy ? contest.hosts.find((h) => h.id === contest.proposedBy) : null;
 
   /*
    * Les modes de livraison proposés pour un lot : à domicile seulement. Le gagnant a
@@ -96,6 +104,7 @@ export default async function ContestPage({ params }: PageProps<"/admin/concours
             <span className="flex flex-wrap items-center gap-3">
               {contest.name}
               <Pill tone={STATE_TONE[state]}>{CONTEST_STATE_LABELS[state]}</Pill>
+              {awaitingReview(contest) && <Pill tone="warn">À valider</Pill>}
             </span>
           )
         }
@@ -111,6 +120,18 @@ export default async function ContestPage({ params }: PageProps<"/admin/concours
       <div className="grid grid-cols-2 items-start gap-3 max-[1199px]:grid-cols-1">
         {/* ---------- Ce qui est en jeu ---------- */}
         <Card title="Ce qui est en jeu">
+          {/*
+            Une proposition de partenaire : il a écrit les dates et la mécanique, il
+            manque ce qu'il ne décide pas. Dit ici, en tête du formulaire, parce que
+            c'est ici que les deux gestes se font.
+          */}
+          {awaitingReview(contest) && (
+            <p className="rounded-[14px] bg-tint-sand px-4 py-3 text-[0.8125rem] leading-relaxed text-tint-sand-ink">
+              <strong className="font-bold">{proposer?.name ?? "Un partenaire"}</strong> a monté ce concours depuis son
+              espace. Posez le lot ci-dessous, puis cochez « Publier » : il ne pourra déclarer son gagnant qu&apos;une
+              fois le concours en ligne.
+            </p>
+          )}
           <ActionForm action={saveContestAction} submitLabel={creating ? "Créer le concours" : "Enregistrer le concours"}>
             {!creating && <input type="hidden" name="id" value={contest.id} />}
             <div className="grid grid-cols-2 gap-2.5 max-[749px]:grid-cols-1">
@@ -148,7 +169,7 @@ export default async function ContestPage({ params }: PageProps<"/admin/concours
                 à 0 €, expédiable comme les autres.
               </p>
               <WelcomeKitEditor
-                products={products.map((p) => ({ slug: p.slug, title: p.title, image: p.images[0]?.url, tint: p.tint, stock: p.stock, influenceStock: p.influenceStock }))}
+                products={kitBooks}
                 initial={contest.prize.lines}
                 note="Ces exemplaires sont pris sur le stock influence (voir /admin/stocks), pas sur les livres à vendre, et la commande du lot vaut 0 € (jamais facturée)."
               />
@@ -229,7 +250,11 @@ export default async function ContestPage({ params }: PageProps<"/admin/concours
                           )}
                           <span className="truncate text-[0.6875rem] text-subtle">
                             {h.handle || "sans pseudo"}
-                            {h.influencerId ? " · voit le concours dans son espace" : " · invité, ne voit rien"}
+                            {h.id === contest.proposedBy
+                              ? " · a proposé ce concours"
+                              : h.influencerId
+                                ? " · voit le concours dans son espace"
+                                : " · invité, ne voit rien"}
                             {h.participants > 0 && ` · ${h.participants} participant${h.participants > 1 ? "s" : ""}`}
                             {h.followers !== 0 && ` · ${h.followers > 0 ? "+" : ""}${h.followers} abonnés`}
                           </span>

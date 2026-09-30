@@ -7,6 +7,7 @@ import { Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "
 import { CodeInput } from "@/components/admin/CodeInput";
 import { SignedContractView } from "@/components/site/SignedContractView";
 import { completeCampaignAction, deleteCampaignAction, saveCampaignAction } from "@/lib/admin/actions/campaigns";
+import { kitChoices } from "@/lib/admin/kit-choices";
 import { clockNow, getCampaign, listCampaigns } from "@/lib/db/campaigns";
 import { getSignature, listContracts } from "@/lib/db/contracts";
 import { findKitOrder } from "@/lib/db/orders";
@@ -49,6 +50,10 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
     getOperation(campaign.operationId).catch(() => null),
     clockNow(),
   ]);
+
+  /* Les titres du kit, avec ce qu'il reste à promettre — cette campagne-ci mise à part :
+     sa propre promesse ne doit pas se retrancher de ce qu'elle peut promettre. */
+  const kitBooks = await kitChoices(products, campaign.id);
 
   /* Un contrat retiré n'est plus proposable, sauf s'il est déjà celui de la campagne. */
   const choices = contracts.filter((c) => c.active || c.id === campaign.contractId);
@@ -192,7 +197,7 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
                   <Textarea name="text" defaultValue={campaign.kit.text} placeholder="Trois imagiers à découvrir, à filmer, à offrir. Expédié sous 48 h." />
                 </Field>
                 <WelcomeKitEditor
-                  products={products.map((p) => ({ slug: p.slug, title: p.title, image: p.images[0]?.url, tint: p.tint, stock: p.stock, influenceStock: p.influenceStock }))}
+                  products={kitBooks}
                   initial={campaign.kit.lines}
                 />
               </div>

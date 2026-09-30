@@ -62,18 +62,25 @@ export function influenceSent(orders: Order[]): Map<string, number> {
  * (ouverte ou en cours) : terminée ou annulée, elle ne doit plus rien. Un concours
  * compte autant de lots qu'il lui reste de gagnants à servir — ceux déjà expédiés sont
  * comptés parmi les envois.
+ *
+ * `exceptId` écarte une participation ou un concours : celui qu'on est en train de
+ * modifier. Sans quoi l'écran de son kit lui montrerait un disponible dont sa PROPRE
+ * promesse est déjà retirée — il croirait manquer des exemplaires qu'il a lui-même
+ * retenus, et en changer la quantité ne changerait rien au nombre affiché.
  */
-export function influenceReserved(campaigns: Campaign[], contests: Contest[], now: number): Map<string, number> {
+export function influenceReserved(campaigns: Campaign[], contests: Contest[], now: number, exceptId?: string): Map<string, number> {
   const m = new Map<string, number>();
   const add = (slug: string, qty: number) => m.set(slug, (m.get(slug) ?? 0) + qty);
 
   for (const c of campaigns) {
+    if (exceptId && c.id === exceptId) continue;
     if (!c.kit.enabled || c.kit.deductStock || c.kitOrderId) continue;
     if (c.status !== "draft" && c.status !== "active") continue;
     for (const l of c.kit.lines) add(l.slug, l.qty);
   }
 
   for (const contest of contests) {
+    if (exceptId && contest.id === exceptId) continue;
     if (contest.prize.deductStock) continue;
     const state = contestState(contest, now);
     if (state === "draft" || state === "closed") continue;
@@ -90,9 +97,16 @@ export function influenceReserved(campaigns: Campaign[], contests: Contest[], no
  * zéro : un stock influence vide se règle en mettant des exemplaires de côté, et il faut
  * pouvoir désigner le titre pour le faire.
  */
-export function influenceRows(products: Product[], orders: Order[], campaigns: Campaign[], contests: Contest[], now: number): InfluenceRow[] {
+export function influenceRows(
+  products: Product[],
+  orders: Order[],
+  campaigns: Campaign[],
+  contests: Contest[],
+  now: number,
+  exceptId?: string,
+): InfluenceRow[] {
   const sent = influenceSent(orders);
-  const reserved = influenceReserved(campaigns, contests, now);
+  const reserved = influenceReserved(campaigns, contests, now, exceptId);
   return products.map((p) => {
     const gone = sent.get(p.slug) ?? 0;
     const promised = reserved.get(p.slug) ?? 0;

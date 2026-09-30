@@ -13,7 +13,12 @@ import { Thumb } from "@/components/admin/ui";
  * pour un lot, et c'est la seule chose qui change d'un usage à l'autre.
  */
 
-export type KitChoice = { slug: string; title: string; image?: string; tint: "green" | "blue" | "pink" | "sand"; stock: number | null; influenceStock: number };
+/*
+ * `available` est le DISPONIBLE du stock influence (stock − envoyé − réservé), pas le
+ * stock déclaré : celui-ci compte aussi ce qui est déjà parti, et promettre dessus
+ * reviendrait à promettre deux fois le même livre. Il vient de `admin/kitChoices`.
+ */
+export type KitChoice = { slug: string; title: string; image?: string; tint: "green" | "blue" | "pink" | "sand"; stock: number | null; available: number };
 
 export function WelcomeKitEditor({ products, initial, note }: { products: KitChoice[]; initial: { slug: string; qty: number }[]; note?: string }) {
   const [picked, setPicked] = useState<Record<string, number>>(() => Object.fromEntries(initial.map((l) => [l.slug, l.qty])));
@@ -42,10 +47,12 @@ export function WelcomeKitEditor({ products, initial, note }: { products: KitCho
             <Thumb src={p.image} tint={p.tint} size={36} />
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-[0.8125rem] font-bold">{p.title}</span>
-              {/* Le nombre qui compte ici est celui du stock influence : c'est lui qui
-                  sera décompté. Le stock de vente ne se lit qu'en second. */}
+              {/* Le nombre qui compte ici est ce qu'on peut encore promettre : le
+                  disponible du stock influence. Le stock de vente ne se lit qu'en second. */}
               <span className="text-[0.6875rem] text-subtle">
-                <strong className={p.influenceStock > 0 ? "text-ink" : "text-accent"}>{p.influenceStock} en stock influence</strong>
+                <strong className={p.available > 0 ? "text-ink" : "text-accent"}>
+                  {p.available} disponible{p.available > 1 || p.available < -1 ? "s" : ""} en influence
+                </strong>
                 {p.stock === null ? " · vente non suivie" : ` · ${p.stock} à la vente`}
               </span>
             </span>
@@ -66,6 +73,9 @@ export function WelcomeKitEditor({ products, initial, note }: { products: KitCho
       <span className="text-[0.6875rem] leading-relaxed text-subtle">
         {note ??
           "Ces exemplaires sont pris sur le stock influence (voir /admin/stocks), pas sur les livres à vendre, et la commande créée vaut 0 € (jamais facturée)."}
+        {" "}
+        Le nombre indiqué est ce qui reste à promettre : le stock mis de côté, moins ce que les kits et les lots ont
+        déjà emporté ou retenu.
       </span>
     </div>
   );
