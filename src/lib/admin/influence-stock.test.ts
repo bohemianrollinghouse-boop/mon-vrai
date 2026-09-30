@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { Campaign, Contest, Product } from "@/lib/domain/types";
-import { influenceReserved, influenceRows, shortTitles } from "./influence-stock";
+import { Campaign, Contest, Order, Product } from "@/lib/domain/types";
+import { influenceGone, influenceReserved, influenceRows, shortTitles } from "./influence-stock";
 
 /*
  * Ce qui compte vraiment ici : ne pas décompter deux fois. Une campagne promet, une
@@ -38,6 +38,24 @@ const concours = (over: Record<string, unknown>) =>
     ...over,
   });
 
+const ligne = (slug: string, qty: number) => ({ productSlug: slug, title: slug, qty, unitPrice: 0, gift: true });
+
+const commande = (over: Record<string, unknown>) =>
+  Order.parse({
+    id: "ord_1",
+    number: "MV-2026-00001",
+    status: "shipped",
+    lines: [ligne("les-fruits", 3)],
+    totals: { subtotal: 0, shipping: 0, discount: 0, tax: 0, total: 0, currency: "eur" },
+    email: "lea@exemple.fr",
+    shippingAddress: { name: "Léa", line1: "12 rue des Lilas", postalCode: "69003", city: "Lyon", country: "FR" },
+    kit: { influencerId: "inf_1", stock: false, seq: 1 },
+    timeline: [{ at: 1, status: "paid" }],
+    createdAt: 1,
+    updatedAt: 1,
+    ...over,
+  });
+
 const gagnantServi = { id: "w1", hostId: "", handle: "@marie", name: "", email: "", declaredBy: "admin", declaredAt: 1, orderId: "ord_1", note: "" };
 
 describe("Ce qu'une campagne réserve", () => {
@@ -69,28 +87,45 @@ describe("Ce qu'une campagne réserve", () => {
   });
 });
 
+describe("Ce que les kits ont emporté", () => {
+  it("compte tous les colis pris sur ce stock, quel que soit leur âge", () => {
+    const ancien = commande({ id: "o1", createdAt: 1, status: "delivered" });
+    const recent = commande({ id: "o2", status: "paid" });
+    const lot = commande({ id: "o3", kit: undefined, prize: { contestId: "cts_1", winnerId: "w1", stock: false }, lines: [ligne("les-fruits", 1)] });
+    expect(influenceGone([ancien, recent, lot]).get("les-fruits")).toBe(7);
+  });
+
+  it("oublie un colis annulé ou remboursé : ses exemplaires sont revenus", () => {
+    const annule = commande({ id: "o1", status: "cancelled" });
+    const rembourse = commande({ id: "o2", status: "refunded" });
+    /* Un kit pris sur le stock de vente n'a rien emporté ici. */
+    const surVente = commande({ id: "o3", kit: { influencerId: "inf_1", stock: true, seq: 1 } });
+    expect(influenceGone([annule, rembourse, surVente]).size).toBe(0);
+  });
+});
+
 describe("La ligne d'un titre", () => {
   it("laisse disponible ce que les promesses n'ont pas retenu", () => {
-    const rows = influenceRows([produit("les-fruits", 20)], [participation({})], [concours({})], MAINTENANT);
-    expect(rows[0]).toMatchObject({ stock: 20, reserved: 5, available: 15 });
+    const rows = influenceRows([produit("les-fruits", 20)], [], [participation({})], [concours({})], MAINTENANT);
+    expect(rows[0]).toMatchObject({ stock: 20, reserved: 5, available: 15, gone: 0 });
   });
 
   it("ne bouge pas le disponible quand un kit réservé est commandé", () => {
-    const avant = influenceRows([produit("les-fruits", 20)], [participation({})], [], MAINTENANT)[0];
+    const avant = influenceRows([produit("les-fruits", 20)], [], [participation({})], [], MAINTENANT)[0];
     /* Le kit part : le stock perd ses 3 exemplaires, et la promesse tombe avec lui. */
-    const apres = influenceRows([produit("les-fruits", 17)], [participation({ kitOrderId: "ord_9", status: "active" })], [], MAINTENANT)[0];
-    expect(avant).toMatchObject({ stock: 20, reserved: 3, available: 17 });
-    expect(apres).toMatchObject({ stock: 17, reserved: 0, available: 17 });
+    const apres = influenceRows([produit("les-fruits", 17)], [commande({})], [participation({ kitOrderId: "ord_9", status: "active" })], [], MAINTENANT)[0];
+    expect(avant).toMatchObject({ stock: 20, reserved: 3, available: 17, gone: 0 });
+    expect(apres).toMatchObject({ stock: 17, reserved: 0, available: 17, gone: 3 });
   });
 
   it("passe en négatif quand on a promis plus qu'on n'a, et le signale", () => {
-    const rows = influenceRows([produit("les-fruits", 2)], [participation({})], [concours({})], MAINTENANT);
+    const rows = influenceRows([produit("les-fruits", 2)], [], [participation({})], [concours({})], MAINTENANT);
     expect(rows[0].available).toBe(-3);
     expect(shortTitles(rows)).toHaveLength(1);
   });
 
   it("garde les titres sans stock influence : c'est là qu'on enregistre un carton", () => {
-    const rows = influenceRows([produit("le-visage", 0)], [], [], MAINTENANT);
+    const rows = influenceRows([produit("le-visage", 0)], [], [], [], MAINTENANT);
     expect(rows).toHaveLength(1);
     expect(shortTitles(rows)).toHaveLength(0);
   });

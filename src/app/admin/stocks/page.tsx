@@ -28,7 +28,7 @@ export default async function StocksPage() {
   const untracked = snap.products.filter((p) => p.stock === null);
 
   /* Le stock influence : ce qui reste, ce qui est promis, ce qu'on peut encore promettre. */
-  const influence = influenceRows(snap.products, campaigns, contests, snap.now);
+  const influence = influenceRows(snap.products, snap.orders.filter((o) => o.livemode), campaigns, contests, snap.now);
   const short = shortTitles(influence);
   const byTitle = new Map(snap.products.map((p) => [p.slug, p]));
 
@@ -111,6 +111,12 @@ export default async function StocksPage() {
           promettre — une campagne montée ou un concours ouvert retient déjà ses exemplaires, et le stock baisse
           ensuite tout seul quand le kit ou le lot est commandé.
         </p>
+        <p className="text-[0.8125rem] leading-relaxed text-subtle">
+          Sous chaque titre, ce qui est promis et ce qui est <strong className="text-ink">déjà parti</strong> — celui-ci
+          compté sur les commandes elles-mêmes, depuis toujours. Les kits envoyés <em>avant</em> la mise en place de ce
+          stock n&apos;en ont jamais été retirés : le compteur ne compte que depuis qu&apos;il existe. Pour recoller une
+          fois pour toutes, indiquez en stock ce qu&apos;il y a vraiment sur l&apos;étagère aujourd&apos;hui.
+        </p>
       </div>
 
       {short.length > 0 && (
@@ -137,10 +143,15 @@ export default async function StocksPage() {
                   </Link>
                   {/* L'écart entre les deux nombres se dit ici, en petit : sans cela, un
                       disponible plus bas que le stock resterait sans explication. */}
-                  {r.reserved > 0 && (
+                  {(r.reserved > 0 || r.gone > 0) && (
                     <span className={`text-[0.6875rem] ${r.available < 0 ? "font-semibold text-accent" : "text-subtle"}`}>
-                      {r.reserved} promis par une campagne ou un concours
-                      {r.available < 0 && ` · ${-r.available} de trop`}
+                      {[
+                        r.reserved > 0 ? `${r.reserved} promis par une campagne ou un concours` : "",
+                        r.gone > 0 ? `${r.gone} déjà parti${r.gone > 1 ? "s" : ""} en kit ou en lot` : "",
+                        r.available < 0 ? `${-r.available} de trop` : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </span>
                   )}
                 </span>,

@@ -1,4 +1,5 @@
-import type { Campaign, Contest, Product } from "@/lib/domain/types";
+import type { Campaign, Contest, Order, Product } from "@/lib/domain/types";
+import { offeredOrder, tookSaleStock } from "@/lib/domain/order-state";
 import { contestState } from "@/lib/contests/state";
 
 /*
@@ -17,6 +18,12 @@ import { contestState } from "@/lib/contests/state";
  *   décompté pour lui, sans quoi une campagne appliquée à cinq partenaires viderait le
  *   stock cinq fois avant le premier envoi.
  *
+ * À côté de ces trois-là, un quatrième qui ne se calcule pas pareil : **parti**, le
+ * nombre d'exemplaires que les kits et les lots ont emportés depuis toujours. Il se lit
+ * dans les commandes, et non dans le compteur — ce qui permet de recoller quand le
+ * compteur ne sait pas tout, notamment pour les kits envoyés AVANT l'existence de ce
+ * stock, que rien n'a jamais décomptés.
+ *
  * Un livre passe donc de « réservé » à « parti » d'un seul coup : au moment où le kit
  * est commandé, le stock baisse ET la promesse tombe, si bien que le disponible ne
  * bouge pas — il avait déjà été retenu. Il ne bouge que lorsqu'on promet davantage, ou
@@ -34,7 +41,24 @@ export type InfluenceRow = {
   reserved: number;
   /** Stock − réservé : ce qu'on peut encore promettre sans se découvrir. */
   available: number;
+  /** Exemplaires emportés par des kits et des lots depuis toujours, compteur ou non. */
+  gone: number;
 };
+
+/*
+ * Ce que les kits et les lots ont emporté, d'après les commandes elles-mêmes — toutes
+ * celles qui ont pris sur ce stock, quel que soit leur âge. Une commande annulée ou
+ * remboursée ne compte pas : ses exemplaires sont revenus (ou ne sont jamais partis).
+ */
+export function influenceGone(orders: Order[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const o of orders) {
+    if (!offeredOrder(o) || tookSaleStock(o)) continue;
+    if (o.status === "cancelled" || o.status === "refunded") continue;
+    for (const l of o.lines) m.set(l.productSlug, (m.get(l.productSlug) ?? 0) + l.qty);
+  }
+  return m;
+}
 
 /*
  * Ce qui est promis sans être encore sorti.
@@ -71,11 +95,12 @@ export function influenceReserved(campaigns: Campaign[], contests: Contest[], no
  * zéro : un stock influence vide se règle en recevant un carton, et il faut pouvoir
  * désigner le titre pour le faire.
  */
-export function influenceRows(products: Product[], campaigns: Campaign[], contests: Contest[], now: number): InfluenceRow[] {
+export function influenceRows(products: Product[], orders: Order[], campaigns: Campaign[], contests: Contest[], now: number): InfluenceRow[] {
   const reserved = influenceReserved(campaigns, contests, now);
+  const gone = influenceGone(orders);
   return products.map((p) => {
     const promised = reserved.get(p.slug) ?? 0;
-    return { slug: p.slug, title: p.title, stock: p.influenceStock, reserved: promised, available: p.influenceStock - promised };
+    return { slug: p.slug, title: p.title, stock: p.influenceStock, reserved: promised, available: p.influenceStock - promised, gone: gone.get(p.slug) ?? 0 };
   });
 }
 

@@ -123,6 +123,14 @@ colonne, il se dit en une ligne sous le titre pour que l'écart s'explique. Un k
 commandé fait baisser le stock ET tomber la promesse : le disponible ne bouge pas à ce
 moment-là, il avait déjà été retenu. Il passe en négatif quand on a promis plus qu'on
 n'a : c'est une alerte, pas un blocage.
+
+S'y ajoute **parti** (`influenceGone`), lu sur les commandes et non sur le compteur :
+combien de kits et de lots ont emporté ce titre depuis toujours. Il existe pour une
+raison précise — les kits envoyés AVANT la mise en place de ce stock n'en ont jamais été
+retirés, le compteur ne comptant que depuis qu'il existe. Le rattrapage ne se fait pas
+tout seul (il recompterait les kits déjà décomptés) : on saisit en stock ce qu'il y a
+vraiment sur l'étagère, et tout recolle.
+
 Une commande de kit n'est jamais refusée faute de stock — un partenaire ne doit pas
 buter là-dessus ; le stock passe en négatif et la page le signale.
 
