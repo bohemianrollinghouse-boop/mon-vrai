@@ -219,3 +219,45 @@ describe("version texte", () => {
     expect(text).toContain("128 réponses");
   });
 });
+
+/*
+ * « Lettre de Myenndine » : un récit, pas une annonce. Ce qui la distingue tient à trois
+ * choses qu'une retouche ultérieure pourrait défaire sans qu'aucun autre test ne bronche.
+ */
+describe("lettre de la créatrice", () => {
+  const html = () => renderTemplateBody("lettre-myenndine", ctx("email"));
+
+  it("écrit le récit en Arial et garde Montserrat pour le reste", () => {
+    const h = html();
+    // Les paragraphes du récit, et eux seuls, portent la police de lecture.
+    expect(h).toContain("font-family:Arial,Helvetica,sans-serif;font-size:16px");
+    // Le titre, le panneau vert et la signature n'en portent aucune : ils héritent de
+    // Montserrat, posée sur le <body> par wrapEmail.
+    expect(h).not.toContain("font-family:Arial,Helvetica,sans-serif;font-size:17px");
+    expect(h).toMatch(/<h1 class="nl-h1s"[^>]*>Derrière Mon Vrai/);
+  });
+
+  it("rend ses marges larges sur un téléphone", () => {
+    // 48 px de marge sur un écran de 320 ne laisseraient que 224 px au texte.
+    expect(html()).toContain('class="nl-px" style="padding:36px 48px 0"');
+    expect(RESPONSIVE_CSS).toContain(".nl-px{ padding-left:24px !important");
+    // Un titre déjà à 30 px : la règle générale ne le descendrait pas.
+    expect(RESPONSIVE_CSS).toContain(".nl-h1s{ font-size:26px !important");
+  });
+
+  it("réclame la photo à la largeur exacte laissée par ses marges", () => {
+    const [photo] = collectCrops("lettre-myenndine", ctx("email", { "img:photo": "https://monvrai.fr/double-page.jpg" }));
+    expect(photo).toEqual({ url: "https://monvrai.fr/double-page.jpg", w: 504, h: 300, pos: "50% 50%" });
+  });
+
+  it("ne met pas de filet sous la dernière règle du panneau vert", () => {
+    const h = html();
+    const vert = h.slice(h.indexOf("C'est ainsi que sont nés"), h.indexOf("Et l'absence de texte"));
+    expect((vert.match(/border-bottom:1px solid #C6D3BE/g) ?? []).length).toBe(2);
+    expect(vert).toContain("Sans texte ni décor");
+  });
+
+  it("reste sur une seule colonne, du début à la fin", () => {
+    expect(html()).not.toContain("nl-col");
+  });
+});

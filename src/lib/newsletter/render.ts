@@ -77,6 +77,7 @@ const CANVAS = "#E9E6E0";
 const SUBTLE = "#888888";
 const GREEN = "#DCE5D6";
 const GREEN_INK = "#3A4438";
+const GREEN_LINE = "#C6D3BE"; // filet entre deux lignes d'un panneau vert
 const BLUE = "#E3E8F0";
 const BLUE_INK = "#3A4250";
 const PINK = "#F0E0E8";
@@ -84,9 +85,14 @@ const PINK_INK = "#5A3A4A";
 const SAND = "#F3E9DC";
 const SAND_INK = "#5A4A38";
 const LINE = "#E2DDD4"; // filet des encadrés discrets
+const PROSE_INK = "#222222"; // encre d'un long paragraphe : un cran plus clair qu'un titre
 const TINTP = "#ECE6DC"; // fond des emplacements d'image vides
 const HERO = "#2C2A27"; // aplat sous un héros : si l'image de fond ne charge pas, le titre blanc reste lisible
 const FONT = "'Montserrat',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif";
+/* Police du corps d'une lettre. La maison écrit en Montserrat, mais une géométrique large
+   se lit mal sur quinze paragraphes : un modèle narratif passe son récit en Arial et garde
+   Montserrat pour les titres, les panneaux et les boutons. */
+const PROSE = "Arial,Helvetica,sans-serif";
 const PIX = "data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==";
 
 /* Géométrie. Tout est en pixels : un e-mail ne connaît pas les unités relatives. */
@@ -97,6 +103,7 @@ const COLS_W = CARD_W - COLPAD * 2; // 562 px à répartir — 281 par colonne s
 
 export const NEWSLETTER_TEMPLATES: NewsletterTemplate[] = [
   { id: "on-revient", label: "On revient", description: "Retour aux inscrits de la première heure", subject: "On revient — et c'est vous qui avez choisi la suite" },
+  { id: "lettre-myenndine", label: "Lettre de Myenndine", description: "L'histoire des imagiers, racontée par sa créatrice", subject: "Derrière Mon Vrai, il y a d'abord une maman" },
 ];
 
 export const templateById = (id: string): NewsletterTemplate | undefined => NEWSLETTER_TEMPLATES.find((t) => t.id === id);
@@ -111,8 +118,8 @@ const nl2br = (s: string) => esc(s).replace(/\n/g, "<br>");
 const TBL = `role="presentation" cellpadding="0" cellspacing="0" border="0"`;
 
 /** Rangée pleine largeur de la carte. Le rembourrage est porté par un `<td>`, jamais par une marge. */
-function sect(inner: string, pad: string, center = false, extra = ""): string {
-  return `<table ${TBL} width="100%" style="border-collapse:collapse"><tr><td${center ? ' align="center"' : ""} style="padding:${pad}${center ? ";text-align:center" : ""}${extra}">${inner}</td></tr></table>`;
+function sect(inner: string, pad: string, center = false, extra = "", cls = ""): string {
+  return `<table ${TBL} width="100%" style="border-collapse:collapse"><tr><td${center ? ' align="center"' : ""}${cls ? ` class="${cls}"` : ""} style="padding:${pad}${center ? ";text-align:center" : ""}${extra}">${inner}</td></tr></table>`;
 }
 
 /**
@@ -451,9 +458,49 @@ ${sect(T(c, "outro", "Une question ? Répondez simplement à cet e-mail, une vra
 ${footerPlain(c)}`);
 }
 
+/*
+ * Lettre de la créatrice.
+ *
+ * Ce n'est pas une annonce, c'est une lettre : aucune fiche produit, aucun prix, un seul
+ * bouton et il arrive à la fin. D'où trois écarts avec « On revient », tous voulus :
+ *   - une seule colonne du début à la fin — un récit ne se lit pas en deux colonnes ;
+ *   - des marges de 48 px au lieu de 40, ramenées à 24 sur téléphone par « nl-px » : une
+ *     colonne de texte trop large se lit mal, et 48 px sur un écran de 320 n'en
+ *     laisseraient que 224 au récit ;
+ *   - le corps du récit est en Arial (`PROSE`), pas en Montserrat. Le titre, les panneaux,
+ *     le bouton et la signature gardent la police de la maison : c'est l'appariement de la
+ *     maquette, et quinze paragraphes de Montserrat — une géométrique large — fatiguent.
+ */
+function tplLettreMyenndine(c: RenderCtx): string {
+  const PADX = 48;
+  /** Rangée de la lettre : ses marges larges se rendent sur téléphone (voir RESPONSIVE_CSS). */
+  const S = (inner: string, pad: string, center = false) => sect(inner, pad, center, "", "nl-px");
+  /** Un paragraphe du récit. `fort` ne sert qu'à la seule phrase que la maquette détache. */
+  const P = (k: string, def: string, last = false, fort = false) =>
+    T(c, k, def, `margin:0 0 ${last ? 0 : 18}px;font-family:${PROSE};font-size:16px;line-height:26px;mso-line-height-rule:exactly;color:${fort ? INK : PROSE_INK}${fort ? ";font-weight:700" : ""};display:block`, "p");
+  /** Une règle du livre. La dernière ne porte pas de filet : il doublerait le bord du panneau. */
+  const regle = (k: string, def: string, last = false) =>
+    `<tr><td style="padding:10px 28px${last ? " 24px" : ""}${last ? "" : `;border-bottom:1px solid ${GREEN_LINE}`}">${T(c, k, def, `font-size:17px;line-height:24px;font-weight:800;color:${INK}`, "div")}</td></tr>`;
+
+  const principes = `<table ${TBL} width="100%" style="border-collapse:collapse"><tr><td style="padding:24px 28px 6px">${T(c, "reglesEy", "C'est ainsi que sont nés les imagiers Mon Vrai :", `font-size:14px;line-height:20px;font-weight:700;color:${GREEN_INK}`, "div")}</td></tr>${regle("r1", "Six représentations par livre")}${regle("r2", "Un seul élément par double page")}${regle("r3", "Sans texte ni décor", true)}</table>`;
+
+  return card(`${topbar(c, "topnote", "Imagiers réalistes · 6–18 mois", "lettre-myenndine")}${logo(c)}
+${S(`${eyebrow(c, "eyebrow", "Une lettre de la créatrice", SUBTLE)}${T(c, "title", "Derrière Mon Vrai, il y a d'abord une maman.", `margin:14px 0 0;font-size:30px;line-height:36px;mso-line-height-rule:exactly;font-weight:800;letter-spacing:-.01em;color:${INK};display:block`, "h1", "nl-h1s")}`, `28px ${PADX}px 0`, true)}
+${S(imgBox(c, "photo", "", { w: CARD_W - PADX * 2, h: 300, radius: 18 }), `32px ${PADX}px 0`)}
+${S(`${P("p1", "Bonjour,")}${P("p2", "Derrière Mon Vrai, il y a d'abord une maman qui cherchait des livres pour ses enfants.")}${P("p3", "Dès ma première grossesse, à 19 ans, je me suis passionnée pour le développement des tout-petits. Je me suis formée aux pédagogies Montessori 0–3 ans et 3–6 ans, et j'ai commencé à regarder autrement les livres et le matériel que je leur proposais.", true)}`, `36px ${PADX}px 0`)}
+${S(panel(T(c, "quote", "Je cherchais un imagier simple, réaliste, avec peu de pages, pour les bébés de 6 à 18 mois.", "margin:0;font-size:18px;line-height:27px;mso-line-height-rule:exactly;font-weight:700;color:#fff;display:block", "p"), INK, "26px 28px", 18), `28px ${PADX}px`)}
+${S(`${P("p4", "Un livre qui montre les choses du quotidien, sans texte ni décor autour.")}${P("p5", "Mais je ne trouvais pas celui que j'avais en tête.")}${P("p6", "Alors, j'ai décidé de le créer.", false, true)}${P("p7", "Le réalisme était au cœur du projet : je voulais représenter une fraise, un chat ou une voiture au plus près de leur apparence réelle. Des images à regarder ensemble, à nommer, puis à mettre en lien avec ce que l'enfant rencontre autour de lui.")}${P("p8", `Le fond blanc répond à cette même envie de simplicité : <strong style="color:${INK}">enlever tout ce qui n'est pas nécessaire autour de l'élément présenté</strong>, pour lui laisser toute la place.`, true)}`, `0 ${PADX}px`)}
+${S(panel(principes, GREEN, "0", 18), `28px ${PADX}px`)}
+${S(`${P("p9", "Et l'absence de texte laisse aussi la place à votre voix. Vous pouvez nommer, raconter, imiter un bruit ou simplement laisser votre enfant regarder, à son rythme.")}${P("p10", "Aujourd'hui, je suis heureuse de partager avec vous ces livres que j'ai d'abord imaginés en tant que maman.")}${P("p11", "Merci de faire une place à Mon Vrai dans votre quotidien 🤍", true)}`, `0 ${PADX}px`)}
+${S(btn(c, "cta", "Découvrir les imagiers Mon Vrai", `${c.base}/catalogue`), `36px ${PADX}px 0`, true)}
+${S(`<table ${TBL} width="100%"><tr><td style="border-top:1px solid ${LINE};padding-top:24px">${T(c, "signName", "Myenndine", `margin:0;font-size:17px;line-height:24px;font-weight:800;color:${INK};display:block`, "p")}${T(c, "signRole", "Créatrice de Mon Vrai", `margin:2px 0 0;font-size:13px;line-height:20px;color:${SUBTLE};display:block`, "p")}</td></tr></table>`, `40px ${PADX}px 8px`)}
+${footer(c)}`);
+}
+
 const BUILDERS: Record<string, (c: RenderCtx) => string> = {
   [PARTNER_WELCOME_ID]: tplPartenaireBienvenue,
   "on-revient": tplOnRevient,
+  "lettre-myenndine": tplLettreMyenndine,
 };
 
 /** Corps du modèle (carte 600 px), en mode « email » (propre) ou « edit » (éditable). */
@@ -506,7 +553,12 @@ export const RESPONSIVE_CSS = `
     .nl-fluid{ max-width:100% !important; }
     /* Une hauteur posée pour aligner deux colonnes n'a plus d'objet une fois empilées. */
     .nl-flexh{ height:auto !important; }
+    /* Marges d'une lettre (48 px) : sur un téléphone elles ne laisseraient que 224 px au
+       récit. Ramenées à la gouttière des autres modèles. */
+    .nl-px{ padding-left:24px !important; padding-right:24px !important; }
     h1, .nl-h1{ font-size:30px !important; line-height:1.08 !important; }
+    /* Un titre déjà posé à 30 px ne gagne rien à la règle ci-dessus : la classe le descend. */
+    .nl-h1s{ font-size:26px !important; line-height:32px !important; }
     h2{ font-size:22px !important; }
   }
 `;
