@@ -6,7 +6,7 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { adjustStock } from "@/lib/db/products";
+import { adjustInfluenceStock, adjustStock } from "@/lib/db/products";
 
 const Input = z.object({ slug: z.string().min(1), delta: z.number().int().min(-1000).max(1000) });
 
@@ -20,4 +20,20 @@ export async function adjustStockAction(formData: FormData): Promise<AdminResult
   revalidatePath("/admin/stocks");
   revalidatePath("/", "layout");
   return saved(startedTracking ? `Suivi du stock activé : ${stock} ex.` : `Stock : ${stock}.`);
+}
+
+/*
+ * Le stock mis de côté pour les partenaires et les jeux : réception d'un carton, casse,
+ * correction. Les sorties ne passent jamais par là — un kit ou un lot commandé décompte
+ * tout seul (voir `createGiftOrder`). La boutique n'en sait rien : pas de revalidation
+ * du site, ces exemplaires ne sont pas à vendre.
+ */
+export async function adjustInfluenceStockAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const parsed = parseForm(Input, formData, { numbers: ["delta"] });
+  if (!parsed.ok) return failed(parsed.error, parsed.issues);
+  const stock = await adjustInfluenceStock(parsed.data.slug, parsed.data.delta);
+  await audit(user.email, "stock.influence", `products/${parsed.data.slug}`, `${parsed.data.delta > 0 ? "+" : ""}${parsed.data.delta} → ${stock}`);
+  revalidatePath("/admin/stocks");
+  return saved(`Stock influence : ${stock}.`);
 }

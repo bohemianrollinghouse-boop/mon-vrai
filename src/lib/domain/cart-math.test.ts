@@ -17,6 +17,7 @@ function product(slug: string, price: number, status: Product["status"] = "publi
     tint: "green",
     preorder: { enabled: false },
     stock: null,
+    influenceStock: 0,
     position: 0,
     status,
     seo: {},

@@ -95,6 +95,21 @@ export const Product = z.object({
     .default({ enabled: false }),
   /** Stock disponible ; null = non suivi (vente illimitée). */
   stock: z.number().int().nullable().default(null),
+  /*
+   * Stock INFLUENCE : les exemplaires mis de côté pour les partenaires et les jeux, qui
+   * ne sont pas à vendre. Deux stocks et non un seul parce qu'ils ne répondent pas à la
+   * même question — « puis-je encore vendre ce titre ? » n'est pas « me reste-t-il de
+   * quoi servir un kit ? » —, et parce qu'un exemplaire de prospection ne doit jamais
+   * pouvoir être vendu par mégarde.
+   *
+   * Toujours suivi (pas de `null` comme la vente) : un stock à part n'a de sens que
+   * compté. Non borné à zéro pour de bon : un décompte peut le passer en négatif, et
+   * c'est une alerte à afficher, pas un document à rendre illisible.
+   *
+   * Il ne se règle que dans /admin/stocks ; la fiche produit ne le touche pas (voir
+   * `upsertProduct`), et rien n'en parle côté boutique.
+   */
+  influenceStock: z.number().int().default(0),
   isbn: z.string().max(20).optional(),
   /** Ordre d'affichage dans le catalogue. */
   position: z.number().int().default(0),
@@ -919,9 +934,10 @@ export type Platform = z.infer<typeof Platform>;
 
 /*
  * Kit de bienvenue d'un partenaire : quelques livres offerts, choisis pour lui. Ils
- * viennent d'un stock à part, réservé aux influenceurs — la commande qui en naît ne
- * décrémente donc aucun stock de vente et n'est jamais facturée. Chaque partenaire a
- * le sien, et ne peut le commander qu'une fois, depuis son espace.
+ * viennent du STOCK INFLUENCE (`Product.influenceStock`) et non des livres à vendre —
+ * la commande qui en naît ne touche donc pas au stock de vente, et n'est jamais
+ * facturée. Chaque partenaire a le sien, et ne peut le commander qu'une fois, depuis
+ * son espace.
  */
 export const WelcomeKit = z.object({
   enabled: z.boolean().default(false),
@@ -929,8 +945,9 @@ export const WelcomeKit = z.object({
   text: z.string().max(400).default(""),
   lines: z.array(z.object({ slug: Slug, qty: z.number().int().min(1).max(20).default(1) })).default([]),
   /*
-   * Décompter ces exemplaires du stock de vente. Non par défaut : le kit vient
-   * normalement d'un stock à part. À cocher quand on le prélève sur les livres à vendre.
+   * Décompter ces exemplaires du stock de vente plutôt que du stock influence. Non par
+   * défaut : un kit sort normalement des exemplaires mis de côté. À cocher quand on le
+   * prélève sur les livres à vendre — l'un OU l'autre, jamais les deux, jamais aucun.
    */
   deductStock: z.boolean().default(false),
   /*

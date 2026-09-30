@@ -44,13 +44,16 @@ export async function searchPublishedProducts(query: string): Promise<Product[]>
   });
 }
 
-export type ProductInput = Omit<Product, "createdAt" | "updatedAt">;
+export type ProductInput = Omit<Product, "createdAt" | "updatedAt" | "influenceStock">;
 
 export async function upsertProduct(input: ProductInput): Promise<Product> {
   const ref = products().doc(input.slug);
   const existing = parseDoc(Product, await ref.get());
   const doc: Product = Product.parse({
     ...input,
+    /* Le stock influence ne passe pas par la fiche produit : il se tient dans
+       /admin/stocks, et un enregistrement de fiche ne doit pas le remettre à zéro. */
+    influenceStock: existing?.influenceStock ?? 0,
     createdAt: existing?.createdAt ?? now(),
     updatedAt: now(),
   });
@@ -77,6 +80,22 @@ function stripHtml(s: string): string {
  * Ajuste le stock d'un titre de ±n, sans passer sous zéro. Un titre sans suivi (stock
  * null) passe en suivi à cette occasion, en partant de zéro. Renvoie le nouveau stock.
  */
+/*
+ * Le stock mis de côté pour les partenaires et les jeux. Réception, casse, correction :
+ * c'est le seul endroit où il se règle à la main — les sorties, elles, se font toutes
+ * seules à la commande d'un kit ou d'un lot (voir `createGiftOrder`).
+ */
+export async function adjustInfluenceStock(slug: string, delta: number): Promise<number> {
+  const ref = col("products").doc(slug);
+  const product = parseDoc(Product, await ref.get());
+  if (!product) throw new Error(`Produit ${slug} introuvable`);
+  /* Pas de plancher à zéro : une sortie a pu passer l'étagère en négatif, et un « +1 »
+     doit alors remonter de −3 à −2, pas sauter à 1. L'écran affiche le manque. */
+  const next = product.influenceStock + delta;
+  await ref.update({ influenceStock: next, updatedAt: now() });
+  return next;
+}
+
 export async function adjustStock(slug: string, delta: number): Promise<{ stock: number; startedTracking: boolean }> {
   const ref = col("products").doc(slug);
   const product = parseDoc(Product, await ref.get());

@@ -148,9 +148,9 @@ export default async function ContestPage({ params }: PageProps<"/admin/concours
                 à 0 €, expédiable comme les autres.
               </p>
               <WelcomeKitEditor
-                products={products.map((p) => ({ slug: p.slug, title: p.title, image: p.images[0]?.url, tint: p.tint, stock: p.stock }))}
+                products={products.map((p) => ({ slug: p.slug, title: p.title, image: p.images[0]?.url, tint: p.tint, stock: p.stock, influenceStock: p.influenceStock }))}
                 initial={contest.prize.lines}
-                note="Ces exemplaires viennent du stock influenceurs : ils ne sont pas décomptés du stock de vente, et la commande du lot vaut 0 € (jamais facturée)."
+                note="Ces exemplaires sont pris sur le stock influence (voir /admin/stocks), pas sur les livres à vendre, et la commande du lot vaut 0 € (jamais facturée)."
               />
               <Field label="Et, hors catalogue" hint="Ce qui ne part pas d'ici : un bon d'achat, un objet d'un autre créateur." name="extra">
                 <Input name="extra" maxLength={200} defaultValue={contest.prize.extra} placeholder="Un tote bag du partenaire" />
@@ -158,7 +158,7 @@ export default async function ContestPage({ params }: PageProps<"/admin/concours
               <Switch
                 name="deductStock"
                 label="Décompter du stock de vente"
-                hint="Par défaut non : le lot vient du stock à part réservé aux partenaires et aux jeux."
+                hint="Par défaut non : le lot est pris sur le stock influence (/admin/stocks)."
                 defaultChecked={contest.prize.deductStock}
               />
             </div>

@@ -1,5 +1,5 @@
 import "server-only";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue, type Transaction } from "firebase-admin/firestore";
 import { db } from "@/lib/firebase/admin";
 import { assertTransition, formatInvoiceNumber, formatOrderNumber, stockIsReserved, tookSaleStock } from "@/lib/domain/order-state";
 import { Order, Product, type Address, type OrderLine, type OrderStatus } from "@/lib/domain/types";
@@ -184,7 +184,7 @@ type GiftOrderInput = {
   delivery?: Order["delivery"];
   livemode?: boolean;
   note?: string;
-  /** Décompter les exemplaires du stock de vente (faux par défaut : stock à part). */
+  /** Prendre les exemplaires sur le stock de vente ; faux (par défaut) : sur le stock influence. */
   deductStock?: boolean;
 };
 
@@ -222,10 +222,10 @@ const markQuery = (mark: GiftMark) =>
  * chez Boxtal, avec son bon de livraison. À deux différences près : elle naît « payée »
  * sans passer par Stripe, et elle n'est jamais facturée (voir `offeredOrder`).
  *
- * Le stock ne bouge pas quand les livres viennent du stock à part réservé aux
- * partenaires et aux jeux (le cas ordinaire), et se décrémente comme une vente quand on
- * a réglé le contraire. Ce qui a été fait est inscrit sur la commande, pour que
- * l'annulation rende exactement ce qui avait été pris.
+ * Les exemplaires sortent du STOCK INFLUENCE — ceux mis de côté pour les partenaires et
+ * les jeux (le cas ordinaire) — ou du stock de vente quand on a réglé le contraire. Ce
+ * qui a été fait est inscrit sur la commande, pour que l'annulation rende exactement ce
+ * qui avait été pris, et au bon endroit.
  */
 async function createGiftOrder(input: GiftOrderInput, mark: GiftMark, defaultNote: string): Promise<Order> {
   const existing = await findGiftOrder(mark);
@@ -246,25 +246,34 @@ async function createGiftOrder(input: GiftOrderInput, mark: GiftMark, defaultNot
     const counterSnap = await tx.get(counterRef);
     const seq = ((counterSnap.data()?.seq as number | undefined) ?? 0) + 1;
 
+    /*
+     * Les exemplaires sortent TOUJOURS d'un stock — la seule question est lequel : celui
+     * de la vente quand on l'a demandé, sinon celui mis de côté pour l'influence. Un
+     * colis offert qui ne décompterait rien ferait disparaître des livres sans trace.
+     */
     // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
     const notes: string[] = [];
     const deduct = input.deductStock === true;
     const productRefs = input.lines.map((line) => col("products").doc(line.productSlug));
-    const productSnaps = deduct ? await Promise.all(productRefs.map((ref) => tx.get(ref))) : [];
-    if (deduct) {
-      input.lines.forEach((line, i) => {
-        const product = parseDoc(Product, productSnaps[i]);
-        if (!product) {
-          notes.push(`Produit ${line.productSlug} introuvable`);
-          return;
-        }
-        if (product.stock !== null) {
-          const remaining = product.stock - line.qty;
-          if (remaining < 0) notes.push(`Stock négatif pour ${line.productSlug} (${remaining})`);
-          tx.update(productRefs[i], { stock: FieldValue.increment(-line.qty), updatedAt: createdAt });
-        }
-      });
-    }
+    const productSnaps = await Promise.all(productRefs.map((ref) => tx.get(ref)));
+    input.lines.forEach((line, i) => {
+      const product = parseDoc(Product, productSnaps[i]);
+      if (!product) {
+        notes.push(`Produit ${line.productSlug} introuvable`);
+        return;
+      }
+      if (deduct) {
+        /* Stock de vente : « non suivi » veut dire sans limite, on n'y touche pas. */
+        if (product.stock === null) return;
+        const remaining = product.stock - line.qty;
+        if (remaining < 0) notes.push(`Stock négatif pour ${line.productSlug} (${remaining})`);
+        tx.update(productRefs[i], { stock: FieldValue.increment(-line.qty), updatedAt: createdAt });
+        return;
+      }
+      const left = product.influenceStock - line.qty;
+      if (left < 0) notes.push(`Stock influence négatif pour ${line.productSlug} (${left})`);
+      tx.update(productRefs[i], { influenceStock: FieldValue.increment(-line.qty), updatedAt: createdAt });
+    });
 
     const order = Order.parse({
       id,
@@ -316,6 +325,27 @@ export async function findKitOrder(influencerId: string, seq = 1): Promise<Order
   return findGiftOrder({ kind: "kit", influencerId, seq });
 }
 
+/*
+ * Rend les exemplaires au stock d'où ils venaient — celui de la vente, ou celui de
+ * l'influence. Ce qui a été pris est inscrit sur la commande (`kit.stock`, `prize.stock`),
+ * et c'est lui qui décide : quoi qu'on ait réglé depuis, l'annulation rend exactement
+ * ce qui avait été prélevé, et nulle part ailleurs.
+ */
+async function releaseStock(tx: Transaction, order: Order): Promise<void> {
+  const toSale = tookSaleStock(order);
+  // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
+  const prefs = order.lines.map((line) => col("products").doc(line.productSlug));
+  const snaps = await Promise.all(prefs.map((pref) => tx.get(pref)));
+  order.lines.forEach((line, i) => {
+    const product = parseDoc(Product, snaps[i]);
+    if (!product) return;
+    /* Un titre « non suivi » à la vente n'a rien à rendre : il se vend sans limite. */
+    if (toSale && product.stock === null) return;
+    const field = toSale ? "stock" : "influenceStock";
+    tx.update(prefs[i], { [field]: FieldValue.increment(line.qty), updatedAt: now() });
+  });
+}
+
 /** Change le statut en respectant la machine à états, et rend le stock si l'on annule après paiement. */
 export async function transitionOrder(id: string, to: OrderStatus, opts: { note?: string; by?: string } = {}): Promise<Order> {
   return db().runTransaction(async (tx) => {
@@ -324,18 +354,7 @@ export async function transitionOrder(id: string, to: OrderStatus, opts: { note?
     if (!order) throw new Error(`Commande ${id} introuvable`);
     assertTransition(order.status, to);
 
-    const releasing = tookSaleStock(order) && stockIsReserved(order.status) && !stockIsReserved(to);
-    if (releasing) {
-      // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
-      const prefs = order.lines.map((line) => col("products").doc(line.productSlug));
-      const snaps = await Promise.all(prefs.map((pref) => tx.get(pref)));
-      order.lines.forEach((line, i) => {
-        const product = parseDoc(Product, snaps[i]);
-        if (product && product.stock !== null) {
-          tx.update(prefs[i], { stock: FieldValue.increment(line.qty), updatedAt: now() });
-        }
-      });
-    }
+    if (stockIsReserved(order.status) && !stockIsReserved(to)) await releaseStock(tx, order);
 
     const at = now();
     const updated = Order.parse({
@@ -395,8 +414,8 @@ export async function setInvoiceDoc(id: string, invoice: { number: string; issue
  * facture émis est une pièce comptable, il ne s'efface pas — une commande facturée
  * s'annule ou se rembourse, elle ne disparaît pas.
  *
- * Le stock encore réservé (payée non expédiée) est rendu au passage, sauf s'il n'en
- * était jamais sorti — un kit de bienvenue pris sur le stock à part.
+ * Le stock encore réservé (payée non expédiée) est rendu au passage, à celui d'où il
+ * venait : la vente, ou l'influence.
  */
 export async function deleteOrder(id: string): Promise<void> {
   await db().runTransaction(async (tx) => {
@@ -405,16 +424,7 @@ export async function deleteOrder(id: string): Promise<void> {
     if (!order) throw new Error(`Commande ${id} introuvable`);
     if (order.invoice) throw new Error("Cette commande porte une facture : elle ne peut pas être supprimée.");
 
-    const releasing = tookSaleStock(order) && stockIsReserved(order.status);
-    if (releasing) {
-      // Toutes les lectures avant la première écriture (contrainte Firestore, voir createPaidOrder).
-      const prefs = order.lines.map((line) => col("products").doc(line.productSlug));
-      const snaps = await Promise.all(prefs.map((pref) => tx.get(pref)));
-      order.lines.forEach((line, i) => {
-        const product = parseDoc(Product, snaps[i]);
-        if (product && product.stock !== null) tx.update(prefs[i], { stock: FieldValue.increment(line.qty), updatedAt: now() });
-      });
-    }
+    if (stockIsReserved(order.status)) await releaseStock(tx, order);
     tx.delete(ref);
   });
 }

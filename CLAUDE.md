@@ -96,6 +96,33 @@ La page A4, la palette, les vignettes produit et le `Writer` des deux documents 
 dans `src/lib/pdf/layout.ts` : ce qui sert aux deux va là, ce qui n'appartient qu'à un
 document reste chez lui.
 
+## Stocks
+
+Deux stocks par titre, et jamais un seul : `Product.stock` (la **vente** ; `null` = non
+suivi, vente illimitée) et `Product.influenceStock` (l'**influence** — les exemplaires
+mis de côté pour les partenaires et les jeux). Ils ne répondent pas à la même question,
+et les confondre ferait vendre un livre promis ou croire en stock ce qui est déjà parti
+en kit. Le stock influence est **interne** : rien ne l'affiche côté boutique, il ne se
+règle que dans `/admin/stocks`, et la fiche produit n'y touche pas (`upsertProduct` le
+reprend tel quel — un enregistrement de fiche ne doit pas le remettre à zéro).
+
+Un colis **sort toujours d'un stock**, la seule question est lequel : `deductStock`
+coché sur le kit ou le lot → la vente ; sinon → l'influence. Le décompte se fait à la
+**commande** du kit ou du lot (`createGiftOrder`), c'est-à-dire au moment où les livres
+partent vraiment — jamais à la création d'une campagne, qui s'applique à autant de
+partenaires qu'on veut et viderait l'étagère plusieurs fois avant le premier envoi. Ce
+qui a été pris est inscrit sur la commande (`kit.stock`, `prize.stock`) : `releaseStock`
+rend à l'annulation exactement ce qui avait été prélevé, et au bon endroit.
+
+D'où trois nombres à l'écran (`lib/admin/influence-stock.ts`, pur et testé) :
+**sur l'étagère** (ce que la fiche compte), **réservé** (sorti du compte, pas encore du
+carton : colis offert payé non expédié) et **engagé** — promis sans être sorti : les kits
+des participations ouvertes que personne n'a commandés, et les lots des concours qui
+n'ont pas trouvé preneur. `libre = étagère − engagé` dit ce qu'on peut encore promettre,
+et passe en négatif quand on a promis plus qu'on n'a : c'est une alerte, pas un blocage.
+Une commande de kit n'est jamais refusée faute de stock — un partenaire ne doit pas
+buter là-dessus ; l'étagère passe en négatif et la page le signale.
+
 ## Concours
 
 `/admin/concours` — les jeux : ceux montés sur nos seuls réseaux et ceux montés **avec
@@ -328,7 +355,7 @@ FAQ : les questions vivent dans `content/contact.faq.items` (rubrique, masquée)
 gèrent dans `/admin/faq`. L'écran « Contenus » a disparu : les pages sont toutes en
 blocs, et ce qu'il réglait encore vraiment (sujets du formulaire de contact) est
 descendu dans le bloc — `migrate-prod.ts --contact-form` l'y recopie. Tarifs de livraison : `settings.shipping.rates`, proposés à
-la caisse Stripe. Stock : décrémenté au paiement ; « réservé » = payé non expédié.
+la caisse Stripe. Stock : décrémenté au paiement ; « réservé » = payé non expédié (voir Stocks).
 
 Les réglages sont éclatés en deux pages, donc en deux actions (`actions/settings.ts`) :
 `/admin/reglages` (`saveSettingsAction`) et `/admin/livraison` (`saveShippingAction`,

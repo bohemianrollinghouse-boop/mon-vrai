@@ -186,7 +186,7 @@ export default async function OperationPage({ params }: PageProps<"/admin/campag
               <Switch
                 name="deductStock"
                 label="Décompter du stock de vente"
-                hint="Par défaut non : le kit vient d'un stock à part réservé aux influenceurs."
+                hint="Par défaut non : le kit est pris sur le stock influence (/admin/stocks)."
                 defaultChecked={operation.kit.deductStock}
               />
               <Switch
@@ -202,7 +202,7 @@ export default async function OperationPage({ params }: PageProps<"/admin/campag
                 <Textarea name="text" defaultValue={operation.kit.text} placeholder="Trois imagiers à découvrir, à filmer, à offrir. Expédié sous 48 h." />
               </Field>
               <WelcomeKitEditor
-                products={products.map((p) => ({ slug: p.slug, title: p.title, image: p.images[0]?.url, tint: p.tint, stock: p.stock }))}
+                products={products.map((p) => ({ slug: p.slug, title: p.title, image: p.images[0]?.url, tint: p.tint, stock: p.stock, influenceStock: p.influenceStock }))}
                 initial={operation.kit.lines}
               />
 
