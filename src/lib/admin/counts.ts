@@ -5,7 +5,7 @@ import { listOrders } from "@/lib/db/orders";
 import { listAllProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import type { Order, Product, SiteSettings } from "@/lib/domain/types";
-import { CONTEST_TODO, contestState } from "@/lib/contests/state";
+import { CONTEST_TODO, awaitingReview, contestState } from "@/lib/contests/state";
 import { tookSaleStock } from "@/lib/domain/order-state";
 import { TO_SHIP } from "./order-ui";
 
@@ -28,8 +28,13 @@ export async function adminSnapshot() {
     toShip: orders.filter((o) => TO_SHIP.includes(o.status)).length,
     lowStock: lowStockProducts(products, settings),
     unread: messages.filter((m) => !m.read).length,
-    /* Les concours qui attendent quelque chose de nous : un tirage à faire, un lot à envoyer. */
-    contestsTodo: contests.filter((c) => CONTEST_TODO.includes(contestState(c, now))).length,
+    /*
+     * Les concours qui attendent quelque chose de nous : un tirage à faire, un lot à
+     * envoyer — et désormais la proposition d'un partenaire autonome, qui attend qu'on y
+     * pose un lot et qu'on la publie. Trois choses différentes, une seule question : y
+     * a-t-il un concours dont la balle est dans notre camp ?
+     */
+    contestsTodo: contests.filter((c) => awaitingReview(c) || CONTEST_TODO.includes(contestState(c, now))).length,
   };
 }
 

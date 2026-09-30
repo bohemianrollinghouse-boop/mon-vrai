@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { Contest, type ContestWinner } from "@/lib/domain/types";
-import { contestState, hostOf, prizeSaid, seatsLeft, shared, shippable, totalParticipants, winnersOf } from "./state";
+import {
+  awaitingReview,
+  contestState,
+  hostOf,
+  partnerCanDelete,
+  partnerCanEdit,
+  prizeSaid,
+  seatsLeft,
+  shared,
+  shippable,
+  totalParticipants,
+  winnersOf,
+} from "./state";
 
 /*
  * L'état d'un concours se déduit — c'est ce qui garantit qu'il ne ment pas. Ces tests
@@ -129,5 +141,51 @@ describe("Un lot ne part que", () => {
     expect(shippable(joignable, 0)).toBe(false); // rien du catalogue dans le lot
     expect(shippable({ ...joignable, email: "" }, 2)).toBe(false);
     expect(shippable({ ...joignable, orderId: "ord_1" }, 2)).toBe(false);
+  });
+});
+
+/*
+ * Ce qu'un partenaire autonome peut faire de son propre concours.
+ *
+ * Trois refus valent d'être tenus par un test, parce que chacun protège quelque chose
+ * qu'on ne récupère pas : le jeu d'un autre, un jeu déjà annoncé, un lot déjà promis.
+ */
+describe("Le concours qu'un partenaire a monté lui-même", () => {
+  const MOI = "inf_marie";
+  const propose = (over: Record<string, unknown> = {}) => concours({ proposedBy: MOI, published: false, ...over });
+
+  it("attend notre validation tant qu'il n'est pas publié, et cesse de l'attendre une fois en ligne", () => {
+    expect(awaitingReview(propose())).toBe(true);
+    expect(awaitingReview(propose({ published: true }))).toBe(false);
+  });
+
+  it("ne fait pas attendre pour un brouillon que nous avons écrit nous-mêmes", () => {
+    expect(awaitingReview(concours({ published: false }))).toBe(false);
+  });
+
+  it("reste un brouillon aux yeux de l'état : « à valider » ne double pas la liste des états", () => {
+    expect(contestState(propose(), MAINTENANT)).toBe("draft");
+  });
+
+  it("se corrige tant qu'il court, plus une fois le tirage passé", () => {
+    expect(partnerCanEdit(propose(), MOI, MAINTENANT)).toBe(true);
+    expect(partnerCanEdit(propose({ published: true }), MOI, MAINTENANT)).toBe(true);
+    expect(partnerCanEdit(propose({ endAt: MAINTENANT - JOUR }), MOI, MAINTENANT)).toBe(false);
+  });
+
+  it("ne se corrige pas par quelqu'un d'autre, ni quand il vient de nous", () => {
+    expect(partnerCanEdit(propose(), "inf_autre", MAINTENANT)).toBe(false);
+    /* Monté par nous : personne ne le tient depuis un espace partenaire, pas même le co-organisateur. */
+    expect(partnerCanEdit(concours(), MOI, MAINTENANT)).toBe(false);
+    expect(partnerCanEdit(concours(), "", MAINTENANT)).toBe(false);
+  });
+
+  it("se retire tant qu'il n'est ni publié ni pourvu d'un gagnant", () => {
+    expect(partnerCanDelete(propose(), MOI)).toBe(true);
+    /* Publié, il a été annoncé à sa communauté. */
+    expect(partnerCanDelete(propose({ published: true }), MOI)).toBe(false);
+    /* Un gagnant déclaré, c'est un lot promis. */
+    expect(partnerCanDelete(propose({ winners: [winner()] }), MOI)).toBe(false);
+    expect(partnerCanDelete(propose(), "inf_autre")).toBe(false);
   });
 });

@@ -7,19 +7,21 @@ import { getInfluencerByUid, upsertInfluencer } from "@/lib/db/promos";
 import { currentCampaign, markCampaignSigned, upsertCampaign } from "@/lib/db/campaigns";
 import { refreshOutreach } from "@/lib/db/outreach";
 import { createKitOrder } from "@/lib/db/orders";
-import { addWinner, getContest, saveHostReport } from "@/lib/db/contests";
+import { addWinner, deletePartnerContest, getContest, savePartnerContest, saveHostReport, upsertContest } from "@/lib/db/contests";
 import { partnerKitSnapshot, type PartnerKit } from "@/lib/db/partner";
 import { getSettings } from "@/lib/db/settings";
 import { optionOfferCode, shippingOptions } from "@/lib/checkout/quote";
 import { bracketIndexForWeight } from "@/lib/shipping/tariffs";
 import { kitOrderLines, kitWeightG } from "@/lib/promos/kit";
+import { dayStamp } from "@/lib/admin/campaign-form";
+import { partnerCanDelete, partnerCanEdit } from "@/lib/contests/state";
 import { socialCount } from "@/lib/promos/socials";
 import { sendKitConfirmation } from "@/lib/email/send";
 import { isIban } from "@/lib/promos/statements";
 import { getContract, recordSignature } from "@/lib/db/contracts";
 import { fillContract, renderContract } from "@/lib/promos/contract-template";
 import { contractValues } from "@/lib/promos/contract-values";
-import { SignerStatus, type Address, type Campaign, type Influencer } from "@/lib/domain/types";
+import { ContestPlatform, SignerStatus, type Address, type Campaign, type Influencer } from "@/lib/domain/types";
 import { headers } from "next/headers";
 
 /*
@@ -511,3 +513,142 @@ export async function saveContestReportAction(formData: FormData): Promise<Partn
   return { ok: true, message: "Vos chiffres sont enregistrés." };
 }
 
+
+/* ---------- Ses propres concours ---------- */
+
+/*
+ * Un partenaire autonome monte ses jeux lui-même : il les prépare, les corrige tant
+ * qu'ils courent, et retire ceux qu'il abandonne. Trois actions, et une règle qui les
+ * gouverne toutes les trois : ce qui coûte quelque chose à la maison ne se décide pas
+ * d'ici.
+ *
+ * Le LOT n'est donc jamais dans ces formulaires — c'est du stock et du port —, ni la
+ * PUBLICATION, qui est notre validation : un concours proposé reste un brouillon
+ * jusqu'à ce que nous cochions « publier » (voir `Contest.proposedBy` et
+ * `awaitingReview`). Il s'ajoute au badge de la barre latérale, comme un tirage à faire.
+ *
+ * L'autonomie se lit sur sa fiche (`Influencer.contestAutonomy`), relue en base à chaque
+ * appel et jamais crue sur parole du formulaire : un droit retiré doit prendre effet au
+ * clic suivant, pas à la prochaine connexion.
+ */
+
+const ContestForm = z.object({
+  contestId: z.string().trim().default(""),
+  name: z.string().trim().min(1, "Donnez un nom à votre concours").max(80),
+  platform: ContestPlatform.default("instagram"),
+  startAt: z.string().trim().min(1, "Indiquez la date d'ouverture"),
+  endAt: z.string().trim().min(1, "Indiquez la date du tirage"),
+  mechanic: z.string().trim().max(1000).default(""),
+  rules: z.string().trim().max(2000).default(""),
+});
+
+/** Le partenaire de la session, et son droit de monter des concours. */
+async function autonomousPartner(user: { uid: string; viewingAs?: boolean }): Promise<Influencer | PartnerResult> {
+  const influencer = await getInfluencerByUid(user.uid);
+  if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
+  if (!influencer.contestAutonomy) return { ok: false, error: "Vos concours sont montés avec vous par l'équipe Mon Vrai." };
+  return influencer;
+}
+
+/*
+ * Les deux dates, ou le message qui dit laquelle ne va pas. Le même contrôle qu'en
+ * administration (`saveContestAction`) : un tirage ne précède pas une ouverture, où
+ * qu'on saisisse les dates.
+ */
+function contestDates(start: string, end: string): { startAt: number; endAt: number } | string {
+  const startAt = dayStamp(start, "start");
+  const endAt = dayStamp(end, "end");
+  if (startAt === null) return "La date d'ouverture n'est pas valable.";
+  if (endAt === null) return "La date du tirage n'est pas valable.";
+  if (endAt < startAt) return "Le tirage ne peut pas précéder l'ouverture du concours.";
+  return { startAt, endAt };
+}
+
+export async function savePartnerContestAction(formData: FormData): Promise<PartnerResult> {
+  const user = await requireInfluencer();
+  if (user.viewingAs) return VIEW_ONLY;
+  const who = await autonomousPartner(user);
+  if ("ok" in who) return who;
+
+  const parsed = ContestForm.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Formulaire incomplet." };
+  const d = parsed.data;
+  const dates = contestDates(d.startAt, d.endAt);
+  if (typeof dates === "string") return { ok: false, error: dates };
+
+  /* ---------- Corriger le sien ---------- */
+  if (d.contestId) {
+    const contest = await getContest(d.contestId);
+    /*
+     * Proposé par lui ET toujours co-organisé par lui : retiré du jeu, il n'en voit plus
+     * rien, et ne doit pas pouvoir le réécrire en reposant son formulaire.
+     */
+    if (!contest || !partnerCanEdit(contest, who.id, Date.now()) || !contest.hosts.some((h) => h.influencerId === who.id)) {
+      return { ok: false, error: "Ce concours n'est plus le vôtre à modifier." };
+    }
+    const next = await savePartnerContest(contest.id, who.id, {
+      name: d.name,
+      platform: d.platform,
+      startAt: dates.startAt,
+      endAt: dates.endAt,
+      mechanic: d.mechanic,
+      rules: d.rules,
+    });
+    if (!next) return { ok: false, error: "Ce concours n'est plus le vôtre à modifier." };
+    revalidatePath("/partenaire");
+    revalidatePath(`/admin/concours/${contest.id}`);
+    revalidatePath("/admin/concours");
+    return { ok: true, message: "Votre concours est enregistré." };
+  }
+
+  /* ---------- En monter un ---------- */
+  /*
+   * Il est son propre co-organisateur, et `hosts` le porte comme les autres : c'est ce
+   * qui lui donne une ligne de chiffres à déclarer, et c'est par là que le concours le
+   * retrouve (`hostInfluencerIds`). Sans cela, il ne verrait pas le sien.
+   */
+  const contest = await upsertContest({
+    name: d.name,
+    platform: d.platform,
+    startAt: dates.startAt,
+    endAt: dates.endAt,
+    mechanic: d.mechanic,
+    rules: d.rules,
+    /* Le lot est à nous de poser : il coûte du stock et du port. */
+    prize: { lines: [], extra: "", deductStock: false },
+    winnersWanted: 1,
+    hosts: [{ id: who.id, influencerId: who.id, name: who.name, handle: who.handle, postUrl: "", participants: 0, followers: 0 }],
+    winners: [],
+    /* Jamais publié d'emblée : la mise en ligne est notre validation. */
+    published: false,
+    proposedBy: who.id,
+    postUrl: "",
+    participants: 0,
+    note: "",
+  });
+
+  revalidatePath("/partenaire");
+  revalidatePath("/admin/concours");
+  return { ok: true, message: `« ${contest.name} » est proposé. Nous y posons le lot et vous prévenons dès qu'il est en ligne.` };
+}
+
+export async function deletePartnerContestAction(formData: FormData): Promise<PartnerResult> {
+  const user = await requireInfluencer();
+  if (user.viewingAs) return VIEW_ONLY;
+  const who = await autonomousPartner(user);
+  if ("ok" in who) return who;
+
+  const contestId = String(formData.get("contestId") ?? "");
+  const contest = await getContest(contestId);
+  if (!contest || !partnerCanDelete(contest, who.id) || !contest.hosts.some((h) => h.influencerId === who.id)) {
+    return { ok: false, error: "Ce concours ne peut plus être retiré : il est en ligne, ou un lot y est promis." };
+  }
+  /* Relu et effacé en transaction : un gagnant peut être déclaré entre-temps. */
+  if (!(await deletePartnerContest(contestId, who.id))) {
+    return { ok: false, error: "Ce concours ne peut plus être retiré : il est en ligne, ou un lot y est promis." };
+  }
+
+  revalidatePath("/partenaire");
+  revalidatePath("/admin/concours");
+  return { ok: true, message: "Votre proposition est retirée." };
+}

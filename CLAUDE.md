@@ -132,6 +132,12 @@ l'écart. Le jour où le kit est commandé il passe de « réservé » à « env
 disponible ne bouge pas, il avait déjà été retenu. Il passe en négatif quand on a promis
 plus qu'on n'a : c'est une alerte, pas un blocage.
 
+Partout où l'on choisit les livres d'un kit ou d'un lot (`WelcomeKitEditor`, alimenté par
+`lib/admin/kit-choices.ts`), c'est le **disponible** qui est affiché, jamais le stock :
+le stock compte aussi ce qui est déjà parti, et promettre dessus reviendrait à promettre
+deux fois le même livre. La campagne ou le concours qu'on est en train de régler est
+écarté du réservé (`exceptId`) — sans quoi il se retrancherait sa propre promesse.
+
 La correction ordinaire consiste donc à **réécrire le stock** (champ de la colonne Stock,
 `setInfluenceStockAction`) avec le nombre qu'on vient de compter sur l'étagère ; la carte
 « Réception influence » ajoute un carton sans avoir à connaître le total.
@@ -179,6 +185,23 @@ part, et non un `Operation` de plus.
   abonnés gagnés — que rien d'autre ne nous apprendrait). Le concours est toujours relu
   en base et son appartenance vérifiée : sans quoi un partenaire s'inviterait dans le jeu
   d'un autre, et lui prendrait un lot.
+- **L'autonomie** (`Influencer.contestAutonomy`) laisse un partenaire **monter ses
+  propres jeux** : il en écrit le nom, le réseau, les dates et la mécanique, les corrige
+  tant que le jeu court, et retire sa proposition tant que rien n'est promis
+  (`partnerCanEdit`, `partnerCanDelete`, purs et testés). Deux choses ne sont JAMAIS
+  dans ses formulaires, parce qu'elles coûtent à la maison : le **lot** (du stock et du
+  port) et la **publication**, qui est notre validation. Un concours qu'il propose porte
+  donc `proposedBy` et reste `published: false` — `awaitingReview()` le dit, la liste et
+  sa fiche l'affichent « À valider » plutôt que « Brouillon » (un brouillon qu'on a
+  écrit et un brouillon qu'on nous soumet n'appellent pas le même geste), et le badge de
+  la barre latérale le compte comme un tirage à faire. Il est son propre co-organisateur
+  dans `hosts` : c'est par là que le concours le retrouve, et ce qui lui donne une ligne
+  de chiffres. `listContestsForInfluencer` lui montre ses propositions avant publication
+  — les lui cacher reviendrait à le faire écrire dans le vide. Le droit se règle
+  partenaire par partenaire, sur l'**onglet « Concours » de sa fiche**
+  (`saveInfluencerAutonomyAction`), et non dans le formulaire d'identité : celui-ci ne
+  le porte pas, et `upsertInfluencer` le reprend donc tel quel — comme `influenceStock`
+  sur `upsertProduct`, un enregistrement d'identité ne doit pas retirer un droit.
 - Supprimer un concours est refusé dès qu'un lot est parti : sa commande resterait sans
   rien pour l'expliquer. Retirer un co-organisateur ne supprime pas ses gagnants — un lot
   promis reste dû.
@@ -279,6 +302,11 @@ Une adresse ajoutée prend donc effet dans la minute. L'ajout au panier
 compterait un essai que le reste de l'écran ne compte pas.
 
 ## Administration
+
+La fiche d'un partenaire a **trois onglets** : « Identité » (la personne), « Campagnes »
+(ce qu'on a négocié avec elle) et « Concours » (les jeux où elle figure, publiés ou non,
+plus le réglage d'autonomie). Cet onglet range par partenaire ce que /admin/concours
+range par concours : on y répond à « ai-je un jeu en cours avec cette personne ? ».
 
 Coquille autonome (`src/app/admin/layout.tsx`, maquette « Mon Vrai - Admin ») : barre
 latérale 240 px avec badges, contenu sur fond crème, **aucun élément du site public**.

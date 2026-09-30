@@ -40,6 +40,36 @@ export function contestState(contest: Contest, now: number): ContestState {
 /** Les états qui demandent quelque chose de nous : ce que compte le badge de la barre latérale. */
 export const CONTEST_TODO: ContestState[] = ["drawing", "shipping"];
 
+/*
+ * Un concours monté par un partenaire autonome et pas encore publié : il attend notre
+ * lot et notre mise en ligne.
+ *
+ * Ce n'est pas un état de plus — pour tout le reste c'est un brouillon, et il se lit
+ * comme tel. C'est une question qu'on pose au document : « celui-là, est-ce à nous d'y
+ * répondre ? ». Le badge de la barre latérale l'ajoute donc aux deux états qui
+ * attendent déjà quelque chose de nous.
+ */
+export const awaitingReview = (contest: Pick<Contest, "published" | "proposedBy">): boolean =>
+  !contest.published && contest.proposedBy !== "";
+
+/*
+ * Ce qu'un partenaire autonome peut encore changer de son propre concours : tant que le
+ * jeu n'est pas clos. Passée la clôture, les dates et la mécanique sont de l'histoire —
+ * les corriger réécrirait ce qui a réellement eu lieu, et ce qui reste à faire (tirer,
+ * envoyer) ne se règle plus dans ce formulaire.
+ *
+ * Le lot n'en fait jamais partie, publié ou non : il coûte du stock et du port.
+ */
+export const partnerCanEdit = (contest: Pick<Contest, "published" | "proposedBy" | "endAt">, influencerId: string, now: number): boolean =>
+  contest.proposedBy !== "" && contest.proposedBy === influencerId && contest.endAt >= now;
+
+/*
+ * Ce qu'il peut retirer : sa proposition, tant qu'elle n'est ni publiée ni pourvue d'un
+ * gagnant. Publiée, elle a été annoncée ; avec un gagnant, un lot est promis.
+ */
+export const partnerCanDelete = (contest: Pick<Contest, "published" | "proposedBy" | "winners">, influencerId: string): boolean =>
+  contest.proposedBy !== "" && contest.proposedBy === influencerId && !contest.published && contest.winners.length === 0;
+
 /** Monté avec d'autres créateurs, ou sur nos seuls réseaux. */
 export const shared = (contest: Pick<Contest, "hosts">): boolean => contest.hosts.length > 0;
 

@@ -100,7 +100,7 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "collaborationSeq" | "handle" | "platform" | "code" | "discount" | "endAt" | "outreach"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "collaborationSeq" | "handle" | "platform" | "code" | "discount" | "endAt" | "outreach" | "contestAutonomy"
 > & {
   id?: string;
   /* Repris par les campagnes : conservés tels quels, plus jamais saisis ici. */
@@ -112,6 +112,8 @@ export type InfluencerInput = Omit<
   invitedAt?: number;
   activatedAt?: number;
   iban?: string;
+  /* Réglé sur son seul onglet « Concours » : le formulaire d'identité ne le porte pas. */
+  contestAutonomy?: boolean;
   kitOrderId?: string;
   kit?: WelcomeKit;
   note?: string;
@@ -143,6 +145,12 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
     invitedAt: input.invitedAt ?? existing?.invitedAt,
     activatedAt: input.activatedAt ?? existing?.activatedAt,
     iban: input.iban ?? existing?.iban ?? "",
+    /*
+     * Le droit de monter ses propres concours se règle sur son seul onglet « Concours »
+     * (saveInfluencerAutonomyAction). Repris tel quel partout ailleurs : le formulaire
+     * d'identité ne le porte pas, et un enregistrement d'identité ne doit pas le retirer.
+     */
+    contestAutonomy: input.contestAutonomy ?? existing?.contestAutonomy ?? false,
     kitOrderId: input.kitOrderId ?? existing?.kitOrderId ?? "",
     kit: input.kit ?? existing?.kit,
     note: input.note ?? existing?.note ?? "",

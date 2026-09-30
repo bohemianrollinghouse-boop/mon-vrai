@@ -9,7 +9,7 @@ import { statementRows, type StatementRow } from "@/lib/promos/statements";
 import { listStatements } from "./statements";
 import { listAllProducts } from "./products";
 import { kitItems, kitOffered, type KitItem } from "@/lib/promos/kit";
-import { CONTEST_STATE_LABELS, contestState, seatsLeft, winnersOf, type ContestState } from "@/lib/contests/state";
+import { CONTEST_STATE_LABELS, contestState, partnerCanDelete, partnerCanEdit, seatsLeft, winnersOf, type ContestState } from "@/lib/contests/state";
 import { socialCount } from "@/lib/promos/socials";
 import { CONTEST_PLATFORM_LABELS, type Campaign, type ContractSignature, type Influencer, type Order } from "@/lib/domain/types";
 import { now } from "./helpers";
@@ -93,7 +93,21 @@ export type PartnerContest = {
   mine: { id: string; handle: string; name: string; sent: boolean }[];
   /** Ce qu'il a déclaré de sa propre publication. */
   report: { postUrl: string; participants: number; followers: number };
+  /*
+   * Ce concours est de lui : il l'a monté depuis son espace. Un concours proposé mais
+   * pas encore publié n'est visible que de lui et de nous — d'où `awaiting`, qui le dit
+   * en toutes lettres plutôt que d'afficher un « Brouillon » qu'il ne saurait pas lire.
+   */
+  own: boolean;
+  awaiting: boolean;
+  /** Les dates et la mécanique se corrigent encore ; la proposition se retire encore. */
+  canEdit: boolean;
+  canDelete: boolean;
+  /** Ce qu'un formulaire de correction doit réafficher, dans la forme d'un `<input type="date">`. */
+  form: { platform: string; startDay: string; endDay: string };
 };
+
+const dayInput = (ts: number) => new Date(ts).toISOString().slice(0, 10);
 
 export async function partnerContests(influencer: Influencer, at: number): Promise<PartnerContest[]> {
   const [contests, products] = await Promise.all([listContestsForInfluencer(influencer.id).catch(() => []), listAllProducts()]);
@@ -115,9 +129,16 @@ export async function partnerContests(influencer: Influencer, at: number): Promi
       prize: { items: kitItems(c.prize, products).map((i) => ({ slug: i.slug, title: i.title, qty: i.qty, image: i.image?.url })), extra: c.prize.extra },
       winnersWanted: c.winnersWanted,
       seatsLeft: left,
-      canDeclare: c.startAt <= at && left > 0,
+      /* Publié d'abord : une proposition en attente n'a pas de lot, donc rien à donner. */
+      canDeclare: c.published && c.startAt <= at && left > 0,
       mine: winnersOf(c, host?.id ?? "").map((w) => ({ id: w.id, handle: w.handle, name: w.name, sent: Boolean(w.orderId) })),
       report: { postUrl: host?.postUrl ?? "", participants: host?.participants ?? 0, followers: host?.followers ?? 0 },
+      own: c.proposedBy === influencer.id,
+      awaiting: c.proposedBy === influencer.id && !c.published,
+      canEdit: partnerCanEdit(c, influencer.id, at),
+      canDelete: partnerCanDelete(c, influencer.id),
+      /* La plateforme brute, et non son intitulé : c'est la valeur que le <select> repose. */
+      form: { platform: c.platform, startDay: dayInput(c.startAt), endDay: dayInput(c.endAt) },
     };
   });
 }

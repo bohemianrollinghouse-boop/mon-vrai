@@ -101,6 +101,8 @@ export async function saveContestAction(formData: FormData): Promise<AdminResult
     hosts: existing?.hosts ?? [],
     winners: existing?.winners ?? [],
     published: d.published,
+    /* Qui l'a monté ne se réécrit pas depuis cet écran : c'est un fait, pas un réglage. */
+    proposedBy: existing?.proposedBy ?? "",
     postUrl: d.postUrl,
     participants: d.participants,
     note: d.note,

@@ -9,6 +9,7 @@ import {
   deleteInfluencerAction,
   markStatementPaidAction,
   saveInfluencerAction,
+  toggleInfluencerContestsAction,
   saveInfluencerNoteAction,
   sendInfluencerWelcomeAction,
   toggleInfluencerAction,
@@ -16,13 +17,15 @@ import {
 import { createCampaignAction } from "@/lib/admin/actions/campaigns";
 import { viewAsPartnerAction } from "@/lib/admin/actions/view-as";
 import { adminSnapshot } from "@/lib/admin/counts";
+import { CONTEST_STATE_LABELS, awaitingReview, contestState, seatsLeft } from "@/lib/contests/state";
 import { listCampaigns } from "@/lib/db/campaigns";
+import { listContestsHostedBy } from "@/lib/db/contests";
 import { influencerAccount } from "@/lib/db/influencer-account";
 import { listContracts } from "@/lib/db/contracts";
 import { getInfluencer, influencerFootprint, listRefClicksSince } from "@/lib/db/promos";
 import { listStatements } from "@/lib/db/statements";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
-import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, OutreachStatus, OUTREACH_LABELS, type Campaign, type Influencer } from "@/lib/domain/types";
+import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, CONTEST_PLATFORM_LABELS, OutreachStatus, OUTREACH_LABELS, type Campaign, type Contest, type Influencer } from "@/lib/domain/types";
 import { campaignStart, liveCampaign } from "@/lib/promos/campaign";
 import type { InfluencerFootprint } from "@/lib/db/promos";
 import { mainAccount } from "@/lib/promos/socials";
@@ -32,12 +35,17 @@ import { influencerStats } from "@/lib/promos/stats";
 export const dynamic = "force-dynamic";
 
 /*
- * Fiche d'un partenaire, en pleine page, en deux onglets.
+ * Fiche d'un partenaire, en pleine page, en trois onglets.
  *
  * « Identité » décrit la PERSONNE — son identité, ses réseaux, son code, ses
  * coordonnées bancaires, ses ventes. « Campagnes » liste ce qu'on a négocié avec elle :
  * chaque campagne n'est ici qu'une vignette, et s'ouvre en pleine page
  * (campagnes/<id>) — c'est là que vivent le kit, le contrat et ses réglages.
+ *
+ * « Concours » répond à une question qu'on se pose ici et pas ailleurs : ai-je un jeu en
+ * cours avec cette personne ? La liste /admin/concours range par concours ; cette page
+ * range par partenaire, et c'est depuis elle qu'on part le monter avec lui. Des
+ * vignettes, comme les campagnes : tout se règle dans le concours.
  *
  * `?id=nouveau` n'existe plus : la création a sa propre adresse,
  * /admin/influenceurs/nouveau, avec le seul formulaire d'identité.
@@ -52,6 +60,9 @@ const PLATFORM_TONE: Record<string, { bg: string; fg: string }> = {
 };
 
 const STATUS_TONE = { draft: "neutral", active: "ok", completed: "muted", cancelled: "warn" } as const;
+
+/* Les états d'un concours n'ont rien à voir avec ceux d'une campagne : deux tables. */
+const CONTEST_TONE = { draft: "muted", upcoming: "neutral", live: "ok", drawing: "warn", shipping: "warn", closed: "muted" } as const;
 
 const site = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/^https?:\/\//, "");
 const longDate = (ts: number) => new Date(ts).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
@@ -78,15 +89,16 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
     );
   }
 
-  const tab = sp.onglet === "campagnes" ? "campagnes" : "identite";
+  const tab = sp.onglet === "campagnes" ? "campagnes" : sp.onglet === "concours" ? "concours" : "identite";
   const snap = await adminSnapshot();
   const since = new Date(snap.now - 30 * 86_400_000).toISOString().slice(0, 10);
-  const [clicks, stored, account, campaigns, contracts] = await Promise.all([
+  const [clicks, stored, account, campaigns, contracts, contests] = await Promise.all([
     listRefClicksSince(since).catch(() => []),
     influencer.commission ? listStatements(influencer.id) : Promise.resolve([]),
     influencerAccount(influencer.uid),
     listCampaigns(influencer.id),
     listContracts(),
+    listContestsHostedBy(influencer.id).catch(() => []),
   ]);
   /* Ce que la suppression emporterait : annoncé sur la fiche, et redit à la confirmation. */
   const footprint = await influencerFootprint(influencer.id).catch(() => null);
@@ -164,6 +176,7 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
         items={[
           { href: `/admin/influenceurs/${influencer.id}`, label: "Identité de l'influenceur", active: tab === "identite" },
           { href: `/admin/influenceurs/${influencer.id}?onglet=campagnes`, label: "Campagnes", count: campaigns.length, active: tab === "campagnes" },
+          { href: `/admin/influenceurs/${influencer.id}?onglet=concours`, label: "Concours", count: contests.length, active: tab === "concours" },
         ]}
       />
 
@@ -342,7 +355,7 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
             </Card>
           </div>
         </div>
-      ) : (
+      ) : tab === "campagnes" ? (
         /* ---------- Campagnes ---------- */
         /* Des vignettes, rien de plus : le kit, le contrat et ses réglages tiennent
            dans la page de la campagne, où l'on entre en cliquant. */
@@ -358,8 +371,111 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
             <NewCampaignTile influencerId={influencer.id} />
           </div>
         </div>
+      ) : (
+        /* ---------- Concours ---------- */
+        <ContestsTab contests={contests} influencer={influencer} now={snap.now} />
       )}
     </>
+  );
+}
+
+/*
+ * Les jeux montés avec cette personne, et l'autonomie qu'on lui laisse.
+ *
+ * On vient ici pour deux questions, et l'écran répond aux deux dans cet ordre : « ai-je
+ * un concours en cours avec elle ? », qui se lit dans les vignettes, et « peut-elle en
+ * monter seule ? », qui se règle en dessous. Le réglage est en bas parce qu'on le touche
+ * une fois ; la liste est en haut parce qu'on la relit à chaque visite.
+ *
+ * Rien ne s'édite ici : un concours se règle dans sa page, qui porte le lot, les autres
+ * co-organisateurs et les gagnants.
+ */
+function ContestsTab({ contests, influencer, now }: { contests: Contest[]; influencer: Influencer; now: number }) {
+  const live = contests.filter((c) => contestState(c, now) === "live").length;
+  const proposed = contests.filter((c) => awaitingReview(c)).length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-[0.8125rem] leading-relaxed text-subtle">
+        {contests.length === 0
+          ? "Aucun jeu monté avec cette personne. Créez un concours, puis ajoutez-la comme co-organisatrice : elle le verra dans son espace dès qu'il sera publié."
+          : `${contests.length} concours${contests.length > 1 ? "" : ""} où elle figure${live > 0 ? ` · ${live} en cours` : ""}${
+              proposed > 0 ? ` · ${proposed} qu'elle propose et qui attend votre lot` : ""
+            }.`}
+      </p>
+
+      {contests.length > 0 && (
+        <div className="grid grid-cols-3 items-stretch gap-3 max-[1199px]:grid-cols-2 max-[749px]:grid-cols-1">
+          {contests.map((contest) => (
+            <ContestTile key={contest.id} contest={contest} influencerId={influencer.id} now={now} />
+          ))}
+        </div>
+      )}
+
+      <Card title={<span className="text-sm">Monter ses propres concours</span>} className="!gap-2">
+        <p className="text-[0.6875rem] leading-relaxed text-subtle">
+          Ouvert, elle propose ses jeux depuis son espace : le nom, le réseau, les dates, ce qu&apos;il faut faire pour
+          participer. Le <strong className="font-bold text-ink">lot reste le vôtre</strong> — il coûte du stock et du
+          port — et rien ne part en ligne sans que vous cochiez « Publier » sur le concours. Sa proposition arrive dans
+          /admin/concours et compte dans le badge de la barre latérale.
+        </p>
+        {/* L'interrupteur seul n'a pas de texte : le libellé se pose à côté de lui. */}
+        <div className="flex items-center justify-between gap-3 border-t border-line-soft pt-2.5">
+          <span className="flex flex-col gap-0.5">
+            <span className="text-[0.8125rem] font-semibold">Elle monte ses concours elle-même</span>
+            <span className="text-[0.6875rem] text-subtle">
+              {influencer.contestAutonomy ? "Ouvert : ses propositions arrivent dans Concours." : "Fermé : vous seul montez les jeux."}
+            </span>
+          </span>
+          <ActionForm action={toggleInfluencerContestsAction} hideFooter className="!gap-0">
+            <input type="hidden" name="id" value={influencer.id} />
+            <AutoSubmitSwitch
+              label={influencer.contestAutonomy ? "Lui retirer ses concours" : "La laisser monter ses concours"}
+              defaultChecked={influencer.contestAutonomy}
+            />
+          </ActionForm>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/*
+ * La vignette d'un concours, vue depuis la fiche du partenaire : ce qu'on cherche ici,
+ * c'est l'état et la date — le lot et les gagnants sont dans sa page.
+ *
+ * « Proposé par elle » passe devant l'état : un brouillon qu'on a écrit et un brouillon
+ * qu'elle attend ne demandent pas la même chose de nous.
+ */
+function ContestTile({ contest, influencerId, now }: { contest: Contest; influencerId: string; now: number }) {
+  const state = contestState(contest, now);
+  const waiting = awaitingReview(contest);
+  const host = contest.hosts.find((h) => h.influencerId === influencerId);
+  const left = seatsLeft(contest);
+
+  return (
+    <Link href={`/admin/concours/${contest.id}`} className="flex flex-col gap-2 rounded-card bg-surface p-6 transition-opacity hover:opacity-70">
+      <div className="flex items-start justify-between gap-2">
+        <span className="min-w-0 truncate text-[0.9375rem] font-extrabold">{contest.name}</span>
+        <Pill tone={waiting ? "warn" : CONTEST_TONE[state]}>{waiting ? "À valider" : CONTEST_STATE_LABELS[state]}</Pill>
+      </div>
+      {waiting && <span className="text-[0.8125rem] font-semibold text-accent">Proposé par elle — le lot reste à poser</span>}
+      <span className="truncate text-[0.8125rem] text-muted">
+        {CONTEST_PLATFORM_LABELS[contest.platform]} · {contest.winnersWanted} lot{contest.winnersWanted > 1 ? "s" : ""}
+        {left > 0 && contest.published && ` · ${left} à attribuer`}
+      </span>
+      {host && (host.participants > 0 || host.followers !== 0) && (
+        <span className="truncate text-[0.8125rem] text-muted">
+          {host.participants > 0 && `${host.participants} participant${host.participants > 1 ? "s" : ""}`}
+          {host.participants > 0 && host.followers !== 0 && " · "}
+          {host.followers !== 0 && `${host.followers > 0 ? "+" : ""}${host.followers} abonnés`}
+        </span>
+      )}
+      <span className="mt-auto border-t border-line-soft pt-2 text-[0.6875rem] font-semibold text-subtle">
+        {shortDate(contest.startAt)} → {shortDate(contest.endAt)} · {contest.winners.length} gagnant
+        {contest.winners.length > 1 ? "s" : ""} déclaré{contest.winners.length > 1 ? "s" : ""}
+      </span>
+    </Link>
   );
 }
 

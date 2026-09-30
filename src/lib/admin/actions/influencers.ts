@@ -90,6 +90,40 @@ export async function toggleInfluencerAction(formData: FormData): Promise<AdminR
 }
 
 /*
+ * Ouvre ou ferme le droit de monter ses propres concours, depuis son onglet « Concours ».
+ *
+ * Une action à lui seul, et non un champ du formulaire d'identité : ce droit se comprend
+ * là où l'on voit les jeux qu'on monte avec cette personne, pas entre son IBAN et ses
+ * réseaux. `upsertInfluencer` le reprend donc tel quel partout ailleurs — sans quoi un
+ * simple enregistrement d'identité le retirerait sans rien dire.
+ *
+ * Ce que ce droit NE donne PAS, et qu'il faut se rappeler en le cochant : le lot reste
+ * décidé ici, et une proposition ne part en ligne que si nous la publions.
+ */
+export async function toggleInfluencerContestsAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  const inf = await getInfluencer(id);
+  if (!inf) return failed("Influenceur introuvable");
+  /*
+   * Basculé depuis l'état en base, et non depuis la case postée : l'interrupteur qui
+   * soumet tout seul (AutoSubmitSwitch) ne porte pas de nom de champ — comme pour la
+   * mise en pause juste au-dessus, c'est la fiche relue qui dit d'où l'on part.
+   */
+  const on = !inf.contestAutonomy;
+
+  await upsertInfluencer({ ...inf, contestAutonomy: on });
+  await audit(user.email, on ? "influencer.contests.open" : "influencer.contests.close", `influencers/${id}`, inf.name);
+  revalidatePath(`/admin/influenceurs/${id}`);
+  revalidatePath("/partenaire");
+  return saved(
+    on
+      ? `${inf.name} peut monter ses concours depuis son espace. Ses propositions attendront votre lot et votre publication.`
+      : `${inf.name} ne monte plus de concours elle-même. Ceux déjà proposés restent, et se règlent depuis /admin/concours.`,
+  );
+}
+
+/*
  * Suppression en cascade : la fiche, ses campagnes, ses codes promo, ses relevés et ses
  * compteurs de clics. Les codes sont effacés et non éteints, pour qu'on puisse les
  * réattribuer — un code retenu par un partenaire disparu n'a plus de raison d'être.

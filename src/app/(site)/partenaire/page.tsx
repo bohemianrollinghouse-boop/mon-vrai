@@ -8,7 +8,14 @@ import { ViewAsBanner } from "@/components/site/ViewAsBanner";
 import { SocialsForm, StepMark } from "@/components/site/SocialsForm";
 import { ContractText } from "@/components/site/ContractText";
 import { SignedContractView } from "@/components/site/SignedContractView";
-import { declareContestWinnerAction, savePartnerIbanAction, savePartnerSocialsAction, saveContestReportAction } from "@/lib/auth/partner-actions";
+import {
+  declareContestWinnerAction,
+  deletePartnerContestAction,
+  savePartnerContestAction,
+  savePartnerIbanAction,
+  savePartnerSocialsAction,
+  saveContestReportAction,
+} from "@/lib/auth/partner-actions";
 import { maskIban, monthLabel } from "@/lib/promos/statements";
 import { requireInfluencer } from "@/lib/auth/session";
 import { partnerSnapshot } from "@/lib/db/partner";
@@ -312,9 +319,17 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
           {/*
             Ce qu'il monte avec nous, et les deux seules choses qu'il est seul à savoir :
             qui a gagné chez lui, et ce que sa publication a donné. Rien ne s'affiche
-            tant qu'aucun concours ne le nomme (voir ContestPanel).
+            tant qu'aucun concours ne le nomme — sauf s'il est autonome, auquel cas il a
+            toujours de quoi en proposer un (voir ContestPanel).
           */}
-          <ContestPanel contests={contests} declare={declareContestWinnerAction} report={saveContestReportAction} />
+          <ContestPanel
+            contests={contests}
+            canCreate={influencer.contestAutonomy}
+            declare={declareContestWinnerAction}
+            report={saveContestReportAction}
+            save={savePartnerContestAction}
+            remove={deletePartnerContestAction}
+          />
 
           {/* ---------- Vos contrats ---------- */}
           {(signature || past.length > 0) && (

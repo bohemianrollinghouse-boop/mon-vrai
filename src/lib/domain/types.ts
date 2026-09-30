@@ -1191,6 +1191,15 @@ export const Influencer = z.object({
    * commission puisse exister : `rate` n'est lu que si ce drapeau est vrai.
    */
   commission: z.boolean().default(false),
+  /*
+   * Peut monter ses propres concours depuis son espace : les préparer, les corriger, y
+   * déclarer son gagnant. Fermé par défaut, et sans conséquence sur ce qu'il voit — un
+   * partenaire sans ce droit continue de lire les concours qu'on monte avec lui.
+   *
+   * Ce qu'il ne décide jamais, même autonome : le LOT, qui coûte du stock et du port,
+   * et la PUBLICATION, qui est notre validation (voir Contest.proposedBy).
+   */
+  contestAutonomy: z.boolean().default(false),
   /** Contact du partenaire, et accès à son espace. */
   email: z.string().trim().default(""),
   /** Compte Firebase Auth, créé quand le partenaire choisit son mot de passe. */
@@ -1470,6 +1479,14 @@ export const Contest = z.object({
    * prépare et ne se lit que d'ici.
    */
   published: z.boolean().default(false),
+  /*
+   * Le partenaire qui l'a monté depuis son espace ; vide quand il vient de nous.
+   *
+   * Un seul champ plutôt qu'un « créé par » à côté d'un « auteur » : deux champs
+   * pourraient se contredire. Non publié et proposé : c'est une proposition qui attend
+   * notre lot et notre validation — l'état qu'affiche la barre latérale.
+   */
+  proposedBy: z.string().default(""),
   /** Notre propre publication, et ce qu'elle a donné. */
   postUrl: z.string().trim().max(300).default(""),
   participants: z.number().int().min(0).default(0),

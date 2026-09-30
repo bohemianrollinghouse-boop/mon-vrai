@@ -50,14 +50,29 @@ export async function deleteContest(id: string): Promise<void> {
 }
 
 /*
+ * Tous les concours où un partenaire figure, publiés ou non : ce que l'administration
+ * lit sur sa fiche. La version qu'il voit, lui, est plus étroite — voir plus bas.
+ */
+export async function listContestsHostedBy(influencerId: string): Promise<Contest[]> {
+  if (!influencerId) return [];
+  const list = await parseQuery(Contest, contests().where("hostInfluencerIds", "array-contains", influencerId).limit(100));
+  return list.sort((a, b) => b.startAt - a.startAt);
+}
+
+/*
  * Les concours qu'un partenaire voit dans son espace : ceux qu'il co-organise, et
  * publiés. Un concours en préparation ne se montre pas — on y travaille encore les
  * dates et le lot.
+ *
+ * Une exception, et une seule : CEUX QU'IL A MONTÉS LUI-MÊME. Sa proposition est encore
+ * un brouillon pour nous, mais elle est déjà la sienne — la lui cacher jusqu'à notre
+ * validation reviendrait à lui faire écrire dans le vide, et il ne pourrait plus la
+ * corriger ni la retirer.
  */
 export async function listContestsForInfluencer(influencerId: string): Promise<Contest[]> {
   if (!influencerId) return [];
   const list = await parseQuery(Contest, contests().where("hostInfluencerIds", "array-contains", influencerId).limit(100));
-  return list.filter((c) => c.published).sort((a, b) => b.startAt - a.startAt);
+  return list.filter((c) => c.published || c.proposedBy === influencerId).sort((a, b) => b.startAt - a.startAt);
 }
 
 /*
@@ -76,6 +91,35 @@ async function mutate(id: string, apply: (contest: Contest) => Contest | null): 
     const doc = Contest.parse({ ...next, hostInfluencerIds: [...new Set(next.hosts.map((h) => h.influencerId).filter(Boolean))], updatedAt: now() });
     tx.set(ref, doc);
     return doc;
+  });
+}
+
+/*
+ * Ce qu'un partenaire autonome réécrit de son propre concours, en transaction comme le
+ * reste : il corrige ses dates pendant qu'un autre co-organisateur déclare un gagnant.
+ *
+ * La liste des champs EST la règle — le lot, la publication, les co-organisateurs et les
+ * gagnants n'y figurent pas, et ne peuvent donc pas être touchés depuis son espace,
+ * quoi que son formulaire poste.
+ */
+export type PartnerContestPatch = Pick<Contest, "name" | "platform" | "startAt" | "endAt" | "mechanic" | "rules">;
+
+export async function savePartnerContest(contestId: string, influencerId: string, patch: PartnerContestPatch): Promise<Contest | null> {
+  return mutate(contestId, (c) => (c.proposedBy === influencerId ? { ...c, ...patch } : null));
+}
+
+/*
+ * Retire une proposition. Relu et effacé dans la MÊME transaction : entre une lecture et
+ * une suppression séparées, un gagnant peut être déclaré — et le lot promis partirait
+ * avec un concours qui n'existe plus.
+ */
+export async function deletePartnerContest(contestId: string, influencerId: string): Promise<boolean> {
+  return db().runTransaction(async (tx) => {
+    const ref = contests().doc(contestId);
+    const current = parseDoc(Contest, await tx.get(ref));
+    if (!current || current.proposedBy !== influencerId || current.published || current.winners.length > 0) return false;
+    tx.delete(ref);
+    return true;
   });
 }
 

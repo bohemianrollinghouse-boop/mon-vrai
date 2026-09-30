@@ -1,5 +1,5 @@
 import { ButtonLink, GridTable, PageHeader, Pill, Tile } from "@/components/admin/ui";
-import { CONTEST_STATE_LABELS, contestState, seatsLeft, shared, totalParticipants, type ContestState } from "@/lib/contests/state";
+import { CONTEST_STATE_LABELS, awaitingReview, contestState, seatsLeft, shared, totalParticipants, type ContestState } from "@/lib/contests/state";
 import { clockNow } from "@/lib/db/campaigns";
 import { listContests } from "@/lib/db/contests";
 import { CONTEST_PLATFORM_LABELS } from "@/lib/domain/types";
@@ -30,7 +30,9 @@ export default async function ContestsPage() {
 
   const states = new Map(contests.map((c) => [c.id, contestState(c, at)]));
   const live = contests.filter((c) => states.get(c.id) === "live");
-  const todo = contests.filter((c) => states.get(c.id) === "drawing" || states.get(c.id) === "shipping");
+  /* Une proposition de partenaire attend de nous exactement ce qu'un tirage attend : un geste. */
+  const todo = contests.filter((c) => awaitingReview(c) || states.get(c.id) === "drawing" || states.get(c.id) === "shipping");
+  const proposed = contests.filter((c) => awaitingReview(c)).length;
   const prizesOut = contests.reduce((n, c) => n + c.winners.filter((w) => w.orderId).length, 0);
 
   return (
@@ -50,7 +52,13 @@ export default async function ContestsPage() {
         <Tile
           label="En attente"
           value={todo.length}
-          note={todo.length ? "tirage à faire ou lot à envoyer" : "rien n'attend de vous"}
+          note={
+            todo.length
+              ? proposed > 0
+                ? `dont ${proposed} proposé${proposed > 1 ? "s" : ""} par un partenaire`
+                : "tirage à faire ou lot à envoyer"
+              : "rien n'attend de vous"
+          }
           tone={todo.length ? "sand" : "white"}
         />
         <Tile label="Lots partis" value={prizesOut} note="commandes offertes, tous concours confondus" />
@@ -78,14 +86,17 @@ export default async function ContestsPage() {
               <span key="p" className="text-[0.8125rem] text-subtle">
                 {day(c.startAt)} → {day(c.endAt)}
               </span>,
-              <Pill key="s" tone={STATE_TONE[state]}>
-                {CONTEST_STATE_LABELS[state]}
+              /* « À valider » plutôt que « Brouillon » : ce n'est pas nous qui l'avons laissé en plan. */
+              <Pill key="s" tone={awaitingReview(c) ? "warn" : STATE_TONE[state]}>
+                {awaitingReview(c) ? "À valider" : CONTEST_STATE_LABELS[state]}
               </Pill>,
               <span key="a" className="text-[0.8125rem]">
                 {shared(c) ? (
                   <span className="flex flex-col">
                     <span className="truncate">{c.hosts.map((h) => h.name).join(", ")}</span>
-                    <span className="text-[0.6875rem] text-subtle">{c.hosts.length} créateur{c.hosts.length > 1 ? "s" : ""}</span>
+                    <span className="text-[0.6875rem] text-subtle">
+                      {c.proposedBy ? "proposé par lui" : `${c.hosts.length} créateur${c.hosts.length > 1 ? "s" : ""}`}
+                    </span>
                   </span>
                 ) : (
                   <span className="text-subtle">Mes réseaux</span>
@@ -113,6 +124,11 @@ export default async function ContestsPage() {
         Un concours publié apparaît dans l&apos;espace des co-organisateurs qui ont une fiche partenaire : ils y lisent ce
         qui est convenu, y déclarent leur gagnant et y disent ce que leur publication a donné. Un créateur invité sans
         fiche ne voit rien — c&apos;est vous qui tenez ses chiffres.
+      </p>
+      <p className="text-xs leading-relaxed text-subtle">
+        « À valider » signale le jeu qu&apos;un partenaire autonome a monté de son côté : il en a écrit les dates et la
+        mécanique, il vous reste à y poser le lot et à le publier. Cette autonomie s&apos;ouvre partenaire par
+        partenaire, sur l&apos;onglet « Concours » de sa fiche.
       </p>
     </>
   );
