@@ -1,26 +1,27 @@
-import type { Campaign, Contest, Order, Product } from "@/lib/domain/types";
-import { offeredOrder, tookSaleStock } from "@/lib/domain/order-state";
+import type { Campaign, Contest, Product } from "@/lib/domain/types";
 import { contestState } from "@/lib/contests/state";
-import { TO_SHIP } from "./order-ui";
 
 /*
  * Le stock INFLUENCE : les exemplaires mis de côté pour les partenaires et les jeux.
  *
- * Trois nombres, et ils ne disent pas la même chose :
+ * Trois nombres, et pas un de plus :
  *
- * - **disponible** (`available`) : ce que la fiche du titre compte aujourd'hui, et donc
- *   ce dans quoi le prochain kit peut puiser. Il baisse tout seul à la commande d'un kit
- *   ou d'un lot, comme le stock de vente baisse au paiement — c'est le moment où les
- *   livres partent vraiment. Mêmes mots que le tableau du stock de vente, juste
- *   au-dessus : les deux écrans se lisent de la même façon.
- * - **réservé** (`reserved`) : déjà sorti du compte, pas encore du carton (colis offert
- *   payé, pas encore expédié). Disponible et réservé additionnés donnent le physique :
- *   ce qu'on doit trouver chez soi en se levant.
- * - **engagé** (`committed`) : PROMIS, pas encore sorti — les kits des campagnes
- *   ouvertes que personne n'a encore commandés, les lots des concours qui n'ont pas
- *   trouvé preneur. Rien n'est décompté pour eux, sans quoi une campagne appliquée à
- *   cinq partenaires viderait l'étagère cinq fois avant le premier envoi. C'est
- *   `free` = disponible − engagé qui dit ce qu'on peut encore promettre.
+ * - **stock** : ce qui reste, tout simplement. Il baisse tout seul à la commande d'un
+ *   kit ou d'un lot — c'est là que les livres partent vraiment.
+ * - **réservé** : promis par une campagne ouverte ou un concours en cours, sans que
+ *   personne ait encore commandé. Rien n'est décompté pour ces exemplaires-là, sans quoi
+ *   une campagne appliquée à cinq partenaires viderait le stock cinq fois avant le
+ *   premier envoi.
+ * - **disponible** = stock − réservé : ce qu'on peut encore promettre.
+ *
+ * Un livre passe donc de « réservé » à « parti » d'un seul coup : au moment où le kit
+ * est commandé, le stock baisse ET la promesse tombe, si bien que le disponible ne
+ * bouge pas — il avait déjà été retenu. Il ne bouge que lorsqu'on promet davantage, ou
+ * qu'on reçoit un carton.
+ *
+ * « Réservé » ne veut donc pas dire ici ce qu'il dit dans le tableau du stock de vente
+ * (où il s'agit d'une commande payée, pas encore expédiée) : sur des exemplaires qui ne
+ * se vendent pas, ce qui compte est ce qu'on a promis, pas ce qui attend le facteur.
  *
  * Tout est pur : l'écran, les décomptes et les tests doivent répondre la même chose.
  */
@@ -28,26 +29,13 @@ import { TO_SHIP } from "./order-ui";
 export type InfluenceRow = {
   slug: string;
   title: string;
-  /** Ce que la fiche compte : disponible pour un prochain kit. */
-  available: number;
-  /** Sorti du compte, pas encore du carton. */
+  /** Ce qui reste : le compteur du titre, déjà amputé des kits commandés. */
+  stock: number;
+  /** Promis par une campagne ouverte ou un concours en cours, pas encore commandé. */
   reserved: number;
-  /** Promis par une campagne ouverte ou un concours en cours. */
-  committed: number;
-  /** Disponible − engagé : ce qu'on peut encore promettre sans se découvrir. */
-  free: number;
+  /** Stock − réservé : ce qu'on peut encore promettre sans se découvrir. */
+  available: number;
 };
-
-/** Ce qu'un kit ou un lot déjà commandé n'a pas encore quitté la maison. */
-export function influenceReserved(orders: Order[]): Map<string, number> {
-  const m = new Map<string, number>();
-  for (const o of orders) {
-    /* Les colis offerts pris sur le stock de vente sont comptés là-bas, pas ici. */
-    if (!offeredOrder(o) || tookSaleStock(o) || !TO_SHIP.includes(o.status)) continue;
-    for (const l of o.lines) m.set(l.productSlug, (m.get(l.productSlug) ?? 0) + l.qty);
-  }
-  return m;
-}
 
 /*
  * Ce qui est promis sans être encore sorti.
@@ -55,9 +43,9 @@ export function influenceReserved(orders: Order[]): Map<string, number> {
  * Une participation compte tant que son kit n'est pas commandé et qu'elle court
  * (ouverte ou en cours) : terminée ou annulée, elle ne doit plus rien. Un concours
  * compte autant de lots qu'il lui reste de gagnants à servir — ceux déjà expédiés ont
- * pris leur part de l'étagère.
+ * pris leur part du stock.
  */
-export function influenceCommitments(campaigns: Campaign[], contests: Contest[], now: number): Map<string, number> {
+export function influenceReserved(campaigns: Campaign[], contests: Contest[], now: number): Map<string, number> {
   const m = new Map<string, number>();
   const add = (slug: string, qty: number) => m.set(slug, (m.get(slug) ?? 0) + qty);
 
@@ -84,15 +72,13 @@ export function influenceCommitments(campaigns: Campaign[], contests: Contest[],
  * zéro : un stock influence vide se règle en recevant un carton, et il faut pouvoir
  * désigner le titre pour le faire.
  */
-export function influenceRows(products: Product[], orders: Order[], campaigns: Campaign[], contests: Contest[], now: number): InfluenceRow[] {
-  const reserved = influenceReserved(orders);
-  const committed = influenceCommitments(campaigns, contests, now);
+export function influenceRows(products: Product[], campaigns: Campaign[], contests: Contest[], now: number): InfluenceRow[] {
+  const reserved = influenceReserved(campaigns, contests, now);
   return products.map((p) => {
-    const available = p.influenceStock;
-    const promised = committed.get(p.slug) ?? 0;
-    return { slug: p.slug, title: p.title, available, reserved: reserved.get(p.slug) ?? 0, committed: promised, free: available - promised };
+    const promised = reserved.get(p.slug) ?? 0;
+    return { slug: p.slug, title: p.title, stock: p.influenceStock, reserved: promised, available: p.influenceStock - promised };
   });
 }
 
-/** Les titres dont les promesses dépassent le disponible : c'est ce qui appelle un carton. */
-export const shortTitles = (rows: InfluenceRow[]): InfluenceRow[] => rows.filter((r) => r.free < 0);
+/** Les titres dont les promesses dépassent le stock : c'est ce qui appelle un carton. */
+export const shortTitles = (rows: InfluenceRow[]): InfluenceRow[] => rows.filter((r) => r.available < 0);

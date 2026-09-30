@@ -27,8 +27,8 @@ export default async function StocksPage() {
   const tracked = snap.products.filter((p) => p.stock !== null);
   const untracked = snap.products.filter((p) => p.stock === null);
 
-  /* Le stock influence : ce qui reste, ce qui est promis, ce qui est déjà sorti. */
-  const influence = influenceRows(snap.products, snap.orders.filter((o) => o.livemode), campaigns, contests, snap.now);
+  /* Le stock influence : ce qui reste, ce qui est promis, ce qu'on peut encore promettre. */
+  const influence = influenceRows(snap.products, campaigns, contests, snap.now);
   const short = shortTitles(influence);
   const byTitle = new Map(snap.products.map((p) => [p.slug, p]));
 
@@ -106,32 +106,30 @@ export default async function StocksPage() {
         <h2 className="text-[1.375rem] font-extrabold tracking-[-0.01em]">Stock influence</h2>
         <p className="text-[0.8125rem] leading-relaxed text-subtle">
           Les exemplaires réservés aux partenaires et aux jeux : ils ne sont pas à vendre et n&apos;apparaissent nulle
-          part sur la boutique. Mêmes trois premières colonnes que le tableau du dessus —{" "}
-          <strong className="text-ink">physique</strong> ce qu&apos;il y a chez vous,{" "}
-          <strong className="text-ink">réservé</strong> ce qui est déjà dans un colis commandé mais pas encore parti,{" "}
-          <strong className="text-ink">disponible</strong> ce dans quoi le prochain kit puisera. S&apos;y ajoutent{" "}
-          <strong className="text-ink">engagé</strong>, ce qui est promis sans être sorti (les kits des campagnes
-          ouvertes que personne n&apos;a commandés, les lots des concours sans preneur), et{" "}
-          <strong className="text-ink">libre</strong> = disponible − engagé : ce qu&apos;on peut encore promettre.
+          part sur la boutique. <strong className="text-ink">Stock</strong> : ce qui reste.{" "}
+          <strong className="text-ink">Réservé</strong> : ce qu&apos;une campagne ou un concours promet, sans que
+          personne ait encore commandé. <strong className="text-ink">Disponible</strong> = stock − réservé : ce
+          qu&apos;on peut encore promettre.
         </p>
         <p className="text-[0.8125rem] leading-relaxed text-subtle">
-          Le décompte se fait à la commande du kit ou du lot, jamais quand la campagne est montée : une campagne
-          s&apos;applique à autant de partenaires qu&apos;on veut, et viderait le stock plusieurs fois avant le premier
-          envoi. Un livre passe donc d&apos;<em>engagé</em> à <em>réservé</em>, puis s&apos;en va — jamais compté deux fois.
+          Monter une campagne réserve les exemplaires ; le stock, lui, ne baisse qu&apos;à la commande du kit ou du lot,
+          quand les livres partent vraiment. Le disponible ne bouge donc pas à ce moment-là — il avait déjà été retenu —
+          et rien n&apos;est compté deux fois. (Ici « réservé » veut dire promis : ce n&apos;est pas le « réservé » du
+          tableau de la vente, qui désigne une commande payée pas encore expédiée.)
         </p>
       </div>
 
       {short.length > 0 && (
         <Notice tone="error">
           Promis plus que disponible sur {short.length} titre{short.length > 1 ? "s" : ""} :{" "}
-          {short.map((r) => `${r.title} (${r.free})`).join(", ")}. Recevez un carton, ou réduisez ce qui est engagé.
+          {short.map((r) => `${r.title} (${r.available})`).join(", ")}. Recevez un carton, ou réduisez ce qui est réservé.
         </Notice>
       )}
 
       <div className="grid grid-cols-[1fr_340px] items-start gap-3 max-[1099px]:grid-cols-1">
         <GridTable
-          columns="56px 1fr 90px 90px 100px 90px 90px 140px"
-          head={["", "Produit", "Physique", "Réservé", "Disponible", "Engagé", "Libre", "Ajuster"]}
+          columns="56px 1fr 110px 110px 120px 150px"
+          head={["", "Produit", "Stock", "Réservé", "Disponible", "Ajuster"]}
           empty="Aucun titre au catalogue."
           rows={influence.map((r) => {
             const p = byTitle.get(r.slug);
@@ -143,16 +141,12 @@ export default async function StocksPage() {
                   <Link href={`/admin/produits/${r.slug}`} className="truncate font-bold hover:underline">
                     {r.title}
                   </Link>
-                  {r.free < 0 && <span className="text-[0.6875rem] font-semibold text-accent">{-r.free} ex. promis en trop</span>}
+                  {r.available < 0 && <span className="text-[0.6875rem] font-semibold text-accent">{-r.available} ex. promis en trop</span>}
                 </span>,
-                <span key="p" className="font-bold">{r.available + r.reserved}</span>,
-                <span key="r" className="text-muted">{r.reserved}</span>,
-                <span key="s">
-                  <Pill tone={r.available === 0 ? "muted" : "ok"}>{r.available}</Pill>
-                </span>,
-                <span key="e">{r.committed > 0 ? <span className="font-semibold text-muted">{r.committed}</span> : <span className="text-faint">—</span>}</span>,
-                <span key="l">
-                  <Pill tone={r.free < 0 ? "pink" : r.free === 0 ? "muted" : "neutral"}>{r.free}</Pill>
+                <span key="s" className="font-bold">{r.stock}</span>,
+                <span key="r" className="text-muted">{r.reserved > 0 ? r.reserved : <span className="text-faint">—</span>}</span>,
+                <span key="d">
+                  <Pill tone={r.available < 0 ? "pink" : r.available === 0 ? "muted" : "ok"}>{r.available}</Pill>
                 </span>,
                 <span key="a" className="flex justify-end">
                   <span className="flex items-center gap-1 rounded-pill bg-paper p-[3px]">
