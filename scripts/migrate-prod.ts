@@ -26,6 +26,10 @@
  * crée « Le concept ». À passer APRÈS le déploiement : le code en ligne doit connaître
  * les blocs du récit (Chapitre, Frise, Panneau…) pour savoir les rendre.
  *
+ * --newsletter-frequence retire des blocs « Infolettre » la promesse de fréquence
+ * (« une fois par mois, pas plus »), qui est fausse. Elle a été recopiée dans chaque
+ * page portant le bloc, d'où un passage sur toutes les pages et non sur une seule.
+ *
  * --contact-form recopie les sujets, la mention légale et le message de confirmation
  * de `content/contact` dans le bloc « Formulaire de contact » de la page. Ils s'y
  * éditaient auparavant depuis l'écran « Contenus », qui n'existe plus. Sans cette
@@ -37,7 +41,7 @@ import { catalogueToBlocks, contactToBlocks, homeToBlocks, proToBlocks, storyToB
 import { conceptBlocks, storyBlocks } from "@/lib/blocks/editorial-pages";
 import { getCatalogueContent, getContactContent, getHomeContent, getStoryContent } from "@/lib/db/content";
 import { listMedia } from "@/lib/db/media";
-import { getPage, savePageBlocks, setHomePage, upsertPage } from "@/lib/db/pages";
+import { getPage, listPages, savePageBlocks, setHomePage, upsertPage } from "@/lib/db/pages";
 import { db } from "@/lib/firebase/admin";
 import type { BlockDocument, ImageRef } from "@/lib/domain/types";
 
@@ -55,6 +59,8 @@ const EDITORIAL = process.argv.includes("--editorial");
 /* Recopie les réglages du formulaire de contact dans son bloc, pour qu'ils s'éditent
    depuis la page et non plus depuis l'écran « Contenus », retiré. */
 const CONTACT_FORM = process.argv.includes("--contact-form");
+/* Retire des infolettres la promesse de fréquence, qui n'a jamais été tenue. */
+const NEWSLETTER = process.argv.includes("--newsletter-frequence");
 
 /* Une page « sœur » est une page libre, pas une page système ni une URL. */
 const isPageSlug = (slug: string) => /^[a-z0-9-]+(\/[a-z0-9-]+)*$/.test(slug);
@@ -86,6 +92,21 @@ async function editorialPhoto(): Promise<(name: string) => ImageRef | undefined>
     const found = media.find((m) => m.path.endsWith(`/${name}`));
     return found ? { url: found.url, alt: found.alt, width: found.width, height: found.height } : undefined;
   };
+}
+
+/* La promesse de fréquence, où qu'elle soit dans le texte. */
+const FREQUENCY = /une fois par (?:mois|semaine|an)/i;
+
+/*
+ * Le texte sans sa promesse de fréquence, quand celle-ci termine la phrase — la forme
+ * qu'elle a toujours eue : « … et idées de lecture — une fois par mois, pas plus. »
+ * Rendu inchangé si elle est ailleurs : mieux vaut le signaler que de couper au hasard
+ * dans un texte qu'on n'a pas écrit.
+ */
+function withoutFrequency(text: string): string {
+  const cut = text.search(/\s*[—–-]?\s*une fois par (?:mois|semaine|an)[^.]*\.?\s*$/i);
+  if (cut <= 0) return text;
+  return `${text.slice(0, cut).trimEnd().replace(/[,;:—–-]+$/, "").trimEnd()}.`;
 }
 
 type RawTarget = { kind?: string; key?: string; handle?: string; slug?: string; href?: string; newTab?: boolean };
@@ -264,6 +285,61 @@ async function main() {
     }
   } else if (!CONTACT_FORM) {
     note("· formulaire de contact : réglages laissés dans content/contact — les descendre avec --contact-form");
+  }
+
+  /*
+   * 3 quater. La promesse de fréquence de l'infolettre, retirée de toutes les pages.
+   *
+   * « Une fois par mois, pas plus » n'a jamais été tenue. Une cadence annoncée sous un
+   * champ e-mail est un engagement pris au moment où l'on collecte l'adresse, pas une
+   * formule de rédaction — on la retire plutôt que de la corriger à la baisse.
+   *
+   * On COUPE la promesse et on garde le reste de la phrase, au lieu de réécrire le
+   * texte : il a pu être retouché depuis l'éditeur, et ce n'est pas à ce passage de
+   * défaire ces retouches. Idempotent de nature — une fois la phrase partie, il n'y a
+   * plus rien à couper.
+   */
+  if (NEWSLETTER) {
+    const pages = await listPages();
+    let touched = 0;
+
+    for (const page of pages) {
+      const blocks = page.blocks;
+      if (!blocks) continue;
+      let changed = false;
+      let manual = "";
+
+      const scrub = (nodes: BlockDocument["content"]): BlockDocument["content"] =>
+        nodes.map((node) => {
+          const props: Record<string, unknown> = { ...node.props };
+          for (const [key, value] of Object.entries(props)) {
+            if (Array.isArray(value) && value.every((v) => v && typeof v === "object" && "type" in v && "props" in v)) {
+              props[key] = scrub(value as BlockDocument["content"]);
+            }
+          }
+          if (node.type !== "Infolettre") return { ...node, props };
+          const texte = typeof props.texte === "string" ? props.texte : "";
+          if (!FREQUENCY.test(texte)) return { ...node, props };
+          const cleaned = withoutFrequency(texte);
+          if (cleaned === texte) {
+            manual = texte;
+            return { ...node, props };
+          }
+          changed = true;
+          return { ...node, props: { ...props, texte: cleaned } };
+        });
+
+      const content = scrub(blocks.content);
+      if (manual) note(`! ${page.slug.padEnd(22)} promesse de fréquence au milieu du texte, à retirer à la main : « ${manual} »`);
+      if (!changed) continue;
+      touched += 1;
+      note(`~ ${page.slug.padEnd(22)} promesse de fréquence retirée de l'infolettre`);
+      if (APPLY) await savePageBlocks(page.slug, { root: blocks.root, content });
+    }
+
+    if (touched === 0) note("= infolettres : aucune promesse de fréquence à retirer");
+  } else {
+    note("· infolettres : promesse de fréquence laissée en place — la retirer avec --newsletter-frequence");
   }
 
   /* 4. La racine est servie par une page — seulement si aucune ne l'est déjà. */

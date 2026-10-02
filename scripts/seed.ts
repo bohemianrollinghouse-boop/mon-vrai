@@ -266,7 +266,12 @@ async function main() {
     },
     newsletter: {
       heading: "Restez curieux",
-      text: "Nouveaux titres, coulisses de fabrication et idées de lecture — une fois par mois, pas plus.",
+      /*
+       * Aucune promesse de fréquence. « Une fois par mois, pas plus » figurait ici :
+       * c'est faux, et une cadence annoncée sur un formulaire de collecte est un
+       * engagement, pas une formule. Ce qu'on envoie se dit ; à quel rythme, non.
+       */
+      text: "Nouveaux titres, coulisses de fabrication et idées de lecture.",
       placeholder: "Votre e-mail",
       button: "S'inscrire",
     },
