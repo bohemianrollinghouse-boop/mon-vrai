@@ -1,13 +1,16 @@
 # Configuration Firebase App Hosting (Cloud Run en coulisse).
 #
-# minInstances: 1 évite les démarrages à froid sur la première visite et, surtout,
-# garantit qu'un webhook Stripe trouve toujours une instance prête. Quelques euros
-# par mois, pour ne jamais perdre un paiement pendant un réveil.
+# minInstances: 0 : l'instance s'éteint quand le site est calme. Avec 1, une instance
+# restait facturée 24h/24, même des heures sans aucune visite (gros de la facture).
+# Contrepartie : quelques secondes de démarrage à froid pour le premier visiteur.
+# Les webhooks Stripe n'y perdent rien : Stripe rejoue un appel échoué pendant 3 jours,
+# et createPaidOrder ne crée qu'une commande par paiement, même sur deux livraisons
+# simultanées (relecture dans la transaction + compteur partagé).
 #
 # Les secrets ne sont jamais ici : ils vivent dans Secret Manager et sont
 # référencés par nom. Voir .env.example pour la liste.
 runConfig:
-  minInstances: 1
+  minInstances: 0
   maxInstances: 4
   concurrency: 80
   cpu: 1
