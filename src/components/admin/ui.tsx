@@ -210,16 +210,21 @@ export function FilterPills({ items }: { items: { href: string; label: string; c
 
 /**
  * Tableau en grille, comme la maquette : en-tête en capitales grises, lignes séparées
- * par un filet doux, la ligne entière cliquable si `href` est donné.
+ * par un filet doux, la ligne entière cliquable si `href` est donné, dépliable si
+ * `detail` l'est.
+ *
+ * L'en-tête et CHAQUE ligne sont des grilles distinctes — il le faut pour qu'une ligne
+ * entière soit un lien cliquable —, si bien qu'une colonne `auto` se dimensionne sur le
+ * contenu de sa propre grille : l'en-tête se décale alors des cellules. Les colonnes
+ * doivent donc être des largeurs définies (`px`, `fr`, `minmax(Npx, …)`), jamais `auto`
+ * seul.
+ *
+ * Une ligne qui porte un `detail` devient un <details> qu'on déplie sur place, sans
+ * quitter le tableau ni hydrater quoi que ce soit — le clavier et les lecteurs d'écran
+ * fonctionnent d'eux-mêmes. Le repli appartient à la ligne et non à la page : deux
+ * lignes peuvent être ouvertes en même temps, et il n'y a aucun état à tenir.
  */
-/*
- * Tableau en grille. L'en-tête et CHAQUE ligne sont des grilles distinctes — il le faut
- * pour qu'une ligne entière soit un lien cliquable —, si bien qu'une colonne `auto` se
- * dimensionne sur le contenu de sa propre grille : l'en-tête se décale alors des
- * cellules. Les colonnes doivent donc être des largeurs définies (`px`, `fr`,
- * `minmax(Npx, …)`), jamais `auto` seul.
- */
-export function GridTable({ columns, head, rows, empty = "Rien pour l'instant." }: { columns: string; head: ReactNode[]; rows: { key: string; href?: string; cells: ReactNode[] }[]; empty?: string }) {
+export function GridTable({ columns, head, rows, empty = "Rien pour l'instant." }: { columns: string; head: ReactNode[]; rows: { key: string; href?: string; detail?: ReactNode; cells: ReactNode[] }[]; empty?: string }) {
   const grid = { gridTemplateColumns: columns };
   return (
     <div className="overflow-x-auto rounded-card bg-surface px-6 py-2">
@@ -239,6 +244,15 @@ export function GridTable({ columns, head, rows, empty = "Rien pour l'instant." 
               {c}
             </div>
           ));
+          if (r.detail)
+            return (
+              <details key={r.key} className="group">
+                <summary className={`${cls} cursor-pointer list-none hover:opacity-70 [&::-webkit-details-marker]:hidden`} style={grid}>
+                  {cells}
+                </summary>
+                <div className="pb-3.5">{r.detail}</div>
+              </details>
+            );
           return r.href ? (
             <Link key={r.key} href={r.href} className={`${cls} hover:opacity-70`} style={grid}>
               {cells}

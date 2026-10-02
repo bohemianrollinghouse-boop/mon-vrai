@@ -3,12 +3,13 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { Card, Field, GridTable, Input, Notice, PageHeader, Pill, Tile } from "@/components/admin/ui";
 import { saveCostsAction } from "@/lib/admin/actions/settings";
 import { COUNTED, capitalize, shortDate } from "@/lib/admin/order-ui";
-import { ledger, marginPct, orderRevenue, type OrderRevenue } from "@/lib/admin/revenue";
+import { ledger, marginPct, orderRevenue, type Ledger, type OrderRevenue } from "@/lib/admin/revenue";
 import { requireAdmin } from "@/lib/auth/session";
 import { now as clock } from "@/lib/db/helpers";
 import { listOrders } from "@/lib/db/orders";
 import { getSettings } from "@/lib/db/settings";
 import { formatEuro } from "@/lib/domain/money";
+import type { Costs } from "@/lib/domain/types";
 import { dayKey } from "@/lib/stats/keys";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,66 @@ const pctLabel = (n: number | null, digits = 1) => (n === null ? "–" : `${n.to
 const minus = (cents: number) => (cents === 0 ? formatEuro(0) : `− ${formatEuro(Math.abs(cents))}`);
 const monthKey = (ts: number) => dayKey(ts).slice(0, 7);
 const monthLabel = (key: string) => new Date(`${key}-15T12:00:00`).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+
+/*
+ * Les coûts d'une période, poste par poste. Écrits une seule fois et lus à deux endroits :
+ * la décomposition du haut de page et le détail d'un mois déplié. Un poste ajouté ici
+ * paraît donc aux deux, et aucun des deux ne peut compter ce que l'autre oublie — c'est
+ * la seule façon que leurs totaux ne puissent pas se contredire.
+ *
+ * Les colis offerts font UNE ligne et non cinq : ils n'encaissent rien, ni cotisations ni
+ * commission ne portent sur eux, et ce qu'on veut savoir d'eux est ce qu'ils ont coûté en
+ * entier. Leur note en dit la composition — livres, cartons, étiquettes.
+ */
+function costLines(b: Ledger, costs: Costs) {
+  const t = b.sales;
+  const g = b.gifts;
+  return [
+    { label: "Cotisations URSSAF", note: `${bpLabel(costs.urssafBp)} du CA encaissé`, value: t.urssaf, bar: "bg-tint-pink-ink" },
+    { label: "Commission de paiement", note: `${bpLabel(costs.stripeBp)} + ${formatEuro(costs.stripeFixed)} par commande`, value: t.stripeFee, bar: "bg-tint-blue-ink" },
+    { label: "Fabrication des livres", note: costs.bookCost ? `${fmt(t.books)} × ${formatEuro(costs.bookCost)}` : "coût unitaire non renseigné", value: t.bookCost, bar: "bg-tint-sand-ink" },
+    { label: "Emballages", note: costs.packagingCost ? `${fmt(t.orders)} colis × ${formatEuro(costs.packagingCost)}` : "coût unitaire non renseigné", value: t.packagingCost, bar: "bg-tint-sand-ink" },
+    { label: "Port réel (Boxtal)", note: `${formatEuro(t.shippingCharged)} facturés au client`, value: t.shippingCost, bar: "bg-tint-green-ink" },
+    ...(g.orders > 0
+      ? [
+          {
+            label: "Kits et lots offerts",
+            note: `${fmt(g.orders)} colis · ${fmt(g.books)} livre${g.books > 1 ? "s" : ""} ${formatEuro(g.bookCost)} · cartons ${formatEuro(g.packagingCost)} · étiquettes ${formatEuro(g.shippingCost)}`,
+            value: g.costs,
+            bar: "bg-tint-pink-ink",
+          },
+        ]
+      : []),
+  ];
+}
+
+/*
+ * Le détail des coûts d'un mois, déplié sous sa ligne. Mêmes postes et mêmes libellés que
+ * la décomposition du haut de page, et un total qui redit exactement la colonne « Coûts »
+ * de la ligne refermée : on doit pouvoir lire l'un en face de l'autre sans conversion.
+ *
+ * Un poste à zéro reste affiché avec sa note — « coût unitaire non renseigné » explique un
+ * total trop beau, là où une ligne escamotée l'aurait laissé croire juste.
+ */
+function MonthCosts({ book, costs }: { book: Ledger; costs: Costs }) {
+  return (
+    <div className="flex flex-col gap-2.5 rounded-card bg-paper px-4 py-3.5">
+      {costLines(book, costs).map((l) => (
+        <div key={l.label} className="flex items-baseline justify-between gap-3">
+          <span className="flex min-w-0 flex-col">
+            <span className="text-[0.8125rem] font-bold">{l.label}</span>
+            <span className="text-[0.6875rem] leading-relaxed text-subtle">{l.note}</span>
+          </span>
+          <span className="whitespace-nowrap text-[0.8125rem] font-extrabold">{minus(l.value)}</span>
+        </div>
+      ))}
+      <div className="flex items-baseline justify-between gap-3 border-t border-line-soft pt-2.5">
+        <span className="text-[0.8125rem] font-extrabold">Total des coûts</span>
+        <span className="whitespace-nowrap text-[0.9375rem] font-extrabold">{minus(book.costs)}</span>
+      </div>
+    </div>
+  );
+}
 
 export default async function RevenusPage({ searchParams }: PageProps<"/admin/revenus">) {
   await requireAdmin();
@@ -76,22 +137,7 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
   // proportionnelles au chiffre d'affaires de la période.
   const breakdown = [
     { label: "Chiffre d'affaires encaissé", note: `${fmt(t.orders)} commande${t.orders > 1 ? "s" : ""} · ${fmt(t.books)} livre${t.books > 1 ? "s" : ""}`, value: t.revenue, bar: "bg-ink", sign: 1 },
-    { label: "Cotisations URSSAF", note: `${bpLabel(costs.urssafBp)} du CA encaissé`, value: t.urssaf, bar: "bg-tint-pink-ink", sign: -1 },
-    { label: "Commission de paiement", note: `${bpLabel(costs.stripeBp)} + ${formatEuro(costs.stripeFixed)} par commande`, value: t.stripeFee, bar: "bg-tint-blue-ink", sign: -1 },
-    { label: "Fabrication des livres", note: costs.bookCost ? `${fmt(t.books)} × ${formatEuro(costs.bookCost)}` : "coût unitaire non renseigné", value: t.bookCost, bar: "bg-tint-sand-ink", sign: -1 },
-    { label: "Emballages", note: costs.packagingCost ? `${fmt(t.orders)} colis × ${formatEuro(costs.packagingCost)}` : "coût unitaire non renseigné", value: t.packagingCost, bar: "bg-tint-sand-ink", sign: -1 },
-    { label: "Port réel (Boxtal)", note: `${formatEuro(t.shippingCharged)} facturés au client`, value: t.shippingCost, bar: "bg-tint-green-ink", sign: -1 },
-    ...(kits.orders > 0
-      ? [
-          {
-            label: "Kits et lots offerts",
-            note: `${fmt(kits.orders)} colis · ${fmt(kits.books)} livre${kits.books > 1 ? "s" : ""} ${formatEuro(kits.bookCost)} · cartons ${formatEuro(kits.packagingCost)} · étiquettes ${formatEuro(kits.shippingCost)}`,
-            value: kits.costs,
-            bar: "bg-tint-pink-ink",
-            sign: -1,
-          },
-        ]
-      : []),
+    ...costLines(book, costs).map((l) => ({ ...l, sign: -1 })),
   ];
   const barMax = Math.max(1, t.revenue);
 
@@ -116,10 +162,7 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
   /* Chaque mois porte ses propres cadeaux : son net les retranche comme le total le fait. */
   const months = [...byMonth.entries()]
     .sort((a, b) => b[0].localeCompare(a[0]))
-    .map(([key, list]) => {
-      const m = ledger(list);
-      return { key, ...m.sales, costs: m.costs, net: m.net, kitCost: m.gifts.costs, kitOrders: m.gifts.orders };
-    });
+    .map(([key, list]) => ({ key, book: ledger(list) }));
 
   // Un coût unitaire laissé à zéro gonfle le revenu net : on le dit plutôt que de l'ignorer.
   const missing = [!costs.bookCost && "le coût de fabrication d'un livre", !costs.packagingCost && "le coût d'un emballage"].filter((x): x is string => Boolean(x));
@@ -234,29 +277,40 @@ export default async function RevenusPage({ searchParams }: PageProps<"/admin/re
         </div>
       </div>
 
-      <Card title="Mois par mois" className="!p-6 [&>div:last-child]:-mx-6 [&>div:last-child]:rounded-none [&>div:last-child]:py-0">
+      <Card
+        title="Mois par mois"
+        aside={<span className="text-xs font-bold text-subtle">Déplier un mois pour le détail de ses coûts</span>}
+        className="!p-6 [&>div:last-child]:-mx-6 [&>div:last-child]:rounded-none [&>div:last-child]:py-0"
+      >
         <GridTable
           columns="1fr 90px 110px 110px 110px 110px 90px"
           head={["Mois", "Commandes", "Chiffre d'affaires", "Coûts", "Marge port", "Revenu net", "Marge"]}
           empty="Aucune commande encaissée sur la période."
-          rows={months.map((m) => ({
-            key: m.key,
-            cells: [
-              <span key="m" className="font-bold">{capitalize(monthLabel(m.key))}</span>,
-              <span key="n" className="flex flex-col">
-                <span className="font-semibold">{fmt(m.orders)}</span>
-                {m.kitOrders > 0 && <span className="text-[0.6875rem] text-subtle">+ {fmt(m.kitOrders)} offert{m.kitOrders > 1 ? "s" : ""}</span>}
-              </span>,
-              <span key="ca" className="font-semibold whitespace-nowrap">{formatEuro(m.revenue)}</span>,
-              <span key="c" className="flex flex-col whitespace-nowrap text-subtle">
-                <span>{minus(m.costs)}</span>
-                {m.kitCost > 0 && <span className="text-[0.6875rem]">dont {formatEuro(m.kitCost)} offerts</span>}
-              </span>,
-              <span key="p" className={`whitespace-nowrap ${m.shippingMargin < 0 ? "text-danger" : "text-subtle"}`}>{formatEuro(m.shippingMargin)}</span>,
-              <span key="net" className="font-extrabold whitespace-nowrap">{formatEuro(m.net)}</span>,
-              <span key="t" className="font-bold whitespace-nowrap">{pctLabel(marginPct(m), 0)}</span>,
-            ],
-          }))}
+          rows={months.map(({ key, book: m }) => {
+            const s = m.sales;
+            return {
+              key,
+              detail: <MonthCosts book={m} costs={costs} />,
+              cells: [
+                <span key="m" className="flex items-baseline gap-2">
+                  <span className="font-bold">{capitalize(monthLabel(key))}</span>
+                  <span aria-hidden="true" className="text-[0.625rem] text-subtle transition-transform group-open:rotate-90">▶</span>
+                </span>,
+                <span key="n" className="flex flex-col">
+                  <span className="font-semibold">{fmt(s.orders)}</span>
+                  {m.gifts.orders > 0 && <span className="text-[0.6875rem] text-subtle">+ {fmt(m.gifts.orders)} offert{m.gifts.orders > 1 ? "s" : ""}</span>}
+                </span>,
+                <span key="ca" className="font-semibold whitespace-nowrap">{formatEuro(s.revenue)}</span>,
+                <span key="c" className="flex flex-col whitespace-nowrap text-subtle">
+                  <span>{minus(m.costs)}</span>
+                  {m.gifts.costs > 0 && <span className="text-[0.6875rem]">dont {formatEuro(m.gifts.costs)} offerts</span>}
+                </span>,
+                <span key="p" className={`whitespace-nowrap ${s.shippingMargin < 0 ? "text-danger" : "text-subtle"}`}>{formatEuro(s.shippingMargin)}</span>,
+                <span key="net" className="font-extrabold whitespace-nowrap">{formatEuro(m.net)}</span>,
+                <span key="t" className="font-bold whitespace-nowrap">{pctLabel(marginPct({ revenue: s.revenue, net: m.net }), 0)}</span>,
+              ],
+            };
+          })}
         />
       </Card>
 
