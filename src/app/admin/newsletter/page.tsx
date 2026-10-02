@@ -50,56 +50,84 @@ export default async function NewsletterPage() {
 
       <NewsletterComposer saved={savedValues} products={products.map((p) => ({ slug: p.slug, title: p.title }))} adminEmail={user.email} counts={counts} brand={brand} base={base} />
 
-      {[...byTemplate.entries()].map(([templateId, list]) => (
-        <Card key={templateId} title={`Envois · ${list[0].templateLabel || templateId}`} className="mt-4" aside={<span className="text-[0.6875rem] font-semibold text-subtle">{list.length} envoi{list.length > 1 ? "s" : ""}</span>}>
-          <GridTable
-            columns="110px 1fr 80px 118px 80px 80px 88px"
-            head={["Date", "Audience", "Envoyés", "Reçus", "Rebonds", "Ouverts", ""]}
-            empty="Aucun envoi."
-            rows={list.map((send) => {
-              const stats = send.stats;
-              // Le taux se calcule sur ce que Resend a accepté, pas sur les adresses visées :
-              // un lot refusé n'a jamais atteint le transporteur, il n'a rien à voir ici.
-              const rate = stats && send.accepted > 0 ? Math.round((stats.delivered / send.accepted) * 100) : null;
-              return {
-                key: send.id,
-                cells: [
-                  <span key="d" className="whitespace-nowrap font-semibold">
-                    {new Date(send.sentAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" })}
-                    <span className="ml-1.5 text-[0.6875rem] font-medium text-subtle">{new Date(send.sentAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
-                  </span>,
-                  <span key="a" className="flex min-w-0 flex-col">
-                    <span className="truncate">{send.audience}</span>
-                    <span className="truncate text-[0.6875rem] text-subtle" title={send.subject}>{send.subject}</span>
-                  </span>,
-                  <span key="e" className="font-bold">
-                    {send.accepted}
-                    {send.failed > 0 && <span className="ml-1 text-[0.6875rem] font-semibold text-danger">+{send.failed} en échec</span>}
-                  </span>,
-                  <span key="r" className="flex flex-col">
-                    {stats ? (
-                      <>
-                        <span className="font-extrabold">{stats.delivered}{rate !== null && <span className="ml-1 text-[0.6875rem] font-semibold text-subtle">{rate} %</span>}</span>
-                        <span className="text-[0.6875rem] text-subtle">relevé le {new Date(send.statsAt ?? send.sentAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}</span>
-                      </>
-                    ) : (
-                      <span className="text-[0.6875rem] text-subtle" title={send.statsError}>{send.statsError ? "indisponible" : "pas encore relevé"}</span>
-                    )}
-                  </span>,
-                  <span key="b" className={stats && stats.bounced > 0 ? "font-bold text-danger" : "text-muted"}>{stats ? stats.bounced : "—"}</span>,
-                  <span key="o" className="text-muted">{stats ? stats.opened : "—"}</span>,
-                  <ActionForm key="x" action={refreshNewsletterStatsAction} submitLabel="Actualiser" submitTone="ghost" className="!gap-0 [&>div:last-child]:contents [&_button]:!px-0 [&_button]:!py-0 [&_button]:!text-[0.6875rem]">
-                    <input type="hidden" name="id" value={send.id} />
-                  </ActionForm>,
-                ],
-              };
-            })}
-          />
-          {list.some((s) => s.statsError) && (
-            <p className="text-[0.6875rem] leading-relaxed text-subtle">{list.find((s) => s.statsError)?.statsError}</p>
-          )}
+      {/*
+       * L'historique s'allonge à chaque envoi : une carte dépliée par newsletter poussait
+       * le composeur — ce pour quoi on vient — hors de l'écran. Une seule carte repliée,
+       * bornée en hauteur une fois ouverte, le remet à sa place : une archive qu'on
+       * consulte, et non le contenu de la page.
+       */}
+      {sends.length > 0 && (
+        <Card
+          collapsible
+          title="Historique des envois"
+          className="mt-4"
+          aside={
+            <span className="text-[0.6875rem] font-semibold text-subtle">
+              {sends.length} envoi{sends.length > 1 ? "s" : ""} · dernier le{" "}
+              {new Date(sends[0].sentAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+            </span>
+          }
+        >
+          <div className="flex max-h-[32rem] flex-col gap-5 overflow-y-auto">
+            {[...byTemplate.entries()].map(([templateId, list]) => (
+              <section key={templateId} className="flex flex-col gap-2">
+                <h3 className="flex items-baseline justify-between gap-3 text-[0.8125rem] font-extrabold">
+                  {list[0].templateLabel || templateId}
+                  <span className="text-[0.6875rem] font-semibold text-subtle">
+                    {list.length} envoi{list.length > 1 ? "s" : ""}
+                  </span>
+                </h3>
+                <GridTable
+                  columns="110px 1fr 80px 118px 80px 80px 88px"
+                  head={["Date", "Audience", "Envoyés", "Reçus", "Rebonds", "Ouverts", ""]}
+                  empty="Aucun envoi."
+                  rows={list.map((send) => {
+                    const stats = send.stats;
+                    // Le taux se calcule sur ce que Resend a accepté, pas sur les adresses visées :
+                    // un lot refusé n'a jamais atteint le transporteur, il n'a rien à voir ici.
+                    const rate = stats && send.accepted > 0 ? Math.round((stats.delivered / send.accepted) * 100) : null;
+                    return {
+                      key: send.id,
+                      cells: [
+                        <span key="d" className="whitespace-nowrap font-semibold">
+                          {new Date(send.sentAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" })}
+                          <span className="ml-1.5 text-[0.6875rem] font-medium text-subtle">{new Date(send.sentAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}</span>
+                        </span>,
+                        <span key="a" className="flex min-w-0 flex-col">
+                          <span className="truncate">{send.audience}</span>
+                          <span className="truncate text-[0.6875rem] text-subtle" title={send.subject}>{send.subject}</span>
+                        </span>,
+                        <span key="e" className="font-bold">
+                          {send.accepted}
+                          {send.failed > 0 && <span className="ml-1 text-[0.6875rem] font-semibold text-danger">+{send.failed} en échec</span>}
+                        </span>,
+                        <span key="r" className="flex flex-col">
+                          {stats ? (
+                            <>
+                              <span className="font-extrabold">{stats.delivered}{rate !== null && <span className="ml-1 text-[0.6875rem] font-semibold text-subtle">{rate} %</span>}</span>
+                              <span className="text-[0.6875rem] text-subtle">relevé le {new Date(send.statsAt ?? send.sentAt).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}</span>
+                            </>
+                          ) : (
+                            <span className="text-[0.6875rem] text-subtle" title={send.statsError}>{send.statsError ? "indisponible" : "pas encore relevé"}</span>
+                          )}
+                        </span>,
+                        <span key="b" className={stats && stats.bounced > 0 ? "font-bold text-danger" : "text-muted"}>{stats ? stats.bounced : "—"}</span>,
+                        <span key="o" className="text-muted">{stats ? stats.opened : "—"}</span>,
+                        <ActionForm key="x" action={refreshNewsletterStatsAction} submitLabel="Actualiser" submitTone="ghost" className="!gap-0 [&>div:last-child]:contents [&_button]:!px-0 [&_button]:!py-0 [&_button]:!text-[0.6875rem]">
+                          <input type="hidden" name="id" value={send.id} />
+                        </ActionForm>,
+                      ],
+                    };
+                  })}
+                />
+                {list.some((s) => s.statsError) && (
+                  <p className="text-[0.6875rem] leading-relaxed text-subtle">{list.find((s) => s.statsError)?.statsError}</p>
+                )}
+              </section>
+            ))}
+          </div>
         </Card>
-      ))}
+      )}
 
       <Card title={`Inscrits (${subscribers.length})`} className="mt-4">
         <GridTable
