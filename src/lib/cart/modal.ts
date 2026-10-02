@@ -6,7 +6,7 @@ import { cartCodes, getCart, saveCart } from "@/lib/db/carts";
 import { getProductsBySlugs, listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import { addQty, itemCount, priceLines, subtotal } from "@/lib/domain/cart-math";
-import { collectionDiscount, collectionState, toCollectionTitles } from "@/lib/promos/collection";
+import { collectionDiscount, collectionState, offerDay, offerRunning, toCollectionTitles } from "@/lib/promos/collection";
 import type { Tint } from "@/lib/domain/types";
 import { ensureCartId, readCartId } from "./cookie";
 import type { CartActionResult } from "./actions";
@@ -35,8 +35,10 @@ export type CartModalSuggestion = { slug: string; name: string; image?: string; 
 export type CartModalData = {
   /** Produit qui vient d'être ajouté (absent pour un ajout « collection »). */
   added: CartModalProduct | null;
-  /** L'offre collection est-elle activée dans l'admin ? */
-  offerEnabled: boolean;
+  /** L'offre collection court-elle aujourd'hui (activée, et avant son jour d'arrêt) ? */
+  offerRunning: boolean;
+  /** Le jour où elle s'arrête, pour l'annoncer ; absent si elle n'a pas de fin. */
+  offerEndsOn?: string;
   /** La collection est-elle complète (tous les titres publiés dans le panier) ? */
   complete: boolean;
   totalTitles: number;
@@ -71,7 +73,8 @@ export async function cartModalSnapshot(addedSlug?: string): Promise<CartModalDa
   const lines = priceLines(cart.lines, products);
   const ownedSlugs = new Set(lines.map((l) => l.product.slug));
   const titles = toCollectionTitles(published);
-  const state = collectionState(titles, ownedSlugs, settings.promos.collectionOffer.enabled);
+  const offer = settings.promos.collectionOffer;
+  const state = collectionState(titles, ownedSlugs, offerRunning(offer, offerDay(Date.now())));
 
   const addedLine = slug ? lines.find((l) => l.product.slug === slug) : undefined;
   const added: CartModalProduct | null = addedLine
@@ -95,7 +98,8 @@ export async function cartModalSnapshot(addedSlug?: string): Promise<CartModalDa
 
   return {
     added,
-    offerEnabled: state.enabled,
+    offerRunning: state.running,
+    offerEndsOn: offer.endsOn,
     complete: state.complete,
     totalTitles: state.totalTitles,
     missingCount: state.missing.length,

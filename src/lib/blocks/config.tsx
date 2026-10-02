@@ -14,6 +14,7 @@ import { ProductCard } from "@/components/site/ProductCard";
 import { Chip, Eyebrow, PillLink, TINT_BG, TINT_INK } from "@/components/site/ui";
 import type { BlockDocument, ImageRef, Product, Tint } from "@/lib/domain/types";
 import { systemPath } from "@/lib/domain/system-pages";
+import { offerEndNotice } from "@/lib/promos/collection";
 import type { Data } from "@puckeditor/core";
 
 /*
@@ -40,8 +41,10 @@ export type BlockMetadata = {
   products?: Product[];
   /** Tri courant du catalogue, lu dans la query par la route. */
   sort?: string;
-  /** L'offre « collection complète » est-elle active dans les réglages. */
+  /** L'offre « collection complète » court-elle aujourd'hui (réglages + jour d'arrêt). */
   collectionOffer?: boolean;
+  /** Le jour où elle s'arrête : annoncé dans l'encart, jamais ressaisi par l'auteur. */
+  collectionEndsOn?: string;
   /** Coordonnées de la boutique, tenues dans les réglages et non ressaisies. */
   contact?: { email?: string; socials: { label: string; href: string }[] };
   /** Réglages du formulaire de contact et questions fréquentes (Contenus, FAQ). */
@@ -309,6 +312,8 @@ export const blockConfig: Config<Props> = {
                   </div>
                   <span className="text-[2rem] font-extrabold tracking-[-0.02em]">{offrePrix}</span>
                   {offreNote && <span className="text-[0.8125rem] leading-relaxed text-muted">{offreNote}</span>}
+                  {/* La fin de l'offre vient des réglages, pas de la note : une date ne se tient pas à la main. */}
+                  {meta.collectionEndsOn && <span className="text-[0.8125rem] font-bold text-tint-sand-ink">{offerEndNotice(meta.collectionEndsOn)}</span>}
                   {/* Bouton marchand : figé dans l'éditeur, faute de contexte de panier. */}
                   {offreCtaLabel &&
                     (puck.isEditing ? (

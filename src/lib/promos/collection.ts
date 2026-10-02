@@ -22,8 +22,12 @@ export type CollectionTitle = {
 };
 
 export type CollectionState = {
-  /** Réglage admin : l'offre est-elle activée ? Si non, rien ne s'applique ni ne s'affiche. */
-  enabled: boolean;
+  /*
+   * L'offre court-elle AUJOURD'HUI ? C'est-à-dire : activée dans les réglages, et pas
+   * encore arrivée à son jour d'arrêt (voir offerRunning). Si non, rien ne s'applique
+   * ni ne s'affiche.
+   */
+  running: boolean;
   /** Nombre de titres publiés (la « collection »). */
   totalTitles: number;
   /** Titres publiés absents du panier (à ajouter pour compléter). */
@@ -42,11 +46,12 @@ export type CollectionState = {
 
 /**
  * Calcule l'état de l'offre collection. `published` = titres publiés (prix en centimes) ;
- * `ownedSlugs` = slugs présents dans le panier (quantité ≥ 1). Le calcul ne dépend pas
+ * `ownedSlugs` = slugs présents dans le panier (quantité ≥ 1) ; `running` = l'offre
+ * court-elle aujourd'hui (offerRunning, et non le seul interrupteur des réglages). Le calcul ne dépend pas
  * des quantités : la collection est « complète » dès qu'un exemplaire de chaque titre y
  * figure.
  */
-export function collectionState(published: CollectionTitle[], ownedSlugs: Set<string>, enabled: boolean): CollectionState {
+export function collectionState(published: CollectionTitle[], ownedSlugs: Set<string>, running: boolean): CollectionState {
   const totalTitles = published.length;
   const missing = published.filter((p) => !ownedSlugs.has(p.slug));
   // Complète si tous les titres publiés sont dans le panier (et qu'il y a au moins un titre).
@@ -56,12 +61,12 @@ export function collectionState(published: CollectionTitle[], ownedSlugs: Set<st
   const fullPrice = published.reduce((s, p) => s + p.price, 0);
   const offerPrice = Math.max(0, fullPrice - giftAmount);
   const missingCost = missing.reduce((s, p) => s + p.price, 0);
-  return { enabled, totalTitles, missing, complete, giftAmount, fullPrice, offerPrice, missingCost };
+  return { running, totalTitles, missing, complete, giftAmount, fullPrice, offerPrice, missingCost };
 }
 
-/** Remise à appliquer côté serveur (0 si l'offre est désactivée ou la collection incomplète). */
+/** Remise à appliquer côté serveur (0 si l'offre ne court pas ou la collection est incomplète). */
 export function collectionDiscount(state: CollectionState): number {
-  return state.enabled && state.complete ? state.giftAmount : 0;
+  return state.running && state.complete ? state.giftAmount : 0;
 }
 
 /** Étiquette de la ligne de remise, cohérente entre panier, paiement et modal. */
@@ -75,6 +80,59 @@ export const COLLECTION_DISCOUNT_LABEL = "Collection complète — 1 livre offer
  * porte ce refus jusqu'au panier et à la caisse).
  */
 export const COLLECTION_EXCLUSIVE_REASON = "Votre panier bénéficie déjà de l'offre collection complète (1 livre offert) : elle ne se cumule pas avec un code promo.";
+
+/* ---------- La durée de l'offre ---------- */
+
+/** Les réglages de l'offre : l'interrupteur, et le jour où elle s'arrête. */
+export type CollectionOffer = { enabled: boolean; endsOn?: string };
+
+/*
+ * Le jour civil (heure de Paris) d'un instant, en AAAA-MM-JJ.
+ *
+ * L'offre se compte en JOURS et non en horodatages : c'est une date qu'on annonce aux
+ * clients, et elle doit tomber à minuit chez eux, pas à l'heure UTC. Comparer deux
+ * chaînes de ce format revient à comparer deux jours — c'est déjà ce que font les
+ * dépenses et leurs mois.
+ */
+export function offerDay(at: number): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
+}
+
+/*
+ * L'offre court-elle le jour dit ? Activée, et avant son jour d'arrêt — celui-ci est le
+ * premier jour SANS offre, si bien qu'elle s'éteint d'elle-même à son lever, sans que
+ * personne ait à toucher l'interrupteur ni à passer une tâche.
+ */
+export function offerRunning(offer: CollectionOffer, today: string): boolean {
+  return offer.enabled && (!offer.endsOn || today < offer.endsOn);
+}
+
+/** L'offre est-elle derrière nous ? (datée, et le jour venu) — pour le dire dans l'admin. */
+export function offerOver(offer: CollectionOffer, today: string): boolean {
+  return Boolean(offer.endsOn) && today >= offer.endsOn!;
+}
+
+/** Un jour civil en toutes lettres : « 5 octobre 2026 ». */
+export function formatOfferDay(day: string): string {
+  // Midi UTC : aucun fuseau ne peut faire glisser la date d'un jour en l'affichant.
+  return new Date(`${day}T12:00:00Z`).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+}
+
+/*
+ * Ce qu'on annonce au client, partout où l'offre est proposée — une seule phrase, écrite
+ * une seule fois : l'encart du catalogue, le bloc du panier et la modal disent tous la
+ * même chose, et changer la date ne laisse rien derrière.
+ */
+export function offerEndNotice(endsOn: string): string {
+  return `L'offre s'arrête le ${formatOfferDay(endsOn)}.`;
+}
+
+/** La veille d'un jour civil : le dernier jour où l'offre est servie (dit dans l'admin). */
+export function dayBefore(day: string): string {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 
 /** Construit la liste des titres de collection depuis des produits publiés. */
 export function toCollectionTitles(products: Product[]): CollectionTitle[] {

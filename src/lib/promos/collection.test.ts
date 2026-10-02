@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectionDiscount, collectionState, type CollectionTitle } from "./collection";
+import { collectionDiscount, collectionState, dayBefore, formatOfferDay, offerDay, offerEndNotice, offerOver, offerRunning, type CollectionTitle } from "./collection";
 
 const titles: CollectionTitle[] = [
   { slug: "les-fruits", title: "Les fruits", price: 1000, tint: "green", preorder: true, ageLabel: "6-18 mois" },
@@ -8,7 +8,7 @@ const titles: CollectionTitle[] = [
 ];
 
 describe("offre collection complète", () => {
-  it("n'applique rien quand l'offre est désactivée, même collection complète", () => {
+  it("n'applique rien quand l'offre ne court pas, même collection complète", () => {
     const s = collectionState(titles, new Set(["les-fruits", "les-legumes", "le-visage"]), false);
     expect(s.complete).toBe(true);
     expect(collectionDiscount(s)).toBe(0);
@@ -35,5 +35,38 @@ describe("offre collection complète", () => {
     const s = collectionState([], new Set(), true);
     expect(s.complete).toBe(false);
     expect(collectionDiscount(s)).toBe(0);
+  });
+});
+
+describe("durée de l'offre collection", () => {
+  const offer = { enabled: true, endsOn: "2026-10-05" };
+
+  it("court jusqu'à la veille du jour d'arrêt, et s'éteint ce jour-là", () => {
+    expect(offerRunning(offer, "2026-10-03")).toBe(true);
+    expect(offerRunning(offer, "2026-10-04")).toBe(true); // dernier jour servi
+    expect(offerRunning(offer, "2026-10-05")).toBe(false); // elle s'arrête
+    expect(offerRunning(offer, "2026-10-06")).toBe(false);
+  });
+
+  it("l'interrupteur coupe avant la date, et une offre sans date ne finit pas", () => {
+    expect(offerRunning({ ...offer, enabled: false }, "2026-10-01")).toBe(false);
+    expect(offerRunning({ enabled: true }, "2099-01-01")).toBe(true);
+    expect(offerOver({ enabled: true }, "2099-01-01")).toBe(false);
+    expect(offerOver(offer, "2026-10-05")).toBe(true);
+  });
+
+  it("compte les jours à l'heure de Paris, et non en UTC", () => {
+    // 4 octobre 23 h 30 à Paris = 21 h 30 UTC : c'est encore le 4 pour le client.
+    expect(offerDay(Date.UTC(2026, 9, 4, 21, 30))).toBe("2026-10-04");
+    // 5 octobre 00 h 30 à Paris = 4 octobre 22 h 30 UTC : l'offre est déjà finie.
+    expect(offerDay(Date.UTC(2026, 9, 4, 22, 30))).toBe("2026-10-05");
+    expect(offerRunning(offer, offerDay(Date.UTC(2026, 9, 4, 22, 30)))).toBe(false);
+  });
+
+  it("dit la date en toutes lettres, sans glisser d'un jour", () => {
+    expect(formatOfferDay("2026-10-05")).toBe("5 octobre 2026");
+    expect(dayBefore("2026-10-05")).toBe("2026-10-04");
+    expect(dayBefore("2026-01-01")).toBe("2025-12-31");
+    expect(offerEndNotice("2026-10-05")).toBe("L'offre s'arrête le 5 octobre 2026.");
   });
 });

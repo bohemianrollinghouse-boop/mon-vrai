@@ -476,10 +476,22 @@ export const SiteSettings = z.object({
       /*
        * Offre « collection complète » : quand le panier contient au moins un exemplaire
        * de chaque titre publié, le titre le moins cher est offert (remise = son prix
-       * unitaire). Automatique, sans code ; activable ici. Pilote aussi l'affichage de
-       * l'encart « Précommander la collection » et du bloc « Compléter la collection ».
+       * unitaire). Automatique, sans code ; activable ici, et datable — elle s'arrête
+       * d'elle-même le jour dit. Pilote aussi l'affichage de l'encart « Précommander la
+       * collection » et du bloc « Compléter la collection ».
        */
-      collectionOffer: z.object({ enabled: z.boolean().default(false) }).default({ enabled: false }),
+      collectionOffer: z
+        .object({
+          enabled: z.boolean().default(false),
+          /*
+           * Le jour où l'offre S'ARRÊTE (AAAA-MM-JJ, heure de Paris) : elle s'éteint au
+           * premier instant de ce jour-là, dont le dernier servi est donc la veille.
+           * Vide = sans fin. Un jour civil et non un horodatage : une offre n'a ni heure
+           * ni fuseau, et c'est cette date-là qu'on annonce aux clients.
+           */
+          endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        })
+        .default({ enabled: false }),
     })
     .default({ collectionOffer: { enabled: false } }),
   legal: z

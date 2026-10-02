@@ -3,12 +3,13 @@ import { AutoSubmitSwitch } from "@/components/admin/AutoSubmitSwitch";
 import { CodeInput } from "@/components/admin/CodeInput";
 import { PromoTypeFields } from "@/components/admin/PromoTypeFields";
 import { ButtonLink, Card, Field, FilterPills, GridTable, Input, PageHeader, Pill, type PillTone } from "@/components/admin/ui";
-import { deletePromoAction, savePartnerPromoAction, savePromoAction, setCollectionOfferAction, togglePromoAction } from "@/lib/admin/actions/promos";
+import { deletePromoAction, savePartnerPromoAction, savePromoAction, setCollectionOfferAction, setCollectionOfferEndAction, togglePromoAction } from "@/lib/admin/actions/promos";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { listInfluencers, listPromos } from "@/lib/db/promos";
 import { getSettings } from "@/lib/db/settings";
 import { formatEuro } from "@/lib/domain/money";
 import type { Influencer, Product, Promo } from "@/lib/domain/types";
+import { dayBefore, formatOfferDay, offerDay, offerOver, offerRunning } from "@/lib/promos/collection";
 import { promoLabel, promoStatus } from "@/lib/promos/engine";
 import { promoStats } from "@/lib/promos/stats";
 
@@ -41,7 +42,9 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
   const selectedCode = typeof sp.code === "string" ? sp.code.toUpperCase() : "";
   const [all, snap, settings, influencers] = await Promise.all([listPromos(), adminSnapshot(), getSettings(), listInfluencers()]);
   const now = snap.now;
-  const collectionOfferEnabled = settings.promos.collectionOffer.enabled;
+  const offer = settings.promos.collectionOffer;
+  const today = offerDay(now);
+  const offerRuns = offerRunning(offer, today);
   const house = all.filter((p) => !p.influencerId);
   const partnerCodes = all.filter((p) => p.influencerId);
   const partners = new Map(influencers.map((i) => [i.id, i]));
@@ -87,14 +90,31 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
         className="mb-3"
         aside={
           <ActionForm action={setCollectionOfferAction} hideFooter className="!gap-0">
-            <AutoSubmitSwitch label={collectionOfferEnabled ? "Désactiver l'offre" : "Activer l'offre"} defaultChecked={collectionOfferEnabled} />
+            <AutoSubmitSwitch label={offer.enabled ? "Désactiver l'offre" : "Activer l'offre"} defaultChecked={offer.enabled} />
           </ActionForm>
         }
       >
         <p className="text-[0.8125rem] leading-relaxed text-muted">
           Automatique, sans code : quand un panier contient tous les imagiers publiés, le titre le moins cher est offert (un exemplaire). La remise s'applique seule au panier et au paiement. Activée, l'offre affiche aussi l'encart « Précommander la collection » du catalogue et le bloc « Compléter la collection » du panier. Elle <strong>ne se cumule avec aucun code promo</strong> : tant qu'elle s'applique, un code saisi est refusé en le disant.{" "}
-          <strong className={collectionOfferEnabled ? "text-tint-green-ink" : "text-subtle"}>{collectionOfferEnabled ? "Offre active." : "Offre désactivée."}</strong>
+          <strong className={offerRuns ? "text-tint-green-ink" : "text-subtle"}>
+            {offerRuns ? "Offre en cours." : offerOver(offer, today) ? `Offre terminée depuis le ${formatOfferDay(offer.endsOn!)}.` : "Offre désactivée."}
+          </strong>
         </p>
+        {/*
+          * Le jour d'arrêt : l'offre s'éteint d'elle-même à son lever, et l'annonce
+          * elle-même au client partout où elle est proposée. Rien à programmer, rien à
+          * penser à éteindre le jour venu.
+          */}
+        <ActionForm action={setCollectionOfferEndAction} submitLabel="Enregistrer la date" className="!gap-2.5">
+          <div className="flex flex-wrap items-end gap-2.5">
+            <Field label="S'arrête le" hint="Vide : sans fin." name="endsOn" className="w-[190px]">
+              <Input name="endsOn" type="date" defaultValue={offer.endsOn ?? ""} className="!rounded-xl !py-3 !text-[0.8125rem]" />
+            </Field>
+            <span className="pb-3 text-[0.6875rem] leading-relaxed text-subtle">
+              {offer.endsOn ? `Dernier jour servi : ${formatOfferDay(dayBefore(offer.endsOn))}. Le site l'annonce : « L'offre s'arrête le ${formatOfferDay(offer.endsOn)}. »` : "L'offre court tant qu'elle est activée."}
+            </span>
+          </div>
+        </ActionForm>
       </Card>
 
       <div className="grid grid-cols-[1fr_360px] items-start gap-3 max-[1099px]:grid-cols-1">

@@ -74,7 +74,20 @@ prochaine sauvegarde de campagne effacerait. Son éditeur les **affiche** et ren
 campagne d'un bouton ; `savePromoAction` refuse toujours d'écraser un code de partenaire.
 
 L'offre **« collection complète »** (le panier contient tous les titres publiés, le moins
-cher est offert) ne se cumule avec **aucun** code : un livre offert est déjà la remise la
+cher est offert) se règle sur la carte de cet écran : un interrupteur, et un **jour
+d'arrêt** (`settings.promos.collectionOffer.endsOn`, `AAAA-MM-JJ`). Elle **s'éteint
+d'elle-même** au premier instant de ce jour — le dernier servi est la veille —, sans
+tâche à programmer : chaque lecture compare le jour d'arrêt à celui qu'on est
+(`offerRunning`, `offerDay` en heure de **Paris** : une date annoncée doit tomber à
+minuit chez le client, pas en UTC). Les cinq endroits qui lisent l'offre passent tous par
+là, et jamais par le seul `enabled` — devis, moteur des codes, modal, blocs, panier. La
+page panier le reçoit du devis plutôt que de lire l'heure : un composant serveur reste
+pur. La fin est **annoncée** partout où l'offre est proposée (encart du catalogue, bloc
+« Compléter la collection », modal) par `offerEndNotice`, écrit une seule fois — changer
+la date ne laisse rien derrière, et une offre finie n'annonce plus rien puisqu'elle ne
+s'affiche plus.
+
+Elle ne se cumule avec **aucun** code : un livre offert est déjà la remise la
 plus forte qu'on consente. C'est l'offre qui l'emporte — elle vient du panier et ne se
 réclame pas —, et le code est refusé **en le disant** : `PromoContext.collectionOffer`
 fait rendre à `rejectionReason` le message de `COLLECTION_EXCLUSIVE_REASON`, en premier,

@@ -9,6 +9,7 @@ import { assertAdmin } from "@/lib/auth/session";
 import { deletePromo, getPromo, setPromoActive, setPromoSettings, upsertPromo } from "@/lib/db/promos";
 import { getSettings, saveSettings } from "@/lib/db/settings";
 import { parseEuroToCents } from "@/lib/domain/money";
+import { formatOfferDay } from "@/lib/promos/collection";
 import { PromoType } from "@/lib/domain/types";
 
 /*
@@ -160,12 +161,31 @@ export async function togglePromoAction(formData: FormData): Promise<AdminResult
 export async function setCollectionOfferAction(): Promise<AdminResult> {
   const user = await assertAdmin();
   const settings = await getSettings();
-  const enabled = !settings.promos.collectionOffer.enabled;
-  await saveSettings({ ...settings, promos: { ...settings.promos, collectionOffer: { enabled } } });
+  const offer = settings.promos.collectionOffer;
+  const enabled = !offer.enabled;
+  /* Le jour d'arrêt est repris tel quel : éteindre puis rallumer ne doit pas l'effacer. */
+  await saveSettings({ ...settings, promos: { ...settings.promos, collectionOffer: { ...offer, enabled } } });
   await audit(user.email, "settings.collectionOffer", "settings/site", enabled ? "on" : "off");
   revalidatePath("/admin/codes-promo");
   revalidatePath("/", "layout");
   return saved(enabled ? "Offre collection activée." : "Offre collection désactivée.");
+}
+
+/*
+ * Le jour où l'offre s'arrête. Elle s'éteint d'elle-même à son lever — il n'y a donc
+ * rien à programmer, ni tâche à faire tourner : chaque lecture de l'offre compare ce
+ * jour à celui qu'on est (voir promos/collection.offerRunning). Vide = sans fin.
+ */
+export async function setCollectionOfferEndAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const endsOn = String(formData.get("endsOn") ?? "").trim();
+  if (endsOn && !/^\d{4}-\d{2}-\d{2}$/.test(endsOn)) return failed("Date invalide.", { endsOn: "Date invalide" });
+  const settings = await getSettings();
+  await saveSettings({ ...settings, promos: { ...settings.promos, collectionOffer: { ...settings.promos.collectionOffer, endsOn: endsOn || undefined } } });
+  await audit(user.email, "settings.collectionOfferEnd", "settings/site", endsOn || "sans fin");
+  revalidatePath("/admin/codes-promo");
+  revalidatePath("/", "layout");
+  return saved(endsOn ? `L'offre s'arrêtera le ${formatOfferDay(endsOn)}.` : "L'offre n'a plus de date de fin.");
 }
 
 export async function deletePromoAction(formData: FormData): Promise<AdminResult> {

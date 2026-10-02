@@ -3,7 +3,7 @@ import { loadCart, type CartView } from "@/lib/cart/read";
 import { getSettings } from "@/lib/db/settings";
 import { cartCodes } from "@/lib/db/carts";
 import { getProductsBySlugs, listPublishedProducts } from "@/lib/db/products";
-import { collectionDiscount, collectionState, COLLECTION_DISCOUNT_LABEL, toCollectionTitles } from "@/lib/promos/collection";
+import { collectionDiscount, collectionState, COLLECTION_DISCOUNT_LABEL, offerDay, offerRunning, toCollectionTitles } from "@/lib/promos/collection";
 import type { PaymentMode } from "@/lib/stripe/client";
 import type { ShippingRate, SiteSettings } from "@/lib/domain/types";
 import { bracketIndexForWeight } from "@/lib/shipping/tariffs";
@@ -59,6 +59,12 @@ export type Quote = {
   collectionDiscount: number;
   /** Étiquette de la ligne de remise collection, quand `collectionDiscount > 0`. */
   collectionLabel: string;
+  /*
+   * L'offre collection telle qu'elle est aujourd'hui : court-elle, et jusqu'à quand. Le
+   * panier s'en sert pour proposer l'offre et en annoncer la fin, sans avoir à lire
+   * l'heure lui-même — un composant serveur doit rester pur.
+   */
+  collectionOffer: { running: boolean; endsOn?: string };
 };
 
 export async function buildQuote(_mode: PaymentMode, email?: string): Promise<{ quote: Quote; view: CartView; settings: SiteSettings }> {
@@ -72,7 +78,9 @@ export async function buildQuote(_mode: PaymentMode, email?: string): Promise<{ 
    * au total remisé pour que le port, Stripe, la facture et le webhook la reflètent tous
    * (les totaux dérivent de `discount`).
    */
-  const collection = collectionState(toCollectionTitles(published), new Set(view.lines.map((l) => l.product.slug)), settings.promos.collectionOffer.enabled);
+  const offer = settings.promos.collectionOffer;
+  const running = offerRunning(offer, offerDay(Date.now()));
+  const collection = collectionState(toCollectionTitles(published), new Set(view.lines.map((l) => l.product.slug)), running);
   const collDiscount = collectionDiscount(collection);
 
   const outcome = await resolvePromos({
@@ -130,6 +138,7 @@ export async function buildQuote(_mode: PaymentMode, email?: string): Promise<{ 
     freeReached,
     collectionDiscount: collDiscount,
     collectionLabel: COLLECTION_DISCOUNT_LABEL,
+    collectionOffer: { running, endsOn: offer.endsOn },
   };
   return { quote, view, settings };
 }

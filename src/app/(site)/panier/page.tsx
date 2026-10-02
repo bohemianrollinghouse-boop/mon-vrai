@@ -9,7 +9,7 @@ import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import { buildQuote } from "@/lib/checkout/quote";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
-import { collectionState, toCollectionTitles } from "@/lib/promos/collection";
+import { collectionState, offerEndNotice, toCollectionTitles } from "@/lib/promos/collection";
 import { productPath, systemPath } from "@/lib/domain/system-pages";
 
 export const metadata: Metadata = { title: "Votre panier" };
@@ -26,9 +26,13 @@ export default async function CartPage() {
   const inCart = new Set(view.lines.map((l) => l.product.slug));
   const upsell = all.filter((p) => !inCart.has(p.slug)).slice(0, 4);
   const shipFrom = settings.shipping.preorderShipFrom ? formatDate(settings.shipping.preorderShipFrom) : null;
-  // Bloc « Compléter la collection » : conditionné au réglage admin de l'offre collection.
-  const collection = collectionState(toCollectionTitles(all), inCart, settings.promos.collectionOffer.enabled);
-  const showComplete = collection.enabled && collection.missing.length > 0;
+  /*
+   * Bloc « Compléter la collection » : conditionné à l'offre telle qu'elle court
+   * aujourd'hui. Elle vient du devis, qui a déjà regardé l'heure : un composant serveur
+   * ne lit pas l'horloge lui-même.
+   */
+  const collection = collectionState(toCollectionTitles(all), inCart, quote.collectionOffer.running);
+  const showComplete = collection.running && collection.missing.length > 0;
 
   return (
     <section className="site-wrap py-6 pb-[4.5rem]">
@@ -105,6 +109,7 @@ export default async function CartPage() {
                         Ajoutez {collection.missing.length === 1 ? "le titre manquant" : `les ${collection.missing.length} titres manquants`} · un livre offert, la collection à {formatEuroShort(collection.offerPrice)}{" "}
                         <span className="line-through opacity-60">{formatEuroShort(collection.fullPrice)}</span>
                       </span>
+                      {quote.collectionOffer.endsOn && <span className="text-[0.8125rem] font-bold text-tint-sand-ink">{offerEndNotice(quote.collectionOffer.endsOn)}</span>}
                     </div>
                     <CompleteCollectionButton missingCost={collection.missingCost} />
                   </div>

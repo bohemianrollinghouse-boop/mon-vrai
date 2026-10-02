@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, us
 import { addToCart } from "@/lib/cart/actions";
 import { cartModalSnapshot, completeCollectionAction, type CartModalData } from "@/lib/cart/modal";
 import { formatEuroShort } from "@/lib/domain/money";
+import { offerEndNotice } from "@/lib/promos/collection";
 import { TINT_BG } from "./ui";
 
 /*
@@ -88,7 +89,7 @@ function CartModal({ data, loading, onClose, onRefresh }: { data: CartModalData 
     };
   }, [onClose]);
 
-  const showCollection = Boolean(data?.offerEnabled);
+  const showCollection = Boolean(data?.offerRunning);
   const canComplete = showCollection && !data!.complete && data!.missingCount > 0;
   const isComplete = showCollection && data!.complete;
 
@@ -182,6 +183,7 @@ function CartModal({ data, loading, onClose, onRefresh }: { data: CartModalData 
                     Les {data.totalTitles} imagiers pour <strong>{formatEuroShort(data.offerPrice)}</strong>{" "}
                     <span className="line-through opacity-60">{formatEuroShort(data.fullPrice)}</span>
                   </span>
+                  {data.offerEndsOn && <span className="text-[0.6875rem] font-bold text-tint-sand-ink">{offerEndNotice(data.offerEndsOn)}</span>}
                 </div>
                 <button
                   type="button"

@@ -3,6 +3,7 @@ import { getContactContent } from "@/lib/db/content";
 import { getFooterMenu } from "@/lib/db/menus";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
+import { offerDay, offerRunning } from "@/lib/promos/collection";
 import type { Page } from "@/lib/domain/types";
 import { CATALOGUE_SORTS, type BlockMetadata } from "./config";
 
@@ -58,7 +59,8 @@ export async function buildBlockMetadata(page: Page, sort?: string): Promise<Blo
     metadata.sort = CATALOGUE_SORTS.some((s) => s.value === sort) ? sort : "position";
   }
   if (settings) {
-    metadata.collectionOffer = settings.promos.collectionOffer.enabled;
+    metadata.collectionOffer = offerRunning(settings.promos.collectionOffer, offerDay(Date.now()));
+    metadata.collectionEndsOn = settings.promos.collectionOffer.endsOn;
     metadata.contact = {
       email: settings.contact.email,
       socials: [

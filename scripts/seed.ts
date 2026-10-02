@@ -183,7 +183,8 @@ async function main() {
     // Coûts (URSSAF, fabrication, emballage, commission) : à renseigner dans /admin/revenus.
     costs: DEFAULT_COSTS,
     payments: { mode: "live", paypal: false },
-    promos: { collectionOffer: { enabled: true } },
+    /* L'offre collection telle qu'elle tourne en production : elle s'arrête le 5 octobre 2026. */
+    promos: { collectionOffer: { enabled: true, endsOn: "2026-10-05" } },
     legal: {
       footerLine: "",
       sellerName: "",

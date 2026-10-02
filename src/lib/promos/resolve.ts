@@ -7,7 +7,7 @@ import { listOrdersForEmail } from "@/lib/db/orders";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import type { Influencer, Order } from "@/lib/domain/types";
-import { collectionDiscount, collectionState, toCollectionTitles } from "./collection";
+import { collectionDiscount, collectionState, offerDay, offerRunning, toCollectionTitles } from "./collection";
 import { applyPromos, type PricedItem, type PromoContext, type PromoOutcome } from "./engine";
 
 /*
@@ -78,7 +78,7 @@ export async function resolvePromos(input: ResolveInput): Promise<PromoOutcome> 
 /** L'offre collection s'applique-t-elle à ce panier ? (activée, et tous les titres dedans). */
 async function collectionApplies(slugs: string[]): Promise<boolean> {
   const [published, settings] = await Promise.all([listPublishedProducts(), getSettings()]);
-  const state = collectionState(toCollectionTitles(published), new Set(slugs), settings.promos.collectionOffer.enabled);
+  const state = collectionState(toCollectionTitles(published), new Set(slugs), offerRunning(settings.promos.collectionOffer, offerDay(Date.now())));
   return collectionDiscount(state) > 0;
 }
 
