@@ -1,5 +1,5 @@
 /*
- * Newsletters « Mon Vrai » : huit modèles riches, repris du design validé. Chaque modèle
+ * Newsletters « Mon Vrai » : des modèles riches, repris du design validé. Chaque modèle
  * est un corps d'e-mail de 600 px, autonome (en-tête logo, bannière, contenu, pied de
  * page). Le MÊME rendu sert deux usages, selon `mode` :
  *   - "email" : HTML propre, envoyé aux inscrits (styles en ligne, une colonne) ;
@@ -84,6 +84,8 @@ const PINK = "#F0E0E8";
 const PINK_INK = "#5A3A4A";
 const SAND = "#F3E9DC";
 const SAND_INK = "#5A4A38";
+/* Sable soutenu : une pastille posée SUR un panneau sable, qui doit s'en détacher. */
+const SAND_DEEP = "#E6D8C3";
 const LINE = "#E2DDD4"; // filet des encadrés discrets
 const PROSE_INK = "#222222"; // encre d'un long paragraphe : un cran plus clair qu'un titre
 const TINTP = "#ECE6DC"; // fond des emplacements d'image vides
@@ -104,6 +106,7 @@ const COLS_W = CARD_W - COLPAD * 2; // 562 px à répartir — 281 par colonne s
 export const NEWSLETTER_TEMPLATES: NewsletterTemplate[] = [
   { id: "on-revient", label: "On revient", description: "Retour aux inscrits de la première heure", subject: "On revient — et c'est vous qui avez choisi la suite" },
   { id: "lettre-myenndine", label: "Lettre de Myenndine", description: "L'histoire des imagiers, racontée par sa créatrice", subject: "Derrière Mon Vrai, il y a d'abord une maman" },
+  { id: "derniers-jours", label: "Derniers jours", description: "Compte à rebours de l'offre collection", subject: "Plus que 2 jours : la collection, et un livre offert" },
 ];
 
 export const templateById = (id: string): NewsletterTemplate | undefined => NEWSLETTER_TEMPLATES.find((t) => t.id === id);
@@ -360,6 +363,14 @@ const btn = (c: RenderCtx, key: string, def: string, href: string, dark = true) 
 const btnFixed = (c: RenderCtx, key: string, def: string, href: string) =>
   btnShell(`<a href="${esc(href)}" style="color:#fff;font-size:14px;font-weight:700;text-decoration:none;display:inline-block">${T(c, key, def, "")}</a>`, true);
 
+/*
+ * Pastille : un `<td>` arrondi, comme un bouton sans lien. Un `<span>` rembourré serait
+ * ignoré d'Outlook, qui ne rend ni rembourrage ni rayon sur une balise en ligne — la
+ * pastille y redeviendrait du texte posé à plat.
+ */
+const pillT = (c: RenderCtx, key: string, def: string, bg: string, ink: string) =>
+  `<table ${TBL} style="display:inline-block;vertical-align:middle;border-collapse:separate"><tr><td bgcolor="${bg}" align="center" style="background:${bg};border-radius:999px;padding:9px 16px;text-align:center">${T(c, key, def, `font-size:13px;font-weight:700;color:${ink}`)}</td></tr></table>`;
+
 const eyebrow = (c: RenderCtx, key: string, def: string, color: string) =>
   T(c, key, def, `font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${color}`, "div");
 
@@ -497,10 +508,46 @@ ${S(`<table ${TBL} width="100%"><tr><td style="border-top:1px solid ${LINE};padd
 ${footer(c)}`);
 }
 
+/*
+ * Derniers jours de l'offre collection (maquette « 4b · Photo + carte crème »).
+ *
+ * Un rappel, pas une annonce : une photo, une carte qui porte l'offre, un bouton, et rien
+ * d'autre. C'est le dernier e-mail d'une séquence — qui le reçoit sait déjà ce qu'on vend,
+ * il lui manque seulement la date.
+ *
+ * La maquette fait chevaucher la carte crème sur la photo, pose le logo et une pastille
+ * « Fin le 5 oct. » par-dessus, et écrit les chiffres en Faune Display. Rien de tout cela
+ * ne traverse une messagerie : un chevauchement demande une marge négative, une
+ * surimpression un `position:absolute`, et une police maison ne se charge pas dans Gmail.
+ * La composition est donc remise à plat — la photo, puis la carte —, la pastille descend
+ * dans la carte, le logo reprend sa place en en-tête, et les chiffres gardent la
+ * Montserrat de la maison. Ce qui fait l'e-mail, lui, est intact : le compte à rebours,
+ * le prix barré et la date.
+ *
+ * Les dates et le nombre de jours sont des textes par défaut comme les autres : ils se
+ * corrigent dans le composeur, l'e-mail n'ayant aucun moyen de savoir quel jour on est
+ * quand il sera ouvert.
+ */
+function tplDerniersJours(c: RenderCtx): string {
+  /* Prix et prix barré sur une seule ligne : deux `<span>` en ligne s'alignent sur la
+     même ligne de base d'eux-mêmes, là où la maquette demandait un `flex`. */
+  const prix = `${T(c, "prix", "80 €", `font-size:44px;line-height:1;font-weight:800;letter-spacing:-.02em;color:${INK}`)}&nbsp;&nbsp;${T(c, "prixBarre", "90 €", `font-size:20px;font-weight:600;color:${SAND_INK};text-decoration:line-through`)}`;
+
+  const offre = `${pillT(c, "badge", "Fin le 5 octobre", INK, "#fff")}${gap(18)}${T(c, "surtitre", "Plus que 2 jours", `font-size:20px;line-height:1.3;font-weight:600;color:${SAND_INK}`, "div")}${T(c, "titre", "1 livre offert", `margin:6px 0 0;font-size:44px;line-height:1.02;font-weight:800;letter-spacing:-.02em;color:${INK};display:block`, "h1")}${T(c, "soustitre", "pour l'achat de la collection", `margin:10px 0 0;font-size:17px;line-height:1.5;color:${SAND_INK};display:block`, "p")}${gap(20)}${prix}${gap(16)}${pillT(c, "mention", "la collection + 1 livre offert", SAND_DEEP, INK)}`;
+
+  return card(`${topbar(c, "topnote", "Offre collection · jusqu'au 5 octobre", "derniers-jours")}${logo(c)}
+${sect(imgBox(c, "photo", "", { w: CARD_W - PAD * 2, h: 460, pos: "50% 30%", radius: 28 }), `16px ${PAD}px 0`)}
+${sect(panel(offre, SAND, "36px 32px", 28, true), `24px ${PAD}px 0`)}
+${sect(T(c, "rappel", "Petit rappel : l'offre se termine <strong>lundi 5 octobre</strong>.", "margin:0;font-size:16px;line-height:1.6;color:#444;display:block", "p"), "28px 40px 0", true)}
+${sect(btn(c, "cta", "J'en profite", `${c.base}/catalogue`), "20px 40px 0", true)}
+${footer(c)}`);
+}
+
 const BUILDERS: Record<string, (c: RenderCtx) => string> = {
   [PARTNER_WELCOME_ID]: tplPartenaireBienvenue,
   "on-revient": tplOnRevient,
   "lettre-myenndine": tplLettreMyenndine,
+  "derniers-jours": tplDerniersJours,
 };
 
 /** Corps du modèle (carte 600 px), en mode « email » (propre) ou « edit » (éditable). */

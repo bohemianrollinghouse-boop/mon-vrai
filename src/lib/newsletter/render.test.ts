@@ -52,6 +52,49 @@ describe("appel à la précommande", () => {
   });
 });
 
+/*
+ * « Derniers jours » (maquette 4b). La maquette superposait la carte à la photo et
+ * posait une pastille par-dessus : rien de tout cela ne survit à une messagerie. Ces
+ * tests tiennent la traduction — ce qui a été remis à plat doit le rester, et ce qui
+ * fait l'e-mail (le compte à rebours, le prix barré, la date) doit y être.
+ */
+describe("derniers jours de l'offre", () => {
+  it("dit le compte à rebours, la date et le prix barré", () => {
+    const html = renderTemplateBody("derniers-jours", ctx("email"));
+    expect(html).toContain("Plus que 2 jours");
+    expect(html).toContain("Fin le 5 octobre");
+    expect(html).toContain("lundi 5 octobre");
+    expect(html).toContain("text-decoration:line-through");
+    expect(html).toContain('<a href="https://monvrai.fr/catalogue"');
+  });
+
+  it("rend ses pastilles en cellules, et non en <span> rembourrés", () => {
+    const html = renderTemplateBody("derniers-jours", ctx("email"));
+    // Outlook ne rend ni rembourrage ni rayon sur une balise en ligne : une pastille
+    // écrite en <span> y redeviendrait du texte posé à plat.
+    for (const texte of ["Fin le 5 octobre", "la collection + 1 livre offert"]) {
+      const avant = html.slice(Math.max(0, html.indexOf(texte) - 300), html.indexOf(texte));
+      expect(avant, texte).toContain("border-radius:999px");
+      expect(avant, texte).toContain("<td");
+    }
+  });
+
+  it("réclame la photo à la taille de sa boîte, cadrée haut", () => {
+    const reqs = collectCrops("derniers-jours", ctx("email", { "img:photo": "https://monvrai.fr/bebe.jpg" }));
+    expect(reqs).toHaveLength(1);
+    // Pas de voile : le texte n'est pas posé dessus, il est dans la carte en dessous.
+    expect(reqs[0]).toMatchObject({ w: 552, h: 460, pos: "50% 30%" });
+    expect(reqs[0].scrim).toBeUndefined();
+  });
+
+  it("laisse tout son texte modifiable dans le composeur", () => {
+    const html = renderTemplateBody("derniers-jours", ctx("email", { surtitre: "Dernier jour", badge: "Fin ce soir", prix: "80 €" }));
+    expect(html).toContain("Dernier jour");
+    expect(html).toContain("Fin ce soir");
+    expect(html).not.toContain("Plus que 2 jours");
+  });
+});
+
 describe("resolveHref / isValidHref", () => {
   it("résout les chemins relatifs sur le site", () => {
     expect(resolveHref("/catalogue", "https://monvrai.fr/")).toBe("https://monvrai.fr/catalogue");
