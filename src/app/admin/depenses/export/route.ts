@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { CATEGORY_LABELS, FAR_FUTURE, METHOD_LABELS, RECURRENCE_LABELS, findPeriod, matchesExpense, periodStart } from "@/lib/admin/expense-ui";
+import { CATEGORY_LABELS, FAR_FUTURE, METHOD_LABELS, RECURRENCE_LABELS, matchesExpense, resolveRange } from "@/lib/admin/expense-ui";
 import { NO_SALES, type SalesFlow, inPeriod } from "@/lib/admin/expenses";
 import { COUNTED } from "@/lib/admin/order-ui";
 import { partOf } from "@/lib/admin/revenue";
@@ -28,16 +28,17 @@ export async function GET(request: Request) {
   if (!user?.isAdmin) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 
   const url = new URL(request.url);
-  const period = findPeriod(url.searchParams.get("periode"));
   const poste = url.searchParams.get("poste");
   const q = url.searchParams.get("q") ?? "";
 
   const [all, products, documents, orders, settings] = await Promise.all([listExpenses(), listAllProducts(), listDocuments(), listOrders({ limit: 2000 }), getSettings()]);
   const { urssafBp, stripeBp, stripeFixed } = settings.costs;
   const today = dayKey(Date.now());
-  const from = periodStart(period, today);
+  /* La même fenêtre que l'écran, résolue par la même fonction : le fichier porte ce qu'on regardait. */
+  const range = resolveRange({ periode: url.searchParams.get("periode"), mois: url.searchParams.get("mois"), du: url.searchParams.get("du"), au: url.searchParams.get("au") }, today);
+  const { from, to } = range;
 
-  const entered = inPeriod(all, from, FAR_FUTURE).filter((e) => (!poste || e.category === poste) && matchesExpense(e, q));
+  const entered = inPeriod(all, from, to).filter((e) => (!poste || e.category === poste) && matchesExpense(e, q));
 
   const titleOf = (slug: string) => products.find((p) => p.slug === slug)?.title ?? slug;
   const docOf = (id: string) => documents.find((d) => d.id === id)?.title ?? "";
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
     for (const o of orders) {
       if (!o.livemode || !COUNTED.includes(o.status) || offeredOrder(o)) continue;
       const day = dayKey(o.createdAt);
-      if (from && day < from) continue;
+      if ((from && day < from) || day > to) continue;
       const month = day.slice(0, 7);
       const f = byMonth.get(month) ?? { ...NO_SALES };
       const total = o.totals.total;
@@ -118,7 +119,8 @@ export async function GET(request: Request) {
   return new NextResponse(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="depenses-${period.key}-${today}.csv"`,
+      /* Le nom dit la fenêtre : un mois s'appelle par son mois, des dates par leurs bornes. */
+      "content-disposition": `attachment; filename="depenses-${range.month || (range.period ? range.period.key : `${from || "debut"}_${to === FAR_FUTURE ? "fin" : to}`)}-${today}.csv"`,
       "cache-control": "private, no-store",
     },
   });

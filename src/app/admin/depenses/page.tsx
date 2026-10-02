@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { ExpenseFields } from "@/components/admin/ExpenseFields";
-import { ButtonLink, Card, FilterPills, GridTable, Notice, PageHeader, Pill, SearchBox, Tile } from "@/components/admin/ui";
+import { Button, ButtonLink, Card, FilterPills, GridTable, Input, Notice, PageHeader, Pill, SearchBox, Select, Tile } from "@/components/admin/ui";
 import { saveExpenseAction } from "@/lib/admin/actions/expenses";
-import { CATEGORY_LABELS, FAR_FUTURE, METHOD_LABELS, PERIODS, RECURRENCE_LABELS, dayLabel, findPeriod, matchesExpense, monthLabel, periodStart } from "@/lib/admin/expense-ui";
+import { CATEGORY_LABELS, FAR_FUTURE, METHOD_LABELS, PERIODS, RECURRENCE_LABELS, dayLabel, matchesExpense, monthLabel, resolveRange } from "@/lib/admin/expense-ui";
 import { NO_SALES, type SalesFlow, byCategory, byMonth, byProduct, cashTotals, fixedCharges, fixedMonthly, inPeriod, sumSales, urssafOn } from "@/lib/admin/expenses";
 import { COUNTED, capitalize } from "@/lib/admin/order-ui";
 import { partOf } from "@/lib/admin/revenue";
@@ -59,16 +59,17 @@ const bpLabel = (bp: number) => `${(bp / 100).toLocaleString("fr-FR", { maximumF
 
 export default async function DepensesPage({ searchParams }: PageProps<"/admin/depenses">) {
   await requireAdmin();
-  const { periode, poste, q } = await searchParams;
-  const period = findPeriod(periode);
+  const { periode, poste, q, mois, du, au } = await searchParams;
   const search = typeof q === "string" ? q.trim() : "";
 
   const [all, products, documents, orders, settings] = await Promise.all([listExpenses(), listAllProducts(), listDocuments(), listOrders({ limit: 2000 }), getSettings()]);
   const { urssafBp, stripeBp, stripeFixed } = settings.costs;
 
   const today = dayKey(clock());
-  const from = periodStart(period, today);
-  const ofPeriod = inPeriod(all, from, FAR_FUTURE);
+  /* Une seule fenêtre, d'où qu'elle vienne : pilule glissante, mois civil ou dates libres. */
+  const range = resolveRange({ periode, mois, du, au }, today);
+  const { from, to } = range;
+  const ofPeriod = inPeriod(all, from, to);
 
   const category = typeof poste === "string" && poste in CATEGORY_LABELS ? (poste as ExpenseCategory) : null;
   const rows = ofPeriod.filter((e) => (!category || e.category === category) && matchesExpense(e, search));
@@ -83,7 +84,7 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
   for (const o of orders) {
     if (!o.livemode || !COUNTED.includes(o.status) || offeredOrder(o)) continue;
     const day = dayKey(o.createdAt);
-    if (from && day < from) continue;
+    if ((from && day < from) || day > to) continue;
     const month = day.slice(0, 7);
     const flow = salesByMonth.get(month) ?? { ...NO_SALES };
     const total = o.totals.total;
@@ -109,10 +110,23 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
   const months = byMonth(rows, narrowed ? new Map() : salesByMonth, urssafBp);
   const pending = rows.filter((e) => e.status === "pending").length;
 
+  /*
+   * La fenêtre courante, dite en paramètres d'adresse. Écrite une fois : les liens la
+   * conservent (`params`), les formulaires GET la reconduisent en champs cachés
+   * (`windowFields`), et aucun des deux ne peut la perdre en chemin.
+   */
+  const windowParams: Record<string, string | undefined> = {
+    periode: range.period && range.period.key !== "annee" ? range.period.key : undefined,
+    mois: range.month || undefined,
+    du: range.period || range.month ? undefined : from || undefined,
+    au: range.period || range.month || to === FAR_FUTURE ? undefined : to,
+  };
+  const windowFields = Object.fromEntries(Object.entries(windowParams).filter(([, v]) => v)) as Record<string, string>;
+
   /** Conserve les filtres courants d'un lien à l'autre ; « annee » est la valeur par défaut, donc implicite. */
   const params = (over: Record<string, string | undefined>) => {
     const merged: Record<string, string | undefined> = {
-      periode: period.key === "annee" ? undefined : period.key,
+      ...windowParams,
       poste: category ?? undefined,
       q: search || undefined,
       ...over,
@@ -122,6 +136,9 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
     const s = sp.toString();
     return s ? `?${s}` : "";
   };
+
+  /** Changer de fenêtre efface les deux autres façons de la dire : une seule vaut à la fois. */
+  const windowHref = (over: Record<string, string | undefined> = {}) => `/admin/depenses${params({ periode: undefined, mois: undefined, du: undefined, au: undefined, ...over })}`;
 
   /*
    * Poste par poste. Les cotisations ne sont pas une ligne saisie : elles se glissent
@@ -154,6 +171,16 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
   const perProduct = byProduct(all);
   const titleOf = (slug: string) => products.find((p) => p.slug === slug)?.title ?? slug;
 
+  /*
+   * Les mois qu'on peut demander : ceux où quelque chose s'est passé, un mouvement saisi
+   * ou une vente encaissée. Sur TOUT l'historique et non sur la fenêtre affichée — sinon
+   * choisir septembre interdirait d'aller ensuite en août, la liste s'étant réduite à ce
+   * qu'on regarde déjà.
+   */
+  const monthsAvailable = [
+    ...new Set([...all.map((e) => e.date.slice(0, 7)), ...orders.filter((o) => o.livemode && COUNTED.includes(o.status) && !offeredOrder(o)).map((o) => dayKey(o.createdAt).slice(0, 7))]),
+  ].sort((a, b) => b.localeCompare(a));
+
   return (
     <>
       <PageHeader
@@ -165,8 +192,8 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
               {PERIODS.map((p) => (
                 <Link
                   key={p.key}
-                  href={`/admin/depenses${params({ periode: p.key === "annee" ? undefined : p.key })}`}
-                  className={`rounded-pill px-4 py-2.5 text-[0.8125rem] font-bold ${p.key === period.key ? "bg-ink text-on-ink" : "bg-surface hover:opacity-70"}`}
+                  href={windowHref({ periode: p.key === "annee" ? undefined : p.key })}
+                  className={`rounded-pill px-4 py-2.5 text-[0.8125rem] font-bold ${p.key === range.period?.key ? "bg-ink text-on-ink" : "bg-surface hover:opacity-70"}`}
                 >
                   {p.label}
                 </Link>
@@ -178,6 +205,65 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
           </>
         }
       />
+
+      {/*
+       * Deux façons de viser une fenêtre précise, à côté des pilules glissantes : un mois
+       * CIVIL entier — du 1er au 30 ou au 31 selon le mois, qui est la question qu'on se
+       * pose vraiment devant un compte —, ou deux dates libres. Des <form> en GET : la
+       * fenêtre tient dans l'adresse, elle se met donc en favori et se partage, et la
+       * page reste un composant serveur sans rien à hydrater.
+       */}
+      <Card
+        title="Fenêtre regardée"
+        aside={
+          <span className="text-xs font-bold text-subtle">
+            {capitalize(range.label)} · {fmt(ofPeriod.length)} mouvement{ofPeriod.length > 1 ? "s" : ""}
+          </span>
+        }
+      >
+        <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+          <form method="get" action="/admin/depenses" className="flex items-end gap-2">
+            {category && <input type="hidden" name="poste" value={category} />}
+            {search && <input type="hidden" name="q" value={search} />}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-bold text-subtle">Un mois entier</span>
+              <Select name="mois" defaultValue={range.month} className="min-w-[180px]">
+                <option value="">Choisir un mois…</option>
+                {monthsAvailable.map((m) => (
+                  <option key={m} value={m}>
+                    {capitalize(monthLabel(m))}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            <Button tone="secondary">Voir</Button>
+          </form>
+
+          <form method="get" action="/admin/depenses" className="flex items-end gap-2">
+            {category && <input type="hidden" name="poste" value={category} />}
+            {search && <input type="hidden" name="q" value={search} />}
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-bold text-subtle">Du</span>
+              <Input type="date" name="du" defaultValue={windowFields.du ?? ""} className="w-[170px]" />
+            </label>
+            <label className="flex flex-col gap-1.5">
+              <span className="text-xs font-bold text-subtle">Au</span>
+              <Input type="date" name="au" defaultValue={windowFields.au ?? ""} className="w-[170px]" />
+            </label>
+            <Button tone="secondary">Appliquer</Button>
+          </form>
+
+          {!range.period && (
+            <Link href={windowHref({})} className="pb-3.5 text-[0.8125rem] font-bold underline hover:opacity-70">
+              Revenir à l&apos;année en cours
+            </Link>
+          )}
+        </div>
+        <span className="text-[0.6875rem] leading-relaxed text-subtle">
+          Une période glissante laisse passer les lignes datées à venir — une facture reçue, payable le mois prochain. Un mois ou des dates choisis s&apos;arrêtent net au dernier jour : c&apos;est ce qu&apos;il faut pour
+          arrêter un compte. L&apos;export CSV suit la même fenêtre.
+        </span>
+      </Card>
 
       {narrowed && (
         <Notice tone="info">
@@ -405,7 +491,7 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
           action="/admin/depenses"
           defaultValue={search}
           placeholder="Intitulé, fournisseur…"
-          hidden={{ ...(period.key !== "annee" ? { periode: period.key } : {}), ...(category ? { poste: category } : {}) }}
+          hidden={{ ...windowFields, ...(category ? { poste: category } : {}) }}
         />
       </div>
 

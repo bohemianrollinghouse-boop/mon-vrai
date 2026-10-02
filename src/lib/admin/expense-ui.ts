@@ -138,10 +138,70 @@ export function periodStart(period: Period, today: string): string {
 }
 
 /*
- * Borne haute des périodes : une ligne datée à venir (facture reçue, payable plus tard)
- * ne doit pas disparaître de la fenêtre courante.
+ * Borne haute des périodes glissantes : une ligne datée à venir (facture reçue, payable
+ * plus tard) ne doit pas disparaître de la fenêtre courante. Un mois ou des dates
+ * choisis à la main ont, eux, une vraie borne haute — c'est tout leur intérêt.
  */
 export const FAR_FUTURE = "9999-12-31";
+
+/** Dernier jour d'un mois : le « jour 0 » du suivant, en UTC. « 2026-02 » → « 2026-02-28 ». */
+export function monthEnd(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+}
+
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/*
+ * La fenêtre regardée, d'où qu'elle vienne. Trois façons de la dire, dans cet ordre :
+ *
+ *   1. des DATES LIBRES (`du`, `au`) — la plus précise, elle l'emporte ;
+ *   2. un MOIS CIVIL (`mois`), du 1er au dernier jour, 28, 29, 30 ou 31 selon le mois ;
+ *   3. à défaut, une des périodes glissantes (`periode`), l'année en cours par défaut.
+ *
+ * Une seule fonction pour l'écran ET l'export CSV : le fichier porte exactement ce que
+ * la page montrait, sans quoi on exporterait une fenêtre qu'on n'a jamais regardée.
+ *
+ * Ce qui ne ressemble pas à une date est ignoré plutôt que refusé : l'adresse est une
+ * entrée publique, et une fenêtre par défaut vaut mieux qu'un écran en erreur.
+ */
+export type Range = {
+  /** La période glissante retenue ; `null` dès qu'un mois ou des dates sont choisis. */
+  period: Period | null;
+  /** Le mois civil choisi (« 2026-09 »), chaîne vide sinon. */
+  month: string;
+  /** Premier jour compris ; chaîne vide = depuis toujours. */
+  from: string;
+  /** Dernier jour compris ; `FAR_FUTURE` quand la fenêtre n'a pas de fin. */
+  to: string;
+  /** La fenêtre en toutes lettres : « septembre 2026 », « du 3 au 18 mars 2026 ». */
+  label: string;
+};
+
+export function resolveRange(q: { periode?: unknown; mois?: unknown; du?: unknown; au?: unknown }, today: string): Range {
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const du = DAY_RE.test(str(q.du)) ? str(q.du) : "";
+  const au = DAY_RE.test(str(q.au)) ? str(q.au) : "";
+
+  if (du || au) {
+    /* Bornes saisies à l'envers : on les remet dans l'ordre plutôt que de ne rien montrer. */
+    const [from, to] = du && au && du > au ? [au, du] : [du, au || FAR_FUTURE];
+    return { period: null, month: "", from, to, label: rangeLabel(from, to) };
+  }
+
+  const month = MONTH_RE.test(str(q.mois)) ? str(q.mois) : "";
+  if (month) return { period: null, month, from: `${month}-01`, to: monthEnd(month), label: monthLabel(month) };
+
+  const period = findPeriod(q.periode);
+  return { period, month: "", from: periodStart(period, today), to: FAR_FUTURE, label: period.label.toLowerCase() };
+}
+
+function rangeLabel(from: string, to: string): string {
+  if (from && to !== FAR_FUTURE) return `du ${dayLabel(from)} au ${dayLabel(to)}`;
+  if (from) return `depuis le ${dayLabel(from)}`;
+  return `jusqu'au ${dayLabel(to)}`;
+}
 
 /** Recherche plein texte minimale sur une ligne : intitulé, fournisseur, note, poste. */
 export function matchesExpense(e: Expense, q: string): boolean {
