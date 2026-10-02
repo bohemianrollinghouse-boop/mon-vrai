@@ -1,4 +1,5 @@
 import type { Influencer, Promo } from "@/lib/domain/types";
+import { COLLECTION_EXCLUSIVE_REASON } from "./collection";
 
 /*
  * Moteur des codes promo, sans effet de bord : on lui donne le panier chiffré, les codes
@@ -11,7 +12,9 @@ import type { Influencer, Promo } from "@/lib/domain/types";
  *  - deux codes ne se cumulent que si l'un des deux déclare l'autre dans `stackWith`
  *    (`__influ` désigne n'importe quel code influenceur) ;
  *  - un lien influenceur (cookie) applique automatiquement le code de l'influenceur, et
- *    attribue la vente ; un code influenceur tapé prime sur le lien.
+ *    attribue la vente ; un code influenceur tapé prime sur le lien ;
+ *  - l'offre « collection complète » refuse tous les codes tant qu'elle s'applique
+ *    (`collectionOffer`) : elle ne se cumule avec aucun d'eux.
  */
 
 export type PricedItem = { slug: string; qty: number; unitPrice: number; title: string; stock: number | null };
@@ -32,6 +35,11 @@ export type PromoContext = {
   refCode: string;
   promos: Map<string, Promo>;
   influencers: Map<string, Influencer>;
+  /*
+   * Le panier bénéficie-t-il déjà de l'offre « collection complète » ? Elle s'applique
+   * seule, sans code, et n'en souffre aucun : tant qu'elle est là, tout code est refusé.
+   */
+  collectionOffer: boolean;
 };
 
 export type Applied = { code: string; type: Promo["type"]; label: string; amount: number; influencerId?: string; viaLink: boolean; gifts: string[] };
@@ -61,6 +69,8 @@ export function promoLabel(p: Pick<Promo, "type" | "amount" | "gifts">): string 
 
 /** Pourquoi un code n'est pas utilisable maintenant, ou null s'il l'est. */
 export function rejectionReason(p: Promo, ctx: PromoContext, influencer?: Influencer | null): string | null {
+  /* En premier : c'est la raison qui intéresse le client, avant l'état du code. */
+  if (ctx.collectionOffer) return COLLECTION_EXCLUSIVE_REASON;
   if (!p.active) return "Ce code n'est plus actif.";
   if (p.startAt > ctx.now) return "Ce code n'est pas encore valable.";
   if (p.endAt && p.endAt < ctx.now) return "Ce code a expiré.";

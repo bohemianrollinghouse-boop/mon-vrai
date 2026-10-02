@@ -67,6 +67,15 @@ export function collectionDiscount(state: CollectionState): number {
 /** Étiquette de la ligne de remise, cohérente entre panier, paiement et modal. */
 export const COLLECTION_DISCOUNT_LABEL = "Collection complète — 1 livre offert";
 
+/*
+ * L'offre ne se cumule avec AUCUN code promo : un livre offert est déjà la remise la
+ * plus forte qu'on consente, et l'empiler avec un code reviendrait à vendre la
+ * collection à perte. C'est l'offre qui l'emporte — elle vient du panier lui-même et
+ * n'a pas à être réclamée —, et le code est refusé en le disant (voir engine.ts, qui
+ * porte ce refus jusqu'au panier et à la caisse).
+ */
+export const COLLECTION_EXCLUSIVE_REASON = "Votre panier bénéficie déjà de l'offre collection complète (1 livre offert) : elle ne se cumule pas avec un code promo.";
+
 /** Construit la liste des titres de collection depuis des produits publiés. */
 export function toCollectionTitles(products: Product[]): CollectionTitle[] {
   return products.map((p) => ({

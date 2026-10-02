@@ -64,11 +64,23 @@ export type Quote = {
 export async function buildQuote(_mode: PaymentMode, email?: string): Promise<{ quote: Quote; view: CartView; settings: SiteSettings }> {
   const [view, settings, published] = await Promise.all([loadCart(), getSettings(), listPublishedProducts()]);
   const codes = cartCodes(view.cart);
+
+  /*
+   * Offre collection : automatique (sans code), conditionnée au réglage admin. Calculée
+   * AVANT les codes, parce qu'elle les exclut tous — un livre offert ne se cumule avec
+   * rien, et c'est elle qui l'emporte (voir promos/collection.ts). La remise est ajoutée
+   * au total remisé pour que le port, Stripe, la facture et le webhook la reflètent tous
+   * (les totaux dérivent de `discount`).
+   */
+  const collection = collectionState(toCollectionTitles(published), new Set(view.lines.map((l) => l.product.slug)), settings.promos.collectionOffer.enabled);
+  const collDiscount = collectionDiscount(collection);
+
   const outcome = await resolvePromos({
     codes,
     items: view.lines.map((l) => ({ slug: l.product.slug, qty: l.qty, unitPrice: l.product.price, title: l.product.title, stock: l.product.stock })),
     subtotal: view.subtotal,
     email,
+    collectionOffer: collDiscount > 0,
   });
 
   const parcel = settings.shipping.parcel;
@@ -98,12 +110,6 @@ export async function buildQuote(_mode: PaymentMode, email?: string): Promise<{ 
 
   const parcelWeightG = Math.max(1, parcel.baseWeightG + itemsWeight);
   const bracket = bracketIndexForWeight(parcelWeightG);
-
-  // Offre collection : automatique (sans code), conditionnée au réglage admin. La remise
-  // est ajoutée au total remisé pour que le port, Stripe, la facture et le webhook la
-  // reflètent tous (les totaux dérivent de `discount`).
-  const collection = collectionState(toCollectionTitles(published), new Set(view.lines.map((l) => l.product.slug)), settings.promos.collectionOffer.enabled);
-  const collDiscount = collectionDiscount(collection);
 
   const freeReached = view.shipping.enabled && view.shipping.reached;
   const quote: Quote = {

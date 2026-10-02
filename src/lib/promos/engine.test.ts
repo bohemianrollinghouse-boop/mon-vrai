@@ -18,6 +18,7 @@ const base = (promos: Promo[], extra: Partial<PromoContext> = {}): PromoContext 
   refCode: "",
   promos: new Map(promos.map((p) => [p.code, p])),
   influencers: new Map([["inf_1", influ]]),
+  collectionOffer: false,
   ...extra,
 });
 
@@ -45,6 +46,18 @@ describe("moteur des codes promo", () => {
     expect(r.applied.map((a) => a.code)).toEqual(["AA"]);
     expect(r.rejected.map((x) => x.code)).toEqual(["BB", "VIEUX", "GROS", "UNEFOIS", "INCONNU"]);
     expect(r.rejected[0].reason).toMatch(/Non cumulable avec AA/);
+  });
+
+  it("l'offre collection refuse tous les codes, celui du lien compris, sans perdre l'attribution", () => {
+    const marie = mk({ code: "MARIE10", type: "percent", amount: 10, influencerId: "inf_1" });
+    const ctx = base([marie, mk({ code: "DIX", type: "percent", amount: 10 })], { collectionOffer: true, refInfluencer: influ, refCode: "MARIE10" });
+    const r = applyPromos(["DIX"], ctx);
+    expect(r.applied).toEqual([]);
+    expect(r.discount).toBe(0);
+    expect(r.rejected.map((x) => x.code)).toEqual(["DIX"]);
+    expect(r.rejected[0].reason).toMatch(/offre collection complète/);
+    // Le code du lien est refusé sans bruit, mais la vente reste celle du partenaire.
+    expect(r.attribution).toEqual({ influencerId: "inf_1", via: "link" });
   });
 
   it("livraison offerte et produit offert ne remisent pas mais agissent", () => {

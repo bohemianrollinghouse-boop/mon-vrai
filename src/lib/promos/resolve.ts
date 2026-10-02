@@ -4,7 +4,10 @@ import { getInfluencer, getInfluencersByIds, getPromosByCodes } from "@/lib/db/p
 import { listCampaigns } from "@/lib/db/campaigns";
 import { campaignLive } from "@/lib/promos/campaign";
 import { listOrdersForEmail } from "@/lib/db/orders";
+import { listPublishedProducts } from "@/lib/db/products";
+import { getSettings } from "@/lib/db/settings";
 import type { Influencer, Order } from "@/lib/domain/types";
+import { collectionDiscount, collectionState, toCollectionTitles } from "./collection";
 import { applyPromos, type PricedItem, type PromoContext, type PromoOutcome } from "./engine";
 
 /*
@@ -31,10 +34,23 @@ export async function usedCodesByEmail(email: string | undefined, codes: string[
   return out;
 }
 
-export type ResolveInput = { codes: string[]; items: PricedItem[]; subtotal: number; email?: string; refInfluencer?: Influencer | null };
+export type ResolveInput = {
+  codes: string[];
+  items: PricedItem[];
+  subtotal: number;
+  email?: string;
+  refInfluencer?: Influencer | null;
+  /*
+   * Le panier bénéficie-t-il de l'offre collection ? Omis, il est recalculé ici : aucun
+   * appelant ne peut l'oublier et laisser passer un code que l'offre exclut. Le devis,
+   * lui, le connaît déjà et le passe, pour ne pas relire catalogue et réglages deux fois.
+   */
+  collectionOffer?: boolean;
+};
 
 export async function resolvePromos(input: ResolveInput): Promise<PromoOutcome> {
   const ref = input.refInfluencer === undefined ? await readRefInfluencer() : input.refInfluencer;
+  const collectionOffer = input.collectionOffer ?? (await collectionApplies(input.items.map((i) => i.slug)));
   /*
    * Le code que son lien applique : celui de sa campagne en cours. Une campagne terminée
    * n'en pose plus — mais le lien continue d'attribuer la vente, et de compter.
@@ -54,8 +70,16 @@ export async function resolvePromos(input: ResolveInput): Promise<PromoOutcome> 
     refCode,
     promos,
     influencers,
+    collectionOffer,
   };
   return applyPromos(input.codes, ctx);
+}
+
+/** L'offre collection s'applique-t-elle à ce panier ? (activée, et tous les titres dedans). */
+async function collectionApplies(slugs: string[]): Promise<boolean> {
+  const [published, settings] = await Promise.all([listPublishedProducts(), getSettings()]);
+  const state = collectionState(toCollectionTitles(published), new Set(slugs), settings.promos.collectionOffer.enabled);
+  return collectionDiscount(state) > 0;
 }
 
 /** Le code promo actif d'un partenaire aujourd'hui, d'après ses campagnes. */

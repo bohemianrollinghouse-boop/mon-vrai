@@ -92,7 +92,7 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
         }
       >
         <p className="text-[0.8125rem] leading-relaxed text-muted">
-          Automatique, sans code : quand un panier contient tous les imagiers publiés, le titre le moins cher est offert (un exemplaire). La remise s'applique seule au panier et au paiement. Activée, l'offre affiche aussi l'encart « Précommander la collection » du catalogue et le bloc « Compléter la collection » du panier.{" "}
+          Automatique, sans code : quand un panier contient tous les imagiers publiés, le titre le moins cher est offert (un exemplaire). La remise s'applique seule au panier et au paiement. Activée, l'offre affiche aussi l'encart « Précommander la collection » du catalogue et le bloc « Compléter la collection » du panier. Elle <strong>ne se cumule avec aucun code promo</strong> : tant qu'elle s'applique, un code saisi est refusé en le disant.{" "}
           <strong className={collectionOfferEnabled ? "text-tint-green-ink" : "text-subtle"}>{collectionOfferEnabled ? "Offre active." : "Offre désactivée."}</strong>
         </p>
       </Card>

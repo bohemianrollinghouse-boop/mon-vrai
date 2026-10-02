@@ -73,6 +73,18 @@ sont donc pas dans son formulaire — les y proposer serait promettre un réglag
 prochaine sauvegarde de campagne effacerait. Son éditeur les **affiche** et renvoie à la
 campagne d'un bouton ; `savePromoAction` refuse toujours d'écraser un code de partenaire.
 
+L'offre **« collection complète »** (le panier contient tous les titres publiés, le moins
+cher est offert) ne se cumule avec **aucun** code : un livre offert est déjà la remise la
+plus forte qu'on consente. C'est l'offre qui l'emporte — elle vient du panier et ne se
+réclame pas —, et le code est refusé **en le disant** : `PromoContext.collectionOffer`
+fait rendre à `rejectionReason` le message de `COLLECTION_EXCLUSIVE_REASON`, en premier,
+avant l'état du code (c'est la raison qui intéresse le client). Le refus remonte donc
+seul partout où un code se saisit ou s'affiche : saisie au panier (`addPromoCode`),
+récapitulatif, caisse. `buildQuote` calcule l'offre AVANT les codes et passe le drapeau ;
+`resolvePromos` le recalcule lui-même quand on ne le lui donne pas, pour qu'aucun appelant
+ne puisse l'oublier. Un code de partenaire posé par un lien est refusé comme les autres,
+mais la vente **reste attribuée** au partenaire par le lien.
+
 Ce qui appartient au **code** et non à la campagne — panier minimum, limite totale,
 cumul (`stackWith`), port offert — se règle là, par `savePartnerPromoAction` →
 `db/promos.setPromoSettings`, qui n'écrit que ces champs. En retour, `syncCampaignPromo`
