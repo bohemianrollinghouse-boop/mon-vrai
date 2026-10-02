@@ -53,6 +53,24 @@ export async function setPromoActive(code: string, active: boolean): Promise<voi
   await promos().doc(code.toUpperCase()).update({ active, updatedAt: now() });
 }
 
+/*
+ * Les réglages qui appartiennent au code lui-même, et à lui seul : panier minimum,
+ * limites, cumul, port offert. Écrits seuls, sans toucher à la remise ni aux dates —
+ * pour un code de partenaire, celles-ci sont le reflet de sa campagne et seraient
+ * réécrites au premier enregistrement de celle-ci (voir db/campaigns.syncCampaignPromo,
+ * qui reprend en retour les champs ci-dessous tels quels).
+ */
+export type PromoSettings = Pick<Promo, "minimum" | "perCustomer" | "stackWith" | "freeShipping"> & { limit?: number };
+
+export async function setPromoSettings(code: string, settings: PromoSettings): Promise<Promo | null> {
+  const ref = promos().doc(code.toUpperCase());
+  const existing = parseDoc(Promo, await ref.get());
+  if (!existing) return null;
+  const doc = Promo.parse({ ...existing, ...settings, updatedAt: now() });
+  await ref.set(doc);
+  return doc;
+}
+
 /** Tous les codes rattachés à un partenaire, y compris ceux devenus inactifs. */
 export async function listPromosOf(influencerId: string): Promise<Promo[]> {
   if (!influencerId) return [];

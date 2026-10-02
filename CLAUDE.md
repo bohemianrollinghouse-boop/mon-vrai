@@ -59,6 +59,26 @@ Clés publiables par mode : `STRIPE_PUBLISHABLE_KEY(_TEST)` (pas de `NEXT_PUBLIC
 page les passe au client selon le mode choisi dans l'admin). Codes promo = promotion
 codes Stripe. Seule la carte est proposée (Apple/Google Pay via le paiement express).
 
+## Codes promo
+
+`/admin/codes-promo` les porte **tous**, maison et partenaires : un code promo reste un
+code promo, et les chercher à deux endroits selon qui les porte n'avait pas de sens. Un
+filtre « Maison / Partenaires » sépare les deux quand il le faut.
+
+Ils ne se règlent pas pareil pour autant. Un code **maison** se décrit entièrement là —
+type, valeur, dates, limites. Celui d'un **partenaire** est le **reflet de sa campagne**
+(`db/campaigns.syncCampaignPromo`, réécrit à chaque enregistrement, clôture ou
+suppression de campagne) : sa remise, ses dates et son extinction viennent d'elle et ne
+sont donc pas dans son formulaire — les y proposer serait promettre un réglage que la
+prochaine sauvegarde de campagne effacerait. Son éditeur les **affiche** et renvoie à la
+campagne d'un bouton ; `savePromoAction` refuse toujours d'écraser un code de partenaire.
+
+Ce qui appartient au **code** et non à la campagne — panier minimum, limite totale,
+cumul (`stackWith`), port offert — se règle là, par `savePartnerPromoAction` →
+`db/promos.setPromoSettings`, qui n'écrit que ces champs. En retour, `syncCampaignPromo`
+les **reprend tels quels** : sans cela ils disparaîtraient au premier enregistrement de
+la campagne, comme `influenceStock` sur `upsertProduct`.
+
 ## Boxtal (expéditions)
 
 `lib/boxtal/client.ts` (API v3, auth Basic, deux paires de clés : API et composant

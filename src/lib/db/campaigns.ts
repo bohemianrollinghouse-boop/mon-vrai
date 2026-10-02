@@ -124,6 +124,10 @@ const promos = () => col("promos");
  * celui de la précédente) : c'est la plus récente ENCORE VIVANTE qui le gouverne. Quand
  * il n'en reste aucune, le code est éteint mais jamais effacé — ses utilisations et les
  * commandes qui le citent doivent rester lisibles.
+ *
+ * Ce que la campagne ne décide pas — panier minimum, limites, cumul, port offert — est
+ * repris de l'existant : ces réglages-là sont ceux du code, et se font dans
+ * /admin/codes-promo (voir db/promos.setPromoSettings).
  */
 export async function syncCampaignPromo(influencer: Influencer, code: string): Promise<void> {
   const upper = code.trim().toUpperCase();
@@ -148,11 +152,18 @@ export async function syncCampaignPromo(influencer: Influencer, code: string): P
       description: `Code influenceur · ${influencer.name}${owner.name ? ` · ${owner.name}` : ""}`,
       type: "percent",
       amount: owner.discount,
-      minimum: existing?.minimum ?? 0,
       startAt: owner.startAt ?? owner.createdAt,
       endAt: owner.endAt,
+      /*
+       * Ce qui appartient au CODE et non à la campagne, repris tel quel : la campagne
+       * n'en a pas d'avis, et ces réglages se font dans /admin/codes-promo. Les perdre
+       * ici les ferait disparaître au premier enregistrement de la campagne.
+       */
+      minimum: existing?.minimum ?? 0,
+      limit: existing?.limit,
       perCustomer: existing?.perCustomer ?? 1,
       stackWith: existing?.stackWith ?? [],
+      freeShipping: existing?.freeShipping ?? false,
       gifts: [],
       /* Le partenaire en pause coupe tout ; sinon c'est la campagne qui décide. */
       active: influencer.active && campaignLive(owner, at),
