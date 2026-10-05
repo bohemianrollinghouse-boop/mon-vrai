@@ -3,7 +3,7 @@ import { getContactContent } from "@/lib/db/content";
 import { getFooterMenu } from "@/lib/db/menus";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
-import { offerDay, offerEndsAt, offerLastDay, offerRunning } from "@/lib/promos/collection";
+import { lastDayCountdown, offerDay, offerRunning } from "@/lib/promos/collection";
 import type { Page } from "@/lib/domain/types";
 import { CATALOGUE_SORTS, type BlockMetadata } from "./config";
 
@@ -68,10 +68,8 @@ export async function buildBlockMetadata(page: Page, sort?: string): Promise<Blo
      * plein rendu. `remaining` part du même instant que le reste de la page, si bien que
      * le compte à rebours du navigateur reprend exactement le HTML qu'il a reçu.
      */
-    if (offerLastDay(offer, offerDay(now))) {
-      const endsAt = offerEndsAt(offer.endsOn!);
-      metadata.collectionLastDay = { endsAt, remaining: Math.max(0, endsAt - now) };
-    }
+    const lastDay = lastDayCountdown(offer, now);
+    if (lastDay) metadata.collectionLastDay = lastDay;
     metadata.contact = {
       email: settings.contact.email,
       socials: [

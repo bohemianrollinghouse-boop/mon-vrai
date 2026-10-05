@@ -177,6 +177,18 @@ export function dayBefore(day: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/*
+ * Le compte à rebours du dernier jour : son terme et ce qu'il en reste — `null` tous les
+ * autres jours. Une seule fonction pour les deux endroits qui l'annoncent (le bloc de
+ * l'accueil composé, et la racine de repli), et l'heure se lit ICI plutôt que dans un
+ * composant : un rendu doit rester pur.
+ */
+export function lastDayCountdown(offer: CollectionOffer, now = Date.now()): { endsAt: number; remaining: number } | null {
+  if (!offerLastDay(offer, offerDay(now))) return null;
+  const endsAt = offerEndsAt(offer.endsOn!);
+  return { endsAt, remaining: Math.max(0, endsAt - now) };
+}
+
 /** Construit la liste des titres de collection depuis des produits publiés. */
 export function toCollectionTitles(products: Product[]): CollectionTitle[] {
   return products.map((p) => ({

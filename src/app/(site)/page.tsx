@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { HomeHero, Split, Tiles } from "@/components/site/home-sections";
+import { HomeHero, LastDayOffer, Split, Tiles } from "@/components/site/home-sections";
 import { Newsletter } from "@/components/site/Newsletter";
 import { ProductCard } from "@/components/site/ProductCard";
 import { Render } from "@puckeditor/core/rsc";
@@ -8,6 +8,8 @@ import { blockConfig, toBlockData } from "@/lib/blocks/config";
 import { buildBlockMetadata } from "@/lib/blocks/metadata";
 import { getHomeContent } from "@/lib/db/content";
 import { getHomePage } from "@/lib/db/pages";
+import { getSettings } from "@/lib/db/settings";
+import { collectionState, lastDayCountdown, toCollectionTitles } from "@/lib/promos/collection";
 import { pageMetadata } from "@/lib/domain/page-metadata";
 import { listPublishedProducts } from "@/lib/db/products";
 import { systemPath } from "@/lib/domain/system-pages";
@@ -25,7 +27,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [homePage, content, products] = await Promise.all([getHomePage(), getHomeContent(), listPublishedProducts()]);
+  const [homePage, content, products, settings] = await Promise.all([
+    getHomePage(),
+    getHomeContent(),
+    listPublishedProducts(),
+    getSettings(),
+  ]);
 
   if (homePage?.blocks) {
     const metadata = await buildBlockMetadata(homePage);
@@ -47,9 +54,36 @@ export default async function HomePage() {
 
   const featured = products.slice(0, content.catalogue.count);
 
+  /*
+   * Le dernier jour de l'offre, le héro cède la place au compte à rebours : l'accueil
+   * n'a plus qu'une chose à dire, et deux grands héros empilés la diraient moins bien.
+   * Sur une page composée en blocs, c'est le bloc « Dernier jour de l'offre » qui s'en
+   * charge ; ici, sur l'accueil de repli — celui que sert la racine tant qu'aucune page
+   * n'est désignée —, il n'y a pas de bloc où le déposer : la racine le porte
+   * elle-même, et il n'y a donc rien à composer dans l'admin pour l'obtenir.
+   */
+  const lastDay = lastDayCountdown(settings.promos.collectionOffer);
+  const collection = collectionState(toCollectionTitles(products), new Set(), true);
+
   return (
     <>
-      <HomeHero hero={content.hero} />
+      {lastDay && collection.totalTitles > 1 ? (
+        <LastDayOffer
+          eyebrow="Dernier jour"
+          heading="C'est le dernier jour pour profiter de l'offre."
+          /* La photo du héro : l'affiche de la vidéo, à défaut une photo du récit. */
+          image={content.hero.posterUrl ? { url: content.hero.posterUrl, alt: "" } : (content.howTo.image ?? content.story.image)}
+          ctaLabel="Ajouter la collection au panier"
+          secondary={{ label: "Découvrir les livres", href: systemPath("catalogue") }}
+          endsAt={lastDay.endsAt}
+          remaining={lastDay.remaining}
+          titlesLabel={`Les ${collection.totalTitles} titres`}
+          fullPrice={collection.fullPrice}
+          offerPrice={collection.offerPrice}
+        />
+      ) : (
+        <HomeHero hero={content.hero} />
+      )}
       <Tiles tiles={content.tiles} />
 
       <section className="site-wrap flex flex-col gap-8 py-[4.5rem]">

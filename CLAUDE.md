@@ -101,6 +101,12 @@ reproduire à l'identique le HTML reçu avant de reprendre le temps réel
 (`components/site/OfferCountdown.tsx`). Ce que le bloc affiche n'est pas rédigé : le
 nombre de titres, le prix plein et le prix remisé viennent de `collectionState` sur le
 catalogue publié — la collection peut s'agrandir sans que personne repasse derrière.
+Deux accueils le portent, parce qu'il y en a deux : la page désignée comme accueil le
+porte par **son bloc**, et l'accueil de **repli** (`(site)/page.tsx`, servi tant
+qu'aucune page n'est désignée) le porte **lui-même**, à la place du héro — il n'y a pas
+de bloc où le déposer, et sans cela la racine serait le seul endroit du site à ne rien
+annoncer. Les deux passent par `lastDayCountdown`, qui lit l'heure hors du rendu : un
+composant reste pur (la règle `react-hooks/purity` y veille).
 
 Elle ne se cumule avec **aucun** code : un livre offert est déjà la remise la
 plus forte qu'on consente. C'est l'offre qui l'emporte — elle vient du panier et ne se
