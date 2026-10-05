@@ -6,7 +6,7 @@ import { CollectionOfferButton } from "@/components/site/CollectionOfferButton";
 import { ContactForm } from "@/components/site/ContactForm";
 import { CenteredProse, Chapter, Contents, DarkPanel, EditorialPanel, Figures, Timeline, TintBanner, type Emphasis, type Layout } from "@/components/site/editorial";
 import { ProRequestForm } from "@/components/site/ProRequestForm";
-import { CtaBand, HomeHero, Split, Tiles } from "@/components/site/home-sections";
+import { CtaBand, HomeHero, LastDayOffer, Split, Tiles } from "@/components/site/home-sections";
 import { SortSelect } from "@/components/site/SortSelect";
 import Link from "next/link";
 import { Newsletter } from "@/components/site/Newsletter";
@@ -14,7 +14,7 @@ import { ProductCard } from "@/components/site/ProductCard";
 import { Chip, Eyebrow, PillLink, TINT_BG, TINT_INK } from "@/components/site/ui";
 import type { BlockDocument, ImageRef, Product, Tint } from "@/lib/domain/types";
 import { systemPath } from "@/lib/domain/system-pages";
-import { offerEndNotice } from "@/lib/promos/collection";
+import { collectionState, offerEndNotice, toCollectionTitles } from "@/lib/promos/collection";
 import type { Data } from "@puckeditor/core";
 
 /*
@@ -45,6 +45,12 @@ export type BlockMetadata = {
   collectionOffer?: boolean;
   /** Le jour où elle s'arrête : annoncé dans l'encart, jamais ressaisi par l'auteur. */
   collectionEndsOn?: string;
+  /*
+   * Présent le DERNIER jour de l'offre seulement : son terme (minuit, heure de Paris)
+   * et ce qu'il en restait au rendu. C'est ce qui allume le héro « Dernier jour » —
+   * il n'y a donc rien à activer ni à éteindre à la main, pas même la veille.
+   */
+  collectionLastDay?: { endsAt: number; remaining: number };
   /** Coordonnées de la boutique, tenues dans les réglages et non ressaisies. */
   contact?: { email?: string; socials: { label: string; href: string }[] };
   /** Réglages du formulaire de contact et questions fréquentes (Contenus, FAQ). */
@@ -147,6 +153,7 @@ function Rich({ value, className = "" }: { value: RichText; className?: string }
  */
 export type Props = {
   HerosAccueil: { badge: string; titre: string; texte: string; video: ImageRef | undefined; affiche: ImageRef | undefined; ctaLabel: string; ctaHref: string; cta2Label: string; cta2Href: string };
+  DernierJour: { surtitre: string; titre: string; image: ImageRef | undefined; ctaLabel: string; cta2Label: string; cta2Href: string; bandeauLabel: string };
   Catalogue: { titre: string; lienLabel: string; nombre: number };
   HerosCatalogue: { surtitre: string; titre: string; texte: string; teinte: Tint; offreActive: boolean; offreTitre: string; offrePrixBarre: string; offrePrix: string; offreNote: string; offreCtaLabel: string };
   GrilleCatalogue: Record<string, never>;
@@ -198,7 +205,7 @@ export const blockConfig: Config<Props> = {
     texte: { title: "Texte", components: ["Texte", "Prose", "ProseCentree", "Chapitre", "Sommaire", "Encadre", "Bouton"] },
     media: { title: "Médias", components: ["Illustration", "Galerie", "ImageTexte", "Panneau"] },
     mise_en_page: { title: "Mise en page", components: ["Colonnes", "Principes", "Tuiles", "Chiffres", "Frise", "PanneauSombre", "Bandeau", "BandeauTeinte", "Infolettre", "Espace", "Temoignage"] },
-    donnees: { title: "Données du site", components: ["Catalogue", "HerosCatalogue", "GrilleCatalogue", "Specs", "HerosContact", "FormulaireContact", "FAQ", "GabaritLegal", "HerosPro", "FormulairePro"] },
+    donnees: { title: "Données du site", components: ["Catalogue", "HerosCatalogue", "GrilleCatalogue", "DernierJour", "Specs", "HerosContact", "FormulaireContact", "FAQ", "GabaritLegal", "HerosPro", "FormulairePro"] },
   },
   components: {
     /** Héro pleine largeur de l'accueil : vidéo ou affiche, texte calé en bas. */
@@ -229,6 +236,80 @@ export const blockConfig: Config<Props> = {
           }}
         />
       ),
+    },
+
+    /*
+     * Héro « dernier jour de l'offre ». Il ne s'allume pas : il se déduit. Le bloc reste
+     * posé sur l'accueil toute l'année et ne rend quelque chose que le dernier jour de
+     * l'offre collection — c'est-à-dire la veille du jour d'arrêt réglé dans
+     * /admin/codes-promo. Rien à publier le matin, rien à retirer le lendemain, et donc
+     * aucune annonce qui puisse survivre à l'offre qu'elle annonce.
+     *
+     * Les chiffres ne sont pas rédigés : le nombre de titres, le prix plein et le prix
+     * remisé viennent du catalogue publié et de la règle de l'offre (le moins cher
+     * offert), par `collectionState`. L'auteur n'écrit que les mots.
+     */
+    DernierJour: {
+      label: "Dernier jour de l'offre",
+      fields: {
+        surtitre: { type: "text", label: "Surtitre" },
+        titre: { type: "text", label: "Titre" },
+        image: imageField("Photo"),
+        ctaLabel: { type: "text", label: "Bouton principal — libellé" },
+        cta2Label: { type: "text", label: "Bouton secondaire — libellé" },
+        cta2Href: { type: "text", label: "Bouton secondaire — lien" },
+        bandeauLabel: { type: "text", label: "Bandeau — libellé ([count] = nombre de titres)" },
+      },
+      defaultProps: {
+        surtitre: "Dernier jour",
+        titre: "C'est le dernier jour pour profiter de l'offre.",
+        image: undefined,
+        ctaLabel: "Ajouter la collection au panier",
+        cta2Label: "Découvrir les livres",
+        cta2Href: "",
+        bandeauLabel: "Les [count] titres",
+      },
+      render: ({ surtitre, titre, image, ctaLabel, cta2Label, cta2Href, bandeauLabel, puck }) => {
+        const meta = puck.metadata as BlockMetadata;
+        const products = meta.products ?? [];
+        // Panier vide : l'état donne le prix plein et le prix remisé de la collection entière.
+        const state = collectionState(toCollectionTitles(products), new Set(), true);
+        const lastDay = meta.collectionLastDay;
+
+        /*
+         * Hors du dernier jour le bloc ne rend rien — mais l'éditeur, lui, doit pouvoir
+         * le composer n'importe quel jour : on l'y montre à rebours arrêté, précédé de
+         * la raison de son absence sur le site.
+         */
+        // Puck attend un élément : un fragment vide, et non `null`.
+        if ((!lastDay && !puck.isEditing) || state.totalTitles < 2) return <></>;
+
+        return (
+          <>
+            {!lastDay && puck.isEditing && (
+              <section className="site-wrap pt-2">
+                <p className="rounded-card bg-tint-sand p-4 text-[0.8125rem] font-semibold text-tint-sand-ink">
+                  Aperçu : ce bloc ne paraît sur le site que le dernier jour de l'offre collection (la veille du jour
+                  d'arrêt réglé dans Codes promo). Le reste du temps, il ne rend rien.
+                </p>
+              </section>
+            )}
+            <LastDayOffer
+              eyebrow={surtitre}
+              heading={titre}
+              image={image}
+              ctaLabel={ctaLabel}
+              secondary={{ label: cta2Label, href: cta2Href || systemPath("catalogue") }}
+              endsAt={lastDay?.endsAt ?? 0}
+              remaining={lastDay?.remaining ?? 0}
+              titlesLabel={bandeauLabel.replace("[count]", String(state.totalTitles))}
+              fullPrice={state.fullPrice}
+              offerPrice={state.offerPrice}
+              preview={puck.isEditing}
+            />
+          </>
+        );
+      },
     },
 
     /*

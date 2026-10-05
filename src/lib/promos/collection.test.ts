@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectionDiscount, collectionState, dayBefore, formatOfferDay, offerDay, offerEndNotice, offerOver, offerRunning, type CollectionTitle } from "./collection";
+import { collectionDiscount, collectionState, dayBefore, formatOfferDay, offerDay, offerEndNotice, offerEndsAt, offerLastDay, offerOver, offerRunning, type CollectionTitle } from "./collection";
 
 const titles: CollectionTitle[] = [
   { slug: "les-fruits", title: "Les fruits", price: 1000, tint: "green", preorder: true, ageLabel: "6-18 mois" },
@@ -68,5 +68,33 @@ describe("durée de l'offre collection", () => {
     expect(dayBefore("2026-10-05")).toBe("2026-10-04");
     expect(dayBefore("2026-01-01")).toBe("2025-12-31");
     expect(offerEndNotice("2026-10-05")).toBe("L'offre s'arrête le 5 octobre 2026.");
+  });
+});
+
+describe("le dernier jour de l'offre", () => {
+  const offer = { enabled: true, endsOn: "2026-10-05" };
+
+  it("n'est le dernier jour que la veille du jour d'arrêt", () => {
+    expect(offerLastDay(offer, "2026-10-03")).toBe(false); // l'offre court encore un jour de plus
+    expect(offerLastDay(offer, "2026-10-04")).toBe(true);
+    expect(offerLastDay(offer, "2026-10-05")).toBe(false); // elle est finie
+  });
+
+  it("n'existe ni sans date d'arrêt, ni interrupteur coupé", () => {
+    expect(offerLastDay({ enabled: true }, "2099-01-01")).toBe(false);
+    expect(offerLastDay({ ...offer, enabled: false }, "2026-10-04")).toBe(false);
+  });
+
+  it("s'arrête à minuit heure de Paris, et non à minuit UTC", () => {
+    // Heure d'été : Paris est à UTC+2, minuit chez le client est 22 h UTC la veille.
+    expect(offerEndsAt("2026-10-05")).toBe(Date.UTC(2026, 9, 4, 22, 0, 0));
+    // Heure d'hiver : UTC+1, donc 23 h UTC la veille.
+    expect(offerEndsAt("2026-12-25")).toBe(Date.UTC(2026, 11, 24, 23, 0, 0));
+  });
+
+  it("le terme tombe bien au premier instant du jour d'arrêt, de part et d'autre", () => {
+    const endsAt = offerEndsAt("2026-10-05");
+    expect(offerDay(endsAt - 1000)).toBe("2026-10-04"); // une seconde avant : encore servi
+    expect(offerDay(endsAt)).toBe("2026-10-05"); // l'offre vient de s'éteindre
   });
 });

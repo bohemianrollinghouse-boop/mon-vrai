@@ -1,4 +1,7 @@
 import Image from "next/image";
+import { CollectionOfferButton } from "./CollectionOfferButton";
+import { OfferCountdown } from "./OfferCountdown";
+import { formatEuro } from "@/lib/domain/money";
 import type { Cta, HomeContent, ImageRef, Tint } from "@/lib/domain/types";
 import { HeroVideo } from "./HeroVideo";
 import { Eyebrow, PillLink, TINT_BG, TINT_INK } from "./ui";
@@ -43,6 +46,95 @@ export function HomeHero({ hero }: { hero: HomeContent["hero"] }) {
               </PillLink>
             )}
           </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/*
+ * Le dernier jour de l'offre « collection complète ». L'écran d'arrivée cesse d'inviter
+ * à flâner dans le catalogue pour dire une seule chose : il reste jusqu'à ce soir
+ * minuit. D'où un compte à rebours plutôt qu'une date — à quelques heures de la fin,
+ * « l'offre s'arrête le 6 octobre » ne dit plus l'urgence que les chiffres disent.
+ *
+ * Composant purement présentatif : il ne décide pas qu'on est le dernier jour (c'est
+ * `offerLastDay`, côté données) et ne lit pas l'heure (elle lui est passée). Le prix
+ * barré et le prix remisé viennent du catalogue publié, pas d'un texte à tenir à jour :
+ * la collection peut s'agrandir sans que personne ait à repasser derrière.
+ */
+export function LastDayOffer({
+  eyebrow,
+  heading,
+  image,
+  ctaLabel,
+  secondary,
+  endsAt,
+  remaining,
+  titlesLabel,
+  fullPrice,
+  offerPrice,
+  preview = false,
+}: {
+  eyebrow: string;
+  heading: string;
+  image?: ImageRef;
+  ctaLabel: string;
+  secondary: Cta;
+  endsAt: number;
+  remaining: number;
+  titlesLabel: string;
+  fullPrice: number;
+  offerPrice: number;
+  preview?: boolean;
+}) {
+  return (
+    <section className="site-wrap pt-2">
+      <div className="grid min-h-[37.5rem] grid-cols-2 grid-rows-[1fr_auto] gap-4 max-[899px]:min-h-0 max-[899px]:grid-cols-1 max-[899px]:grid-rows-none">
+        <div className="row-span-2 flex flex-col justify-center gap-7 rounded-panel bg-tint-blue p-16 max-[899px]:order-1 max-[899px]:row-span-1 max-[749px]:p-8">
+          {eyebrow && <Eyebrow className="text-tint-blue-ink">{eyebrow}</Eyebrow>}
+          <h1 className="display-1 text-[clamp(2.25rem,4.4vw,3.25rem)]">{heading}</h1>
+
+          <OfferCountdown endsAt={endsAt} remaining={remaining} />
+
+          <div className="flex flex-wrap gap-3">
+            {/* Bouton marchand : figé dans l'éditeur, faute de contexte de panier. */}
+            {preview ? (
+              <span className="inline-flex items-center justify-center rounded-pill bg-ink px-8 py-[1.125rem] text-sm font-bold text-white">{ctaLabel}</span>
+            ) : (
+              <CollectionOfferButton label={ctaLabel} shape="hero" />
+            )}
+            {secondary.label && (
+              <PillLink href={secondary.href || "/catalogue"} variant="light" size="lg" className="max-[599px]:w-full">
+                {secondary.label}
+              </PillLink>
+            )}
+          </div>
+        </div>
+
+        <div className="relative overflow-hidden rounded-panel bg-tint-green max-[899px]:order-3 max-[899px]:h-72">
+          {image && (
+            <Image
+              src={image.url}
+              alt={image.alt}
+              fill
+              sizes="(min-width: 900px) 50vw, 100vw"
+              className="object-cover"
+              priority
+            />
+          )}
+        </div>
+
+        {/* Les deux prix restent groupés : s'ils se séparaient en passant à la ligne, le prix
+            barré et le prix remisé cesseraient de se lire d'un seul regard. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-panel bg-tint-pink px-10 py-8 max-[899px]:order-2 max-[749px]:px-7">
+          <span className="text-[2rem] font-extrabold tracking-[-0.01em] max-[749px]:text-2xl">{titlesLabel}</span>
+          <span className="flex items-center gap-4">
+            <s className="text-2xl font-extrabold text-tint-pink-ink max-[749px]:text-xl">{formatEuro(fullPrice)}</s>
+            <span className="rounded-pill bg-white px-5 py-1 text-[2rem] font-extrabold tracking-[-0.01em] max-[749px]:text-2xl">
+              {formatEuro(offerPrice)}
+            </span>
+          </span>
         </div>
       </div>
     </section>

@@ -87,6 +87,21 @@ pur. La fin est **annoncée** partout où l'offre est proposée (encart du catal
 la date ne laisse rien derrière, et une offre finie n'annonce plus rien puisqu'elle ne
 s'affiche plus.
 
+Le **dernier jour**, l'accueil le dit autrement : le bloc **« Dernier jour de l'offre »**
+(`DernierJour`, rendu par `home-sections.LastDayOffer`) remplace une date par un **compte
+à rebours** — à quelques heures de la fin, « l'offre s'arrête le 6 octobre » ne dit plus
+l'urgence que les chiffres disent. Il ne s'allume pas, il se **déduit** : `offerLastDay`
+le compare à la veille du jour d'arrêt, `buildBlockMetadata` pose alors
+`collectionLastDay` ({ `endsAt`, `remaining` }), et le reste du temps le bloc ne rend
+rien. On le dépose donc **une fois** en tête de l'accueil et on l'y laisse : rien à
+publier le matin, rien à retirer le lendemain, et aucune annonce qui puisse survivre à
+l'offre qu'elle annonce. `offerEndsAt` donne le terme à la seconde — minuit **à Paris**,
+comme `offerDay` donne le jour. Deux valeurs plutôt qu'une parce que le navigateur doit
+reproduire à l'identique le HTML reçu avant de reprendre le temps réel
+(`components/site/OfferCountdown.tsx`). Ce que le bloc affiche n'est pas rédigé : le
+nombre de titres, le prix plein et le prix remisé viennent de `collectionState` sur le
+catalogue publié — la collection peut s'agrandir sans que personne repasse derrière.
+
 Elle ne se cumule avec **aucun** code : un livre offert est déjà la remise la
 plus forte qu'on consente. C'est l'offre qui l'emporte — elle vient du panier et ne se
 réclame pas —, et le code est refusé **en le disant** : `PromoContext.collectionOffer`

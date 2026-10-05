@@ -3,7 +3,7 @@ import { getContactContent } from "@/lib/db/content";
 import { getFooterMenu } from "@/lib/db/menus";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
-import { offerDay, offerRunning } from "@/lib/promos/collection";
+import { offerDay, offerEndsAt, offerLastDay, offerRunning } from "@/lib/promos/collection";
 import type { Page } from "@/lib/domain/types";
 import { CATALOGUE_SORTS, type BlockMetadata } from "./config";
 
@@ -16,8 +16,8 @@ import { CATALOGUE_SORTS, type BlockMetadata } from "./config";
  * compris — un bloc déposé dans une colonne compte autant qu'un bloc de premier rang.
  */
 
-const NEEDS_PRODUCTS = new Set(["Catalogue", "GrilleCatalogue", "HerosCatalogue"]);
-const NEEDS_SETTINGS = new Set(["HerosContact", "HerosCatalogue"]);
+const NEEDS_PRODUCTS = new Set(["Catalogue", "GrilleCatalogue", "HerosCatalogue", "DernierJour"]);
+const NEEDS_SETTINGS = new Set(["HerosContact", "HerosCatalogue", "DernierJour"]);
 const NEEDS_CONTACT = new Set(["HerosContact", "FormulaireContact", "FAQ"]);
 const NEEDS_SIBLINGS = new Set(["GabaritLegal"]);
 
@@ -59,8 +59,19 @@ export async function buildBlockMetadata(page: Page, sort?: string): Promise<Blo
     metadata.sort = CATALOGUE_SORTS.some((s) => s.value === sort) ? sort : "position";
   }
   if (settings) {
-    metadata.collectionOffer = offerRunning(settings.promos.collectionOffer, offerDay(Date.now()));
-    metadata.collectionEndsOn = settings.promos.collectionOffer.endsOn;
+    const now = Date.now();
+    const offer = settings.promos.collectionOffer;
+    metadata.collectionOffer = offerRunning(offer, offerDay(now));
+    metadata.collectionEndsOn = offer.endsOn;
+    /*
+     * Le dernier jour se déduit ici, et une seule fois : un bloc ne lit pas l'heure en
+     * plein rendu. `remaining` part du même instant que le reste de la page, si bien que
+     * le compte à rebours du navigateur reprend exactement le HTML qu'il a reçu.
+     */
+    if (offerLastDay(offer, offerDay(now))) {
+      const endsAt = offerEndsAt(offer.endsOn!);
+      metadata.collectionLastDay = { endsAt, remaining: Math.max(0, endsAt - now) };
+    }
     metadata.contact = {
       email: settings.contact.email,
       socials: [

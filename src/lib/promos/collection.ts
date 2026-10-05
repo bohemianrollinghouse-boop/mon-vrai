@@ -127,6 +127,49 @@ export function offerEndNotice(endsOn: string): string {
   return `L'offre s'arrête le ${formatOfferDay(endsOn)}.`;
 }
 
+/*
+ * L'instant précis où l'offre s'arrête : minuit, heure de Paris, au premier instant du
+ * jour d'arrêt. Le reste du code raisonne en JOURS (voir offerDay) ; un compte à rebours,
+ * lui, a besoin d'un horodatage, et il doit tomber à minuit CHEZ LE CLIENT — c'est la
+ * même exigence que `offerDay`, poussée à la seconde.
+ *
+ * Le décalage de Paris se lit sur l'instant lui-même, et pas une fois pour toutes : il
+ * vaut +1 h ou +2 h selon la saison. On part de minuit UTC, on retire le décalage, puis
+ * on recommence — la seconde passe rattrape le cas (rare) où le changement d'heure tombe
+ * entre les deux instants.
+ */
+export function offerEndsAt(endsOn: string): number {
+  const utcMidnight = Date.parse(`${endsOn}T00:00:00Z`);
+  let at = utcMidnight;
+  for (let i = 0; i < 2; i++) at = utcMidnight - parisOffset(at);
+  return at;
+}
+
+/** Décalage Paris − UTC (en millisecondes) à un instant donné. */
+function parisOffset(at: number): number {
+  // L'heure de Paris relue comme si elle était UTC : l'écart au vrai instant EST le décalage.
+  const asParis = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Paris",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).format(at);
+  return Date.parse(`${asParis.replace(" ", "T")}Z`) - at;
+}
+
+/*
+ * Sommes-nous le DERNIER jour de l'offre — celui où il ne reste que jusqu'à minuit ?
+ * C'est la seule chose dont la page d'accueil a besoin pour décider d'annoncer la fin :
+ * elle se déduit du jour d'arrêt, et rien n'est donc à allumer ni à éteindre à la main.
+ */
+export function offerLastDay(offer: CollectionOffer, today: string): boolean {
+  return offerRunning(offer, today) && Boolean(offer.endsOn) && today === dayBefore(offer.endsOn!);
+}
+
 /** La veille d'un jour civil : le dernier jour où l'offre est servie (dit dans l'admin). */
 export function dayBefore(day: string): string {
   const d = new Date(`${day}T12:00:00Z`);

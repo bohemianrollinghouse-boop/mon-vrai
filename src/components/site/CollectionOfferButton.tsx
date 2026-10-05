@@ -9,7 +9,19 @@ import { completeCollectionAction } from "@/lib/cart/modal";
  * imagiers manquants au panier, puis ouvre la modal « Ajouté au panier ». On réutilise
  * l'encart éditable existant (contenu admin) ; ce bouton ne fait que remplacer son lien.
  */
-export function CollectionOfferButton({ label }: { label: string }) {
+/*
+ * Deux tailles, et pas un `className` libre : deux classes de padding concurrentes dans
+ * la même chaîne Tailwind se départagent par l'ordre de la feuille, pas par l'ordre
+ * d'écriture — l'appelant croirait régler ce qu'il ne règle pas.
+ */
+const SHAPE = {
+  /** L'encart « collection complète » du héro du catalogue. */
+  encart: "px-6 py-3.5 text-[0.8125rem]",
+  /** Le bouton principal du héro « dernier jour » de l'accueil. */
+  hero: "px-8 py-[1.125rem] text-sm max-[599px]:w-full",
+};
+
+export function CollectionOfferButton({ label, shape = "encart" }: { label: string; shape?: keyof typeof SHAPE }) {
   const { openCartModal } = useCartModal();
   const [pending, start] = useTransition();
   const go = () =>
@@ -22,7 +34,7 @@ export function CollectionOfferButton({ label }: { label: string }) {
       type="button"
       onClick={go}
       disabled={pending}
-      className="rounded-pill bg-ink px-6 py-3.5 text-center text-[0.8125rem] font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+      className={`rounded-pill bg-ink text-center font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50 ${SHAPE[shape]}`}
     >
       {pending ? "Ajout…" : label}
     </button>
