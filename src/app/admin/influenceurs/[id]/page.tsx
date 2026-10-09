@@ -20,12 +20,14 @@ import { adminSnapshot } from "@/lib/admin/counts";
 import { CONTEST_STATE_LABELS, awaitingReview, contestState, seatsLeft } from "@/lib/contests/state";
 import { listCampaigns } from "@/lib/db/campaigns";
 import { listContestsHostedBy } from "@/lib/db/contests";
+import { listDeliverablesForInfluencer } from "@/lib/db/deliverables";
 import { influencerAccount } from "@/lib/db/influencer-account";
 import { listContracts } from "@/lib/db/contracts";
 import { getInfluencer, influencerFootprint, listRefClicksSince } from "@/lib/db/promos";
 import { listStatements } from "@/lib/db/statements";
+import { shortfall, shortfallLabel, tallyContents } from "@/lib/domain/deliverables";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
-import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, CONTEST_PLATFORM_LABELS, OutreachStatus, OUTREACH_LABELS, type Campaign, type Contest, type Influencer } from "@/lib/domain/types";
+import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, CONTEST_PLATFORM_LABELS, OutreachStatus, OUTREACH_LABELS, type Campaign, type Contest, type Deliverable, type Influencer } from "@/lib/domain/types";
 import { campaignStart, liveCampaign } from "@/lib/promos/campaign";
 import type { InfluencerFootprint } from "@/lib/db/promos";
 import { mainAccount } from "@/lib/promos/socials";
@@ -92,17 +94,22 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
   const tab = sp.onglet === "campagnes" ? "campagnes" : sp.onglet === "concours" ? "concours" : "identite";
   const snap = await adminSnapshot();
   const since = new Date(snap.now - 30 * 86_400_000).toISOString().slice(0, 10);
-  const [clicks, stored, account, campaigns, contracts, contests] = await Promise.all([
+  const [clicks, stored, account, campaigns, contracts, contests, contents] = await Promise.all([
     listRefClicksSince(since).catch(() => []),
     influencer.commission ? listStatements(influencer.id) : Promise.resolve([]),
     influencerAccount(influencer.uid),
     listCampaigns(influencer.id),
     listContracts(),
     listContestsHostedBy(influencer.id).catch(() => []),
+    listDeliverablesForInfluencer(influencer.id).catch(() => []),
   ]);
   /* Ce que la suppression emporterait : annoncé sur la fiche, et redit à la confirmation. */
   const footprint = await influencerFootprint(influencer.id).catch(() => null);
   const contractName = new Map(contracts.map((c) => [c.id, c.name]));
+  /* Ce qu'elle a rendu, rangé par campagne : la vignette dit alors ce qui manque sans
+     qu'on ait à ouvrir chacune. Une seule lecture pour toutes. */
+  const contentsOf = new Map<string, Deliverable[]>();
+  for (const item of contents) contentsOf.set(item.campaignId, [...(contentsOf.get(item.campaignId) ?? []), item]);
   /* Son code aujourd'hui : celui de sa campagne en cours. Sans campagne, il n'en a pas. */
   const live = liveCampaign(campaigns);
 
@@ -366,7 +373,13 @@ export default async function InfluencerPage({ params, searchParams }: PageProps
           </p>
           <div className="grid grid-cols-3 items-stretch gap-3 max-[1199px]:grid-cols-2 max-[749px]:grid-cols-1">
             {campaigns.map((campaign) => (
-              <CampaignTile key={campaign.id} campaign={campaign} influencerId={influencer.id} contractName={contractName.get(campaign.contractId)} />
+              <CampaignTile
+                key={campaign.id}
+                campaign={campaign}
+                influencerId={influencer.id}
+                contractName={contractName.get(campaign.contractId)}
+                contents={contentsOf.get(campaign.id) ?? []}
+              />
             ))}
             <NewCampaignTile influencerId={influencer.id} />
           </div>
@@ -484,9 +497,22 @@ function ContestTile({ contest, influencerId, now }: { contest: Contest; influen
  * d'œil — ce qu'elle offre, sous quel contrat, où elle en est. Tout le détail est
  * derrière le clic.
  */
-function CampaignTile({ campaign, influencerId, contractName }: { campaign: Campaign; influencerId: string; contractName?: string }) {
+function CampaignTile({
+  campaign,
+  influencerId,
+  contractName,
+  contents,
+}: {
+  campaign: Campaign;
+  influencerId: string;
+  contractName?: string;
+  contents: Deliverable[];
+}) {
   const books = campaign.kit.lines.reduce((sum, l) => sum + l.qty, 0);
   const done = campaign.signatureId ? "Contrat signé" : campaign.kitOrderId ? "Kit commandé" : campaign.kit.enabled ? "Kit proposé" : "Kit non proposé";
+  /* Rien d'attendu, rien à dire : une campagne sans quantité convenue n'affiche pas
+     « 0 sur 0 », elle n'affiche rien. */
+  const missing = shortfall(campaign.expected, tallyContents(contents));
 
   return (
     <Link
@@ -511,6 +537,11 @@ function CampaignTile({ campaign, influencerId, contractName }: { campaign: Camp
         {COLLABORATION_LABELS[campaign.collaborationType]} · {books > 0 ? `${books} livre${books > 1 ? "s" : ""}` : "aucun livre"} ·{" "}
         {contractName ?? (campaign.contractId ? "contrat retiré" : "sans contrat")}
       </span>
+      {missing.agreed && (
+        <span className={`w-fit rounded-pill px-2.5 py-1 text-[0.625rem] font-bold ${missing.done ? "bg-tint-green text-tint-green-ink" : "bg-tint-sand text-tint-sand-ink"}`}>
+          {shortfallLabel(missing)}
+        </span>
+      )}
       <span className="mt-auto border-t border-line-soft pt-2 text-[0.6875rem] font-semibold text-subtle">
         {shortDate(campaignStart(campaign))} → {campaign.endAt ? shortDate(campaign.endAt) : "fin à renseigner"} · {done}
       </span>

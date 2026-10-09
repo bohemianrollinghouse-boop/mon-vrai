@@ -16,6 +16,7 @@ import { listCampaigns, syncCampaignPromo, upsertCampaign } from "@/lib/db/campa
 import { listInfluencers, upsertInfluencer } from "@/lib/db/promos";
 import { refreshOutreach } from "@/lib/db/outreach";
 import { getSignature } from "@/lib/db/contracts";
+import { EMPTY_QUOTA } from "@/lib/domain/types";
 
 const APPLY = process.argv.includes("--apply");
 
@@ -92,6 +93,8 @@ async function main() {
       contractId: inf.contractId,
       contractVariables: inf.contractVariables,
       kit: inf.kit,
+      /* Rien d'attendu : ces campagnes-là sont antérieures au décompte des contenus. */
+      expected: EMPTY_QUOTA,
       kitOrderId: inf.kitOrderId,
       signatureId: inf.signatureId,
       status,

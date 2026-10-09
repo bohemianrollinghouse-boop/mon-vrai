@@ -30,6 +30,7 @@ export const AUTOMATIC_PLACEHOLDERS = [
   "VALEUR_TOTALE_PRODUITS",
   "DATE_DEBUT_CAMPAGNE",
   "DATE_FIN_DE_CAMPAGNE",
+  "CONTENUS_ATTENDUS",
   "DATE_ACCEPTATION",
   "VERSION_DU_CONTRAT",
   "REFERENCE_DU_CONTRAT",
@@ -101,6 +102,10 @@ export const VARIABLE_HELP: Record<string, VariableHelp> = {
   VALEUR_TOTALE_PRODUITS: { label: "Valeur totale", hint: "En euros, sans le symbole — le contrat l'écrit lui-même." },
   DATE_DEBUT_CAMPAGNE: { label: "Début de la campagne", hint: "Pris sur la fiche de la campagne, où se règlent aussi le code promo et sa remise." },
   DATE_FIN_DE_CAMPAGNE: { label: "Fin de la campagne", hint: "Prise sur la fiche de la campagne. Passée cette date, le code promo ne remise plus rien." },
+  CONTENUS_ATTENDUS: {
+    label: "Contenus attendus",
+    hint: "« 5 photos et 2 vidéos », pris sur la fiche de la campagne — là où le décompte des fichiers reçus se fait. Rien d'attendu : la rubrique disparaît du contrat.",
+  },
   DATE_ACCEPTATION: { label: "Date d'acceptation", hint: "Horodatée au moment où le partenaire valide." },
   VERSION_DU_CONTRAT: { label: "Version du contrat", hint: "Celle de cette fiche." },
   REFERENCE_DU_CONTRAT: { label: "Référence du contrat", hint: "Identifiant de cette fiche." },

@@ -13,7 +13,7 @@ import { listContracts } from "@/lib/db/contracts";
 import { getOperation } from "@/lib/db/operations";
 import { listAllProducts } from "@/lib/db/products";
 import { listInfluencers } from "@/lib/db/promos";
-import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, CollaborationType, OUTREACH_LABELS, type Campaign, type Operation } from "@/lib/domain/types";
+import { CAMPAIGN_STATUS_LABELS, COLLABORATION_LABELS, CollaborationType, EMPTY_QUOTA, OUTREACH_LABELS, type Campaign, type Operation } from "@/lib/domain/types";
 import { liveCampaign } from "@/lib/promos/campaign";
 import { manualPlaceholders } from "@/lib/promos/contract-template";
 import { OPERATION_STATE_LABELS, operationState } from "@/lib/promos/operation";
@@ -47,6 +47,7 @@ const BLANK: Operation = {
   contractId: "",
   contractVariables: {},
   kit: { enabled: false, title: "Votre kit de bienvenue", text: "", lines: [], deductStock: false, prototype: false },
+  expected: EMPTY_QUOTA,
   note: "",
   createdAt: 0,
   updatedAt: 0,
@@ -209,6 +210,24 @@ export default async function OperationPage({ params }: PageProps<"/admin/campag
                 products={kitBooks}
                 initial={operation.kit.lines}
               />
+
+              {/* ---------- Ce qu'on attend en retour ---------- */}
+              {/* Décidé une fois ici, chaque participation en part avec la même exigence
+                  — et le décompte des fichiers reçus se fait dans chacune. */}
+              <div className="flex flex-col gap-3 border-t border-line-soft pt-3">
+                <span className="text-xs font-semibold text-subtle">Contenus attendus en retour</span>
+                <p className="-mt-1 text-[0.6875rem] leading-relaxed text-subtle">
+                  Par participant. À zéro, rien n&apos;est décompté et le contrat n&apos;annonce aucune quantité.
+                </p>
+                <div className="grid grid-cols-2 gap-2.5 max-[749px]:grid-cols-1">
+                  <Field label="Photos" name="expectedPhotos">
+                    <Input name="expectedPhotos" type="number" min={0} max={999} defaultValue={operation.expected.photos} />
+                  </Field>
+                  <Field label="Vidéos" name="expectedVideos">
+                    <Input name="expectedVideos" type="number" min={0} max={999} defaultValue={operation.expected.videos} />
+                  </Field>
+                </div>
+              </div>
 
               <Field label="Note interne" hint="Pour vous seul : jamais montrée aux partenaires." name="note" className="border-t border-line-soft pt-3">
                 <Textarea name="note" defaultValue={operation.note} placeholder="Budget, objectifs, qui relancer…" />

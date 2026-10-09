@@ -1284,6 +1284,27 @@ export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
   cancelled: "Annulée",
 };
 
+/* ---------- Contenus attendus ---------- */
+
+/*
+ * Ce qu'une campagne attend en retour du kit : tant de photos, tant de vidéos.
+ *
+ * Un NOMBRE, et non une phrase. La quantité convenue se disait jusqu'ici en texte libre
+ * dans une variable de contrat ({{QUANTITE_UGC_CONVENUE}}) : lisible, mais incomptable —
+ * rien ne pouvait en déduire ce qui manquait. Écrite en chiffres, elle sert aux deux : le
+ * contrat la cite ({{CONTENUS_ATTENDUS}}) et l'écran la retranche de ce qui est arrivé,
+ * sans qu'on l'ait saisie deux fois.
+ *
+ * Zéro ne dit pas « rien n'est dû » mais « rien n'est compté » : une campagne qui
+ * n'attend aucun contenu n'affiche pas de décompte du tout, plutôt qu'un « 0 sur 0 ».
+ */
+export const ContentQuota = z.object({
+  photos: z.number().int().min(0).max(999).default(0),
+  videos: z.number().int().min(0).max(999).default(0),
+});
+export type ContentQuota = z.infer<typeof ContentQuota>;
+export const EMPTY_QUOTA: ContentQuota = { photos: 0, videos: 0 };
+
 export const Campaign = z.object({
   id: z.string(),
   influencerId: z.string(),
@@ -1320,6 +1341,12 @@ export const Campaign = z.object({
   contractVariables: z.record(z.string(), z.string()).default({}),
   /** Le kit offert dans cette campagne. */
   kit: WelcomeKit.default(EMPTY_KIT),
+  /*
+   * Ce qui est attendu en retour, en chiffres (voir ContentQuota). Les fichiers reçus,
+   * eux, sont des documents à part (`deliverables`) : une campagne ne porte pas ses
+   * pièces jointes, elle dit ce qu'elle réclame.
+   */
+  expected: ContentQuota.default(EMPTY_QUOTA),
   kitOrderId: z.string().default(""),
   signatureId: z.string().default(""),
   status: CampaignStatus.default("draft"),
@@ -1369,12 +1396,52 @@ export const Operation = z.object({
   contractVariables: z.record(z.string(), z.string()).default({}),
   /** Le kit offert. Chaque participant commande le sien. */
   kit: WelcomeKit.default(EMPTY_KIT),
+  /** Ce qu'on attend en retour ; chaque participation en part avec la même exigence. */
+  expected: ContentQuota.default(EMPTY_QUOTA),
   /** Note interne : jamais montrée aux partenaires. */
   note: z.string().max(2000).default(""),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
 export type Operation = z.infer<typeof Operation>;
+/* ---------- Contenus reçus ---------- */
+
+/*
+ * UN FICHIER rendu par un partenaire : une photo, une vidéo.
+ *
+ * Il ne rejoint pas la médiathèque. Ce qui s'y trouve est destiné à PARAÎTRE sur le
+ * site ; ceci n'est destiné à rien — c'est une pièce versée au dossier d'une campagne,
+ * au même titre qu'une norme CE l'est à celui d'un titre. Le fichier vit donc sous
+ * `ugc/`, fermé par storage.rules, et ne se lit que par /api/contenus/<id>, à un
+ * administrateur. On ne stocke pas d'URL, seulement le chemin dans le coffre : c'est la
+ * même différence qu'entre `documents` et `media`.
+ *
+ * Le type — photo ou vidéo — n'est pas déclaré : il se déduit de ce que le coffre
+ * rapporte du fichier déposé, et non de ce que le navigateur annonce. Sans quoi un
+ * décompte se fausserait d'un entête mal rempli.
+ */
+export const DeliverableKind = z.enum(["photo", "video"]);
+export type DeliverableKind = z.infer<typeof DeliverableKind>;
+
+export const DELIVERABLE_LABELS: Record<DeliverableKind, string> = { photo: "Photo", video: "Vidéo" };
+
+export const Deliverable = z.object({
+  id: z.string(),
+  campaignId: z.string().min(1),
+  /** Répété ici pour retrouver tout ce qu'une personne a rendu, campagnes confondues. */
+  influencerId: z.string().min(1),
+  kind: DeliverableKind,
+  /** Chemin dans le coffre privé. Pas d'URL : rien de tout ceci n'est public. */
+  path: z.string().min(1),
+  filename: z.string().min(1),
+  mime: z.string().min(1),
+  size: z.number().int().min(0).default(0),
+  /** À quoi sert ce fichier, si on tient à le noter. Pour nous seuls. */
+  note: z.string().trim().max(300).default(""),
+  receivedAt: z.number(),
+});
+export type Deliverable = z.infer<typeof Deliverable>;
+
 /* ---------- Concours ---------- */
 
 /*

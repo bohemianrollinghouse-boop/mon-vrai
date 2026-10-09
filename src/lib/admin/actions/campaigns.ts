@@ -10,9 +10,10 @@ import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { deleteCampaign, getCampaign, listCampaigns, syncCampaignPromo, upsertCampaign } from "@/lib/db/campaigns";
 import { getSignature, setSignatureState } from "@/lib/db/contracts";
+import { hasDeliverables } from "@/lib/db/deliverables";
 import { refreshOutreach } from "@/lib/db/outreach";
 import { getInfluencer, getPromo } from "@/lib/db/promos";
-import { CollaborationType } from "@/lib/domain/types";
+import { CollaborationType, EMPTY_QUOTA } from "@/lib/domain/types";
 
 /*
  * Les campagnes d'un partenaire.
@@ -46,11 +47,15 @@ const Input = z.object({
   text: z.string().trim().max(400).default(""),
   /** Sélection sérialisée par l'éditeur : `slug:quantité`, séparés par des virgules. */
   lines: z.string().default(""),
+  /* Ce qu'on attend en retour, en chiffres : c'est ce dont /admin retranche les fichiers
+     reçus pour dire ce qui manque, et ce que le contrat cite ({{CONTENUS_ATTENDUS}}). */
+  expectedPhotos: z.number().int().min(0).max(999).default(0),
+  expectedVideos: z.number().int().min(0).max(999).default(0),
 });
 
 export async function saveCampaignAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
-  const parsed = parseForm(Input, formData, { numbers: ["discount"], booleans: ["enabled", "deductStock", "prototype"] });
+  const parsed = parseForm(Input, formData, { numbers: ["discount", "expectedPhotos", "expectedVideos"], booleans: ["enabled", "deductStock", "prototype"] });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
 
@@ -102,6 +107,7 @@ export async function saveCampaignAction(formData: FormData): Promise<AdminResul
     contractId: d.contractId,
     contractVariables: contractVariablesFrom(formData),
     kit: { enabled: d.enabled, title: d.title, text: d.text, lines, deductStock: d.deductStock, prototype: d.prototype },
+    expected: { photos: d.expectedPhotos, videos: d.expectedVideos },
     kitOrderId: existing?.kitOrderId ?? "",
     signatureId: existing?.signatureId ?? "",
     status: existing?.status ?? "draft",
@@ -158,6 +164,7 @@ export async function createCampaignAction(formData: FormData): Promise<AdminRes
     contractId: "",
     contractVariables: {},
     kit: { enabled: false, title: "Votre kit de bienvenue", text: "", lines: [], deductStock: false, prototype: false },
+    expected: previous?.expected ?? EMPTY_QUOTA,
     kitOrderId: "",
     signatureId: "",
     status: "draft",
@@ -211,6 +218,11 @@ export async function deleteCampaignAction(formData: FormData): Promise<AdminRes
   if (!campaign) return failed("Campagne introuvable");
   if (campaign.kitOrderId || campaign.signatureId) {
     return failed("Cette campagne a déjà un kit commandé ou un contrat signé : supprimez la commande pour l'annuler.");
+  }
+  /* Des contenus sont au dossier : les effacer avec la campagne, ce serait jeter ce
+     qu'on a reçu d'une main qu'on ne peut pas redemander. On retire d'abord. */
+  if (await hasDeliverables(campaign.id)) {
+    return failed("Des contenus ont été déposés sur cette campagne : retirez-les d'abord si vous voulez vraiment la supprimer.");
   }
 
   await deleteCampaign(id);

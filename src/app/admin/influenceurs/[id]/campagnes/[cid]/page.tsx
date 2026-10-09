@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { ContractPicker } from "@/components/admin/ContractPicker";
+import { DeliverablesPanel } from "@/components/admin/DeliverablesPanel";
 import { WelcomeKitEditor } from "@/components/admin/WelcomeKitEditor";
 import { Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
 import { CodeInput } from "@/components/admin/CodeInput";
@@ -9,6 +10,7 @@ import { SignedContractView } from "@/components/site/SignedContractView";
 import { completeCampaignAction, deleteCampaignAction, saveCampaignAction } from "@/lib/admin/actions/campaigns";
 import { kitChoices } from "@/lib/admin/kit-choices";
 import { clockNow, getCampaign, listCampaigns } from "@/lib/db/campaigns";
+import { bucketName, listDeliverables } from "@/lib/db/deliverables";
 import { getSignature, listContracts } from "@/lib/db/contracts";
 import { findKitOrder } from "@/lib/db/orders";
 import { listAllProducts } from "@/lib/db/products";
@@ -41,13 +43,14 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
   /* Une campagne ne s'ouvre que depuis la fiche de SON partenaire : l'adresse ne suffit pas. */
   if (!influencer || !campaign || campaign.influencerId !== influencer.id) notFound();
 
-  const [products, contracts, order, signature, siblings, operation, at] = await Promise.all([
+  const [products, contracts, order, signature, siblings, operation, contents, at] = await Promise.all([
     listAllProducts(),
     listContracts(),
     findKitOrder(influencer.id, campaign.seq).catch(() => null),
     getSignature(campaign.signatureId).catch(() => null),
     listCampaigns(influencer.id),
     getOperation(campaign.operationId).catch(() => null),
+    listDeliverables(campaign.id),
     clockNow(),
   ]);
 
@@ -201,6 +204,29 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
                   initial={campaign.kit.lines}
                 />
               </div>
+
+              {/* ---------- Ce qu'on attend en retour ---------- */}
+              {/*
+                En chiffres, et non en phrase. Une quantité écrite en toutes lettres se
+                lit mais ne se compte pas : écrite ici, elle fait d'elle-même le « il
+                manque deux photos » de la carte d'à côté, et le contrat la cite sans
+                qu'on l'ait saisie deux fois ({{CONTENUS_ATTENDUS}}).
+              */}
+              <div className="flex flex-col gap-3 border-t border-line-soft pt-3">
+                <span className="text-xs font-semibold text-subtle">Contenus attendus en retour</span>
+                <p className="-mt-1 text-[0.6875rem] leading-relaxed text-subtle">
+                  Ce que la collaboration prévoit. Les fichiers reçus se déposent à droite et s&apos;en retranchent : à
+                  zéro, rien n&apos;est décompté et le contrat n&apos;annonce aucune quantité.
+                </p>
+                <div className="grid grid-cols-2 gap-2.5 max-[749px]:grid-cols-1">
+                  <Field label="Photos" name="expectedPhotos">
+                    <Input name="expectedPhotos" type="number" min={0} max={999} defaultValue={campaign.expected.photos} />
+                  </Field>
+                  <Field label="Vidéos" name="expectedVideos">
+                    <Input name="expectedVideos" type="number" min={0} max={999} defaultValue={campaign.expected.videos} />
+                  </Field>
+                </div>
+              </div>
             </ActionForm>
           </Card>
         </div>
@@ -231,6 +257,14 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
                 Pas encore commandé. {campaign.kit.enabled ? "Le kit est proposé dans son espace." : "Le kit n'est pas encore proposé dans son espace."}
               </span>
             )}
+          </Card>
+
+          {/*
+            Ce qu'elle a RENDU, en face de ce qu'elle a reçu. Les fichiers ne passent pas
+            par le serveur : ils vont droit au coffre privé (voir db/deliverables.ts).
+          */}
+          <Card title={<span className="text-sm">Contenus reçus</span>} className="!gap-2">
+            <DeliverablesPanel campaignId={campaign.id} bucket={bucketName()} items={contents} expected={campaign.expected} />
           </Card>
 
           <Card title={<span className="text-sm">Code promo</span>} className="!gap-2">

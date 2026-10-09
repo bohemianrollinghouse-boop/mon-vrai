@@ -20,6 +20,24 @@ service firebase.storage {
       allow read, write: if false;
     }
 
+    // Contenus rendus par les partenaires (photos et vidéos d'une campagne) : privés
+    // comme les factures. L'ÉCRITURE y est ouverte, à un administrateur connecté
+    // seulement, et c'est la seule du projet : une vidéo de partenaire dépasse ce
+    // qu'une action serveur accepte (45 Mo) et ce que l'instance peut tenir en mémoire,
+    // elle va donc au coffre directement depuis le navigateur. Rien n'en est inscrit en
+    // base tant que le serveur n'a pas relu le type et la taille RÉELS de l'objet
+    // (db/deliverables.recordDeliverable) ; ce qui n'est ni photo ni vidéo y est effacé.
+    // La taille est répétée ici depuis MAX_CONTENT_BYTES : seules les règles peuvent la
+    // faire respecter avant l'envoi.
+    match /ugc/{allPaths=**} {
+      allow read: if false;
+      allow write: if request.auth != null
+        && request.auth.token.admin == true
+        && request.resource != null
+        && request.resource.size <= 500 * 1024 * 1024
+        && (request.resource.contentType.matches('image/.*') || request.resource.contentType.matches('video/.*'));
+    }
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

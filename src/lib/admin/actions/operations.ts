@@ -43,11 +43,14 @@ const Input = z.object({
   text: z.string().trim().max(400).default(""),
   /** Sélection sérialisée par l'éditeur : `slug:quantité`, séparés par des virgules. */
   lines: z.string().default(""),
+  /* Ce qu'on attend en retour : chaque participation en part avec la même exigence. */
+  expectedPhotos: z.number().int().min(0).max(999).default(0),
+  expectedVideos: z.number().int().min(0).max(999).default(0),
 });
 
 export async function saveOperationAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
-  const parsed = parseForm(Input, formData, { numbers: ["discount"], booleans: ["enabled", "deductStock", "prototype"] });
+  const parsed = parseForm(Input, formData, { numbers: ["discount", "expectedPhotos", "expectedVideos"], booleans: ["enabled", "deductStock", "prototype"] });
   if (!parsed.ok) return failed(parsed.error, parsed.issues);
   const d = parsed.data;
 
@@ -78,6 +81,7 @@ export async function saveOperationAction(formData: FormData): Promise<AdminResu
     contractId: d.contractId,
     contractVariables: contractVariablesFrom(formData),
     kit: { enabled: d.enabled, title: d.title, text: d.text, lines, deductStock: d.deductStock, prototype: d.prototype },
+    expected: { photos: d.expectedPhotos, videos: d.expectedVideos },
     note: d.note,
   });
 
@@ -145,6 +149,7 @@ export async function applyOperationAction(formData: FormData): Promise<AdminRes
       contractId: operation.contractId,
       contractVariables: operation.contractVariables,
       kit: operation.kit,
+      expected: operation.expected,
       kitOrderId: "",
       signatureId: "",
       status: "draft",

@@ -1,5 +1,6 @@
+import { quotaLabel } from "@/lib/domain/deliverables";
 import { formatEuro } from "@/lib/domain/money";
-import type { Address, Contract, PartnerSocials, SignerStatus } from "@/lib/domain/types";
+import { EMPTY_QUOTA, type Address, type ContentQuota, type Contract, type PartnerSocials, type SignerStatus } from "@/lib/domain/types";
 
 /*
  * Fabrique les valeurs des variables automatiques d'un contrat. Pur : la page d'aperçu
@@ -45,7 +46,7 @@ export function contractValues(input: {
    * C'est la période pendant laquelle le code promo vaut — le contrat dit donc la même
    * chose que la boutique, sans recopie.
    */
-  campaign: { startAt: number; endAt?: number };
+  campaign: { startAt: number; endAt?: number; expected?: ContentQuota };
   seller: Seller;
   party: ContractParty;
   goods: ContractGoods;
@@ -112,6 +113,11 @@ export function contractValues(input: {
 
     DATE_DEBUT_CAMPAGNE: longDay(input.campaign.startAt),
     DATE_FIN_DE_CAMPAGNE: longDay(input.campaign.endAt),
+
+    /* Écrit une seule fois, sur la fiche de la campagne : le contrat annonce exactement
+       le nombre dont l'administration retranchera les fichiers reçus. Vide quand rien
+       n'est convenu — la rubrique disparaît alors plutôt que d'annoncer « 0 ». */
+    CONTENUS_ATTENDUS: quotaLabel(input.campaign.expected ?? EMPTY_QUOTA),
 
     DATE_ACCEPTATION: input.acceptedAt
       ? new Date(input.acceptedAt).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "long", timeStyle: "short" })

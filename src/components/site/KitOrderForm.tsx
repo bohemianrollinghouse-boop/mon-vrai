@@ -10,7 +10,7 @@ import { ContractText } from "@/components/site/ContractText";
 import { fillContract, renderContract } from "@/lib/promos/contract-template";
 import { contractValues, type ContractGoods, type Seller } from "@/lib/promos/contract-values";
 import type { PartnerResult } from "@/lib/auth/partner-actions";
-import type { PartnerSocials, SignerStatus } from "@/lib/domain/types";
+import type { ContentQuota, PartnerSocials, SignerStatus } from "@/lib/domain/types";
 
 /*
  * Commande du kit de bienvenue, et signature du contrat quand il y en a un.
@@ -41,7 +41,7 @@ export type ContractOffer = {
   variables: Record<string, string>;
   requiredVariables: string[];
   /* Les dates de la campagne : elles figurent au contrat et ne se saisissent pas. */
-  campaign: { startAt: number; endAt?: number };
+  campaign: { startAt: number; endAt?: number; expected?: ContentQuota };
 };
 
 const field =

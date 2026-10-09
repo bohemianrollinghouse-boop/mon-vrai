@@ -277,6 +277,71 @@ part, et non un `Operation` de plus.
   rien pour l'expliquer. Retirer un co-organisateur ne supprime pas ses gagnants — un lot
   promis reste dû.
 
+## Contenus des partenaires
+
+Ce qu'une campagne donne (le kit) a toujours eu sa place ; ce qu'elle **attend en
+retour** n'en avait pas. La quantité convenue se disait en texte libre dans une variable
+de contrat (`QUANTITE_UGC_CONVENUE`) : lisible, mais incomptable — rien ne pouvait en
+déduire ce qui manquait. Elle s'écrit désormais **en chiffres** sur la campagne
+(`Campaign.expected`, `ContentQuota` : tant de photos, tant de vidéos), et sur la
+campagne partagée (`Operation.expected`), d'où chaque participation part avec la même
+exigence. Un seul endroit, trois usages : le contrat la cite (`{{CONTENUS_ATTENDUS}}`,
+variable **automatique** — jamais ressaisie), l'écran de la campagne en retranche les
+fichiers reçus, et la vignette de la fiche partenaire dit « Il manque 2 photos ».
+
+Zéro ne veut pas dire « rien n'est dû » mais « **rien n'est compté** » : la campagne
+n'affiche alors pas de décompte, plutôt qu'un « 0 sur 0 », et la rubrique disparaît du
+contrat au lieu d'y annoncer une quantité nulle.
+
+Les fichiers reçus sont des documents à part (collection `deliverables`), et non des
+champs de la campagne : **une campagne dit ce qu'elle réclame, elle ne porte pas ses
+pièces jointes**. Ils ne rejoignent pas non plus la médiathèque — ce qui s'y trouve est
+destiné à PARAÎTRE sur le site ; ceci n'est destiné à rien, c'est une pièce versée au
+dossier, comme une norme CE l'est à celui d'un titre. D'où `ugc/` dans le coffre, fermé
+par `storage.rules` à la lecture, servi par `/api/contenus/[id]` aux seuls
+administrateurs, et **aucune URL en base** : seulement le chemin, comme `documents`.
+
+**Le fichier ne passe pas par le serveur, et c'est la seule exception du projet.** Une
+action serveur plafonne à 45 Mo et tient le fichier entier dans la mémoire d'une
+instance qui n'en a qu'un : une vidéo de partenaire, qui pèse couramment le triple, ne
+passerait jamais. Le navigateur dépose donc directement dans le coffre
+(`clientStorage()`, `uploadBytesResumable`), où `storage.rules` n'ouvre l'écriture de
+`ugc/` qu'à une session portant le *claim* `admin`, et seulement pour une image ou une
+vidéo sous le plafond. Rien n'est cru du client pour autant : le chemin est **recalculé**
+par `contentPath` (un chemin posté à la main ne désignerait qu'un objet inexistant), et
+`recordDeliverable` relit sur l'objet déposé son **type et sa taille réels** avant
+d'écrire la moindre fiche. Ce qui n'est ni photo ni vidéo est **effacé du coffre**
+séance tenante : sans fiche, rien ne le retrouverait plus et il se paierait indéfiniment.
+D'où trois temps — préparer (l'endroit), déposer (le navigateur), inscrire (le serveur) —
+et, entre les deux premiers, rien en base : un envoi interrompu ne laisse aucune ligne.
+
+Le type — photo ou vidéo — ne se déclare pas, il se **déduit**
+(`domain/deliverables.ts`, pur et testé) : un décompte ne doit pas pouvoir se fausser
+d'une case mal cochée. L'entête fait foi, l'extension tranche quand il est vide — Windows
+livre régulièrement un HEIC sans type du tout, et le refuser comme « ni photo ni vidéo »
+reviendrait à refuser les photos d'iPhone. Les formats acceptés sont d'ailleurs **plus
+larges** que ceux de la médiathèque (HEIC, MOV) : ces fichiers ne paraissent nulle part,
+rien n'oblige un navigateur à savoir les afficher.
+
+Le manque ne descend jamais sous zéro : huit photos pour cinq ne font pas « manquer −3 »,
+le surplus se voit dans le décompte (8 sur 5), pas dans le manque. Supprimer une campagne
+est refusé dès qu'un contenu est à son dossier — l'effacer avec elle jetterait ce qu'on
+ne peut pas redemander.
+
+La route sert le fichier **en flux et par tranches** (`Range`), et non en `Buffer` comme
+les factures : une vidéo lue d'un bloc tiendrait toute entière dans la mémoire de
+l'instance, et sans `Range` un lecteur ne sait plus avancer. Dans la liste, un aperçu ne
+se charge que si on l'ouvre : vingt vignettes, ce serait vingt fichiers entiers tirés du
+coffre à chaque visite.
+
+Deux choses à savoir pour la mise en ligne. **Les règles du coffre doivent être
+déployées** (`firebase deploy --only storage`) : sans elles, `ugc/` tombe sur la règle
+attrape-tout et tout dépôt est refusé en production, alors que l'émulateur, lui, les lit
+depuis le fichier. Aucune **migration** n'est en revanche nécessaire : `expected` est un
+champ à valeur par défaut, et zod le pose à la lecture — les campagnes d'avant se
+relisent telles quelles, c'est le resserrement d'un schéma qui met le site à terre, pas
+son élargissement.
+
 ## Gestion (dépenses et documents)
 
 - `/admin/depenses` — **toute la trésorerie**, dans un seul compte. Deux sources s'y

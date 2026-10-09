@@ -2,11 +2,13 @@
 
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
+import { connectStorageEmulator, getStorage, type FirebaseStorage } from "firebase/storage";
 
 /*
- * SDK navigateur, réduit au strict nécessaire : l'authentification. Les données
- * ne sont jamais lues depuis le navigateur — tout passe par le serveur, qui
- * applique les règles métier et évite d'exposer la structure de la base.
+ * SDK navigateur, réduit au strict nécessaire : l'authentification, et le dépôt des
+ * contenus de partenaires. Les données ne sont jamais LUES depuis le navigateur — tout
+ * passe par le serveur, qui applique les règles métier et évite d'exposer la structure
+ * de la base.
  *
  * Avec l'émulateur, la clé d'API n'est pas vérifiée : une valeur factice suffit.
  */
@@ -36,4 +38,26 @@ export function clientAuth(): Auth {
     }
   }
   return auth;
+}
+
+let bucket: FirebaseStorage | undefined;
+
+/*
+ * Le coffre, côté navigateur. Seule exception à « le navigateur n'écrit jamais » — et
+ * elle est délibérée : une vidéo de partenaire dépasse ce qu'une action serveur accepte
+ * (45 Mo) et ce que l'instance peut tenir en mémoire. Elle part donc directement au
+ * coffre, où storage.rules n'ouvre `ugc/` qu'à un administrateur connecté, et où rien
+ * n'est inscrit en base avant que le serveur ait relu l'objet arrivé.
+ *
+ * `clientAuth()` d'abord, et pas par hasard : c'est lui qui installe l'authentification
+ * sur l'application Firebase, d'où le SDK du coffre tire le jeton que les règles
+ * attendent.
+ */
+export function clientStorage(name: string): FirebaseStorage {
+  if (!bucket) {
+    clientAuth();
+    bucket = getStorage(app(), `gs://${name}`);
+    if (useEmulators) connectStorageEmulator(bucket, "127.0.0.1", 9199);
+  }
+  return bucket;
 }
