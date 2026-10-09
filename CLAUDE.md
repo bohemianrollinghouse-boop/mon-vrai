@@ -335,7 +335,7 @@ se charge que si on l'ouvre : vingt vignettes, ce serait vingt fichiers entiers 
 coffre à chaque visite.
 
 Deux choses à savoir pour la mise en ligne. **Les règles du coffre doivent être
-déployées** (`firebase deploy --only storage`) : sans elles, `ugc/` tombe sur la règle
+déployées** (`firebase deploy --only storage`, fait le 2026-10-09) : sans elles, `ugc/` tombe sur la règle
 attrape-tout et tout dépôt est refusé en production, alors que l'émulateur, lui, les lit
 depuis le fichier. Aucune **migration** n'est en revanche nécessaire : `expected` est un
 champ à valeur par défaut, et zod le pose à la lecture — les campagnes d'avant se

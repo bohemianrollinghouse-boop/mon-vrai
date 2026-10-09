@@ -22,6 +22,26 @@ import type { ContentQuota, Deliverable } from "@/lib/domain/types";
  * `router.refresh()` rapporte la liste du serveur et le « il manque » suit tout seul.
  */
 
+/*
+ * Pourquoi l'envoi a échoué, et pas seulement qu'il a échoué. Un « envoi interrompu »
+ * pour tout faisait passer un refus des règles du coffre pour une coupure réseau : il
+ * manquait un `firebase deploy --only storage` et rien ne le disait. Le code Firebase
+ * est gardé entre parenthèses quand il n'est pas prévu — c'est lui qui se cherche.
+ */
+const UPLOAD_ERRORS: Record<string, string> = {
+  "storage/unauthorized": "refusé par le coffre : règles non déployées, ou session sans droits d'administration",
+  "storage/unauthenticated": "session expirée : reconnectez-vous",
+  "storage/retry-limit-exceeded": "envoi trop lent : le coffre a renoncé",
+  "storage/canceled": "envoi annulé",
+  "storage/quota-exceeded": "coffre plein",
+  "storage/invalid-checksum": "fichier abîmé en route : réessayez",
+};
+
+function uploadError(e: unknown): string {
+  const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code: unknown }).code) : "";
+  return UPLOAD_ERRORS[code] ?? (code ? `envoi interrompu (${code})` : "envoi interrompu");
+}
+
 const TONE = { photo: "bg-tint-blue text-tint-blue-ink", video: "bg-tint-pink text-tint-pink-ink" } as const;
 const KIND = { photo: "Photo", video: "Vidéo" } as const;
 
@@ -84,8 +104,8 @@ export function DeliverablesPanel({ campaignId, bucket, items, expected }: { cam
             resolve,
           );
         });
-      } catch {
-        progress(index, { error: "envoi interrompu" });
+      } catch (e) {
+        progress(index, { error: uploadError(e) });
         continue;
       }
       const result = await confirmDeliverableAction(campaignId, prepared.id, file.name);
