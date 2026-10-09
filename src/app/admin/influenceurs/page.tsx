@@ -12,11 +12,15 @@ import { PARTNER_WELCOME_ID } from "@/lib/newsletter/render";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { listInfluencers, listRefClicksSince } from "@/lib/db/promos";
 import { listAllCampaigns } from "@/lib/db/campaigns";
+import { listContracts } from "@/lib/db/contracts";
+import { listAllDeliverables } from "@/lib/db/deliverables";
+import { contentDues } from "@/lib/admin/content-dues";
+import { progressLabel, shortfallLabel } from "@/lib/domain/deliverables";
 import { liveCampaign } from "@/lib/promos/campaign";
 import { formatEuroShort } from "@/lib/domain/money";
 import { influencerStats } from "@/lib/promos/stats";
 import { mainAccount } from "@/lib/promos/socials";
-import { OutreachStatus, OUTREACH_LABELS, type Influencer, type PartnerSocials } from "@/lib/domain/types";
+import { CAMPAIGN_STATUS_LABELS, OutreachStatus, OUTREACH_LABELS, type Influencer, type PartnerSocials } from "@/lib/domain/types";
 
 export const dynamic = "force-dynamic";
 
@@ -54,14 +58,18 @@ const PLATFORM_TONE: Record<string, { bg: string; fg: string }> = {
 
 export default async function InfluencersPage({ searchParams }: PageProps<"/admin/influenceurs">) {
   const sp = await searchParams;
-  const tab = sp.onglet === "liste" ? "liste" : "resultats";
-  const [influencers, snap, templateValues, settings, campaigns] = await Promise.all([
+  const tab = sp.onglet === "liste" ? "liste" : sp.onglet === "contenus" ? "contenus" : "resultats";
+  const [influencers, snap, templateValues, settings, campaigns, contracts, deliverables] = await Promise.all([
     listInfluencers(),
     adminSnapshot(),
     getAllTemplateValues(),
     getSettings(),
     listAllCampaigns(),
+    listContracts(),
+    listAllDeliverables(),
   ]);
+  /* Ce que chacun doit encore : lu ici une fois, pour l'onglet comme pour son compteur. */
+  const dues = contentDues({ campaigns, contracts, influencers, deliverables });
   /* Le code d'un partenaire est celui de sa campagne en cours : il change avec elle, et
      s'éteint quand elle se termine. Une seule lecture pour toute la liste. */
   const byInfluencer = new Map<string, ReturnType<typeof liveCampaign>>();
@@ -96,11 +104,14 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
         items={[
           { href: "/admin/influenceurs", label: "Résultats", active: tab === "resultats" },
           { href: "/admin/influenceurs?onglet=liste", label: "Liste des influenceurs", count: influencers.length, active: tab === "liste" },
+          { href: "/admin/influenceurs?onglet=contenus", label: "Contenus dus", count: dues.totals.late, active: tab === "contenus" },
         ]}
       />
 
       {tab === "liste" ? (
         <OutreachList influencers={influencers} />
+      ) : tab === "contenus" ? (
+        <ContentDuesList dues={dues} />
       ) : (
         <>
       <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">
@@ -173,6 +184,97 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
         />
       </Card>
     </>
+  );
+}
+
+/*
+ * Ce que les partenaires nous doivent encore : une ligne par campagne, les plus en
+ * retard d'abord.
+ *
+ * Le nombre attendu ne se saisit pas ici, et c'est voulu : il se dit sur le contrat
+ * (/admin/contrats), d'où toutes ses campagnes l'héritent. Cet écran ne fait que
+ * soustraire — il montre, il ne règle pas. Une campagne sous contrat dont la quantité
+ * n'a jamais été écrite s'affiche quand même, justement pour qu'on aille l'écrire.
+ */
+function ContentDuesList({ dues }: { dues: ReturnType<typeof contentDues> }) {
+  const { rows, totals } = dues;
+  const count = (n: number, one: string) => `${n} ${one}${n > 1 ? "s" : ""}`;
+
+  return (
+    <>
+      <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2">
+        <Tile
+          tone={totals.late > 0 ? "sand" : "green"}
+          label="Campagnes à relancer"
+          value={totals.late}
+          note={totals.late > 0 ? "il y manque des contenus" : "tout le monde est à jour"}
+        />
+        <Tile
+          label="Photos"
+          value={`${totals.receivedPhotos} / ${totals.expectedPhotos}`}
+          note={totals.missingPhotos > 0 ? `il en manque ${totals.missingPhotos}` : "rien ne manque"}
+        />
+        <Tile
+          label="Vidéos"
+          value={`${totals.receivedVideos} / ${totals.expectedVideos}`}
+          note={totals.missingVideos > 0 ? `il en manque ${totals.missingVideos}` : "rien ne manque"}
+        />
+        <Tile
+          tone={totals.toFill > 0 ? "blue" : "white"}
+          label="Quantité à renseigner"
+          value={totals.toFill}
+          note={totals.toFill > 0 ? "campagnes sous contrat sans chiffre" : "toutes les campagnes ont le leur"}
+        />
+      </div>
+
+      <GridTable
+        columns="1fr 1fr 110px 110px 1fr"
+        head={["Partenaire", "Campagne", "Photos", "Vidéos", "Reste à recevoir"]}
+        empty="Aucune campagne sous contrat pour l'instant. La quantité attendue s'écrit sur le contrat, dans Contrats — toutes ses campagnes en héritent."
+        rows={rows.map((r) => ({
+          key: r.campaign.id,
+          href: `/admin/influenceurs/${r.influencerId}/campagnes/${r.campaign.id}`,
+          cells: [
+            <span key="p" className="flex min-w-0 flex-col">
+              <span className="truncate font-bold">{r.influencerName}</span>
+              <span className="truncate text-[0.6875rem] text-subtle">{r.contractName || (r.campaign.contractId ? "contrat retiré" : "sans contrat")}</span>
+            </span>,
+            <span key="c" className="flex min-w-0 flex-col">
+              <span className="truncate font-semibold">{r.campaign.name || `Campagne n° ${r.campaign.seq}`}</span>
+              <span className="truncate text-[0.6875rem] text-subtle">{CAMPAIGN_STATUS_LABELS[r.campaign.status]}</span>
+            </span>,
+            <Count key="ph" received={r.received.photos} expected={r.expected.photos} />,
+            <Count key="vi" received={r.received.videos} expected={r.expected.videos} />,
+            <span key="r" className="flex justify-end">
+              {r.missing.agreed ? (
+                <Pill tone={r.missing.done ? "ok" : "warn"}>{shortfallLabel(r.missing)}</Pill>
+              ) : (
+                <Pill tone="blue">Quantité à renseigner</Pill>
+              )}
+            </span>,
+          ],
+          detail: r.missing.agreed ? progressLabel(r.expected, r.received) : "Le contrat ne dit pas encore combien de photos ni de vidéos il réclame.",
+        }))}
+      />
+
+      <p className="text-[0.8125rem] leading-relaxed text-subtle">
+        Le nombre attendu se règle sur le contrat, et une fois pour toutes : {count(rows.length, "campagne")} se
+        {rows.length > 1 ? "rvent" : "rt"} ici de quelques contrats seulement. Une campagne peut y déroger depuis sa
+        propre fiche, si l'on a convenu autrement avec la personne.
+      </p>
+    </>
+  );
+}
+
+/** « 12 sur 40 », ou rien quand rien n'est attendu de ce côté-là. */
+function Count({ received, expected }: { received: number; expected: number }) {
+  if (expected === 0) return <span className="text-[0.6875rem] text-subtle">{received > 0 ? `${received} reçue${received > 1 ? "s" : ""}` : "—"}</span>;
+  return (
+    <span className="flex flex-col">
+      <span className={`font-bold ${received >= expected ? "" : "text-muted"}`}>
+        {received} <span className="font-semibold text-subtle">sur {expected}</span>
+      </span>
+    </span>
   );
 }
 

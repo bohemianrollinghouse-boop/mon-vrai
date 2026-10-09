@@ -12,7 +12,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { listContracts, upsertContract } from "@/lib/db/contracts";
-import type { CollaborationType } from "@/lib/domain/types";
+import { EMPTY_QUOTA, type CollaborationType } from "@/lib/domain/types";
 
 const APPLY = process.argv.includes("--apply");
 /* Remet les valeurs par défaut des variables sur un contrat déjà installé, sans toucher
@@ -100,7 +100,9 @@ async function main() {
     }
     console.log(`~ ${entry.version.padEnd(24)} ${entry.name} · résumé ${summary.length} c · contrat ${body.length} c`);
     if (!APPLY) continue;
-    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: entry.variables, requiredVariables: [], active: true });
+    /* La quantité attendue ne s'invente pas : elle se pose dans /admin/contrats, où
+       elle vaudra pour toutes les campagnes du contrat. */
+    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: entry.variables, requiredVariables: [], expected: EMPTY_QUOTA, publications: [], active: true });
     console.log(`  → ${saved.id}`);
   }
 

@@ -282,12 +282,38 @@ part, et non un `Operation` de plus.
 Ce qu'une campagne donne (le kit) a toujours eu sa place ; ce qu'elle **attend en
 retour** n'en avait pas. La quantité convenue se disait en texte libre dans une variable
 de contrat (`QUANTITE_UGC_CONVENUE`) : lisible, mais incomptable — rien ne pouvait en
-déduire ce qui manquait. Elle s'écrit désormais **en chiffres** sur la campagne
-(`Campaign.expected`, `ContentQuota` : tant de photos, tant de vidéos), et sur la
-campagne partagée (`Operation.expected`), d'où chaque participation part avec la même
-exigence. Un seul endroit, trois usages : le contrat la cite (`{{CONTENUS_ATTENDUS}}`,
-variable **automatique** — jamais ressaisie), l'écran de la campagne en retranche les
-fichiers reçus, et la vignette de la fiche partenaire dit « Il manque 2 photos ».
+déduire ce qui manquait. Elle s'écrit désormais **en chiffres**, et sur le **contrat**
+(`Contract.expected`, `ContentQuota` : tant de photos, tant de vidéos) — c'est lui qui
+la stipule, et une poignée de contrats sert à toutes les collaborations : l'écrire
+campagne par campagne reviendrait à la ressaisir à chaque fois, avec autant d'occasions
+de se tromper. Une campagne peut y **déroger** (`Campaign.expected`, non nul) quand on a
+convenu autrement avec quelqu'un ; laissée à zéro, elle prend celle de son contrat.
+`quotaFor` tranche entre les deux, partout et de la même façon — l'un OU l'autre, jamais
+une addition. Un seul endroit, trois usages : le contrat la cite
+(`{{CONTENUS_ATTENDUS}}`, variable **automatique** — jamais ressaisie), l'écran de la
+campagne en retranche les fichiers reçus, et la vignette de la fiche partenaire dit
+« Il manque 2 photos ».
+
+Qui doit quoi se lit **d'un seul écran** : onglet **« Contenus dus »** de
+/admin/influenceurs (`lib/admin/content-dues.ts`, pur et testé). Une ligne par campagne,
+les plus en retard d'abord, puis celles dont la quantité n'a jamais été écrite — elles y
+figurent justement pour qu'on aille l'écrire —, puis celles qui sont complètes. Rien ne
+s'y règle : l'écran soustrait, il ne négocie pas. Une campagne **annulée** en sort d'elle-
+même (la contrepartie n'a jamais été remise), et le surplus d'un partenaire généreux ne
+comble pas le retard d'un autre dans les totaux.
+
+Ce qu'une campagne reçoit (des **fichiers**) et ce qu'elle fait **paraître** ne sont pas
+la même chose, et dix vidéos au dossier ne prouvent pas qu'une seule ait été publiée.
+D'où les **parutions** : le contrat en porte la liste (`Contract.publications` —
+« Vidéo TikTok × 2 », « Story Instagram × 1 »), la campagne les constate
+(`Campaign.publications` : une case, une adresse). `publicationSlots` **déplie** les
+quantités en autant de cases qu'il est dû, et l'identifiant de la ligne — posé par
+l'action, jamais par le client — rattache un lien à sa case même quand on renomme la
+ligne. Un **lien vaut la preuve** : collé sous une case décochée, il la coche, parce
+qu'on oublie de cocher mais qu'on ne colle pas un lien par distraction. Une ligne
+retirée du contrat n'efface pas ce qu'elle portait : elle ne s'affiche plus, la rétablir
+ramène ses liens. `savePublicationsAction` est une action à part : constater une
+parution n'est pas renégocier la collaboration.
 
 Zéro ne veut pas dire « rien n'est dû » mais « **rien n'est compté** » : la campagne
 n'affiche alors pas de décompte, plutôt qu'un « 0 sur 0 », et la rubrique disparaît du
@@ -295,9 +321,18 @@ contrat au lieu d'y annoncer une quantité nulle.
 
 Les fichiers reçus sont des documents à part (collection `deliverables`), et non des
 champs de la campagne : **une campagne dit ce qu'elle réclame, elle ne porte pas ses
-pièces jointes**. Ils ne rejoignent pas non plus la médiathèque — ce qui s'y trouve est
-destiné à PARAÎTRE sur le site ; ceci n'est destiné à rien, c'est une pièce versée au
-dossier, comme une norme CE l'est à celui d'un titre. D'où `ugc/` dans le coffre, fermé
+pièces jointes**. Ils ne rejoignent pas la médiathèque **d'office** — ce qui s'y trouve
+est destiné à PARAÎTRE sur le site ; ceci est d'abord une pièce versée au dossier, comme
+une norme CE l'est à celui d'un titre. On en **verse** un quand on décide de le publier
+(`publishDeliverableAction` → `db/media.copyIntoMedia`) : le coffre **copie** l'objet de
+`ugc/` vers `media/` sans le faire passer par la mémoire de l'instance — une vidéo pèse
+dix fois ce qu'une requête peut tenir —, et la fiche retient l'identifiant du média
+(`Deliverable.mediaId`), si bien qu'un second clic ne fait pas de doublon. Copie et non
+déplacement : publier ne retire pas la pièce du dossier. Fichier par fichier, et jamais
+en bloc : tout ce qu'un partenaire remet n'est pas destiné à paraître, et cent fichiers
+déversés d'un coup rendraient la médiathèque illisible. Les formats qu'aucun navigateur
+n'affiche (HEIC, MOV) sont refusés **là** et seulement là : au dossier ils sont
+parfaitement légitimes. D'où `ugc/` dans le coffre, fermé
 par `storage.rules` à la lecture, servi par `/api/contenus/[id]` aux seuls
 administrateurs, et **aucune URL en base** : seulement le chemin, comme `documents`.
 
@@ -330,17 +365,29 @@ ne peut pas redemander.
 
 La route sert le fichier **en flux et par tranches** (`Range`), et non en `Buffer` comme
 les factures : une vidéo lue d'un bloc tiendrait toute entière dans la mémoire de
-l'instance, et sans `Range` un lecteur ne sait plus avancer. Dans la liste, un aperçu ne
-se charge que si on l'ouvre : vingt vignettes, ce serait vingt fichiers entiers tirés du
-coffre à chaque visite.
+l'instance, et sans `Range` un lecteur ne sait plus avancer.
+
+Le dossier s'affiche en **grille**, et montre **un seul aperçu à la fois**. En liste,
+cent fichiers — le cas ordinaire d'une campagne qui se termine — faisaient cent lignes à
+dérouler ; en vignettes, ils feraient cent fichiers ENTIERS tirés du coffre à chaque
+visite, puisqu'il n'existe pas de miniature et que `/api/contenus/<id>` sert l'original.
+D'où des pavés sans image, un filtre photos/vidéos, les `PAGE` premiers puis « afficher
+les autres », et l'aperçu du seul qu'on ouvre. Ce qu'on regarde se cherche dans la liste
+entière et non dans la page affichée : replier le « voir plus » ne doit pas escamoter
+l'aperçu ouvert.
+
+Quand un dépôt échoue, le motif est **dit** : les codes du coffre sont traduits
+(`UPLOAD_ERRORS`) plutôt qu'avalés derrière un « envoi interrompu » — un
+`storage/unauthorized` ressemblait sinon à une coupure réseau alors qu'il manquait un
+déploiement des règles.
 
 Deux choses à savoir pour la mise en ligne. **Les règles du coffre doivent être
 déployées** (`firebase deploy --only storage`, fait le 2026-10-09) : sans elles, `ugc/` tombe sur la règle
 attrape-tout et tout dépôt est refusé en production, alors que l'émulateur, lui, les lit
-depuis le fichier. Aucune **migration** n'est en revanche nécessaire : `expected` est un
-champ à valeur par défaut, et zod le pose à la lecture — les campagnes d'avant se
-relisent telles quelles, c'est le resserrement d'un schéma qui met le site à terre, pas
-son élargissement.
+depuis le fichier. Aucune **migration** n'est en revanche nécessaire : `expected`,
+`publications` et `mediaId` sont des champs à valeur par défaut, et zod les pose à la
+lecture — les campagnes et les contrats d'avant se relisent tels quels, c'est le
+resserrement d'un schéma qui met le site à terre, pas son élargissement.
 
 ## Gestion (dépenses et documents)
 

@@ -40,6 +40,9 @@ export type ContractOffer = {
   body: string;
   variables: Record<string, string>;
   requiredVariables: string[];
+  /* Ce que ce contrat réclame en retour : il l'annonce lui-même ({{CONTENUS_ATTENDUS}}),
+     sauf si la campagne a convenu autrement. */
+  expected: ContentQuota;
   /* Les dates de la campagne : elles figurent au contrat et ne se saisissent pas. */
   campaign: { startAt: number; endAt?: number; expected?: ContentQuota };
 };
@@ -185,7 +188,7 @@ export function KitOrderForm({
   const filled = useMemo(() => {
     if (!contract) return { summary: "", body: "" };
     const values = contractValues({
-      contract: { id: contract.id, version: contract.version, variables: contract.variables },
+      contract: { id: contract.id, version: contract.version, variables: contract.variables, expected: contract.expected },
       campaign: contract.campaign,
       seller,
       party: {

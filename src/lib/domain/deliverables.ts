@@ -1,4 +1,4 @@
-import type { ContentQuota, DeliverableKind } from "./types";
+import { EMPTY_QUOTA, type ContentQuota, type DeliverableKind } from "./types";
 
 /*
  * Les contenus qu'un partenaire rend : ce qu'on en attend, ce qui est arrivé, ce qui
@@ -83,6 +83,27 @@ export function safeFileName(name: string): string {
  * à la main ne désignerait qu'un objet recalculé, qui n'existe pas.
  */
 export const contentPath = (campaignId: string, id: string, filename: string) => `ugc/${campaignId}/${id}/${safeFileName(filename)}`;
+
+/* ---------- Ce qui est attendu ---------- */
+
+/*
+ * La quantité qui vaut pour une campagne : la sienne si elle en a une, sinon celle de
+ * son contrat.
+ *
+ * Le nombre se dit sur le CONTRAT, parce que c'est lui qui le stipule et qu'une
+ * poignée de contrats sert à toutes les collaborations : le saisir campagne par
+ * campagne, c'est le ressaisir à chaque fois. La campagne garde le dernier mot pour le
+ * cas où l'on a convenu autrement avec quelqu'un — zéro des deux côtés veut dire, comme
+ * partout ici, « rien n'est compté » et non « rien n'est dû ».
+ *
+ * Volontairement « l'un OU l'autre », et jamais une addition : un contrat qui réclame
+ * 40 photos et une campagne qui en réclame 10 se sont entendus sur 10, pas sur 50.
+ */
+export function quotaFor(own: ContentQuota | undefined, fromContract: ContentQuota | undefined): ContentQuota {
+  const mine = own ?? EMPTY_QUOTA;
+  if (mine.photos + mine.videos > 0) return mine;
+  return fromContract ?? EMPTY_QUOTA;
+}
 
 /* ---------- Ce qui manque ---------- */
 

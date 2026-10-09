@@ -83,6 +83,7 @@ async function main() {
       influencerId: inf.id,
       /* Reprise d'une fiche, donc pour lui seul : aucune campagne partagée derrière. */
       operationId: "",
+      publications: [],
       seq: 1,
       name: "Première campagne",
       collaborationType: inf.collaborationType,

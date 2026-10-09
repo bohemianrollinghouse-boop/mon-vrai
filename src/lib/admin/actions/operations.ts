@@ -140,6 +140,7 @@ export async function applyOperationAction(formData: FormData): Promise<AdminRes
     const campaign = await upsertCampaign({
       influencerId: influencer.id,
       operationId: operation.id,
+      publications: [],
       name: operation.name,
       collaborationType: operation.collaborationType,
       code,

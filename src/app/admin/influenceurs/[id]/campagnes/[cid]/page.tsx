@@ -7,10 +7,12 @@ import { WelcomeKitEditor } from "@/components/admin/WelcomeKitEditor";
 import { Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
 import { CodeInput } from "@/components/admin/CodeInput";
 import { SignedContractView } from "@/components/site/SignedContractView";
-import { completeCampaignAction, deleteCampaignAction, saveCampaignAction } from "@/lib/admin/actions/campaigns";
+import { completeCampaignAction, deleteCampaignAction, saveCampaignAction, savePublicationsAction } from "@/lib/admin/actions/campaigns";
 import { kitChoices } from "@/lib/admin/kit-choices";
 import { clockNow, getCampaign, listCampaigns } from "@/lib/db/campaigns";
 import { bucketName, listDeliverables } from "@/lib/db/deliverables";
+import { quotaFor, quotaLabel } from "@/lib/domain/deliverables";
+import { publicationLabel, publicationProgress, publicationSlots } from "@/lib/admin/publications";
 import { getSignature, listContracts } from "@/lib/db/contracts";
 import { findKitOrder } from "@/lib/db/orders";
 import { listAllProducts } from "@/lib/db/products";
@@ -60,6 +62,13 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
 
   /* Un contrat retiré n'est plus proposable, sauf s'il est déjà celui de la campagne. */
   const choices = contracts.filter((c) => c.active || c.id === campaign.contractId);
+  /* Ce qu'elle attend en retour vient du contrat signé ; la campagne n'y déroge que si
+     elle porte ses propres nombres. Un seul calcul pour le formulaire et le décompte. */
+  const contract = contracts.find((c) => c.id === campaign.contractId);
+  const expected = quotaFor(campaign.expected, contract?.expected);
+  /* Ce que le contrat exige de publié, déplié en autant de cases que de parutions dues. */
+  const slots = publicationSlots(contract?.publications ?? [], campaign.publications);
+  const published = publicationProgress(slots);
   const closed = campaign.status === "completed" || campaign.status === "cancelled";
   const waiting = campaign.status === "draft" && siblings.some((c) => c.status === "active" && c.id !== campaign.id);
   const title = campaign.name || `Campagne n° ${campaign.seq}`;
@@ -215,8 +224,19 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
               <div className="flex flex-col gap-3 border-t border-line-soft pt-3">
                 <span className="text-xs font-semibold text-subtle">Contenus attendus en retour</span>
                 <p className="-mt-1 text-[0.6875rem] leading-relaxed text-subtle">
-                  Ce que la collaboration prévoit. Les fichiers reçus se déposent à droite et s&apos;en retranchent : à
-                  zéro, rien n&apos;est décompté et le contrat n&apos;annonce aucune quantité.
+                  {contract && contract.expected.photos + contract.expected.videos > 0 ? (
+                    <>
+                      Le contrat « {contract.name} » en prévoit {quotaLabel(contract.expected)}, et c&apos;est ce qui
+                      est décompté ici. Ne remplissez ces cases que si vous avez convenu autrement avec cette
+                      personne — à zéro, celles du contrat s&apos;appliquent.
+                    </>
+                  ) : (
+                    <>
+                      Ce que la collaboration prévoit. Le plus simple est de l&apos;écrire une fois sur le contrat, dans
+                      /admin/contrats : toutes ses campagnes en héritent. À zéro de part et d&apos;autre, rien n&apos;est
+                      décompté et le contrat n&apos;annonce aucune quantité.
+                    </>
+                  )}
                 </p>
                 <div className="grid grid-cols-2 gap-2.5 max-[749px]:grid-cols-1">
                   <Field label="Photos" name="expectedPhotos">
@@ -263,8 +283,70 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
             Ce qu'elle a RENDU, en face de ce qu'elle a reçu. Les fichiers ne passent pas
             par le serveur : ils vont droit au coffre privé (voir db/deliverables.ts).
           */}
+          {/*
+            Ce qui a PARU, à côté de ce qui a été reçu — et jamais confondu avec lui :
+            dix vidéos au dossier ne prouvent pas qu'une seule ait été publiée. La liste
+            vient du contrat ; on ne fait ici que la constater.
+          */}
+          <Card
+            title={<span className="text-sm">Parutions</span>}
+            aside={published.required ? <Pill tone={published.complete ? "ok" : "warn"}>{publicationLabel(published)}</Pill> : undefined}
+            className="!gap-2"
+          >
+            {!published.required ? (
+              <p className="text-[0.8125rem] leading-relaxed text-subtle">
+                {campaign.contractId
+                  ? "Ce contrat n'exige aucune parution. La liste s'écrit sur le contrat, dans Contrats — toutes ses campagnes en hériteront."
+                  : "Aucun contrat n'est rattaché à cette campagne : il n'y a donc rien à publier de convenu."}
+              </p>
+            ) : (
+              <ActionForm action={savePublicationsAction} submitLabel="Enregistrer les parutions">
+                <input type="hidden" name="campaignId" value={campaign.id} />
+                <p className="-mt-1 text-[0.6875rem] leading-relaxed text-subtle">
+                  Cochez ce qui est paru, et collez l&apos;adresse dessous. Une adresse suffit : elle coche la case
+                  d&apos;elle-même, puisqu&apos;on ne colle pas un lien par distraction.
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {slots.map((slot) => (
+                    <div key={slot.key} className="flex flex-col gap-2 rounded-xl bg-paper px-3 py-2.5">
+                      <label className="flex items-center gap-2.5">
+                        {/* Champ caché + case, sous le même nom : décochée, la case ne
+                            poste rien, et rien ne dirait qu'on l'a décochée. */}
+                        <input type="hidden" name={`done:${slot.key}`} value="false" />
+                        <input type="checkbox" name={`done:${slot.key}`} value="true" defaultChecked={slot.done} className="h-4 w-4 accent-black" />
+                        <span className="text-[0.8125rem] font-semibold">
+                          {slot.label}
+                          {slot.qty > 1 && <span className="font-normal text-subtle"> · {slot.index + 1} sur {slot.qty}</span>}
+                        </span>
+                        {slot.at && (
+                          <span className="ml-auto text-[0.625rem] font-semibold text-subtle">
+                            {new Date(slot.at).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                          </span>
+                        )}
+                      </label>
+                      <span className="flex items-center gap-2">
+                        <input
+                          name={`url:${slot.key}`}
+                          defaultValue={slot.url}
+                          placeholder="https://www.tiktok.com/@…"
+                          inputMode="url"
+                          className="min-w-0 flex-1 rounded-lg bg-surface px-3 py-2 text-[0.75rem] outline-none"
+                        />
+                        {slot.url && (
+                          <a href={slot.url} target="_blank" rel="noreferrer" className="shrink-0 text-[0.6875rem] font-bold underline">
+                            Voir
+                          </a>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </ActionForm>
+            )}
+          </Card>
+
           <Card title={<span className="text-sm">Contenus reçus</span>} className="!gap-2">
-            <DeliverablesPanel campaignId={campaign.id} bucket={bucketName()} items={contents} expected={campaign.expected} />
+            <DeliverablesPanel campaignId={campaign.id} bucket={bucketName()} items={contents} expected={expected} />
           </Card>
 
           <Card title={<span className="text-sm">Code promo</span>} className="!gap-2">

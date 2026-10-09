@@ -5,7 +5,8 @@ import { audit } from "@/lib/admin/audit";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { getCampaign } from "@/lib/db/campaigns";
-import { deleteDeliverable, getDeliverable, newDeliverableId, recordDeliverable } from "@/lib/db/deliverables";
+import { deleteDeliverable, getDeliverable, newDeliverableId, recordDeliverable, setDeliverableMedia } from "@/lib/db/deliverables";
+import { copyIntoMedia } from "@/lib/db/media";
 import { contentKind, contentPath } from "@/lib/domain/deliverables";
 
 /*
@@ -49,6 +50,38 @@ export async function confirmDeliverableAction(campaignId: string, id: string, f
     return saved(`${doc.filename} ajouté.`);
   } catch (e) {
     return failed(`${filename} : ${(e as Error).message}`);
+  }
+}
+
+/*
+ * Verse un contenu dans la médiathèque, pour qu'il puisse PARAÎTRE sur le site.
+ *
+ * Les deux endroits ne disent pas la même chose et ne se confondent pas : le dossier
+ * d'une campagne garde ce qu'un partenaire a remis — privé, et qui doit le rester même
+ * une fois la collaboration finie —, la médiathèque tient ce qui s'affiche publiquement.
+ * Le passage de l'un à l'autre est donc un geste, fichier par fichier, et jamais un
+ * reversement automatique : tout ce qu'on reçoit n'est pas destiné à paraître, et une
+ * médiathèque où tomberaient cent fichiers de partenaire ne serait plus utilisable.
+ *
+ * La pièce reste au dossier : c'est une copie. Et elle n'est versée qu'une fois — la
+ * fiche retient l'identifiant du média, un second clic ne referait pas un doublon.
+ */
+export async function publishDeliverableAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  const doc = await getDeliverable(id);
+  if (!doc) return failed("Ce contenu n'existe plus.");
+  if (doc.mediaId) return saved("Ce fichier est déjà dans la médiathèque.");
+
+  try {
+    const media = await copyIntoMedia({ path: doc.path, mime: doc.mime, filename: doc.filename });
+    await setDeliverableMedia(doc.id, media.id);
+    await audit(user.email, "deliverable.publish", `deliverables/${doc.id}`, `→ médias/${media.id}`);
+    revalidatePath(campaignPath(doc.influencerId, doc.campaignId));
+    revalidatePath("/admin/medias");
+    return saved(`${doc.filename} est dans la médiathèque.`);
+  } catch (e) {
+    return failed((e as Error).message);
   }
 }
 

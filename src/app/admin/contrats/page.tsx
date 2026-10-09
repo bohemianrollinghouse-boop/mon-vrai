@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
+import { PublicationsEditor } from "@/components/admin/PublicationsEditor";
 import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
 import { deleteContractAction, saveContractAction } from "@/lib/admin/actions/contracts";
 import { listContracts } from "@/lib/db/contracts";
@@ -86,6 +87,47 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 <Field label="Version" hint="Ne se réutilise jamais : elle identifie ce qui a été signé." name="version">
                   <Input name="version" required defaultValue={current && !isNew ? current.version : ""} placeholder="UGC-2026-09-v1" />
                 </Field>
+              </div>
+
+              {/* ---------- Ce qu'il réclame en retour ---------- */}
+              {/*
+                En chiffres, et à côté du résumé qui l'écrit en toutes lettres. C'est la
+                même quantité, dite deux fois pour deux usages : la phrase se lit, le
+                nombre se compte. Elle est ici et non sur chaque campagne parce que c'est
+                le contrat qui la stipule — une campagne ne la ressaisit que pour en
+                sortir.
+              */}
+              <div className="flex flex-col gap-3 rounded-card bg-paper p-5">
+                <span className="text-xs font-semibold text-subtle">Contenus attendus en retour</span>
+                <p className="-mt-1 text-[0.6875rem] leading-relaxed text-subtle">
+                  Toutes les campagnes sous ce contrat l&apos;attendront, et le décompte des fichiers reçus s&apos;en
+                  déduira — « il manque 6 photos sur 40 ». Le contrat le cite lui-même par {"{{CONTENUS_ATTENDUS}}"}, il
+                  n&apos;y a donc pas à l&apos;écrire deux fois. À zéro, rien n&apos;est décompté.
+                </p>
+                <div className="grid grid-cols-2 gap-2.5 max-[749px]:grid-cols-1">
+                  <Field label="Photos" name="expectedPhotos">
+                    <Input name="expectedPhotos" type="number" min={0} max={999} defaultValue={current && !isNew ? current.expected.photos : 0} />
+                  </Field>
+                  <Field label="Vidéos" name="expectedVideos">
+                    <Input name="expectedVideos" type="number" min={0} max={999} defaultValue={current && !isNew ? current.expected.videos : 0} />
+                  </Field>
+                </div>
+              </div>
+
+              {/* ---------- Ce qui doit PARAÎTRE ---------- */}
+              {/*
+                À côté des fichiers, et pas à leur place : recevoir dix vidéos ne prouve
+                pas qu'une seule ait été publiée. Chaque ligne devient, sur la campagne,
+                autant de cases à cocher que sa quantité — avec, sous chacune, l'adresse
+                de ce qui a paru.
+              */}
+              <div className="flex flex-col gap-3 rounded-card bg-paper p-5">
+                <span className="text-xs font-semibold text-subtle">Parutions exigées</span>
+                <p className="-mt-1 text-[0.6875rem] leading-relaxed text-subtle">
+                  Ce que le partenaire doit publier sur ses réseaux. Sur chaque campagne sous ce contrat, la liste
+                  s&apos;affichera en cases à cocher, et l&apos;adresse de chaque parution se collera dessous.
+                </p>
+                <PublicationsEditor initial={current && !isNew ? current.publications : []} />
               </div>
 
               <Switch

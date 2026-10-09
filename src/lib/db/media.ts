@@ -64,6 +64,35 @@ export async function uploadMedia(input: UploadInput): Promise<Media> {
   return doc;
 }
 
+/*
+ * Verse dans la médiathèque un objet DÉJÀ dans le coffre — un contenu de partenaire.
+ *
+ * Le fichier est copié d'un préfixe à l'autre par le coffre lui-même, sans passer par
+ * la mémoire de l'instance : une vidéo de partenaire pèse couramment dix fois ce qu'une
+ * requête peut tenir. C'est une copie et non un déplacement, parce que l'original est
+ * une pièce versée au dossier d'une campagne : le publier ne doit pas le retirer de là.
+ *
+ * Les types refusés le sont pour la même raison que partout ici : un HEIC ou un MOV ne
+ * s'affiche dans aucun navigateur, et la médiathèque ne sert qu'à faire paraître.
+ */
+export async function copyIntoMedia(input: { path: string; mime: string; filename: string; alt?: string }): Promise<Media> {
+  if (!ALLOWED.has(input.mime)) throw new Error(`Ce format ne peut pas paraître sur le site (${input.mime}). Convertissez-le d'abord.`);
+
+  const bucket = storage().bucket();
+  const source = bucket.file(input.path);
+  const [exists] = await source.exists();
+  if (!exists) throw new Error("Le fichier n'est plus dans le coffre.");
+
+  const id = newId("med");
+  const safeName = input.filename.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
+  const path = `media/${id}/${safeName}`;
+  await source.copy(bucket.file(path), { contentType: input.mime, metadata: { cacheControl: "public, max-age=31536000, immutable" } });
+
+  const doc = Media.parse({ id, path, url: publicUrl(bucket.name, path), alt: input.alt ?? "", mime: input.mime, createdAt: now() });
+  await media().doc(id).set(doc);
+  return doc;
+}
+
 export async function updateMediaAlt(id: string, alt: string): Promise<void> {
   await media().doc(id).update({ alt });
 }

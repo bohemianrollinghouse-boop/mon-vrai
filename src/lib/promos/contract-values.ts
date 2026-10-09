@@ -1,6 +1,6 @@
-import { quotaLabel } from "@/lib/domain/deliverables";
+import { quotaFor, quotaLabel } from "@/lib/domain/deliverables";
 import { formatEuro } from "@/lib/domain/money";
-import { EMPTY_QUOTA, type Address, type ContentQuota, type Contract, type PartnerSocials, type SignerStatus } from "@/lib/domain/types";
+import { type Address, type ContentQuota, type Contract, type PartnerSocials, type SignerStatus } from "@/lib/domain/types";
 
 /*
  * Fabrique les valeurs des variables automatiques d'un contrat. Pur : la page d'aperçu
@@ -40,7 +40,7 @@ export function oneLineAddress(a: Address): string {
 }
 
 export function contractValues(input: {
-  contract: Pick<Contract, "id" | "version" | "variables">;
+  contract: Pick<Contract, "id" | "version" | "variables" | "expected">;
   /*
    * La campagne dont relève ce contrat : ses dates y figurent, et ne se saisissent pas.
    * C'est la période pendant laquelle le code promo vaut — le contrat dit donc la même
@@ -114,10 +114,11 @@ export function contractValues(input: {
     DATE_DEBUT_CAMPAGNE: longDay(input.campaign.startAt),
     DATE_FIN_DE_CAMPAGNE: longDay(input.campaign.endAt),
 
-    /* Écrit une seule fois, sur la fiche de la campagne : le contrat annonce exactement
-       le nombre dont l'administration retranchera les fichiers reçus. Vide quand rien
-       n'est convenu — la rubrique disparaît alors plutôt que d'annoncer « 0 ». */
-    CONTENUS_ATTENDUS: quotaLabel(input.campaign.expected ?? EMPTY_QUOTA),
+    /* Écrit une seule fois, sur le contrat lui-même — la campagne n'y déroge que si
+       elle porte ses propres nombres. Le contrat annonce donc exactement le nombre dont
+       l'administration retranchera les fichiers reçus. Vide quand rien n'est convenu :
+       la rubrique disparaît alors plutôt que d'annoncer « 0 ». */
+    CONTENUS_ATTENDUS: quotaLabel(quotaFor(input.campaign.expected, contract.expected)),
 
     DATE_ACCEPTATION: input.acceptedAt
       ? new Date(input.acceptedAt).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "long", timeStyle: "short" })

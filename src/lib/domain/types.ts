@@ -1011,6 +1011,66 @@ const EMPTY_SOCIALS: PartnerSocials = {
   facebook: { handle: "", url: "" },
 };
 
+/* ---------- Contenus attendus ---------- */
+
+/*
+ * Ce qu'une campagne attend en retour du kit : tant de photos, tant de vidéos.
+ *
+ * Un NOMBRE, et non une phrase. La quantité convenue se disait jusqu'ici en texte libre
+ * dans une variable de contrat ({{QUANTITE_UGC_CONVENUE}}) : lisible, mais incomptable —
+ * rien ne pouvait en déduire ce qui manquait. Écrite en chiffres, elle sert aux deux : le
+ * contrat la cite ({{CONTENUS_ATTENDUS}}) et l'écran la retranche de ce qui est arrivé,
+ * sans qu'on l'ait saisie deux fois.
+ *
+ * Zéro ne dit pas « rien n'est dû » mais « rien n'est compté » : une campagne qui
+ * n'attend aucun contenu n'affiche pas de décompte du tout, plutôt qu'un « 0 sur 0 ».
+ */
+export const ContentQuota = z.object({
+  photos: z.number().int().min(0).max(999).default(0),
+  videos: z.number().int().min(0).max(999).default(0),
+});
+export type ContentQuota = z.infer<typeof ContentQuota>;
+export const EMPTY_QUOTA: ContentQuota = { photos: 0, videos: 0 };
+
+/*
+ * Ce qu'un contrat réclame de PUBLIÉ : deux vidéos TikTok, une story Instagram, un
+ * post en collaboration…
+ *
+ * Les photos et vidéos comptées par ContentQuota sont des FICHIERS qu'on reçoit et
+ * qu'on garde ; ceci est une PARUTION, qui vit sur le réseau du partenaire et dont on
+ * ne possède qu'un lien. Les deux se vérifient autrement et ne se remplacent pas : un
+ * dossier de dix vidéos ne prouve pas qu'une seule ait été publiée.
+ *
+ * La liste est portée par le contrat parce que c'est le contrat qui l'exige, et qu'on
+ * en a trois pour toutes les collaborations : l'écrire sur chaque campagne reviendrait
+ * à la réécrire à chaque fois.
+ */
+export const ContractPublication = z.object({
+  /** Stable : c'est lui qui rattache un lien à sa ligne quand on renomme celle-ci. */
+  id: z.string().min(1).max(40),
+  label: z.string().trim().min(1).max(80),
+  /** Combien de fois cette parution est due. « 2 vidéos TikTok » = une ligne, qty 2. */
+  qty: z.number().int().min(1).max(20).default(1),
+});
+export type ContractPublication = z.infer<typeof ContractPublication>;
+
+/*
+ * Une parution, du côté de la campagne : faite ou non, et son lien.
+ *
+ * `done` existe parce qu'une parution peut être constatée avant qu'on ait le lien sous
+ * la main. L'inverse ne se produit jamais : un lien VAUT la preuve, et une case décochée
+ * sous une adresse remplie ne dirait rien de vrai — c'est `publicationSlots` qui tranche.
+ */
+export const CampaignPublication = z.object({
+  /** « <id de la ligne du contrat>#<rang> » : la 2e des deux vidéos TikTok. */
+  key: z.string().min(1).max(60),
+  done: z.boolean().default(false),
+  url: z.string().trim().max(500).default(""),
+  /** Quand on l'a constatée. Sert à dire « depuis le 3 octobre » dans l'écran. */
+  at: z.number().optional(),
+});
+export type CampaignPublication = z.infer<typeof CampaignPublication>;
+
 /*
  * Un contrat de collaboration, tel qu'il est rédigé dans l'administration.
  *
@@ -1043,6 +1103,19 @@ export const Contract = z.object({
    * contrat n'annonce pas un intitulé pour n'en rien dire.
    */
   requiredVariables: z.array(z.string()).default([]),
+  /*
+   * Ce que ce contrat réclame en retour, en chiffres. C'est ICI qu'il se dit, et non
+   * campagne par campagne : trois contrats servent à trente collaborations, et retaper
+   * « 40 photos, 20 vidéos » à chaque fois reviendrait à le saisir trente fois, avec
+   * trente occasions de se tromper. Une campagne peut encore y déroger (son propre
+   * `expected`, non nul) ; laissée à zéro, elle prend celui de son contrat.
+   */
+  expected: ContentQuota.default(EMPTY_QUOTA),
+  /*
+   * Les parutions exigées, dans l'ordre où on les relit. Vide : ce contrat n'exige rien
+   * de publié — un contrat de gifting peut se contenter des fichiers.
+   */
+  publications: z.array(ContractPublication).max(40).default([]),
   /** Retiré : plus attribuable à personne, mais les signatures passées subsistent. */
   active: z.boolean().default(true),
   createdAt: z.number(),
@@ -1284,27 +1357,6 @@ export const CAMPAIGN_STATUS_LABELS: Record<CampaignStatus, string> = {
   cancelled: "Annulée",
 };
 
-/* ---------- Contenus attendus ---------- */
-
-/*
- * Ce qu'une campagne attend en retour du kit : tant de photos, tant de vidéos.
- *
- * Un NOMBRE, et non une phrase. La quantité convenue se disait jusqu'ici en texte libre
- * dans une variable de contrat ({{QUANTITE_UGC_CONVENUE}}) : lisible, mais incomptable —
- * rien ne pouvait en déduire ce qui manquait. Écrite en chiffres, elle sert aux deux : le
- * contrat la cite ({{CONTENUS_ATTENDUS}}) et l'écran la retranche de ce qui est arrivé,
- * sans qu'on l'ait saisie deux fois.
- *
- * Zéro ne dit pas « rien n'est dû » mais « rien n'est compté » : une campagne qui
- * n'attend aucun contenu n'affiche pas de décompte du tout, plutôt qu'un « 0 sur 0 ».
- */
-export const ContentQuota = z.object({
-  photos: z.number().int().min(0).max(999).default(0),
-  videos: z.number().int().min(0).max(999).default(0),
-});
-export type ContentQuota = z.infer<typeof ContentQuota>;
-export const EMPTY_QUOTA: ContentQuota = { photos: 0, videos: 0 };
-
 export const Campaign = z.object({
   id: z.string(),
   influencerId: z.string(),
@@ -1347,6 +1399,12 @@ export const Campaign = z.object({
    * pièces jointes, elle dit ce qu'elle réclame.
    */
   expected: ContentQuota.default(EMPTY_QUOTA),
+  /*
+   * Ce qui a effectivement paru, ligne du contrat par ligne du contrat. Ce ne sont pas
+   * des pièces au dossier (celles-là sont dans `deliverables`) mais des adresses sur
+   * le web : on ne possède rien, on sait seulement où regarder.
+   */
+  publications: z.array(CampaignPublication).max(200).default([]),
   kitOrderId: z.string().default(""),
   signatureId: z.string().default(""),
   status: CampaignStatus.default("draft"),
@@ -1438,6 +1496,15 @@ export const Deliverable = z.object({
   size: z.number().int().min(0).default(0),
   /** À quoi sert ce fichier, si on tient à le noter. Pour nous seuls. */
   note: z.string().trim().max(300).default(""),
+  /*
+   * S'il a été versé à la médiathèque, la fiche qui l'y représente.
+   *
+   * Un contenu de partenaire est une pièce au dossier, privée ; la médiathèque est
+   * publique. Passer de l'un à l'autre est donc une DÉCISION, prise fichier par
+   * fichier — et elle laisse une trace ici, pour qu'on ne verse pas deux fois le même
+   * et qu'on sache, en regardant le dossier, ce qui est désormais visible.
+   */
+  mediaId: z.string().default(""),
   receivedAt: z.number(),
 });
 export type Deliverable = z.infer<typeof Deliverable>;

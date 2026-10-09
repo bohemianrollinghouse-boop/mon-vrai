@@ -1,5 +1,5 @@
 import "server-only";
-import { Campaign, Promo, type CampaignStatus, type Influencer } from "@/lib/domain/types";
+import { Campaign, Promo, type CampaignPublication, type CampaignStatus, type Influencer } from "@/lib/domain/types";
 import { campaignLive, liveCampaign } from "@/lib/promos/campaign";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
@@ -73,6 +73,15 @@ export async function listCampaigns(influencerId: string): Promise<Campaign[]> {
  */
 export async function currentCampaign(influencerId: string): Promise<Campaign | null> {
   return liveCampaign(await listCampaigns(influencerId));
+}
+
+/*
+ * Ce qui a paru. Écrit seul, et jamais par le formulaire de la campagne : constater une
+ * parution n'est pas renégocier la collaboration, et les deux gestes ne se font ni au
+ * même moment ni par la même personne.
+ */
+export async function setCampaignPublications(id: string, publications: CampaignPublication[]): Promise<void> {
+  await campaigns().doc(id).update({ publications, updatedAt: now() });
 }
 
 export async function setCampaignStatus(id: string, status: CampaignStatus): Promise<void> {

@@ -8,12 +8,13 @@ import { contractVariablesFrom, dayStamp, kitLines } from "@/lib/admin/campaign-
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { deleteCampaign, getCampaign, listCampaigns, syncCampaignPromo, upsertCampaign } from "@/lib/db/campaigns";
-import { getSignature, setSignatureState } from "@/lib/db/contracts";
+import { cleanUrl, publicationSlots } from "@/lib/admin/publications";
+import { clockNow, deleteCampaign, getCampaign, listCampaigns, setCampaignPublications, syncCampaignPromo, upsertCampaign } from "@/lib/db/campaigns";
+import { getContract, getSignature, setSignatureState } from "@/lib/db/contracts";
 import { hasDeliverables } from "@/lib/db/deliverables";
 import { refreshOutreach } from "@/lib/db/outreach";
 import { getInfluencer, getPromo } from "@/lib/db/promos";
-import { CollaborationType, EMPTY_QUOTA } from "@/lib/domain/types";
+import { CollaborationType, EMPTY_QUOTA, type CampaignPublication } from "@/lib/domain/types";
 
 /*
  * Les campagnes d'un partenaire.
@@ -108,6 +109,9 @@ export async function saveCampaignAction(formData: FormData): Promise<AdminResul
     contractVariables: contractVariablesFrom(formData),
     kit: { enabled: d.enabled, title: d.title, text: d.text, lines, deductStock: d.deductStock, prototype: d.prototype },
     expected: { photos: d.expectedPhotos, videos: d.expectedVideos },
+    /* Ce qui a paru se constate ailleurs (savePublicationsAction) : ce formulaire ne le
+       porte pas, il doit donc le laisser exactement où il est. */
+    publications: existing?.publications ?? [],
     kitOrderId: existing?.kitOrderId ?? "",
     signatureId: existing?.signatureId ?? "",
     status: existing?.status ?? "draft",
@@ -155,6 +159,8 @@ export async function createCampaignAction(formData: FormData): Promise<AdminRes
     influencerId,
     /* Montée ici, donc pour lui seul : elle ne ressort d'aucune campagne partagée. */
     operationId: "",
+    /* Rien n'a encore paru : la liste se remplira depuis le contrat, à la première case cochée. */
+    publications: [],
     name: "",
     collaborationType: previous?.collaborationType ?? influencer.collaborationType,
     code: previous?.code ?? "",
@@ -238,4 +244,44 @@ export async function deleteCampaignAction(formData: FormData): Promise<AdminRes
    * en 404 le temps que la redirection aboutisse.
    */
   redirect(campaignsTab(campaign.influencerId));
+}
+
+/*
+ * Ce qui a paru : les cases cochées et les adresses collées sous elles.
+ *
+ * Le contrat fait foi sur ce qui est DÛ — la liste est relue en base, et rien de ce que
+ * le client poste pour une ligne inconnue n'est retenu. Ce que la campagne portait pour
+ * une ligne depuis retirée du contrat n'est pas affiché mais n'est pas jeté non plus :
+ * rétablir la ligne ramène ses liens, et une parution faite reste une parution faite.
+ */
+export async function savePublicationsAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const campaign = await getCampaign(String(formData.get("campaignId") ?? ""));
+  if (!campaign) return failed("Campagne introuvable");
+
+  const contract = campaign.contractId ? await getContract(campaign.contractId) : null;
+  const slots = publicationSlots(contract?.publications ?? [], campaign.publications);
+  if (slots.length === 0) return failed("Ce contrat n'exige aucune parution.");
+
+  const was = new Map(campaign.publications.map((p) => [p.key, p]));
+  const at = await clockNow();
+  const next: CampaignPublication[] = [];
+  for (const slot of slots) {
+    const url = cleanUrl(String(formData.get(`url:${slot.key}`) ?? ""));
+    if (url === null) {
+      return failed(`L'adresse de « ${slot.label} » doit commencer par https://`, { [`url:${slot.key}`]: "Adresse invalide" });
+    }
+    /* Un lien vaut la preuve : collé sous une case décochée, il la coche. */
+    const done = formData.getAll(`done:${slot.key}`).includes("true") || Boolean(url);
+    /* Rien de constaté, rien d'écrit : la campagne ne porte que ce qui a eu lieu. */
+    if (!done) continue;
+    next.push({ key: slot.key, done: true, url, at: was.get(slot.key)?.at ?? at });
+  }
+
+  const orphans = campaign.publications.filter((p) => !slots.some((s) => s.key === p.key));
+  await setCampaignPublications(campaign.id, [...next, ...orphans]);
+  await audit(user.email, "campaign.publications", `campaigns/${campaign.id}`, `${next.length} parution(s) sur ${slots.length}`);
+  revalidatePath(`/admin/influenceurs/${campaign.influencerId}/campagnes/${campaign.id}`);
+  revalidatePath(`/admin/influenceurs/${campaign.influencerId}`);
+  return saved(`${next.length} parution${next.length > 1 ? "s" : ""} sur ${slots.length} enregistrée${next.length > 1 ? "s" : ""}.`);
 }

@@ -54,6 +54,16 @@ export async function listDeliverablesForInfluencer(influencerId: string): Promi
   return parseQuery(Deliverable, deliverables().where("influencerId", "==", influencerId).limit(1000));
 }
 
+/*
+ * Tout ce qui est arrivé, campagnes et partenaires confondus : l'écran « Contenus dus »
+ * compare d'un coup ce qui a été promis à ce qui est là. Une fiche de contenu est un
+ * document minuscule (pas le fichier, son signalement), les lire toutes coûte moins
+ * qu'une requête par campagne.
+ */
+export async function listAllDeliverables(): Promise<Deliverable[]> {
+  return parseQuery(Deliverable, deliverables().limit(5000));
+}
+
 /** Y a-t-il quelque chose au dossier ? Sert à refuser la suppression d'une campagne. */
 export async function hasDeliverables(campaignId: string): Promise<boolean> {
   if (!campaignId) return false;
@@ -107,6 +117,11 @@ export async function recordDeliverable(input: RecordInput): Promise<Deliverable
   });
   await deliverables().doc(input.id).set(doc);
   return doc;
+}
+
+/** Note sur la fiche qu'il a rejoint la médiathèque, et sous quelle fiche. */
+export async function setDeliverableMedia(id: string, mediaId: string): Promise<void> {
+  await deliverables().doc(id).update({ mediaId });
 }
 
 export async function deleteDeliverable(id: string): Promise<Deliverable | null> {
