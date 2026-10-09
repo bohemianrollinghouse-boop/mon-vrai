@@ -18,11 +18,15 @@ export type PublicationLine = { id: string; label: string; qty: number };
 
 const SUGGESTIONS = ["Vidéo TikTok", "Réel Instagram", "Story Instagram", "Post en collaboration", "Vidéo YouTube", "Publication Facebook"];
 
-export function PublicationsEditor({ initial }: { initial: PublicationLine[] }) {
+export function PublicationsEditor({ initial, suggested = [] }: { initial: PublicationLine[]; suggested?: PublicationLine[] }) {
   const [lines, setLines] = useState<PublicationLine[]>(initial);
 
   const patch = (i: number, p: Partial<PublicationLine>) => setLines((l) => l.map((line, k) => (k === i ? { ...line, ...p } : line)));
   const add = (label: string) => setLines((l) => [...l, { id: "", label, qty: 1 }]);
+
+  /* Ce que le résumé du contrat annonce déjà et qui n'est pas encore dans la liste. Le
+     reprendre évite de ressaisir en chiffres ce qui est écrit juste au-dessus. */
+  const missing = suggested.filter((s) => !lines.some((l) => l.label.toLowerCase() === s.label.toLowerCase()));
 
   return (
     <div className="flex flex-col gap-2">
@@ -31,6 +35,16 @@ export function PublicationsEditor({ initial }: { initial: PublicationLine[] }) 
 
       {lines.length === 0 && (
         <span className="text-[0.8125rem] text-subtle">Aucune parution exigée par ce contrat. Les fichiers reçus se comptent à part.</span>
+      )}
+
+      {missing.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setLines((l) => [...l, ...missing])}
+          className="w-fit cursor-pointer rounded-pill bg-tint-blue px-3 py-2 text-[0.6875rem] font-bold text-tint-blue-ink hover:opacity-70"
+        >
+          Reprendre du résumé : {missing.map((m) => (m.qty > 1 ? `${m.qty} × ${m.label}` : m.label)).join(", ")}
+        </button>
       )}
 
       {lines.map((line, i) => (

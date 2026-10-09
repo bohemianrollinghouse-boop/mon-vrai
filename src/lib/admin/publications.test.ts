@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { cleanUrl, publicationLabel, publicationProgress, publicationSlots } from "./publications";
+import { beforeEach, describe, expect, it } from "vitest";
+import { cleanUrl, publicationLabel, publicationLines, publicationProgress, publicationSlots, suggestPublications } from "./publications";
 import type { CampaignPublication, ContractPublication } from "@/lib/domain/types";
 
 const required: ContractPublication[] = [
@@ -64,5 +64,78 @@ describe("cleanUrl", () => {
   it("refuse ce qui n'est pas une adresse web", () => {
     expect(cleanUrl("tiktok.com/@moi")).toBeNull();
     expect(cleanUrl("javascript:alert(1)")).toBeNull();
+  });
+});
+
+describe("suggestPublications", () => {
+  const summary = [
+    "40 photographies originales",
+    "20 vidéos de 5 à 15 secondes",
+    "1 réel Instagram",
+    "* 2 stories Instagram",
+    "Livres réellement manipulés, fichiers sans filigrane",
+  ].join("\n");
+
+  it("ne retient que ce qui nomme un réseau ou une forme de parution", () => {
+    expect(suggestPublications(summary)).toEqual([
+      { id: "", label: "Réel Instagram", qty: 1 },
+      { id: "", label: "Stories Instagram", qty: 2 },
+    ]);
+  });
+
+  it("laisse les fichiers à recevoir au décompte des fichiers", () => {
+    expect(suggestPublications("40 photographies originales\n20 vidéos de 5 à 15 secondes")).toEqual([]);
+  });
+
+  it("lit la quantité en tête, « × » compris, et retombe sur une seule fois", () => {
+    expect(suggestPublications("3 × vidéo TikTok")).toEqual([{ id: "", label: "Vidéo TikTok", qty: 3 }]);
+    expect(suggestPublications("Story Instagram le jour de la réception")).toEqual([
+      { id: "", label: "Story Instagram le jour de la réception", qty: 1 },
+    ]);
+  });
+
+  it("ne propose pas deux fois la même ligne", () => {
+    expect(suggestPublications("1 réel Instagram\nRéel Instagram")).toHaveLength(1);
+  });
+});
+
+describe("publicationLines", () => {
+  let n = 0;
+  const nextId = () => `pub_${++n}`;
+  const previous: ContractPublication[] = [{ id: "pub_ancien", label: "Vidéo TikTok", qty: 2 }];
+  beforeEach(() => {
+    n = 0;
+  });
+
+  it("pose un identifiant aux lignes neuves", () => {
+    expect(publicationLines(JSON.stringify([{ id: "", label: "Story", qty: 1 }]), [], nextId)).toEqual([{ id: "pub_1", label: "Story", qty: 1 }]);
+  });
+
+  it("garde l'identifiant d'une ligne du contrat, même renommée : ses liens y tiennent", () => {
+    const out = publicationLines(JSON.stringify([{ id: "pub_ancien", label: "Réel TikTok", qty: 2 }]), previous, nextId);
+    expect(out).toEqual([{ id: "pub_ancien", label: "Réel TikTok", qty: 2 }]);
+  });
+
+  it("refait un identifiant que le client aurait inventé ou répété", () => {
+    const out = publicationLines(
+      JSON.stringify([{ id: "pub_ancien", label: "A", qty: 1 }, { id: "pub_ancien", label: "B", qty: 1 }, { id: "venu_dailleurs", label: "C", qty: 1 }]),
+      previous,
+      nextId,
+    );
+    expect(out.map((l) => l.id)).toEqual(["pub_ancien", "pub_1", "pub_2"]);
+  });
+
+  it("écarte les lignes sans nom et borne les quantités", () => {
+    const out = publicationLines(JSON.stringify([{ label: "  ", qty: 1 }, { label: "Story", qty: 99 }, { label: "Post", qty: 0 }]), [], nextId);
+    expect(out.map((l) => [l.label, l.qty])).toEqual([["Story", 20], ["Post", 1]]);
+  });
+
+  it("rend ce qui était là plutôt que de le jeter quand l'envoi est illisible", () => {
+    expect(publicationLines("{pas du json", previous, nextId)).toEqual(previous);
+    expect(publicationLines(JSON.stringify({ pas: "un tableau" }), previous, nextId)).toEqual(previous);
+  });
+
+  it("un champ vide veut dire « plus aucune parution », et non « ne touche à rien »", () => {
+    expect(publicationLines("", previous, nextId)).toEqual([]);
   });
 });

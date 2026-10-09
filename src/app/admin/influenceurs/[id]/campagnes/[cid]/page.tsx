@@ -294,10 +294,23 @@ export default async function CampaignPage({ params }: PageProps<"/admin/influen
             className="!gap-2"
           >
             {!published.required ? (
+              /* Un cul-de-sac ne rend service à personne : la liste se règle sur le
+                 contrat, l'écran y mène donc directement. */
               <p className="text-[0.8125rem] leading-relaxed text-subtle">
-                {campaign.contractId
-                  ? "Ce contrat n'exige aucune parution. La liste s'écrit sur le contrat, dans Contrats — toutes ses campagnes en hériteront."
-                  : "Aucun contrat n'est rattaché à cette campagne : il n'y a donc rien à publier de convenu."}
+                {contract ? (
+                  <>
+                    Le contrat « {contract.name} » n&apos;énumère pas encore ce qui doit paraître. Ce qu&apos;il en dit
+                    dans son texte ne peut pas se compter : écrivez-le une fois en lignes —{" "}
+                    <Link href={`/admin/contrats?id=${contract.id}`} className="font-bold underline">
+                      régler les parutions du contrat
+                    </Link>{" "}
+                    — et toutes ses campagnes, celle-ci comprise, l&apos;afficheront en cases à cocher.
+                  </>
+                ) : campaign.contractId ? (
+                  "Le contrat de cette campagne a été retiré : rattachez-en un pour savoir ce qui doit paraître."
+                ) : (
+                  "Aucun contrat n'est rattaché à cette campagne : il n'y a donc rien à publier de convenu."
+                )}
               </p>
             ) : (
               <ActionForm action={savePublicationsAction} submitLabel="Enregistrer les parutions">

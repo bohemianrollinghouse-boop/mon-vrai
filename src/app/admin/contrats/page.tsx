@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { PublicationsEditor } from "@/components/admin/PublicationsEditor";
+import { suggestPublications } from "@/lib/admin/publications";
 import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
 import { deleteContractAction, saveContractAction } from "@/lib/admin/actions/contracts";
 import { listContracts } from "@/lib/db/contracts";
@@ -127,7 +128,12 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                   Ce que le partenaire doit publier sur ses réseaux. Sur chaque campagne sous ce contrat, la liste
                   s&apos;affichera en cases à cocher, et l&apos;adresse de chaque parution se collera dessous.
                 </p>
-                <PublicationsEditor initial={current && !isNew ? current.publications : []} />
+                <PublicationsEditor
+                  initial={current && !isNew ? current.publications : []}
+                  /* Proposées d'après le résumé ENREGISTRÉ : ce qui vient d'être tapé
+                     sans être enregistré n'est pas encore le contrat. */
+                  suggested={current && !isNew ? suggestPublications(current.summary) : []}
+                />
               </div>
 
               <Switch

@@ -74,6 +74,86 @@ export function publicationLabel(p: PublicationProgress): string {
   return `${p.done} parution${p.done > 1 ? "s" : ""} sur ${p.total}`;
 }
 
+/* ---------- Ce que le contrat dit déjà en toutes lettres ---------- */
+
+/*
+ * Les parutions qu'on devine dans le résumé d'un contrat.
+ *
+ * Le résumé « Votre collaboration » énumère déjà les engagements, une ligne chacun —
+ * « 1 réel Instagram », « 2 vidéos TikTok ». Les redemander en chiffres n'apprend rien
+ * à personne : on les PROPOSE, et c'est l'administrateur qui tranche avant
+ * d'enregistrer. Une proposition, donc, et jamais une déduction qui s'imposerait : le
+ * texte d'un contrat n'a pas de grammaire, et ce qui est écrit pour être lu ne se lit
+ * pas toujours comme on l'espère.
+ *
+ * Seules les lignes qui nomment un RÉSEAU ou une FORME de parution sont retenues :
+ * « 40 photographies originales » est un fichier à recevoir, pas une publication, et le
+ * proposer ici mélangerait les deux comptes.
+ */
+const PLATFORMS = /\b(tiktok|instagram|insta|facebook|youtube|snapchat|pinterest|linkedin|twitch)\b/i;
+const FORMATS = /\b(r[ée]els?|reels?|stor(?:y|ies)|posts?|publications?|shorts?|carrousels?|lives?|unboxing)\b/i;
+
+export function suggestPublications(summary: string): { id: string; label: string; qty: number }[] {
+  const lines: { id: string; label: string; qty: number }[] = [];
+  for (const raw of summary.split(/\r?\n/)) {
+    /* Les puces d'une liste rédigée à la main, et les espaces autour. */
+    const line = raw.replace(/^[\s*•\-–—]+/, "").trim();
+    if (!line || line.length > 120) continue;
+    if (!PLATFORMS.test(line) && !FORMATS.test(line)) continue;
+
+    /* Le nombre de tête donne la quantité ; à défaut, une seule fois. */
+    const m = line.match(/^(\d{1,2})\s*(?:[x×]\s*)?(.+)$/);
+    const qty = m ? Math.min(20, Math.max(1, Number(m[1]))) : 1;
+    const rest = (m ? m[2] : line).trim();
+    if (!rest) continue;
+    const label = (rest[0].toUpperCase() + rest.slice(1)).slice(0, 80);
+    if (lines.some((l) => l.label.toLowerCase() === label.toLowerCase())) continue;
+    lines.push({ id: "", label, qty });
+  }
+  return lines.slice(0, 40);
+}
+
+/* ---------- Ce que l'éditeur renvoie ---------- */
+
+/*
+ * Les lignes telles que l'éditeur les a sérialisées, remises en ordre.
+ *
+ * L'identifiant est conservé d'un enregistrement à l'autre : c'est lui qui rattache un
+ * lien déjà saisi à sa ligne. Renommer « Vidéo TikTok » en « Réel TikTok » ne doit pas
+ * perdre l'adresse qu'on y avait collée — d'où un identifiant, et non la position ni le
+ * libellé. Un identifiant qui ne vient pas de CE contrat, ou qui a déjà servi dans la
+ * même liste, est refait : rien du client ne décide d'un rattachement.
+ *
+ * Illisible : on rend ce qui était là. Une ligne sans nom est écartée en silence —
+ * l'éditeur en ajoute une vide au clic, et une ligne qu'on n'a pas remplie n'exige rien.
+ */
+export function publicationLines(raw: string, previous: ContractPublication[], nextId: () => string): ContractPublication[] {
+  if (!raw.trim()) return [];
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return previous;
+  }
+  if (!Array.isArray(data)) return previous;
+
+  const known = new Set(previous.map((p) => p.id));
+  const used = new Set<string>();
+  const lines: ContractPublication[] = [];
+  for (const entry of data.slice(0, 40)) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { id, label, qty } = entry as { id?: unknown; label?: unknown; qty?: unknown };
+    const name = typeof label === "string" ? label.trim().slice(0, 80) : "";
+    if (!name) continue;
+    const times = Math.min(20, Math.max(1, Math.trunc(Number(qty)) || 1));
+    const keep = typeof id === "string" && id && known.has(id) && !used.has(id);
+    const final = keep ? (id as string) : nextId();
+    used.add(final);
+    lines.push({ id: final, label: name, qty: times });
+  }
+  return lines;
+}
+
 /*
  * Ce qu'on accepte comme lien : une adresse web, et rien d'autre. Un « tiktok.com/@moi »
  * sans protocole ne s'ouvrirait pas d'un clic, et un `javascript:` n'a rien à faire dans
