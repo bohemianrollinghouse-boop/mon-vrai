@@ -57,12 +57,14 @@ export async function confirmDeliverableAction(campaignId: string, id: string, f
 /*
  * Verse un contenu dans la médiathèque, pour qu'il puisse PARAÎTRE sur le site.
  *
- * Les deux endroits ne disent pas la même chose et ne se confondent pas : le dossier
- * d'une campagne garde ce qu'un partenaire a remis — privé, et qui doit le rester même
- * une fois la collaboration finie —, la médiathèque tient ce qui s'affiche publiquement.
- * Le passage de l'un à l'autre est donc un geste, fichier par fichier, et jamais un
- * reversement automatique : tout ce qu'on reçoit n'est pas destiné à paraître, et une
- * médiathèque où tomberaient cent fichiers de partenaire ne serait plus utilisable.
+ * Les deux endroits ne disent pas la même chose : le dossier d'une campagne garde ce
+ * qu'on a reçu — privé, et qui doit le rester même une fois la collaboration finie —,
+ * la médiathèque tient ce qui peut s'afficher publiquement.
+ *
+ * Le versement est désormais AUTOMATIQUE à la réception, dans le dossier du partenaire
+ * (voir db/deliverables.recordDeliverable). Ce bouton reste pour rattraper ce que la
+ * copie n'a pas pu prendre sur le moment : un format converti depuis, ou un fichier
+ * déposé avant que la règle ne change.
  *
  * La pièce reste au dossier : c'est une copie. Et elle n'est versée qu'une fois — la
  * fiche retient l'identifiant du média, un second clic ne referait pas un doublon.
