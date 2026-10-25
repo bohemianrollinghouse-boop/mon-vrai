@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
+import { DocumentFileField } from "@/components/admin/DocumentFileField";
 import { DocumentFields } from "@/components/admin/DocumentFields";
 import { ButtonLink, Card, Field, FilterPills, GridTable, Input, Notice, PageHeader, Pill, Thumb, Tile } from "@/components/admin/ui";
 import { deleteDocumentAction, saveIsbnAction, updateDocumentAction, uploadDocumentAction } from "@/lib/admin/actions/documents";
@@ -85,7 +86,7 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/admin/
         {/* Même ruse que sur les dépenses : la clé change après un dépôt, le formulaire se vide. */}
         <ActionForm key={`depot-${documents.length}`} action={uploadDocumentAction} submitLabel="Déposer" footerNote="Le fichier n'est jamais publié sur le site : il reste dans un dossier privé.">
           <Field label="Fichier" hint="PDF, JPEG, PNG, WebP, TIFF, CSV, Word, Excel ou ZIP." name="file">
-            <input type="file" name="file" accept="application/pdf,image/*,text/csv,.doc,.docx,.xls,.xlsx,.zip" className="text-sm" required />
+            <DocumentFileField accept="application/pdf,image/*,text/csv,.doc,.docx,.xls,.xlsx,.zip,.pdf" />
           </Field>
           <DocumentFields products={products} />
         </ActionForm>

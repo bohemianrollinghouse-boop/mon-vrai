@@ -4,6 +4,8 @@ import { PublicationsEditor } from "@/components/admin/PublicationsEditor";
 import { suggestPublications } from "@/lib/admin/publications";
 import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
 import { deleteContractAction, installContractDraftsAction, saveContractAction } from "@/lib/admin/actions/contracts";
+import { uploadDocumentAction } from "@/lib/admin/actions/documents";
+import { DocumentFileField } from "@/components/admin/DocumentFileField";
 import { CONTRACT_DRAFTS } from "@/lib/contracts/drafts";
 import { listContracts } from "@/lib/db/contracts";
 import { listDocuments } from "@/lib/db/documents";
@@ -196,12 +198,9 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
               <div className="flex flex-col gap-3 rounded-card bg-paper p-5">
                 <span className="text-xs font-semibold text-subtle">Annexe remise au créateur</span>
                 <p className="-mt-1 text-[0.6875rem] leading-relaxed text-subtle">
-                  Le document qu&apos;il peut ouvrir au moment de signer, et retrouver ensuite dans son espace. Déposez-le
-                  d&apos;abord dans{" "}
-                  <Link href="/admin/documents" className="font-bold underline">
-                    Documents
-                  </Link>
-                  , puis choisissez-le ici.
+                  Le document qu&apos;il peut ouvrir au moment de signer, et retrouver ensuite dans son espace. S&apos;il
+                  n&apos;est pas encore dans la liste, déposez-le avec « Déposer une annexe », juste sous ce
+                  formulaire — il y apparaîtra aussitôt.
                 </p>
                 <Field label="Nom de l'annexe" hint="Celui que le créateur lira sur le bouton." name="guideLabel">
                   <Input name="guideLabel" maxLength={120} defaultValue={form ? form.guide.label : ""} placeholder="Kit de création de contenu" />
@@ -282,6 +281,38 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
               */}
               {current && <ContractVariables contract={current} />}
               {current && <AutomaticVariables contract={current} />}
+            </ActionForm>
+          </Card>
+
+          {/*
+            Déposer une annexe sans quitter le contrat.
+            Carte SŒUR et non imbriquée : le formulaire du contrat est déjà un <form>, et
+            deux <form> ne s'emboîtent pas. Le dépôt enregistre la pièce dans la
+            bibliothèque, la page se relit, et la liste déroulante du bloc « Annexe » la
+            propose — il ne reste qu'à la choisir et à enregistrer le contrat.
+          */}
+          <Card
+            title={<span className="text-sm">Déposer une annexe</span>}
+            aside={<span className="text-xs font-bold text-subtle">PDF, photo — 40 Mo max</span>}
+            className="!gap-2"
+          >
+            <ActionForm action={uploadDocumentAction} submitLabel="Déposer dans la bibliothèque" submitTone="secondary">
+              <Field label="Fichier" hint="Le kit de création de contenu, le brief visuel." name="file">
+                <DocumentFileField accept="application/pdf,image/*,.pdf" />
+              </Field>
+              <Field label="Titre" hint="Celui sous lequel vous le retrouverez dans la liste." name="title">
+                <Input name="title" required maxLength={160} placeholder="Kit de création de contenu Mon Vrai" />
+              </Field>
+              {/* La nature est connue d'avance : on ne la fait pas choisir. */}
+              <input type="hidden" name="kind" value="other" />
+              <p className="text-[0.6875rem] leading-relaxed text-subtle">
+                La pièce rejoint{" "}
+                <Link href="/admin/documents" className="font-bold underline">
+                  Documents
+                </Link>{" "}
+                comme les autres, dans le même dossier privé. Elle ne devient l&apos;annexe de ce contrat que lorsque vous
+                la choisissez ci-dessus et que vous enregistrez.
+              </p>
             </ActionForm>
           </Card>
 

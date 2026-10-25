@@ -631,6 +631,20 @@ C'est l'adresse à coller dans le champ **Lien** de l'annexe d'un contrat.
   avec la médiathèque. Une pièce porte une fin de validité : `lib/admin/doc-status.ts`
   prévient deux mois avant l'échéance, pas le jour venu.
 
+Deux précautions au dépôt, apprises à nos dépens. Le **type se déduit de l'extension**
+quand le navigateur ne l'annonce pas (`domain/documents.documentMime`, pur et testé) :
+Windows livre régulièrement un fichier avec `type` vide, et le dépôt refusait alors un
+PDF parfaitement ordinaire — c'est déjà la règle des contenus de partenaires. Et le
+**poids se vérifie dans le navigateur** (`components/admin/DocumentFileField`) : au-delà
+de la limite de corps d'une action serveur, la requête est refusée par le cadre AVANT que
+l'action ne s'exécute, le `try`/`catch` ne voit rien, et le dépôt paraît simplement ne
+pas marcher. Le pire des échecs est celui qui ne se dit pas.
+
+Une annexe de contrat se dépose **depuis la fiche du contrat** (carte « Déposer une
+annexe »), sœur et non imbriquée du formulaire — deux `<form>` ne s'emboîtent pas. La
+pièce rejoint la bibliothèque comme les autres ; elle ne devient l'annexe que lorsqu'on
+la choisit et qu'on enregistre.
+
 Les **ISBN** s'attribuent au bas de `/admin/documents`, l'attestation sous les yeux, et
 non dans la fiche produit : `saveIsbnAction` écrit `Product.isbn` après avoir vérifié la
 clé de contrôle (`domain/isbn.ts`) et l'unicité du numéro dans le catalogue.
