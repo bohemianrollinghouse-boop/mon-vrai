@@ -431,6 +431,20 @@ nous a envoyé » se retrouve d'un clic, et le **fonds commun** (ce qu'on a cons
 soi-même) reste à part. Le classement règle ce que l'abstention réglait avant, sans
 priver personne de ses fichiers.
 
+La règle, dite une fois : **tout média importé dans l'administration — photo ou
+vidéo, et d'où qu'il vienne — se retrouve dans Médias.** La médiathèque, l'éditeur de
+blocs, l'image d'une newsletter et l'e-mail d'invitation y passaient déjà ; les contenus
+de campagne y passent désormais aussi. Les **justificatifs** (`documents/`) en sont la
+seule exception, et délibérément : une facture ou un rapport de laboratoire n'est pas un
+média, et `media/` est servi publiquement — y copier une pièce comptable la publierait.
+
+Une règle qui ne vaudrait qu'à l'avenir obligerait à se souvenir de sa date pour savoir
+où chercher un fichier : un bouton de /admin/medias **rapatrie l'existant**
+(`backfillDeliverableMediaAction`). Idempotent sur `mediaId`, et **par lots de 25** — une
+action serveur ne tient pas trois cents copies de vidéos dans le temps qu'on lui laisse,
+et un rapatriement à moitié fait qui échouerait en bloc n'aurait rien rapatrié. Le
+bandeau ne paraît que s'il reste quelque chose à prendre.
+
 Un dossier est un **libellé**, jamais un chemin : le fichier reste sous `media/<id>/`, et
 ranger un écran ne doit pas casser l'adresse d'une image déjà publiée. Les dossiers se
 **déduisent** des fichiers (`db/media-folders.ts`, pur et testé) : aucune liste à tenir,
