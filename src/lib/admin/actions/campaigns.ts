@@ -206,6 +206,7 @@ export async function completeCampaignAction(formData: FormData): Promise<AdminR
   await audit(user.email, "campaign.complete", `campaigns/${id}`, `campagne n° ${campaign.seq}`);
   revalidatePath(`/admin/influenceurs/${campaign.influencerId}`);
   revalidatePath(campaignPath(campaign.influencerId, id));
+  revalidatePath("/admin/campagnes");
   revalidatePath("/admin/codes-promo");
   revalidatePath("/partenaire");
   return saved(`Campagne n° ${campaign.seq} terminée${campaign.code ? ` · le code ${campaign.code} ne remise plus` : ""}.`);
@@ -283,5 +284,7 @@ export async function savePublicationsAction(formData: FormData): Promise<AdminR
   await audit(user.email, "campaign.publications", `campaigns/${campaign.id}`, `${next.length} parution(s) sur ${slots.length}`);
   revalidatePath(`/admin/influenceurs/${campaign.influencerId}/campagnes/${campaign.id}`);
   revalidatePath(`/admin/influenceurs/${campaign.influencerId}`);
+  /* Le suivi des campagnes coche les mêmes cases : il doit les relire. */
+  revalidatePath("/admin/campagnes");
   return saved(`${next.length} parution${next.length > 1 ? "s" : ""} sur ${slots.length} enregistrée${next.length > 1 ? "s" : ""}.`);
 }

@@ -20,6 +20,19 @@ export async function getOrder(id: string): Promise<Order | null> {
   return parseDoc(Order, await orders().doc(id).get());
 }
 
+/*
+ * Plusieurs commandes par leur identifiant, en une lecture. Les inconnues sont ignorées
+ * plutôt que de faire échouer l'ensemble : un écran qui réunit des commandes de kit
+ * cite ce que les campagnes ont retenu, et une commande supprimée depuis ne doit pas
+ * lui coûter la page.
+ */
+export async function getOrders(ids: string[]): Promise<Order[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (unique.length === 0) return [];
+  const snaps = await db().getAll(...unique.map((id) => orders().doc(id)));
+  return snaps.map((snap) => parseDoc(Order, snap)).filter((order): order is Order => order !== null);
+}
+
 export async function findOrderByCheckoutSession(sessionId: string): Promise<Order | null> {
   const snap = await orders().where("stripe.checkoutSessionId", "==", sessionId).limit(1).get();
   const doc = snap.docs[0];

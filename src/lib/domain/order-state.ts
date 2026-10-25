@@ -26,6 +26,30 @@ export function assertTransition(from: OrderStatus, to: OrderStatus): void {
   }
 }
 
+/*
+ * Le chemin le plus court d'un statut à un autre, la machine à états respectée pas à pas.
+ *
+ * Marquer un kit « reçu » ne demande pas de savoir qu'il faut d'abord le passer « en
+ * préparation » puis « expédié » : la machine le sait. On ne saute donc aucune étape
+ * — chacune laisse sa trace au journal de la commande —, et on n'en invente aucune :
+ * ce qui n'est pas atteignable rend une liste vide, et l'appelant s'arrête là.
+ */
+export function transitionPath(from: OrderStatus, to: OrderStatus): OrderStatus[] {
+  if (from === to) return [];
+  const seen = new Set<OrderStatus>([from]);
+  const queue: OrderStatus[][] = [[from]];
+  while (queue.length > 0) {
+    const path = queue.shift() as OrderStatus[];
+    for (const next of TRANSITIONS[path[path.length - 1]]) {
+      if (seen.has(next)) continue;
+      if (next === to) return [...path.slice(1), next];
+      seen.add(next);
+      queue.push([...path, next]);
+    }
+  }
+  return [];
+}
+
 /** Statuts après lesquels le stock a été consommé et doit être rendu en cas d'annulation. */
 export function stockIsReserved(status: OrderStatus): boolean {
   return status !== "pending_payment" && status !== "cancelled" && status !== "refunded";

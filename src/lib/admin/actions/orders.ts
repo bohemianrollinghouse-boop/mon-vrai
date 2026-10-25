@@ -11,6 +11,7 @@ import { addOrderNote, deleteOrder, getOrder, setTracking, transitionOrder } fro
 import { findSignatureByOrder, setSignatureState } from "@/lib/db/contracts";
 import { detachCampaignOrder, findCampaignByOrder } from "@/lib/db/campaigns";
 import { refreshOutreach } from "@/lib/db/outreach";
+import { transitionPath } from "@/lib/domain/order-state";
 import { OrderStatus } from "@/lib/domain/types";
 import { sendOrderConfirmation, sendShippingNotice } from "@/lib/email/send";
 import { createLabelForOrder, syncBoxtal } from "@/lib/boxtal/shipment";
@@ -38,6 +39,38 @@ export async function transitionOrderAction(formData: FormData): Promise<AdminRe
   } catch (e) {
     return failed((e as Error).message);
   }
+}
+
+/*
+ * « Reçu » : la commande est menée jusqu'à « livrée », en respectant la machine à états.
+ *
+ * Elle sert au suivi des campagnes, où la question n'est pas « quel statut lui donner »
+ * mais « est-ce arrivé ? ». Un kit expédié par Boxtal passe en livré tout seul au
+ * dernier événement de suivi ; un colis remis en main propre, ou posté sans numéro, n'a
+ * personne pour le dire — et il resterait « à expédier » pour l'éternité. On franchit
+ * donc les étapes manquantes une à une (`transitionPath`), chacune inscrite au journal
+ * de la commande : rien n'est sauté, rien n'est inventé, et on voit après coup que la
+ * livraison a été constatée à la main.
+ */
+export async function markDeliveredAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  const order = await getOrder(id);
+  if (!order) return failed("Commande introuvable");
+  if (order.status === "delivered") return saved(`Commande ${order.number} : déjà marquée reçue.`);
+
+  const path = transitionPath(order.status, "delivered");
+  if (path.length === 0) return failed(`Une commande ${order.status} ne peut plus être marquée reçue.`);
+
+  try {
+    for (const to of path) await transitionOrder(id, to, { note: "Réception constatée à la main", by: user.email });
+  } catch (e) {
+    return failed((e as Error).message);
+  }
+  await audit(user.email, "order.delivered", `orders/${id}`, `réception constatée (${path.join(" → ")})`);
+  revalidatePath("/admin/commandes");
+  revalidatePath("/admin/campagnes");
+  return saved(`Commande ${order.number} marquée reçue.`);
 }
 
 const Tracking = z.object({

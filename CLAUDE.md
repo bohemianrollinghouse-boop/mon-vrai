@@ -277,6 +277,43 @@ part, et non un `Operation` de plus.
   rien pour l'expliquer. Retirer un co-organisateur ne supprime pas ses gagnants — un lot
   promis reste dû.
 
+## Suivi des campagnes
+
+`/admin/campagnes` a deux onglets. « Toutes les campagnes » regarde ce qu'on a
+**organisé** (les `Operation`) ; **« Suivi »**, qui ouvre l'écran, répond à la question
+de tous les jours : où en est chaque partenaire, et qu'est-ce qui m'attend ? Une ligne
+par participation **en cours** (ni terminée ni annulée), groupée par campagne, avec
+cinq étapes lues d'un coup d'œil — contrat, kit, colis, parutions, contenus.
+
+Rien ne s'y tient à jour : tout se **déduit** (`lib/admin/campaign-board.ts`, pur et
+testé) de la signature, de la commande du kit et de son statut, des parutions
+constatées et des fichiers au dossier. C'est la règle des campagnes partagées et des
+concours — un état qu'on ne maintient pas ne peut pas mentir —, appliquée au suivi.
+
+Ce qui porte l'écran est la distinction du **camp**. Une étape attend quelque chose de
+**nous** (`ours` : expédier, confirmer une réception, récupérer un lien, écrire au
+contrat une quantité jamais écrite, clore) ou quelque chose d'**eux** (`theirs` :
+signer, commander son kit, publier, envoyer ses fichiers). Le sable est réservé au
+premier cas : c'est la seule couleur qui appelle un geste aujourd'hui, et la diluer sur
+ce qu'on attend des autres reviendrait à ne plus la voir. Le tri suit le camp, pas la
+date.
+
+Deux choses se **marquent** depuis la ligne dépliée, parce qu'on les constate en
+regardant la liste : la **réception du colis** et les **parutions**. Les parutions
+passent par le même composant que la fiche de participation
+(`components/admin/PublicationsForm.tsx`) — une case cochée ici doit valoir une case
+cochée là, et un formulaire qui ne posterait que les cases effacerait les liens déjà
+saisis. La réception passe par `markDeliveredAction`, qui mène la commande jusqu'à
+« livrée » en franchissant les étapes manquantes une à une (`transitionPath`, pur et
+testé) : Boxtal le fait tout seul quand il y a un suivi, et **personne** quand le colis
+est posté sans numéro ou remis en main propre — il resterait « à expédier » pour
+l'éternité. Chaque passage est inscrit au journal de la commande : rien n'est sauté,
+et l'on voit après coup que la livraison a été constatée à la main.
+
+Une participation **hors campagne** — montée pour quelqu'un seul, ou dont la campagne a
+été supprimée depuis — se range à part, à la fin : elle attend quelque chose, et la
+cacher reviendrait à l'oublier.
+
 ## Contenus des partenaires
 
 Ce qu'une campagne donne (le kit) a toujours eu sa place ; ce qu'elle **attend en

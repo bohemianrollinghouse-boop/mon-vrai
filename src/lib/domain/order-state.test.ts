@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertTransition,
   canTransition,
+  transitionPath,
   formatInvoiceNumber,
   formatOrderNumber,
   stockIsReserved,
@@ -19,6 +20,15 @@ describe("transitions de commande", () => {
     expect(canTransition("pending_payment", "shipped")).toBe(false);
     expect(canTransition("shipped", "paid")).toBe(false);
     expect(() => assertTransition("delivered", "preparing")).toThrow(/interdite/);
+  });
+
+  it("mène une commande à livrée sans sauter d'étape", () => {
+    expect(transitionPath("paid", "delivered")).toEqual(["preparing", "shipped", "delivered"]);
+    expect(transitionPath("shipped", "delivered")).toEqual(["delivered"]);
+    /* Déjà arrivé, ou plus rien à faire : l'appelant s'arrête là. */
+    expect(transitionPath("delivered", "delivered")).toEqual([]);
+    expect(transitionPath("refunded", "delivered")).toEqual([]);
+    expect(transitionPath("pending_payment", "delivered")).toEqual(["paid", "preparing", "shipped", "delivered"]);
   });
 
   it("rend les états terminaux définitifs", () => {
