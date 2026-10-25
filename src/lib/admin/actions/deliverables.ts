@@ -7,7 +7,7 @@ import { assertAdmin } from "@/lib/auth/session";
 import { getCampaign } from "@/lib/db/campaigns";
 import { deleteDeliverable, getDeliverable, newDeliverableId, recordDeliverable, setDeliverableMedia } from "@/lib/db/deliverables";
 import { getInfluencer } from "@/lib/db/promos";
-import { copyIntoMedia } from "@/lib/db/media";
+import { copyIntoMedia, deleteMedia } from "@/lib/db/media";
 import { contentKind, contentPath } from "@/lib/domain/deliverables";
 
 /*
@@ -61,10 +61,13 @@ export async function confirmDeliverableAction(campaignId: string, id: string, f
  * qu'on a reçu — privé, et qui doit le rester même une fois la collaboration finie —,
  * la médiathèque tient ce qui peut s'afficher publiquement.
  *
- * Le versement est désormais AUTOMATIQUE à la réception, dans le dossier du partenaire
- * (voir db/deliverables.recordDeliverable). Ce bouton reste pour rattraper ce que la
- * copie n'a pas pu prendre sur le moment : un format converti depuis, ou un fichier
- * déposé avant que la règle ne change.
+ * `media/` est lisible par TOUT LE MONDE — c'est ce qui permet à une photo produit de
+ * s'afficher sur la boutique, et aucun mot de passe d'administration n'y change rien :
+ * qui a l'adresse a le fichier. Verser un contenu est donc un acte de PUBLICATION, et
+ * c'est pourquoi il reste un geste, fichier par fichier, et jamais automatique.
+ *
+ * Les deux écrans n'en font qu'un pour autant : /admin/medias montre les deux coffres
+ * côte à côte (voir admin/media-shelf.ts), sans rien recopier.
  *
  * La pièce reste au dossier : c'est une copie. Et elle n'est versée qu'une fois — la
  * fiche retient l'identifiant du média, un second clic ne referait pas un doublon.
@@ -89,6 +92,29 @@ export async function publishDeliverableAction(formData: FormData): Promise<Admi
   } catch (e) {
     return failed((e as Error).message);
   }
+}
+
+/*
+ * Retire du public un contenu qu'on y avait versé : la copie de `media/` est effacée,
+ * et la fiche oublie son identifiant.
+ *
+ * Le fichier reçu, lui, ne bouge pas — il est dans `ugc/`, et c'est la pièce de
+ * référence. Publier est un acte qui doit pouvoir se défaire sans rien perdre : sans
+ * cela on n'ose plus publier, et le bouton ne sert plus à rien.
+ */
+export async function unpublishDeliverableAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  const doc = await getDeliverable(id);
+  if (!doc) return failed("Ce contenu n'existe plus.");
+  if (!doc.mediaId) return saved("Ce contenu n'est pas public.");
+
+  await deleteMedia(doc.mediaId).catch(() => undefined);
+  await setDeliverableMedia(doc.id, "");
+  await audit(user.email, "deliverable.unpublish", `deliverables/${doc.id}`, doc.filename);
+  revalidatePath(campaignPath(doc.influencerId, doc.campaignId));
+  revalidatePath("/admin/medias");
+  return saved(`${doc.filename} n'est plus public.`);
 }
 
 export async function deleteDeliverableAction(formData: FormData): Promise<AdminResult> {

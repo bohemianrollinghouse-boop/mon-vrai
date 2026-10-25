@@ -422,48 +422,31 @@ Les fichiers reçus sont des documents à part (collection `deliverables`), et n
 champs de la campagne : **une campagne dit ce qu'elle réclame, elle ne porte pas ses
 pièces jointes**.
 
-Ils **rejoignent la médiathèque à la réception**, dans le **dossier du partenaire**
-(`Media.folder`, posé par `recordDeliverable`). Ce ne fut pas le cas au départ, et le
-renversement se raconte : la médiathèque sert à CHOISIR ce qui paraît sur le site, et y
-déverser cent fichiers bruts la rendait illisible — on versait donc fichier par fichier,
-en décidant à chaque fois. Ce qui a changé, ce sont les **dossiers** : « ce que Camille
-nous a envoyé » se retrouve d'un clic, et le **fonds commun** (ce qu'on a constitué
-soi-même) reste à part. Le classement règle ce que l'abstention réglait avant, sans
-priver personne de ses fichiers.
+Ils **n'ont pas d'adresse publique**, et ne doivent pas en avoir : `media/` est lisible
+par TOUT LE MONDE (`allow read: if true` dans storage.rules) — c'est ce qui permet à une
+photo produit de s'afficher sur la boutique, et le mot de passe de l'administration n'y
+change rien : qui a l'adresse a le fichier. Y recopier ce qu'un créateur nous confie,
+c'est le publier. Une tentative de versement automatique a été faite puis **retirée**
+pour cette raison : elle rendait public exactement ce qu'on voulait garder privé.
 
-La règle, dite une fois : **tout média importé dans l'administration — photo ou
-vidéo, et d'où qu'il vienne — se retrouve dans Médias.** La médiathèque, l'éditeur de
-blocs, l'image d'une newsletter et l'e-mail d'invitation y passaient déjà ; les contenus
-de campagne y passent désormais aussi. Les **justificatifs** (`documents/`) en sont la
-seule exception, et délibérément : une facture ou un rapport de laboratoire n'est pas un
-média, et `media/` est servi publiquement — y copier une pièce comptable la publierait.
+Ce qui n'avait pas lieu d'être double, c'est l'**ÉCRAN**. On ne cherche pas une photo
+« dans le coffre public » ou « dans le coffre privé » : on cherche une photo.
+`/admin/medias` réunit donc les deux listes (`admin/media-shelf.ts`, pur et testé) sans
+rien recopier, range les contenus au **nom de leur créateur** et les marque « Privé ».
+Les dossiers se **déduisent** des fichiers : aucune liste à tenir, aucun dossier vide, et
+celui d'un créateur dont on efface tout disparaît de lui-même. Un dossier de média
+public est un **libellé** (`Media.folder`), jamais un chemin : ranger un écran ne doit
+pas casser l'adresse d'une image déjà publiée.
 
-Une règle qui ne vaudrait qu'à l'avenir obligerait à se souvenir de sa date pour savoir
-où chercher un fichier. L'existant est donc **rapatrié tout seul** : /admin/medias lance
-le rattrapage en s'ouvrant (`MediaBackfill` → `runMediaBackfillAction`), et il n'y a rien
-à cliquer — ce n'était pas un geste à demander, mais une dette laissée par le changement
-de règle. Idempotent sur `mediaId`, et **par lots de 25** : une action serveur ne tient
-pas trois cents copies de vidéos dans le temps qu'on lui laisse, et un rapatriement à
-moitié fait qui échouerait en bloc n'aurait rien rapatrié. L'action rend des **nombres**
-et non une phrase — c'est un appelant automatique qui la pilote, et relire sa propre
-prose pour savoir s'il faut continuer serait un piège —, et le bandeau disparaît quand
-il ne reste rien à prendre. Un tour qui n'avance plus arrête la boucle : un format que la
-médiathèque refuse ne passera jamais, et y revenir ferait tourner la page pour rien.
+**Rendre public** reste un geste, fichier par fichier (`publishDeliverableAction`), et il
+se **défait** (`unpublishDeliverableAction`, qui efface la copie et oublie son
+identifiant). Publier sans pouvoir dépublier, c'est ne plus oser publier.
 
-Un dossier est un **libellé**, jamais un chemin : le fichier reste sous `media/<id>/`, et
-ranger un écran ne doit pas casser l'adresse d'une image déjà publiée. Les dossiers se
-**déduisent** des fichiers (`db/media-folders.ts`, pur et testé) : aucune liste à tenir,
-aucun dossier vide qui traîne. La copie ne met jamais en péril la réception — elle
-échoue en silence et le contenu reste au dossier de la campagne : c'est le cas d'un MOV
-ou d'un HEIC, parfaitement légitimes là et qu'aucun navigateur n'afficherait ici.
-
-Le coffre **copie** l'objet de `ugc/` vers `media/` sans le faire passer par la mémoire
-de l'instance — une vidéo pèse dix fois ce qu'une requête peut tenir —, et la fiche
-retient l'identifiant du média (`Deliverable.mediaId`). Copie et non déplacement :
-paraître ne retire pas la pièce du dossier de la campagne, qui reste le document de
-référence. Le bouton « verser dans la médiathèque » subsiste pour rattraper ce que la
-copie automatique n'a pas pu prendre, et reste idempotent sur `mediaId` — un second clic
-ne fait pas de doublon.
+La publication **copie** l'objet de `ugc/` vers `media/` sans le faire passer par la
+mémoire de l'instance — une vidéo pèse dix fois ce qu'une requête peut tenir —, et la
+fiche retient l'identifiant du média (`Deliverable.mediaId`), si bien qu'un second clic
+ne fait pas de doublon. Copie et non déplacement : paraître ne retire pas la pièce du
+dossier de la campagne, qui reste le document de référence.
 
 Les formats qu'aucun navigateur n'affiche (HEIC, MOV) sont refusés **là** et seulement
 là : au dossier ils sont parfaitement légitimes. D'où `ugc/` dans le coffre, fermé

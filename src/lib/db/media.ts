@@ -2,7 +2,6 @@ import "server-only";
 import { storage } from "@/lib/firebase/admin";
 import { Media } from "@/lib/domain/types";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
-export { mediaFolders } from "./media-folders";
 
 /*
  * Médiathèque : le fichier va dans Cloud Storage, sa fiche dans Firestore. L'envoi
