@@ -1051,6 +1051,17 @@ export const ContractPublication = z.object({
   label: z.string().trim().min(1).max(80),
   /** Combien de fois cette parution est due. « 2 vidéos TikTok » = une ligne, qty 2. */
   qty: z.number().int().min(1).max(20).default(1),
+  /*
+   * Les réseaux laissés AU CHOIX : « un réel, Instagram ou TikTok ». Vide, la ligne vaut
+   * pour elle-même et son libellé dit déjà où elle paraît.
+   *
+   * C'est un OU, jamais une addition : deux réseaux ne font pas deux parutions dues —
+   * c'est `qty` qui dit combien de fois, et le partenaire choisit où. Les écrire en
+   * lignes séparées, comme il fallait le faire avant, affichait « 0 sur 3 » là où une
+   * seule publication était convenue, et réclamait indéfiniment celles qu'on n'avait
+   * jamais demandées.
+   */
+  options: z.array(z.string().trim().min(1).max(40)).max(6).default([]),
 });
 export type ContractPublication = z.infer<typeof ContractPublication>;
 
@@ -1066,6 +1077,12 @@ export const CampaignPublication = z.object({
   key: z.string().min(1).max(60),
   done: z.boolean().default(false),
   url: z.string().trim().max(500).default(""),
+  /*
+   * Le réseau où elle a effectivement paru, quand la ligne en laissait le choix. Vide :
+   * la ligne n'offrait pas de choix, ou l'on ne l'a pas précisé — un lien en dit déjà
+   * plus que ce champ, qui ne sert qu'à lire la ligne sans l'ouvrir.
+   */
+  where: z.string().trim().max(40).default(""),
   /** Quand on l'a constatée. Sert à dire « depuis le 3 octobre » dans l'écran. */
   at: z.number().optional(),
 });
@@ -1285,6 +1302,18 @@ export const Influencer = z.object({
    * et la PUBLICATION, qui est notre validation (voir Contest.proposedBy).
    */
   contestAutonomy: z.boolean().default(false),
+  /*
+   * Le moment où le partenaire a demandé une nouvelle campagne, depuis son espace. Zéro :
+   * il n'a rien demandé.
+   *
+   * La demande n'a pas de statut et ne se referme pas à la main : elle s'éteint par
+   * COMPARAISON — elle ne vaut que si elle est postérieure à la dernière campagne close
+   * (voir promos/renewal.ts). Ouvrir la campagne suivante y répond donc d'elle-même, et
+   * une demande ne peut pas survivre à ce qu'elle réclamait. Écrit par le seul
+   * `requestNewCampaignAction` ; repris tel quel par `upsertInfluencer`, comme
+   * `contestAutonomy` — un enregistrement d'identité n'efface pas une demande.
+   */
+  renewalAskedAt: z.number().int().min(0).default(0),
   /** Contact du partenaire, et accès à son espace. */
   email: z.string().trim().default(""),
   /** Compte Firebase Auth, créé quand le partenaire choisit son mot de passe. */

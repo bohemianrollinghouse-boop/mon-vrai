@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { CampaignOver } from "@/components/site/CampaignOver";
 import { ContestPanel } from "@/components/site/ContestPanel";
 import { PartnerTools } from "@/components/site/PartnerTools";
 import { IbanForm } from "@/components/site/IbanForm";
@@ -15,7 +16,9 @@ import {
   savePartnerIbanAction,
   savePartnerSocialsAction,
   saveContestReportAction,
+  requestNewCampaignAction,
 } from "@/lib/auth/partner-actions";
+import { closedAt } from "@/lib/promos/renewal";
 import { maskIban, monthLabel } from "@/lib/promos/statements";
 import { requireInfluencer } from "@/lib/auth/session";
 import { partnerSnapshot } from "@/lib/db/partner";
@@ -58,7 +61,7 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   if (!influencer) redirect("/compte");
 
   const period = (PARTNER_PERIODS.some((p) => p.key === sp.periode) ? sp.periode : "30") as PartnerPeriod;
-  const [{ view, statements, kit, campaign, collaborations, contests }, settings] = await Promise.all([
+  const [{ view, statements, kit, campaign, coded, renewal, collaborations, contests }, settings] = await Promise.all([
     partnerSnapshot(influencer, period),
     getSettings(),
   ]);
@@ -71,14 +74,15 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
   const trackingUrl = `${origin}/?ref=${influencer.slug}`;
   const maxBar = Math.max(1, ...view.days.map((d) => d.code + d.link));
   /*
-   * Son code, sa remise et la fin de sa campagne viennent de la campagne en cours. Sans
-   * campagne, il n'a pas de code — mais son lien de suivi continue de lui attribuer les
-   * ventes, et ses résultats restent affichés.
+   * Son code et sa remise viennent de la campagne qui les FAIT VIVRE, et non de celle
+   * qu'il a sur le feu : une collaboration soldée ne retire pas à sa communauté la
+   * remise annoncée, qui court jusqu'à sa date. Sans code valable, son lien de suivi
+   * continue d'attribuer les ventes et ses résultats restent affichés.
    */
   const shortDay = (ts: number) => new Date(ts).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
-  const endAt = campaign?.endAt ? shortDay(campaign.endAt) : null;
-  const code = campaign?.code ?? "";
-  const discount = campaign?.discount ?? 0;
+  const endAt = coded?.endAt ? shortDay(coded.endAt) : null;
+  const code = coded?.code ?? "";
+  const discount = coded?.discount ?? 0;
 
   /* Les quatre étapes du parcours : ce qui est fait, ce qui reste. */
   const socialsDone = !kit.socialsMissing;
@@ -94,7 +98,9 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
       ? kit.socialsMissing
         ? "Renseignez d'abord un réseau (étape 1) pour pouvoir le commander."
         : `${kit.items.reduce((n, i) => n + i.qty, 0)} imagiers, offerts, livraison comprise, en point relais.`
-      : "Aucun kit proposé pour l'instant.";
+      : renewal.done
+        ? "Votre campagne est terminée : il n'y a plus de kit à commander jusqu'à la prochaine."
+        : "Aucun kit proposé pour l'instant.";
 
   return (
     <section className="site-wrap flex flex-col gap-8 py-4 pb-20">
@@ -104,7 +110,7 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
       <div className="grid grid-cols-2 items-center gap-10 rounded-panel bg-tint-pink p-11 max-[899px]:grid-cols-1 max-[899px]:gap-6 max-[749px]:p-7">
         <div className="flex flex-col gap-3">
           <span className="text-xs font-bold uppercase tracking-[0.12em] text-tint-pink-ink">
-            {campaign?.name || (campaign ? "Campagne en cours" : "Votre espace")}
+            {campaign?.name || (campaign ? "Campagne en cours" : renewal.done ? "Entre deux campagnes" : "Votre espace")}
           </span>
           {/* Le nom en entier : un partenaire peut être une marque, sans prénom à extraire. */}
           <h1 className="display-1 text-[clamp(1.875rem,4vw,2.5rem)]">Bonjour {influencer.name}, merci de faire grandir du vrai.</h1>
@@ -120,11 +126,31 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
           </p>
           <div className="flex flex-wrap gap-2 text-xs font-bold">
             <span className="rounded-pill bg-white px-3.5 py-2">{influencer.active ? "Active" : "En pause"}</span>
-            {endAt && <span className="rounded-pill bg-white px-3.5 py-2">Fin de campagne · {endAt}</span>}
+            {endAt && (
+              <span className="rounded-pill bg-white px-3.5 py-2">
+                {campaign ? "Fin de campagne" : "Code valable jusqu'au"} · {endAt}
+              </span>
+            )}
+            {/* Sans campagne vivante, la pastille dit la fin : un espace muet se lit comme une panne. */}
+            {!campaign && renewal.done && (
+              <span className="rounded-pill bg-white px-3.5 py-2">Campagne terminée · {shortDay(closedAt(renewal.done))}</span>
+            )}
           </div>
         </div>
         <PartnerTools code={code} discount={discount} link={trackingUrl} />
       </div>
+
+      {/* ---------- La campagne qui vient de s'achever ---------- */}
+      {renewal.done && (
+        <CampaignOver
+          name={renewal.done.name || `Votre campagne n° ${renewal.done.seq}`}
+          endedOn={shortDay(closedAt(renewal.done))}
+          codeUntil={coded?.endAt ? shortDay(coded.endAt) : ""}
+          asked={renewal.asked}
+          askedOn={renewal.askedAt ? shortDay(renewal.askedAt) : ""}
+          action={requestNewCampaignAction}
+        />
+      )}
 
       {/* ---------- Le parcours, et ce qu'il reste à faire ---------- */}
       <div className="grid grid-cols-[440px_1fr] items-start gap-8 max-[1099px]:grid-cols-1">

@@ -16,7 +16,7 @@ import { listContracts } from "@/lib/db/contracts";
 import { listAllDeliverables } from "@/lib/db/deliverables";
 import { contentDues } from "@/lib/admin/content-dues";
 import { progressLabel, shortfallLabel } from "@/lib/domain/deliverables";
-import { liveCampaign } from "@/lib/promos/campaign";
+import { codeCampaign } from "@/lib/promos/campaign";
 import { formatEuroShort } from "@/lib/domain/money";
 import { influencerStats } from "@/lib/promos/stats";
 import { mainAccount } from "@/lib/promos/socials";
@@ -70,11 +70,15 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
   ]);
   /* Ce que chacun doit encore : lu ici une fois, pour l'onglet comme pour son compteur. */
   const dues = contentDues({ campaigns, contracts, influencers, deliverables });
-  /* Le code d'un partenaire est celui de sa campagne en cours : il change avec elle, et
-     s'éteint quand elle se termine. Une seule lecture pour toute la liste. */
-  const byInfluencer = new Map<string, ReturnType<typeof liveCampaign>>();
+  /*
+   * Le code d'un partenaire est celui de la campagne qui le fait VIVRE, et non celle
+   * qu'il a sur le feu : clore une collaboration ne coupe pas ce qu'on a annoncé à sa
+   * communauté, qui tient jusqu'à la date dite (voir promos/campaign.codeLive). Une
+   * seule lecture pour toute la liste.
+   */
+  const byInfluencer = new Map<string, ReturnType<typeof codeCampaign>>();
   for (const inf of influencers) {
-    byInfluencer.set(inf.id, liveCampaign(campaigns.filter((c) => c.influencerId === inf.id).sort((a, b) => b.seq - a.seq)));
+    byInfluencer.set(inf.id, codeCampaign(campaigns.filter((c) => c.influencerId === inf.id).sort((a, b) => b.seq - a.seq), snap.now));
   }
   const since = new Date(snap.now - 30 * 86_400_000).toISOString().slice(0, 10);
   const clicks = await listRefClicksSince(since).catch(() => []);
@@ -149,7 +153,7 @@ export default async function InfluencersPage({ searchParams }: PageProps<"/admi
                     <span className="text-[0.6875rem] text-subtle">−{live.discount} %</span>
                   </span>
                 ) : (
-                  <span key="c" className="text-[0.6875rem] text-subtle">Aucune campagne</span>
+                  <span key="c" className="text-[0.6875rem] text-subtle">Aucun code valable</span>
                 );
               })(),
               <span key="k" className="text-muted">{r.clicks}</span>,

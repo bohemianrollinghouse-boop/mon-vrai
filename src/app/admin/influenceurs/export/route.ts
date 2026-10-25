@@ -3,7 +3,7 @@ import { adminSnapshot } from "@/lib/admin/counts";
 import { getSessionUser } from "@/lib/auth/session";
 import { listInfluencers, listRefClicksSince } from "@/lib/db/promos";
 import { listAllCampaigns } from "@/lib/db/campaigns";
-import { liveCampaign } from "@/lib/promos/campaign";
+import { codeCampaign } from "@/lib/promos/campaign";
 import { mainAccount } from "@/lib/promos/socials";
 import { influencerStats } from "@/lib/promos/stats";
 
@@ -12,8 +12,9 @@ export async function GET() {
   const user = await getSessionUser();
   if (!user?.isAdmin) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
   const [influencers, snap, campaigns] = await Promise.all([listInfluencers(), adminSnapshot(), listAllCampaigns()]);
-  /* Le code et la remise d'aujourd'hui : ceux de la campagne en cours. */
-  const live = (id: string) => liveCampaign(campaigns.filter((c) => c.influencerId === id).sort((a, b) => b.seq - a.seq));
+  /* Le code et la remise d'aujourd'hui : ceux de la campagne qui les fait VIVRE — une
+     collaboration soldée dont les dates courent encore remise toujours. */
+  const live = (id: string) => codeCampaign(campaigns.filter((c) => c.influencerId === id).sort((a, b) => b.seq - a.seq), snap.now);
   const since = new Date(snap.now - 30 * 86_400_000).toISOString().slice(0, 10);
   const { rows } = influencerStats(influencers, snap.orders, await listRefClicksSince(since).catch(() => []), snap.now);
   const cell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;

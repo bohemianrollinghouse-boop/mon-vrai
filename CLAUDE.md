@@ -314,6 +314,39 @@ Une participation **hors campagne** — montée pour quelqu'un seul, ou dont la 
 été supprimée depuis — se range à part, à la fin : elle attend quelque chose, et la
 cacher reviendrait à l'oublier.
 
+### Clore une campagne
+
+Clore veut dire « **de son côté, c'est fait** » : le contenu est arrivé, l'échange est
+soldé. Trois conséquences, et une seule qui n'en est pas une.
+
+- **La ligne ne disparaît pas.** Elle descend au bas de son groupe, en gris, avec sa
+  date (`BoardRow.closed`). La faire s'évaporer au clic rendait la clôture invisible :
+  on cliquait, et rien ne disait que quelque chose avait eu lieu. Quand toutes les
+  participations d'une campagne sont closes, le groupe se replie sur **une ligne**
+  d'histoire (« Campagnes soldées ») plutôt que de tenir un tableau entier.
+- **Le partenaire l'apprend.** Son espace affichait jusque-là un kit disparu et un
+  parcours muet, sans un mot pour l'expliquer — ce qui se lit comme une panne. Le bloc
+  `CampaignOver` dit la fin, sa date, et propose le seul geste qui ait du sens ensuite :
+  **redemander**. `Influencer.renewalAskedAt` n'écrit qu'un moment ; l'état se **déduit**
+  (`promos/renewal.ts`) — une demande ne vaut que si elle est postérieure à la dernière
+  campagne close, si bien qu'**ouvrir la campagne suivante y répond d'elle-même**, sans
+  que personne ait à la refermer. Les demandes en attente s'affichent en tête du Suivi.
+- **Le code promo, lui, ne s'éteint PAS.** C'est la règle à retenir. Un code vit par ses
+  **dates** (`promos/campaign.codeLive`), jamais par le statut de sa campagne : « −10 %
+  jusqu'au 30 novembre » tient jusqu'au 30 novembre, même si tout a été rendu dès le 3.
+  Le couper à la clôture faisait payer à sa communauté la fin d'une négociation dont
+  elle ne sait rien, et dissuadait surtout de clore à l'heure — on laissait traîner une
+  campagne finie pour ne pas couper un code encore annoncé. Seule une campagne
+  **annulée** éteint le sien : la contrepartie n'a jamais été remise. Et rouvrir une
+  campagne avec la même personne **rallume** son code, parce que `codeCampaign` prend la
+  plus récente qui en porte un de valable.
+
+`campaignLive` et `codeLive` répondent donc à deux questions différentes, et ne se
+remplacent jamais : la première dit ce que le partenaire a **sur le feu** (kit à
+commander, contrat à signer, espace partenaire) ; la seconde, ce que sa **communauté**
+peut encore utiliser (code promo, attribution par code). Les écrans qui montrent un code
+— liste des influenceurs, export CSV, espace partenaire — passent tous par la seconde.
+
 ## Contenus des partenaires
 
 Ce qu'une campagne donne (le kit) a toujours eu sa place ; ce qu'elle **attend en
@@ -351,6 +384,16 @@ qu'on oublie de cocher mais qu'on ne colle pas un lien par distraction. Une lign
 retirée du contrat n'efface pas ce qu'elle portait : elle ne s'affiche plus, la rétablir
 ramène ses liens. `savePublicationsAction` est une action à part : constater une
 parution n'est pas renégocier la collaboration.
+
+Une parution peut se faire **au choix** entre plusieurs réseaux : « un réel, Instagram
+**ou** TikTok ». C'est un OU, et jamais une addition — `ContractPublication.options`
+porte les réseaux, `qty` dit combien de fois, et le partenaire choisit où. Les écrire en
+lignes séparées, comme il fallait le faire avant, affichait « 0 sur 3 » là où une seule
+publication était convenue, et en réclamait indéfiniment deux qu'on n'avait jamais
+demandées. Là où la parution se constate, un bouton dit **où** elle a paru
+(`CampaignPublication.where`), retenu seulement s'il figure encore au contrat.
+`suggestPublications` sait lire « Instagram ou TikTok » dans le résumé et le proposer
+comme un choix, pas comme deux lignes.
 
 Zéro ne veut pas dire « rien n'est dû » mais « **rien n'est compté** » : la campagne
 n'affiche alors pas de décompte, plutôt qu'un « 0 sur 0 », et la rubrique disparaît du
@@ -425,6 +468,22 @@ depuis le fichier. Aucune **migration** n'est en revanche nécessaire : `expecte
 `publications` et `mediaId` sont des champs à valeur par défaut, et zod les pose à la
 lecture — les campagnes et les contrats d'avant se relisent tels quels, c'est le
 resserrement d'un schéma qui met le site à terre, pas son élargissement.
+
+## Contrats
+
+Un contrat signé ne se réécrit **jamais** en place : la signature en garde une copie
+figée (`bodySnapshot`, `summarySnapshot`) et la version identifie ce qui a été accepté.
+Changer ce qu'un contrat réclame veut donc dire créer une **version**, pas corriger la
+précédente.
+
+Restait qu'en pratique cela voulait dire retaper vingt articles pour changer deux
+chiffres — ce que personne ne fait, et qui poussait à modifier l'original. D'où la
+**reprise** : `/admin/contrats?base=<id>` rouvre le même écran en mode création, tout
+rempli, avec le numéro de version suivant proposé (`admin/contract-version.nextVersion`,
+pur et testé, qui saute ce qui est déjà pris). L'ancienne version n'est pas touchée et
+reste à **retirer à la main** quand on ne veut plus la proposer : la retirer d'office
+effacerait un choix qui n'est pas le nôtre — on peut vouloir finir une campagne en cours
+sous l'ancienne.
 
 ## Gestion (dépenses et documents)
 

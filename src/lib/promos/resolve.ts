@@ -2,7 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { getInfluencer, getInfluencersByIds, getPromosByCodes } from "@/lib/db/promos";
 import { listCampaigns } from "@/lib/db/campaigns";
-import { campaignLive } from "@/lib/promos/campaign";
+import { codeCampaign } from "@/lib/promos/campaign";
 import { listOrdersForEmail } from "@/lib/db/orders";
 import { listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
@@ -82,11 +82,13 @@ async function collectionApplies(slugs: string[]): Promise<boolean> {
   return collectionDiscount(state) > 0;
 }
 
-/** Le code promo actif d'un partenaire aujourd'hui, d'après ses campagnes. */
+/*
+ * Le code promo valable d'un partenaire aujourd'hui, d'après ses campagnes. Par les
+ * dates : une collaboration soldée ne retire pas au public ce qui lui a été annoncé.
+ */
 async function liveCode(influencer: Influencer): Promise<string> {
   const list = await listCampaigns(influencer.id).catch(() => []);
-  const at = Date.now();
-  return list.find((c) => c.code && campaignLive(c, at))?.code ?? "";
+  return codeCampaign(list, Date.now())?.code ?? "";
 }
 
 /** Vérification rapide à l'ajout d'un code dans le panier (sans e-mail ni panier chiffré précis). */

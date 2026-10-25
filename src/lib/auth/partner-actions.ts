@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireInfluencer } from "@/lib/auth/session";
-import { getInfluencerByUid, upsertInfluencer } from "@/lib/db/promos";
-import { currentCampaign, markCampaignSigned, upsertCampaign } from "@/lib/db/campaigns";
+import { getInfluencerByUid, setRenewalAsked, upsertInfluencer } from "@/lib/db/promos";
+import { currentCampaign, listCampaigns, markCampaignSigned, upsertCampaign } from "@/lib/db/campaigns";
 import { refreshOutreach } from "@/lib/db/outreach";
 import { createKitOrder } from "@/lib/db/orders";
 import { addWinner, deletePartnerContest, getContest, savePartnerContest, saveHostReport, upsertContest } from "@/lib/db/contests";
@@ -15,6 +15,7 @@ import { bracketIndexForWeight } from "@/lib/shipping/tariffs";
 import { kitOrderLines, kitWeightG } from "@/lib/promos/kit";
 import { dayStamp } from "@/lib/admin/campaign-form";
 import { partnerCanDelete, partnerCanEdit } from "@/lib/contests/state";
+import { renewalState } from "@/lib/promos/renewal";
 import { socialCount } from "@/lib/promos/socials";
 import { sendKitConfirmation } from "@/lib/email/send";
 import { isIban } from "@/lib/promos/statements";
@@ -220,6 +221,31 @@ const looksLikeUrl = (v: string) => !v || /^https?:\/\/[^\s]+$/i.test(v);
  * Le partenaire tient ses propres comptes à jour. L'administration peut les saisir à la
  * création, mais c'est lui qui les connaît — et ils servent au contrat d'influence.
  */
+/*
+ * « Je veux une nouvelle campagne. »
+ *
+ * Le seul geste qu'un partenaire puisse faire une fois sa collaboration close. Rien
+ * n'est cru du formulaire : il vient de la session, ses campagnes sont relues en base,
+ * et la demande est refusée s'il en a déjà une ouverte — il n'y aurait rien à
+ * renouveler. On n'écrit qu'un moment : l'état se déduit, et ouvrir la campagne
+ * suivante répond à la demande sans que personne ait à la refermer.
+ */
+export async function requestNewCampaignAction(): Promise<PartnerResult> {
+  const user = await requireInfluencer();
+  if (user.viewingAs) return VIEW_ONLY;
+  const influencer = await getInfluencerByUid(user.uid);
+  if (!influencer) return { ok: false, error: "Compte partenaire introuvable." };
+
+  const renewal = renewalState(influencer, await listCampaigns(influencer.id));
+  if (!renewal.done) return { ok: false, error: "Vous avez déjà une campagne en cours." };
+  if (renewal.asked) return { ok: true, message: "Votre demande nous est déjà parvenue." };
+
+  await setRenewalAsked(influencer.id);
+  revalidatePath("/partenaire");
+  revalidatePath("/admin/campagnes");
+  return { ok: true, message: "C'est noté : nous revenons vers vous pour la suite." };
+}
+
 export async function savePartnerSocialsAction(formData: FormData): Promise<PartnerResult> {
   const user = await requireInfluencer();
   if (user.viewingAs) return VIEW_ONLY;

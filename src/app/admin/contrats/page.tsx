@@ -7,6 +7,7 @@ import { deleteContractAction, saveContractAction } from "@/lib/admin/actions/co
 import { listContracts } from "@/lib/db/contracts";
 import { listAllCampaigns } from "@/lib/db/campaigns";
 import { CollaborationType, COLLABORATION_LABELS, type Contract } from "@/lib/domain/types";
+import { nextVersion } from "@/lib/admin/contract-version";
 import { manualPlaceholders, placeholdersIn } from "@/lib/promos/contract-template";
 import { AUTOMATIC_PLACEHOLDERS, VARIABLE_HELP, variableLabel } from "@/lib/promos/contract-variables";
 
@@ -14,18 +15,32 @@ export const dynamic = "force-dynamic";
 
 /*
  * Contrats de collaboration : la liste à gauche, l'éditeur à droite. `?id=` choisit un
- * contrat, `?id=nouveau` ouvre un formulaire vide.
+ * contrat, `?id=nouveau` ouvre un formulaire vide, `?base=` en reprend un pour en faire
+ * une VERSION SUIVANTE.
  *
  * Un contrat signé ne se modifie pas rétroactivement — la signature en garde une copie
  * figée. Changer le texte ici ne vaut donc que pour les signatures à venir, et c'est
  * pourquoi la version est un champ à part entière, dont l'unicité est vérifiée.
+ *
+ * Reste qu'en pratique, « ne pas modifier celui qu'ils ont déjà signé » voulait dire
+ * retaper vingt articles pour changer deux chiffres — ce que personne ne fait. D'où la
+ * reprise : elle recopie tout dans un formulaire de création, avec le numéro de version
+ * suivant. L'ancienne version n'est pas touchée, et reste à retirer à la main quand on
+ * ne veut plus la proposer : la retirer d'office effacerait un choix qui n'est pas le
+ * nôtre — on peut vouloir finir une campagne sous l'ancienne.
  */
 export default async function ContractsPage({ searchParams }: PageProps<"/admin/contrats">) {
   const sp = await searchParams;
   const wanted = typeof sp.id === "string" ? sp.id : "";
+  const wantedBase = typeof sp.base === "string" ? sp.base : "";
   const [contracts, campaigns] = await Promise.all([listContracts(), listAllCampaigns()]);
   const isNew = wanted === "nouveau";
-  const current = isNew ? null : contracts.find((c) => c.id === wanted) ?? contracts[0] ?? null;
+  /* Le contrat dont on repart : son contenu remplit le formulaire, son identifiant non. */
+  const base = wantedBase ? contracts.find((c) => c.id === wantedBase) ?? null : null;
+  /* Celui qu'on MODIFIE. Nul en création comme en reprise : les deux créent. */
+  const current = isNew || base ? null : contracts.find((c) => c.id === wanted) ?? contracts[0] ?? null;
+  /* Ce que les champs affichent — l'un ou l'autre, jamais les deux. */
+  const form = current ?? base;
 
   /* Combien de campagnes dépendent de chaque contrat : on ne supprime pas à l'aveugle. */
   const used = new Map<string, number>();
@@ -52,7 +67,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
               <Link
                 key={c.id}
                 href={`/admin/contrats?id=${c.id}`}
-                className={`flex flex-col gap-1.5 rounded-[20px] border-[1.5px] bg-surface px-5 py-4 ${current?.id === c.id && !isNew ? "border-ink" : "border-transparent hover:opacity-80"}`}
+                className={`flex flex-col gap-1.5 rounded-[20px] border-[1.5px] bg-surface px-5 py-4 ${form?.id === c.id ? "border-ink" : "border-transparent hover:opacity-80"}`}
               >
                 <span className="flex items-center justify-between gap-2">
                   <span className="truncate text-[0.8125rem] font-bold">{c.name}</span>
@@ -69,15 +84,27 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
         </div>
 
         <div className="flex flex-col gap-3">
-          <Card title={isNew || !current ? "Nouveau contrat" : current.name}>
-            <ActionForm key={isNew ? "new" : current?.id ?? "none"} action={saveContractAction} submitLabel={current && !isNew ? "Enregistrer" : "Créer le contrat"}>
-              <input type="hidden" name="id" value={current && !isNew ? current.id : ""} />
+          <Card title={base ? `Nouvelle version de « ${base.name} »` : current ? current.name : "Nouveau contrat"}>
+            {/*
+              Repris d'un contrat existant : on le dit, parce que le formulaire ressemble
+              trait pour trait à celui qu'on modifierait, et que la différence est tout
+              sauf cosmétique — ici on CRÉE, là on corrigerait.
+            */}
+            {base && (
+              <p className="-mt-1 rounded-card bg-tint-blue px-5 py-4 text-[0.8125rem] leading-relaxed text-tint-blue-ink">
+                Tout est recopié de <strong>{base.version}</strong>, qui n&apos;est pas touché : les partenaires qui
+                l&apos;ont signé restent liés au texte qu&apos;ils ont accepté. Changez ce qu&apos;il faut, enregistrez —
+                puis retirez l&apos;ancienne version depuis sa fiche pour qu&apos;elle ne soit plus proposée.
+              </p>
+            )}
+            <ActionForm key={base ? `base-${base.id}` : isNew ? "new" : current?.id ?? "none"} action={saveContractAction} submitLabel={current ? "Enregistrer" : "Créer le contrat"}>
+              <input type="hidden" name="id" value={current?.id ?? ""} />
               <div className="grid grid-cols-[2fr_1fr_1fr] gap-3 max-[899px]:grid-cols-1">
                 <Field label="Nom" hint="Tel qu'il apparaît au signataire." name="name">
-                  <Input name="name" required defaultValue={current && !isNew ? current.name : ""} placeholder="Collaboration UGC Mon Vrai" className="!font-bold" />
+                  <Input name="name" required defaultValue={form ? form.name : ""} placeholder="Collaboration UGC Mon Vrai" className="!font-bold" />
                 </Field>
                 <Field label="Type de collaboration" name="type">
-                  <Select name="type" defaultValue={current && !isNew ? current.type : "UGC"}>
+                  <Select name="type" defaultValue={form ? form.type : "UGC"}>
                     {CollaborationType.options.map((t) => (
                       <option key={t} value={t}>
                         {COLLABORATION_LABELS[t]}
@@ -86,9 +113,29 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                   </Select>
                 </Field>
                 <Field label="Version" hint="Ne se réutilise jamais : elle identifie ce qui a été signé." name="version">
-                  <Input name="version" required defaultValue={current && !isNew ? current.version : ""} placeholder="UGC-2026-09-v1" />
+                  <Input
+                    name="version"
+                    required
+                    defaultValue={base ? nextVersion(base.version, contracts.map((c) => c.version)) : form ? form.version : ""}
+                    placeholder="UGC-2026-09-v1"
+                  />
                 </Field>
               </div>
+
+              {/*
+                Changer ce qu'un contrat réclame, sans toucher à ce qui est déjà signé :
+                c'est la seule manière, et elle n'existait pas — il fallait retaper le
+                texte entier dans un formulaire vide. Un lien, puisqu'il n'y a rien à
+                enregistrer : il réouvre ce même écran en mode création, tout rempli.
+              */}
+              {current && (
+                <Link
+                  href={`/admin/contrats?base=${current.id}`}
+                  className="-mt-2 w-fit text-[0.6875rem] font-bold text-subtle underline hover:text-ink"
+                >
+                  Partir de celui-ci pour une nouvelle version ({nextVersion(current.version, contracts.map((c) => c.version))})
+                </Link>
+              )}
 
               {/* ---------- Ce qu'il réclame en retour ---------- */}
               {/*
@@ -107,10 +154,10 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 </p>
                 <div className="grid grid-cols-2 gap-2.5 max-[749px]:grid-cols-1">
                   <Field label="Photos" name="expectedPhotos">
-                    <Input name="expectedPhotos" type="number" min={0} max={999} defaultValue={current && !isNew ? current.expected.photos : 0} />
+                    <Input name="expectedPhotos" type="number" min={0} max={999} defaultValue={form ? form.expected.photos : 0} />
                   </Field>
                   <Field label="Vidéos" name="expectedVideos">
-                    <Input name="expectedVideos" type="number" min={0} max={999} defaultValue={current && !isNew ? current.expected.videos : 0} />
+                    <Input name="expectedVideos" type="number" min={0} max={999} defaultValue={form ? form.expected.videos : 0} />
                   </Field>
                 </div>
               </div>
@@ -129,10 +176,10 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                   s&apos;affichera en cases à cocher, et l&apos;adresse de chaque parution se collera dessous.
                 </p>
                 <PublicationsEditor
-                  initial={current && !isNew ? current.publications : []}
+                  initial={form ? form.publications : []}
                   /* Proposées d'après le résumé ENREGISTRÉ : ce qui vient d'être tapé
                      sans être enregistré n'est pas encore le contrat. */
-                  suggested={current && !isNew ? suggestPublications(current.summary) : []}
+                  suggested={form ? suggestPublications(form.summary) : []}
                 />
               </div>
 
@@ -140,7 +187,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 name="active"
                 label="Proposable aux partenaires"
                 hint="Retiré : plus attribuable à personne, mais les signatures passées restent valables."
-                defaultChecked={current && !isNew ? current.active : true}
+                defaultChecked={form ? form.active : true}
               />
 
               <Field
@@ -148,7 +195,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 hint="Les engagements en clair, affichés au-dessus du contrat. Une ligne par engagement ; elles deviennent une liste à puces."
                 name="summary"
               >
-                <Textarea name="summary" rows={7} defaultValue={current && !isNew ? current.summary : ""} placeholder={"40 photographies originales\n20 vidéos de 5 à 15 secondes\nLivres réellement manipulés, fichiers sans filigrane"} />
+                <Textarea name="summary" rows={7} defaultValue={form ? form.summary : ""} placeholder={"40 photographies originales\n20 vidéos de 5 à 15 secondes\nLivres réellement manipulés, fichiers sans filigrane"} />
               </Field>
 
               <Field
@@ -156,7 +203,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 hint="Le texte complet. « # » et « ## » pour les titres, « ** » autour d'un passage en gras, « * » en début de ligne pour une puce. Les variables s'écrivent {{COMME_CECI}}."
                 name="body"
               >
-                <Textarea name="body" rows={22} defaultValue={current && !isNew ? current.body : ""} className="!font-mono !text-xs" placeholder="Article 1 — Objet…" />
+                <Textarea name="body" rows={22} defaultValue={form ? form.body : ""} className="!font-mono !text-xs" placeholder="Article 1 — Objet…" />
               </Field>
 
               {/*
@@ -164,12 +211,12 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 tenir à jour ici, et l'on ne demande jamais celles qui se calculent
                 (identité du signataire, livres reçus, valeur, date d'acceptation).
               */}
-              {current && !isNew && <ContractVariables contract={current} />}
-              {current && !isNew && <AutomaticVariables contract={current} />}
+              {current && <ContractVariables contract={current} />}
+              {current && <AutomaticVariables contract={current} />}
             </ActionForm>
           </Card>
 
-          {current && !isNew && (
+          {current && (
             <Card title={<span className="text-sm">Zone dangereuse</span>} className="!gap-2 border border-danger-bg">
               {(used.get(current.id) ?? 0) > 0 ? (
                 <p className="text-xs leading-relaxed text-subtle">

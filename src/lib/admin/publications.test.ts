@@ -1,40 +1,40 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { cleanUrl, publicationLabel, publicationLines, publicationProgress, publicationSlots, suggestPublications } from "./publications";
+import { cleanUrl, publicationLabel, publicationLines, publicationProgress, publicationSlots, slotLabel, splitAlternatives, suggestPublications } from "./publications";
 import type { CampaignPublication, ContractPublication } from "@/lib/domain/types";
 
 const required: ContractPublication[] = [
-  { id: "p1", label: "Vidéo TikTok", qty: 2 },
-  { id: "p2", label: "Story Instagram", qty: 1 },
+  { id: "p1", label: "Vidéo TikTok", qty: 2, options: [] },
+  { id: "p2", label: "Story Instagram", qty: 1, options: [] },
 ];
 const slots = (recorded: CampaignPublication[] = []) => publicationSlots(required, recorded);
 
 describe("publicationSlots", () => {
   it("déplie les quantités : deux vidéos font deux cases", () => {
     expect(slots().map((s) => s.key)).toEqual(["p1#0", "p1#1", "p2#0"]);
-    expect(slots()[1]).toMatchObject({ label: "Vidéo TikTok", index: 1, qty: 2, done: false, url: "" });
+    expect(slots()[1]).toMatchObject({ label: "Vidéo TikTok", index: 1, qty: 2, done: false, where: "", url: "" });
   });
 
   it("rattache un lien à sa case", () => {
-    const [, second] = slots([{ key: "p1#1", done: false, url: "https://tiktok.com/@a/video/2" }]);
+    const [, second] = slots([{ key: "p1#1", done: false, where: "", url: "https://tiktok.com/@a/video/2" }]);
     expect(second.url).toBe("https://tiktok.com/@a/video/2");
   });
 
   it("tient un lien pour preuve, même la case décochée", () => {
-    expect(slots([{ key: "p1#0", done: false, url: "https://x.test/1" }])[0].done).toBe(true);
+    expect(slots([{ key: "p1#0", done: false, where: "", url: "https://x.test/1" }])[0].done).toBe(true);
   });
 
   it("accepte une parution constatée sans lien", () => {
-    expect(slots([{ key: "p2#0", done: true, url: "" }])[2].done).toBe(true);
+    expect(slots([{ key: "p2#0", done: true, where: "", url: "" }])[2].done).toBe(true);
   });
 
   it("ignore ce qui ne correspond à aucune ligne du contrat, sans s'en plaindre", () => {
-    expect(slots([{ key: "disparue#0", done: true, url: "https://x.test/1" }])).toHaveLength(3);
+    expect(slots([{ key: "disparue#0", done: true, where: "", url: "https://x.test/1" }])).toHaveLength(3);
   });
 });
 
 describe("publicationProgress", () => {
   it("compte ce qui est paru et ce dont le lien manque", () => {
-    const p = publicationProgress(slots([{ key: "p1#0", done: true, url: "" }, { key: "p1#1", done: false, url: "https://x.test/2" }]));
+    const p = publicationProgress(slots([{ key: "p1#0", done: true, where: "", url: "" }, { key: "p1#1", done: false, where: "", url: "https://x.test/2" }]));
     expect(p).toMatchObject({ done: 2, total: 3, withoutUrl: 1, required: true, complete: false });
     expect(publicationLabel(p)).toBe("2 parutions sur 3");
   });
@@ -47,9 +47,9 @@ describe("publicationProgress", () => {
 
   it("signale les liens encore à récupérer une fois tout paru", () => {
     const all: CampaignPublication[] = [
-      { key: "p1#0", done: true, url: "" },
-      { key: "p1#1", done: true, url: "https://x.test/2" },
-      { key: "p2#0", done: true, url: "" },
+      { key: "p1#0", done: true, where: "", url: "" },
+      { key: "p1#1", done: true, where: "", url: "https://x.test/2" },
+      { key: "p2#0", done: true, where: "", url: "" },
     ];
     expect(publicationLabel(publicationProgress(slots(all)))).toBe("Tout est paru · 2 liens à récupérer");
   });
@@ -78,8 +78,8 @@ describe("suggestPublications", () => {
 
   it("ne retient que ce qui nomme un réseau ou une forme de parution", () => {
     expect(suggestPublications(summary)).toEqual([
-      { id: "", label: "Réel Instagram", qty: 1 },
-      { id: "", label: "Stories Instagram", qty: 2 },
+      { id: "", label: "Réel Instagram", qty: 1, options: [] },
+      { id: "", label: "Stories Instagram", qty: 2, options: [] },
     ]);
   });
 
@@ -88,9 +88,9 @@ describe("suggestPublications", () => {
   });
 
   it("lit la quantité en tête, « × » compris, et retombe sur une seule fois", () => {
-    expect(suggestPublications("3 × vidéo TikTok")).toEqual([{ id: "", label: "Vidéo TikTok", qty: 3 }]);
+    expect(suggestPublications("3 × vidéo TikTok")).toEqual([{ id: "", label: "Vidéo TikTok", qty: 3, options: [] }]);
     expect(suggestPublications("Story Instagram le jour de la réception")).toEqual([
-      { id: "", label: "Story Instagram le jour de la réception", qty: 1 },
+      { id: "", label: "Story Instagram le jour de la réception", qty: 1, options: [] },
     ]);
   });
 
@@ -99,21 +99,58 @@ describe("suggestPublications", () => {
   });
 });
 
+describe("parutions au choix", () => {
+  it("fait UNE parution d'un réel Instagram ou TikTok, et non deux", () => {
+    expect(suggestPublications("1 réel Instagram ou TikTok")).toEqual([{ id: "", label: "Réel", qty: 1, options: ["Instagram", "TikTok"] }]);
+    /* Le point du départ : trois lignes pour une seule publication convenue. */
+    expect(publicationSlots([{ id: "p", label: "Réel", qty: 1, options: ["Instagram", "TikTok"] }], [])).toHaveLength(1);
+  });
+
+  it("détache les réseaux du libellé, préposition comprise", () => {
+    expect(splitAlternatives("Réel sur Instagram ou TikTok")).toEqual({ label: "Réel", options: ["Instagram", "TikTok"] });
+    expect(splitAlternatives("Vidéo insta/tiktok")).toEqual({ label: "Vidéo", options: ["Instagram", "TikTok"] });
+    /* Un seul réseau n'est pas un choix : la ligne reste ce qu'elle est. */
+    expect(splitAlternatives("Réel Instagram")).toEqual({ label: "Réel Instagram", options: [] });
+  });
+
+  it("garde où la parution a eu lieu, et seulement si le contrat le propose encore", () => {
+    const line = [{ id: "p", label: "Réel", qty: 1, options: ["Instagram", "TikTok"] }];
+    expect(publicationSlots(line, [{ key: "p#0", done: true, where: "TikTok", url: "" }])[0].where).toBe("TikTok");
+    /* YouTube a été retiré du choix depuis : on ne l'affiche plus. */
+    expect(publicationSlots(line, [{ key: "p#0", done: true, where: "YouTube", url: "" }])[0].where).toBe("");
+  });
+
+  it("lit la ligne à voix haute", () => {
+    expect(slotLabel({ label: "Réel", options: ["Instagram", "TikTok"] })).toBe("Réel · Instagram ou TikTok");
+    expect(slotLabel({ label: "Vidéo TikTok", options: [] })).toBe("Vidéo TikTok");
+  });
+
+  it("ne retient des réseaux que ce qui est une liste de noms", () => {
+    const nextId = () => "pub_1";
+    expect(publicationLines(JSON.stringify([{ id: "", label: "Réel", qty: 1, options: ["Instagram", "Instagram", "TikTok"] }]), [], nextId)).toEqual([
+      { id: "pub_1", label: "Réel", qty: 1, options: ["Instagram", "TikTok"] },
+    ]);
+    expect(publicationLines(JSON.stringify([{ id: "", label: "Réel", qty: 1, options: "TikTok" }]), [], nextId)).toEqual([
+      { id: "pub_1", label: "Réel", qty: 1, options: [] },
+    ]);
+  });
+});
+
 describe("publicationLines", () => {
   let n = 0;
   const nextId = () => `pub_${++n}`;
-  const previous: ContractPublication[] = [{ id: "pub_ancien", label: "Vidéo TikTok", qty: 2 }];
+  const previous: ContractPublication[] = [{ id: "pub_ancien", label: "Vidéo TikTok", qty: 2, options: [] }];
   beforeEach(() => {
     n = 0;
   });
 
   it("pose un identifiant aux lignes neuves", () => {
-    expect(publicationLines(JSON.stringify([{ id: "", label: "Story", qty: 1 }]), [], nextId)).toEqual([{ id: "pub_1", label: "Story", qty: 1 }]);
+    expect(publicationLines(JSON.stringify([{ id: "", label: "Story", qty: 1 }]), [], nextId)).toEqual([{ id: "pub_1", label: "Story", qty: 1, options: [] }]);
   });
 
   it("garde l'identifiant d'une ligne du contrat, même renommée : ses liens y tiennent", () => {
     const out = publicationLines(JSON.stringify([{ id: "pub_ancien", label: "Réel TikTok", qty: 2 }]), previous, nextId);
-    expect(out).toEqual([{ id: "pub_ancien", label: "Réel TikTok", qty: 2 }]);
+    expect(out).toEqual([{ id: "pub_ancien", label: "Réel TikTok", qty: 2, options: [] }]);
   });
 
   it("refait un identifiant que le client aurait inventé ou répété", () => {

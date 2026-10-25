@@ -20,6 +20,10 @@ export type PublicationSlot = {
   /** Le rang dans sa ligne, et combien elle en compte : « 2 sur 2 ». */
   index: number;
   qty: number;
+  /** Les réseaux au choix, quand la ligne en laisse. UN seul sera servi. */
+  options: string[];
+  /** Celui qui a été servi, parmi les précédents. */
+  where: string;
   done: boolean;
   url: string;
   at?: number;
@@ -40,7 +44,19 @@ export function publicationSlots(required: ContractPublication[], recorded: Camp
     for (let i = 0; i < line.qty; i++) {
       const key = slotKey(line.id, i);
       const entry = byKey.get(key);
-      slots.push({ key, label: line.label, index: i, qty: line.qty, done: isDone(entry), url: entry?.url ?? "", at: entry?.at });
+      slots.push({
+        key,
+        label: line.label,
+        index: i,
+        qty: line.qty,
+        options: line.options,
+        /* Ce qui a été choisi ne vaut que s'il figure encore au contrat : un réseau
+           retiré de la ligne depuis ne doit pas continuer de s'afficher. */
+        where: entry?.where && line.options.includes(entry.where) ? entry.where : "",
+        done: isDone(entry),
+        url: entry?.url ?? "",
+        at: entry?.at,
+      });
     }
   }
   return slots;
@@ -67,6 +83,11 @@ export function publicationProgress(slots: PublicationSlot[]): PublicationProgre
   };
 }
 
+/** « Réel · Instagram ou TikTok » : la ligne telle qu'on la lit, choix compris. */
+export function slotLabel(slot: Pick<PublicationSlot, "label" | "options">): string {
+  return slot.options.length > 0 ? `${slot.label} · ${slot.options.join(" ou ")}` : slot.label;
+}
+
 /** « 3 parutions sur 5 », « Tout est paru », ou rien à dire. */
 export function publicationLabel(p: PublicationProgress): string {
   if (!p.required) return "";
@@ -91,10 +112,41 @@ export function publicationLabel(p: PublicationProgress): string {
  * proposer ici mélangerait les deux comptes.
  */
 const PLATFORMS = /\b(tiktok|instagram|insta|facebook|youtube|snapchat|pinterest|linkedin|twitch)\b/i;
+
+/** Le nom d'un réseau tel qu'on l'écrit, quelle que soit la façon dont il est tapé. */
+const PLATFORM_NAMES: Record<string, string> = {
+  tiktok: "TikTok",
+  instagram: "Instagram",
+  insta: "Instagram",
+  facebook: "Facebook",
+  youtube: "YouTube",
+  snapchat: "Snapchat",
+  pinterest: "Pinterest",
+  linkedin: "LinkedIn",
+  twitch: "Twitch",
+};
+
+/*
+ * « Un réel Instagram OU TikTok » : une seule parution, deux endroits possibles.
+ *
+ * On détache les réseaux du libellé pour en faire un choix. Les laisser dans le texte
+ * obligeait à écrire deux lignes, donc à réclamer deux parutions là où une seule était
+ * convenue — c'est exactement le « 0 sur 3 » qu'on ne veut plus voir.
+ */
+const ALTERNATIVES = /\b((?:tiktok|instagram|insta|facebook|youtube|snapchat|pinterest|linkedin|twitch)(?:\s*(?:ou|\/)\s*(?:tiktok|instagram|insta|facebook|youtube|snapchat|pinterest|linkedin|twitch))+)\b/i;
+
+export function splitAlternatives(raw: string): { label: string; options: string[] } {
+  const found = raw.match(ALTERNATIVES);
+  if (!found) return { label: raw, options: [] };
+  const options = [...new Set(found[1].split(/\s*(?:ou|\/)\s*/i).map((w) => PLATFORM_NAMES[w.toLowerCase()] ?? w))];
+  /* Ce qui reste du libellé, débarrassé de la préposition qui introduisait les réseaux. */
+  const label = raw.replace(found[1], "").replace(/\s{2,}/g, " ").trim().replace(/\s+(sur|en|via|sous|chez)$/i, "").trim();
+  return { label: label || "Parution", options };
+}
 const FORMATS = /\b(r[ée]els?|reels?|stor(?:y|ies)|posts?|publications?|shorts?|carrousels?|lives?|unboxing)\b/i;
 
-export function suggestPublications(summary: string): { id: string; label: string; qty: number }[] {
-  const lines: { id: string; label: string; qty: number }[] = [];
+export function suggestPublications(summary: string): { id: string; label: string; qty: number; options: string[] }[] {
+  const lines: { id: string; label: string; qty: number; options: string[] }[] = [];
   for (const raw of summary.split(/\r?\n/)) {
     /* Les puces d'une liste rédigée à la main, et les espaces autour. */
     const line = raw.replace(/^[\s*•\-–—]+/, "").trim();
@@ -106,9 +158,12 @@ export function suggestPublications(summary: string): { id: string; label: strin
     const qty = m ? Math.min(20, Math.max(1, Number(m[1]))) : 1;
     const rest = (m ? m[2] : line).trim();
     if (!rest) continue;
-    const label = (rest[0].toUpperCase() + rest.slice(1)).slice(0, 80);
+    /* « Réel Instagram ou TikTok » devient une ligne à choix, et non deux lignes. */
+    const alt = splitAlternatives(rest);
+    if (!alt.label) continue;
+    const label = (alt.label[0].toUpperCase() + alt.label.slice(1)).slice(0, 80);
     if (lines.some((l) => l.label.toLowerCase() === label.toLowerCase())) continue;
-    lines.push({ id: "", label, qty });
+    lines.push({ id: "", label, qty, options: alt.options });
   }
   return lines.slice(0, 40);
 }
@@ -142,14 +197,19 @@ export function publicationLines(raw: string, previous: ContractPublication[], n
   const lines: ContractPublication[] = [];
   for (const entry of data.slice(0, 40)) {
     if (typeof entry !== "object" || entry === null) continue;
-    const { id, label, qty } = entry as { id?: unknown; label?: unknown; qty?: unknown };
+    const { id, label, qty, options } = entry as { id?: unknown; label?: unknown; qty?: unknown; options?: unknown };
     const name = typeof label === "string" ? label.trim().slice(0, 80) : "";
     if (!name) continue;
     const times = Math.min(20, Math.max(1, Math.trunc(Number(qty)) || 1));
+    /* Les réseaux au choix : dédoublonnés, bornés, et silencieusement ignorés s'ils ne
+       sont pas une liste de noms — rien du client ne décide de ce qu'un contrat exige. */
+    const choices = Array.isArray(options)
+      ? [...new Set(options.filter((o): o is string => typeof o === "string").map((o) => o.trim().slice(0, 40)).filter(Boolean))].slice(0, 6)
+      : [];
     const keep = typeof id === "string" && id && known.has(id) && !used.has(id);
     const final = keep ? (id as string) : nextId();
     used.add(final);
-    lines.push({ id: final, label: name, qty: times });
+    lines.push({ id: final, label: name, qty: times, options: choices });
   }
   return lines;
 }

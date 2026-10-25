@@ -118,7 +118,7 @@ export async function getInfluencersByIds(ids: string[]): Promise<Map<string, In
  */
 export type InfluencerInput = Omit<
   Influencer,
-  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "collaborationSeq" | "handle" | "platform" | "code" | "discount" | "endAt" | "outreach" | "contestAutonomy"
+  "id" | "createdAt" | "updatedAt" | "clicks" | "uid" | "invitedAt" | "activatedAt" | "iban" | "inviteToken" | "inviteExpiresAt" | "kitOrderId" | "kit" | "note" | "socials" | "collaborationType" | "contractId" | "signatureId" | "contractVariables" | "collaborationSeq" | "handle" | "platform" | "code" | "discount" | "endAt" | "outreach" | "contestAutonomy" | "renewalAskedAt"
 > & {
   id?: string;
   /* Repris par les campagnes : conservés tels quels, plus jamais saisis ici. */
@@ -132,6 +132,8 @@ export type InfluencerInput = Omit<
   iban?: string;
   /* Réglé sur son seul onglet « Concours » : le formulaire d'identité ne le porte pas. */
   contestAutonomy?: boolean;
+  /* Écrit par le partenaire seul, depuis son espace : aucun formulaire d'admin ne le porte. */
+  renewalAskedAt?: number;
   kitOrderId?: string;
   kit?: WelcomeKit;
   note?: string;
@@ -169,6 +171,9 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
      * d'identité ne le porte pas, et un enregistrement d'identité ne doit pas le retirer.
      */
     contestAutonomy: input.contestAutonomy ?? existing?.contestAutonomy ?? false,
+    /* Même raison : la demande de nouvelle campagne vient de LUI, et aucun enregistrement
+       de fiche ne doit la faire disparaître avant qu'on y ait répondu. */
+    renewalAskedAt: input.renewalAskedAt ?? existing?.renewalAskedAt ?? 0,
     kitOrderId: input.kitOrderId ?? existing?.kitOrderId ?? "",
     kit: input.kit ?? existing?.kit,
     note: input.note ?? existing?.note ?? "",
@@ -199,6 +204,15 @@ export async function upsertInfluencer(input: InfluencerInput): Promise<Influenc
  * faire : on ne supprime pas en cascade sans dire ce qui part.
  */
 export type InfluencerFootprint = { campaigns: number; codes: string[]; statements: number; clickDays: number; signatures: number };
+
+/*
+ * Le partenaire demande une nouvelle campagne. On n'écrit qu'un moment : l'état se
+ * déduit (voir promos/renewal.ts), et ouvrir la campagne suivante répond à la demande
+ * sans que personne ait à la refermer.
+ */
+export async function setRenewalAsked(id: string, at = now()): Promise<void> {
+  await influencers().doc(id).update({ renewalAskedAt: at, updatedAt: at });
+}
 
 export async function influencerFootprint(id: string): Promise<InfluencerFootprint> {
   const [campaignList, promoList, statementSnap, clickSnap, signatureList] = await Promise.all([

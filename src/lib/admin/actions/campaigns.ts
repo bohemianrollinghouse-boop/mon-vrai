@@ -181,8 +181,15 @@ export async function createCampaignAction(formData: FormData): Promise<AdminRes
 }
 
 /*
- * Clôt une campagne. Le contrat signé la suit : il passe « terminé », sans disparaître.
- * Le partenaire retrouve alors une page sans kit à commander — jusqu'à la suivante.
+ * Clôt une campagne : de son côté, c'est fait — le contenu est arrivé, l'échange est
+ * soldé. Le contrat signé la suit, il passe « terminé » sans disparaître, et le
+ * partenaire retrouve une page sans kit à commander, jusqu'à la suivante.
+ *
+ * Son CODE, lui, ne s'éteint pas pour autant : il court jusqu'à la date annoncée (voir
+ * promos/campaign.codeLive). Le couper ici revenait à faire payer à sa communauté la
+ * fin d'une négociation dont elle ne sait rien — et à décourager de clore à l'heure.
+ * On repasse quand même par `syncCampaignPromo` : la campagne a changé, le code doit
+ * être recalculé sur elle, et c'est lui qui décidera s'il vit encore.
  */
 export async function completeCampaignAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
@@ -194,7 +201,7 @@ export async function completeCampaignAction(formData: FormData): Promise<AdminR
   if (signature?.state === "active") await setSignatureState(signature.id, "completed").catch(() => undefined);
   await upsertCampaign({ ...campaign, status: "completed", completedAt: Date.now() });
 
-  /* Campagne terminée, code éteint — sauf si une autre campagne vivante le porte aussi. */
+  /* Le code se recalcule sur ses dates : clore ne l'éteint pas, la date venue le fera. */
   const influencer = await getInfluencer(campaign.influencerId);
   if (influencer && campaign.code) {
     await syncCampaignPromo(influencer, campaign.code).catch((err) => console.warn("[campagne] code non éteint :", (err as Error).message));
@@ -209,7 +216,8 @@ export async function completeCampaignAction(formData: FormData): Promise<AdminR
   revalidatePath("/admin/campagnes");
   revalidatePath("/admin/codes-promo");
   revalidatePath("/partenaire");
-  return saved(`Campagne n° ${campaign.seq} terminée${campaign.code ? ` · le code ${campaign.code} ne remise plus` : ""}.`);
+  const until = campaign.endAt ? ` · le code ${campaign.code} remise jusqu'au ${new Date(campaign.endAt).toLocaleDateString("fr-FR")}` : "";
+  return saved(`Campagne n° ${campaign.seq} terminée${campaign.code ? until : ""}.`);
 }
 
 /*
@@ -276,7 +284,11 @@ export async function savePublicationsAction(formData: FormData): Promise<AdminR
     const done = formData.getAll(`done:${slot.key}`).includes("true") || Boolean(url);
     /* Rien de constaté, rien d'écrit : la campagne ne porte que ce qui a eu lieu. */
     if (!done) continue;
-    next.push({ key: slot.key, done: true, url, at: was.get(slot.key)?.at ?? at });
+    /* Le réseau servi, quand la ligne en laissait le choix. Le contrat fait foi : un
+       nom qui n'y figure pas n'est pas retenu, comme pour les lignes elles-mêmes. */
+    const picked = String(formData.get(`where:${slot.key}`) ?? "").trim();
+    const where = slot.options.includes(picked) ? picked : "";
+    next.push({ key: slot.key, done: true, url, where, at: was.get(slot.key)?.at ?? at });
   }
 
   const orphans = campaign.publications.filter((p) => !slots.some((s) => s.key === p.key));

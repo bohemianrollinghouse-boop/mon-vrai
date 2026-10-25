@@ -64,6 +64,9 @@ export type BoardRow = {
   missing: Shortfall;
   /** Tout est fait : la campagne n'attend plus que d'être close. */
   closable: boolean;
+  /** Close, et montrée quand même : clore doit se VOIR, sinon rien ne s'est passé. */
+  closed: boolean;
+  closedOn: number;
   /** Quelque chose dépend de nous — c'est ce qui fait remonter la ligne. */
   ours: boolean;
 };
@@ -73,6 +76,8 @@ export type BoardGroup = {
   operation: Operation | null;
   state: OperationState | null;
   rows: BoardRow[];
+  /** Plus rien n'y court : la campagne se replie alors sur une ligne d'histoire. */
+  allClosed: boolean;
 };
 
 export type BoardTotals = {
@@ -86,6 +91,8 @@ export type BoardTotals = {
   theirs: number;
   /** Celles dont tout est fait : il ne reste qu'à les clore. */
   closable: number;
+  /** Celles qui sont closes : ce qu'on vient de solder, et qui doit se voir. */
+  closed: number;
 };
 
 const count = (n: number, one: string) => `${n} ${one}${n > 1 ? "s" : ""}`;
@@ -95,7 +102,7 @@ const count = (n: number, one: string) => `${n} ${one}${n > 1 ? "s" : ""}`;
  * d'abord, puis ce qui dépend de nous — le seul endroit où personne ne peut avancer à
  * notre place —, puis ce qu'on attend d'eux, du plus en retard au moins.
  */
-const rank = (r: BoardRow): number => (r.closable ? 0 : r.ours ? 1 : r.remaining.length > 0 ? 2 : 3);
+const rank = (r: BoardRow): number => (r.closed ? 4 : r.closable ? 0 : r.ours ? 1 : r.remaining.length > 0 ? 2 : 3);
 
 /** Ce qu'une ligne a encore à produire, tous postes confondus : sert à départager. */
 const owed = (r: BoardRow): number => (r.published.required ? r.published.total - r.published.done : 0) + r.missing.total;
@@ -211,9 +218,14 @@ export function campaignBoard(input: {
 
   const rows: BoardRow[] = [];
   for (const campaign of input.campaigns) {
-    /* « En cours » veut dire : rien n'est soldé. Une campagne terminée ou annulée
-       n'attend plus rien de personne, et sa place est dans la liste, pas dans le suivi. */
-    if (campaign.status === "completed" || campaign.status === "cancelled") continue;
+    /*
+     * Une campagne ANNULÉE sort du suivi : la contrepartie n'a jamais été remise, il n'y
+     * a rien à en attendre ni à en constater. Une campagne CLOSE y reste, en revanche,
+     * et c'est délibéré : la faire disparaître au clic, c'était rendre la clôture
+     * invisible — on cliquait, la ligne s'évaporait, et rien ne disait que quelque chose
+     * avait eu lieu. Elle descend au bas de son groupe, en gris, avec sa date.
+     */
+    if (campaign.status === "cancelled") continue;
 
     const contract = contractById.get(campaign.contractId);
     const expected = quotaFor(campaign.expected, contract?.expected);
@@ -224,6 +236,7 @@ export function campaignBoard(input: {
     const order = orderById.get(campaign.kitOrderId) ?? null;
 
     const steps = stepsOf({ campaign, order, published, missing, received, expected });
+    const closed = campaign.status === "completed";
     rows.push({
       campaign,
       influencerId: campaign.influencerId,
@@ -239,7 +252,10 @@ export function campaignBoard(input: {
       missing,
       /* On ne propose de clore que ce qui ne doit plus rien, d'aucun des deux côtés. */
       closable: campaign.status === "active" && steps.every((s) => s.state === "done" || s.state === "none"),
-      ours: steps.some((s) => s.state === "ours"),
+      closed,
+      closedOn: closed ? campaign.completedAt ?? campaign.updatedAt : 0,
+      /* Close, elle n'attend plus rien de nous : le sable est réservé à ce qui reste à faire. */
+      ours: !closed && steps.some((s) => s.state === "ours"),
     });
   }
 
@@ -267,7 +283,12 @@ export function campaignBoard(input: {
 
   const groups: BoardGroup[] = [...grouped].map(([key, list]) => {
     const operation = key ? operationById.get(key) ?? null : null;
-    return { operation, state: operation ? operationState(operation, input.now) : null, rows: list };
+    return {
+      operation,
+      state: operation ? operationState(operation, input.now) : null,
+      rows: list,
+      allClosed: list.every((r) => r.closed),
+    };
   });
 
   /*
@@ -286,10 +307,11 @@ export function campaignBoard(input: {
     groups,
     totals: {
       operations: groups.filter((g) => g.operation).length,
-      running: rows.length,
+      running: rows.filter((r) => !r.closed).length,
       ours: rows.filter((r) => r.ours).length,
-      theirs: rows.filter((r) => !r.ours && r.remaining.length > 0).length,
+      theirs: rows.filter((r) => !r.closed && !r.ours && r.remaining.length > 0).length,
       closable: rows.filter((r) => r.closable).length,
+      closed: rows.filter((r) => r.closed).length,
     },
   };
 }

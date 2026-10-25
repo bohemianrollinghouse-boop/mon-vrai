@@ -9,6 +9,8 @@ import { statementRows, type StatementRow } from "@/lib/promos/statements";
 import { listStatements } from "./statements";
 import { listAllProducts } from "./products";
 import { kitItems, kitOffered, type KitItem } from "@/lib/promos/kit";
+import { codeCampaign } from "@/lib/promos/campaign";
+import { renewalState, type Renewal } from "@/lib/promos/renewal";
 import { CONTEST_STATE_LABELS, contestState, partnerCanDelete, partnerCanEdit, seatsLeft, winnersOf, type ContestState } from "@/lib/contests/state";
 import { socialCount } from "@/lib/promos/socials";
 import { CONTEST_PLATFORM_LABELS, type Campaign, type ContractSignature, type Influencer, type Order } from "@/lib/domain/types";
@@ -151,7 +153,22 @@ export async function partnerContests(influencer: Influencer, at: number): Promi
 export async function partnerSnapshot(
   influencer: Influencer,
   period: PartnerPeriod,
-): Promise<{ now: number; view: PartnerView; statements: StatementRow[]; kit: PartnerKit; campaign: Campaign | null; collaborations: PartnerCollaboration[]; contests: PartnerContest[] }> {
+): Promise<{
+  now: number;
+  view: PartnerView;
+  statements: StatementRow[];
+  kit: PartnerKit;
+  campaign: Campaign | null;
+  /*
+   * Celle dont le CODE vaut encore. Pas forcément la même : une collaboration soldée
+   * ne retire pas à sa communauté la remise qu'on lui a annoncée, qui tient jusqu'à sa
+   * date. D'où deux champs — ce qu'il a sur le feu, et ce que son public peut utiliser.
+   */
+  coded: Campaign | null;
+  renewal: Renewal;
+  collaborations: PartnerCollaboration[];
+  contests: PartnerContest[];
+}> {
   const at = now();
   const since = periodStart(period, at);
   const sinceDay = new Date(since ?? influencer.createdAt).toISOString().slice(0, 10);
@@ -175,6 +192,9 @@ export async function partnerSnapshot(
     statements: statementRows(influencer, orders, stored, at),
     kit,
     campaign,
+    coded: codeCampaign(campaigns, at),
+    /* Ce que la fin de la dernière campagne laisse à dire, et à demander. */
+    renewal: renewalState(influencer, campaigns),
     collaborations,
     contests,
   };

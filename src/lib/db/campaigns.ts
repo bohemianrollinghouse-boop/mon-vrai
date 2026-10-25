@@ -1,6 +1,6 @@
 import "server-only";
 import { Campaign, Promo, type CampaignPublication, type CampaignStatus, type Influencer } from "@/lib/domain/types";
-import { campaignLive, liveCampaign } from "@/lib/promos/campaign";
+import { codeLive, liveCampaign } from "@/lib/promos/campaign";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
 
 /*
@@ -148,7 +148,9 @@ export async function syncCampaignPromo(influencer: Influencer, code: string): P
 
   const at = now();
   const carrying = (await listCampaigns(influencer.id)).filter((c) => c.code === upper);
-  const owner = carrying.find((c) => campaignLive(c, at)) ?? carrying[0] ?? null;
+  /* Celle qui fait vivre le code, et non celle qui est « en cours » : une campagne close
+     dont les dates courent encore continue de remiser (voir promos/campaign.codeLive). */
+  const owner = carrying.find((c) => codeLive(c, at)) ?? carrying[0] ?? null;
 
   if (!owner) {
     if (existing) await ref.update({ active: false, campaignId: "", updatedAt: at }).catch(() => undefined);
@@ -174,8 +176,12 @@ export async function syncCampaignPromo(influencer: Influencer, code: string): P
       stackWith: existing?.stackWith ?? [],
       freeShipping: existing?.freeShipping ?? false,
       gifts: [],
-      /* Le partenaire en pause coupe tout ; sinon c'est la campagne qui décide. */
-      active: influencer.active && campaignLive(owner, at),
+      /*
+       * Le partenaire en pause coupe tout ; sinon ce sont les DATES qui décident. Clore
+       * une campagne ne coupe donc plus rien : ce qui a été annoncé à sa communauté
+       * tient jusqu'au jour dit, et rouvrir une campagne avec elle rallume son code.
+       */
+      active: influencer.active && codeLive(owner, at),
       influencerId: influencer.id,
       campaignId: owner.id,
       uses: existing?.uses ?? 0,

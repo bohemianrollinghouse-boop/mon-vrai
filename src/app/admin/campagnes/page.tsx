@@ -3,6 +3,7 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { PublicationsForm } from "@/components/admin/PublicationsForm";
 import { ButtonLink, FilterPills, GridTable, PageHeader, Pill, Tile, type PillTone } from "@/components/admin/ui";
 import { campaignBoard, type BoardGroup, type BoardRow, type BoardStep, type StepState } from "@/lib/admin/campaign-board";
+import { pendingRenewals } from "@/lib/promos/renewal";
 import { completeCampaignAction } from "@/lib/admin/actions/campaigns";
 import { markDeliveredAction } from "@/lib/admin/actions/orders";
 import { ADMIN_STATUS_LABELS } from "@/lib/admin/order-ui";
@@ -58,6 +59,14 @@ export default async function OperationsPage({ searchParams }: PageProps<"/admin
   /* Seules les commandes de kit que les campagnes citent : inutile de lire les ventes. */
   const orders = await getOrders(campaigns.map((c) => c.kitOrderId)).catch(() => []);
   const board = campaignBoard({ operations, campaigns, influencers, contracts, orders, deliverables, now: at });
+  /*
+   * Qui redemande une campagne. La demande n'a pas de statut : elle se déduit de la
+   * dernière campagne close et du moment où elle a été faite, si bien qu'ouvrir la
+   * campagne suivante y répond d'elle-même (voir promos/renewal.ts).
+   */
+  const renewals = pendingRenewals(
+    influencers.map((influencer) => ({ influencer, campaigns: campaigns.filter((c) => c.influencerId === influencer.id) })),
+  );
 
   /* Une seule lecture des participations pour toute la liste. */
   const participants = new Map<string, { total: number; kits: number; signed: number }>();
@@ -84,20 +93,23 @@ export default async function OperationsPage({ searchParams }: PageProps<"/admin
 
       <FilterPills
         items={[
-          { href: "/admin/campagnes", label: "Suivi", count: board.totals.ours + board.totals.closable, active: tab === "suivi" },
+          { href: "/admin/campagnes", label: "Suivi", count: board.totals.ours + board.totals.closable + renewals.length, active: tab === "suivi" },
           { href: "/admin/campagnes?onglet=liste", label: "Toutes les campagnes", count: operations.length, active: tab === "liste" },
         ]}
       />
 
-      {tab === "suivi" ? <Board board={board} /> : <OperationsList operations={operations} participants={participants} at={at} />}
+      {tab === "suivi" ? <Board board={board} renewals={renewals} /> : <OperationsList operations={operations} participants={participants} at={at} />}
     </>
   );
 }
 
 /* ---------- Le suivi ---------- */
 
-function Board({ board }: { board: ReturnType<typeof campaignBoard> }) {
+function Board({ board, renewals }: { board: ReturnType<typeof campaignBoard>; renewals: ReturnType<typeof pendingRenewals> }) {
   const { groups, totals } = board;
+  /* Une campagne entièrement close ne fait plus une ligne par personne : une seule. */
+  const running = groups.filter((g) => !g.allClosed);
+  const finished = groups.filter((g) => g.allClosed);
 
   return (
     <>
@@ -122,17 +134,73 @@ function Board({ board }: { board: ReturnType<typeof campaignBoard> }) {
           tone={totals.closable > 0 ? "green" : "white"}
           label="À clore"
           value={totals.closable}
-          note={totals.closable > 0 ? "tout est fait, le code peut s'éteindre" : "aucune campagne soldée"}
+          note={totals.closable > 0 ? "tout est rendu, plus rien à attendre" : `${totals.closed} close${totals.closed > 1 ? "s" : ""} à ce jour`}
         />
       </div>
 
+      {/*
+        Ce qu'un partenaire demande après coup. Rien ne s'y règle : on lui ouvre sa
+        prochaine campagne depuis sa fiche, et la demande s'éteint d'elle-même.
+      */}
+      {renewals.length > 0 && (
+        <div className="flex flex-col gap-2.5 rounded-card bg-tint-blue px-6 py-5 text-tint-blue-ink">
+          <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em]">
+            {renewals.length > 1 ? `${renewals.length} partenaires redemandent une campagne` : "Un partenaire redemande une campagne"}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {renewals.map(({ influencer, renewal }) => (
+              <Link
+                key={influencer.id}
+                href={`/admin/influenceurs/${influencer.id}?onglet=campagnes`}
+                className="flex items-center gap-2 rounded-pill bg-white px-3.5 py-2 text-[0.8125rem] font-bold text-ink hover:opacity-70"
+              >
+                {influencer.name}
+                <span className="font-semibold text-subtle">demandé le {day(renewal.askedAt)}</span>
+              </Link>
+            ))}
+          </div>
+          <span className="text-[0.6875rem] leading-relaxed">
+            Leur dernière campagne est close et ils sont partants pour repartir. Ouvrez-leur une participation — depuis
+            leur fiche, ou en les cochant sur une campagne : la demande disparaît d&apos;elle-même.
+          </span>
+        </div>
+      )}
+
       {groups.length === 0 ? (
         <p className="rounded-card bg-surface px-6 py-8 text-sm text-muted">
-          Aucune participation en cours. Créez une campagne, puis appliquez-la à vos influenceurs : chacun apparaîtra ici
-          avec ce qu&apos;il reste à obtenir de lui.
+          Aucune participation. Créez une campagne, puis appliquez-la à vos influenceurs : chacun apparaîtra ici avec ce
+          qu&apos;il reste à obtenir de lui.
         </p>
       ) : (
-        groups.map((group) => <GroupBoard key={group.operation?.id ?? "hors-campagne"} group={group} />)
+        running.map((group) => <GroupBoard key={group.operation?.id ?? "hors-campagne"} group={group} />)
+      )}
+
+      {/* Les campagnes dont plus personne ne doit rien : une ligne chacune, pas un tableau. */}
+      {finished.length > 0 && (
+        <div className="flex flex-col gap-1 rounded-card bg-surface px-6 py-4">
+          <span className="pb-1 text-[0.6875rem] font-bold uppercase tracking-[0.08em] text-faint">Campagnes soldées</span>
+          {finished.map((group) => (
+            <div
+              key={group.operation?.id ?? "hors-campagne"}
+              className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-line-soft py-2.5 text-[0.8125rem]"
+            >
+              {group.operation ? (
+                <Link href={`/admin/campagnes/${group.operation.id}`} className="font-bold hover:opacity-70">
+                  {group.operation.name} →
+                </Link>
+              ) : (
+                <span className="font-bold">Hors campagne</span>
+              )}
+              <span className="text-[0.6875rem] text-subtle">
+                {group.rows.length} participation{group.rows.length > 1 ? "s" : ""} close{group.rows.length > 1 ? "s" : ""} ·{" "}
+                {group.rows.map((r) => r.influencerName).join(", ")}
+              </span>
+              <span className="ml-auto text-[0.6875rem] font-semibold text-subtle">
+                dernière le {day(Math.max(...group.rows.map((r) => r.closedOn)))}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
 
       <p className="text-xs leading-relaxed text-subtle">
@@ -148,6 +216,7 @@ function Board({ board }: { board: ReturnType<typeof campaignBoard> }) {
 function GroupBoard({ group }: { group: BoardGroup }) {
   const op = group.operation;
   const ours = group.rows.filter((r) => r.ours || r.closable).length;
+  const closed = group.rows.filter((r) => r.closed).length;
 
   return (
     <section className="flex flex-col gap-2">
@@ -169,7 +238,8 @@ function GroupBoard({ group }: { group: BoardGroup }) {
           </>
         )}
         <span className="ml-auto text-[0.6875rem] font-semibold text-subtle">
-          {group.rows.length} participation{group.rows.length > 1 ? "s" : ""}
+          {group.rows.length - closed} en cours
+          {closed > 0 && ` · ${closed} close${closed > 1 ? "s" : ""}`}
           {ours > 0 && ` · ${ours} à traiter`}
         </span>
       </header>
@@ -186,12 +256,16 @@ function GroupBoard({ group }: { group: BoardGroup }) {
                   GridTable enveloppe la ligne dépliable dans un `group`. */}
               <span className="shrink-0 text-[0.625rem] text-faint transition-transform group-open:rotate-90">▶</span>
               <span className="flex min-w-0 flex-col">
-                <span className="truncate font-bold">{r.influencerName}</span>
+                <span className={`truncate font-bold ${r.closed ? "text-muted" : ""}`}>{r.influencerName}</span>
                 <span className="truncate text-[0.6875rem] text-subtle">{r.campaign.name || `Campagne n° ${r.campaign.seq}`}</span>
               </span>
             </span>,
             ...r.steps.map((s) => <Step key={s.key} step={s} />),
-            r.closable ? (
+            r.closed ? (
+              <span key="r" className="flex justify-end">
+                <Pill tone="muted">Terminée le {day(r.closedOn)}</Pill>
+              </span>
+            ) : r.closable ? (
               <span key="r" className="flex justify-end">
                 <Pill tone="ok">Tout est fait · à clore</Pill>
               </span>
@@ -286,9 +360,13 @@ function RowDetail({ row }: { row: BoardRow }) {
           action={completeCampaignAction}
           submitLabel="Clore la campagne"
           submitTone="secondary"
-          confirm={`Clore la campagne de ${row.influencerName} ? Son code cessera de remiser.`}
+          confirm={`Clore la campagne de ${row.influencerName} ? Son code continue de remiser jusqu'à la date annoncée.`}
           className="!gap-1.5 border-t border-line-soft pt-3 [&>div:last-child]:justify-start"
-          footerNote="Plus rien n'est dû de part ni d'autre."
+          footerNote={
+            row.campaign.endAt
+              ? `Plus rien n'est dû de part ni d'autre. Le code reste valable jusqu'au ${day(row.campaign.endAt)}.`
+              : "Plus rien n'est dû de part ni d'autre."
+          }
         >
           <input type="hidden" name="id" value={row.campaign.id} />
         </ActionForm>

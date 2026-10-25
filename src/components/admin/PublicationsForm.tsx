@@ -34,6 +34,7 @@ export function PublicationsForm({ campaignId, slots, hint = true }: { campaignI
               <input type="checkbox" name={`done:${slot.key}`} value="true" defaultChecked={slot.done} className="h-4 w-4 accent-black" />
               <span className="text-[0.8125rem] font-semibold">
                 {slot.label}
+                {slot.options.length > 0 && <span className="font-normal text-subtle"> · {slot.options.join(" ou ")}</span>}
                 {slot.qty > 1 && (
                   <span className="font-normal text-subtle">
                     {" "}
@@ -47,6 +48,32 @@ export function PublicationsForm({ campaignId, slots, hint = true }: { campaignI
                 </span>
               )}
             </label>
+            {/*
+              Où elle a paru, quand le contrat laissait le choix. Un seul bouton reste
+              enfoncé : c'est un OU, et deux réseaux cochés voudraient dire deux
+              parutions — précisément ce qu'on a convenu de ne pas réclamer.
+            */}
+            {slot.options.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[0.625rem] font-bold uppercase tracking-[0.08em] text-faint">Paru sur</span>
+                {slot.options.map((option) => (
+                  <label
+                    key={option}
+                    className="cursor-pointer rounded-pill bg-surface px-2.5 py-1 text-[0.6875rem] font-bold has-[:checked]:bg-ink has-[:checked]:text-on-ink"
+                  >
+                    <input
+                      type="radio"
+                      name={`where:${slot.key}`}
+                      value={option}
+                      defaultChecked={slot.where === option}
+                      className="sr-only"
+                    />
+                    {option}
+                  </label>
+                ))}
+              </div>
+            )}
+
             <span className="flex items-center gap-2">
               <input
                 name={`url:${slot.key}`}

@@ -76,16 +76,43 @@ const call = (over: Partial<Parameters<typeof campaignBoard>[0]> = {}) =>
 const stepOf = (row: { steps: { key: StepKey; state: string; detail: string }[] }, key: StepKey) => row.steps.find((s) => s.key === key)!;
 
 describe("suivi des campagnes", () => {
-  it("ne retient que ce qui est en cours", () => {
-    const { totals } = call({
+  it("écarte l'annulée, garde la close", () => {
+    const { groups, totals } = call({
       campaigns: [
         campaign({ id: "a", status: "active" }),
         campaign({ id: "b", status: "draft" }),
-        campaign({ id: "c", status: "completed" }),
+        campaign({ id: "c", status: "completed", completedAt: NOW }),
         campaign({ id: "d", status: "cancelled" }),
       ],
     });
     expect(totals.running).toBe(2);
+    expect(totals.closed).toBe(1);
+    /* L'annulée ne doit rien à personne ; la close, elle, prouve que la clôture a eu lieu. */
+    expect(groups[0].rows.map((r) => r.campaign.id)).not.toContain("d");
+    expect(groups[0].rows.map((r) => r.campaign.id)).toContain("c");
+  });
+
+  it("descend la close en bas, sans la faire attendre quoi que ce soit", () => {
+    const { groups } = call({
+      campaigns: [
+        campaign({ id: "close", status: "completed", completedAt: NOW, kitOrderId: "ord_1" }),
+        campaign({ id: "vivante", status: "active" }),
+      ],
+      orders: [order({ status: "paid" })],
+    });
+    const rows = groups[0].rows;
+    expect(rows.map((r) => r.campaign.id)).toEqual(["vivante", "close"]);
+    /* Un colis jamais expédié sur une campagne close n'appelle plus de geste. */
+    expect(rows[1].closed).toBe(true);
+    expect(rows[1].ours).toBe(false);
+    expect(rows[1].closable).toBe(false);
+    expect(rows[1].closedOn).toBe(NOW);
+  });
+
+  it("replie une campagne dont tout est clos", () => {
+    const { groups } = call({ campaigns: [campaign({ status: "completed", completedAt: NOW })] });
+    expect(groups[0].allClosed).toBe(true);
+    expect(call().groups[0].allClosed).toBe(false);
   });
 
   it("déduit chaque étape de ce qui existe, sans rien tenir à jour", () => {
@@ -128,8 +155,8 @@ describe("suivi des campagnes", () => {
       campaigns: [
         campaign({
           publications: [
-            { key: "pub_reel#0", done: true, url: "" },
-            { key: "pub_reel#1", done: true, url: "https://www.tiktok.com/@x/1" },
+            { key: "pub_reel#0", done: true, where: "", url: "" },
+            { key: "pub_reel#1", done: true, where: "", url: "https://www.tiktok.com/@x/1" },
           ],
         }),
       ],
@@ -158,8 +185,8 @@ describe("suivi des campagnes", () => {
           signatureId: "sig_1",
           kitOrderId: "ord_1",
           publications: [
-            { key: "pub_reel#0", done: true, url: "https://a.test/1" },
-            { key: "pub_reel#1", done: true, url: "https://a.test/2" },
+            { key: "pub_reel#0", done: true, where: "", url: "https://a.test/1" },
+            { key: "pub_reel#1", done: true, where: "", url: "https://a.test/2" },
           ],
         }),
       ],
