@@ -9,9 +9,10 @@ import {
   saveIgSettingsAction,
   testIgRuleAction,
 } from "@/lib/admin/actions/instagram";
-import { listEvents, publicView } from "@/lib/db/instagram";
+import { IgPostPicker } from "@/components/admin/IgPostPicker";
+import { listEvents, publicView, recentPosts } from "@/lib/db/instagram";
 import { tokenLabel, type IgRule } from "@/lib/domain/instagram";
-import { IG_SCOPES, instagramConfigured, instagramRedirectUri, webhookVerifyToken } from "@/lib/instagram/client";
+import { IG_SCOPES, instagramConfigured, instagramRedirectUri, webhookVerifyToken, type IgMedia } from "@/lib/instagram/client";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,7 @@ const BLANKS = 2;
 
 export default async function InstagramPage({ searchParams }: PageProps<"/admin/instagram">) {
   const sp = await searchParams;
-  const [view, events] = await Promise.all([publicView(), listEvents(40)]);
+  const [view, events, posts] = await Promise.all([publicView(), listEvents(40), recentPosts()]);
 
   const configured = instagramConfigured();
   const state = boardState(view.settings, view.connected);
@@ -214,7 +215,7 @@ export default async function InstagramPage({ searchParams }: PageProps<"/admin/
           </p>
 
           {[...view.rules, ...Array.from({ length: BLANKS }, () => null)].map((rule, i) => (
-            <RuleRow key={rule?.id ?? `nouvelle-${i}`} index={i} rule={rule} />
+            <RuleRow key={rule?.id ?? `nouvelle-${i}`} index={i} rule={rule} posts={posts} />
           ))}
 
           {warning && <Notice tone="info">{warning}</Notice>}
@@ -295,7 +296,7 @@ export default async function InstagramPage({ searchParams }: PageProps<"/admin/
  * par ligne : c'est le formulaire le plus simple qui rende ce service, et il marche sans
  * JavaScript — comme le reste de l'admin.
  */
-function RuleRow({ index, rule }: { index: number; rule: IgRule | null }) {
+function RuleRow({ index, rule, posts }: { index: number; rule: IgRule | null; posts: IgMedia[] }) {
   const base = `rules[${index}]`;
   return (
     <details className="rounded-[14px] bg-paper px-4 py-3" open={!rule}>
@@ -315,7 +316,7 @@ function RuleRow({ index, rule }: { index: number; rule: IgRule | null }) {
         <input type="hidden" name={`${base}.id`} value={rule?.id ?? ""} />
 
         <div className="grid grid-cols-[minmax(0,1fr)_200px_auto] items-end gap-2.5 max-[899px]:grid-cols-1">
-          <Field label="Nom" hint="Pour s'y retrouver ici et dans le journal." name={`${base}.name`}>
+          <Field label="Nom de la règle" hint="Jamais visible par personne : il ne sert qu'à vous, dans cette liste et dans le journal." name={`${base}.name`}>
             <Input name={`${base}.name`} maxLength={80} defaultValue={rule?.name ?? ""} placeholder="ex. Demande du lien" />
           </Field>
           <Field label="Se déclenche sur" name={`${base}.on`}>
@@ -345,23 +346,33 @@ function RuleRow({ index, rule }: { index: number; rule: IgRule | null }) {
 
         <Field
           label="Publications visées"
-          hint="Identifiants Meta séparés par des virgules. Vide = toutes, y compris celles à venir — c'est le cas ordinaire."
+          hint={
+            posts.length === 0
+              ? "Les publications se chargeront une fois le compte connecté."
+              : "Cochez les publications concernées. Aucune cochée = toutes, y compris celles que vous publierez demain — c'est le cas ordinaire."
+          }
           name={`${base}.mediaIds`}
         >
-          <Input name={`${base}.mediaIds`} maxLength={2000} defaultValue={rule?.mediaIds.join(", ") ?? ""} placeholder="toutes les publications" />
+          {posts.length === 0 ? (
+            <p className="rounded-xl bg-surface px-4 py-3 text-xs text-subtle">
+              Aucune publication à afficher. La règle s&apos;appliquera à toutes.
+            </p>
+          ) : (
+            <IgPostPicker name={`${base}.mediaIds`} posts={posts} selected={rule?.mediaIds ?? []} />
+          )}
         </Field>
 
         <Field
-          label="Réponses publiques"
-          hint="Une par ligne : elles sont tirées à tour de rôle. Dix fois la même phrase sous dix commentaires, ça se voit. Vide = pas de réponse publique."
+          label="Réponse publique, sous le commentaire"
+          hint="Écrivez-en plusieurs si vous voulez qu'elles varient — une par ligne, et le site en choisit une à chaque fois. Dix fois la même phrase sous dix commentaires, ça se voit. Laissez vide pour ne pas répondre en public."
           name={`${base}.publicReplies`}
         >
           <Textarea name={`${base}.publicReplies`} rows={3} maxLength={3000} defaultValue={rule?.publicReplies.join("\n") ?? ""} placeholder="Une formulation par ligne." />
         </Field>
 
         <Field
-          label="Message privé"
-          hint="Part en direct. Sur un commentaire : une seule fois, dans les 7 jours. Vide = pas de message privé."
+          label="Message privé, en DM"
+          hint="Une seule formulation : la personne ne le reçoit qu'une fois. Sur un commentaire, dans les 7 jours. Laissez vide pour ne pas envoyer de message."
           name={`${base}.privateReply`}
         >
           <Textarea name={`${base}.privateReply`} rows={3} maxLength={900} defaultValue={rule?.privateReply ?? ""} placeholder="Le message qui part en privé." />

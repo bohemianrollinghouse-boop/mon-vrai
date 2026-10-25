@@ -1,6 +1,6 @@
 import "server-only";
 import { EMPTY_IG_INTEGRATION, IgEvent, IgIntegration, tokenDead, tokenStale, type IgConnection, type IgRule, type IgSettings } from "@/lib/domain/instagram";
-import { refreshLongLived } from "@/lib/instagram/client";
+import { listMedia, refreshLongLived, type IgMedia } from "@/lib/instagram/client";
 import { col, now, parseDoc } from "./helpers";
 
 /*
@@ -178,4 +178,25 @@ export async function publicView(): Promise<IgPublicView> {
     settings,
     rules,
   };
+}
+
+/* ---------- Les publications récentes ---------- */
+
+/*
+ * Les derniers posts du compte, pour qu'une règle se vise à la vignette et non à
+ * l'identifiant Meta.
+ *
+ * Ne lève jamais et renvoie une liste vide en cas d'échec : un appel à Instagram qui
+ * tombe ne doit pas emporter l'écran entier, dont neuf dixièmes n'en dépendent pas.
+ * Le sélecteur dit alors ce qu'il en est, et le reste de la page continue de marcher.
+ */
+export async function recentPosts(limit = 24): Promise<IgMedia[]> {
+  try {
+    const auth = await validToken();
+    if (!auth) return [];
+    return await listMedia(auth.token, limit);
+  } catch (err) {
+    console.warn("[instagram] publications illisibles :", err);
+    return [];
+  }
 }

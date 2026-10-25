@@ -122,7 +122,13 @@ const RulesInput = z.object({
         on: z.enum(["comment", "message"]).default("comment"),
         enabled: boolish,
         keywords: z.string().max(600).default(""),
-        mediaIds: z.string().max(2000).default(""),
+        /*
+         * Les publications arrivent en cases cochées (`mediaIds[]`), donc en tableau —
+         * et en chaîne quand une seule case l'est, ou quand la règle vient d'un
+         * enregistrement d'avant le sélecteur. Les deux formes sont acceptées : c'est
+         * le prix d'un formulaire HTML, pas une hésitation de conception.
+         */
+        mediaIds: z.union([z.string().max(2000), z.array(z.string().trim().max(60)).max(50)]).default([]),
         publicReplies: z.string().max(3000).default(""),
         privateReply: z.string().max(900).default(""),
       }),
@@ -157,7 +163,7 @@ export async function saveIgRulesAction(formData: FormData): Promise<AdminResult
       on: row.on,
       enabled: row.enabled,
       keywords: commas(row.keywords),
-      mediaIds: commas(row.mediaIds),
+      mediaIds: Array.isArray(row.mediaIds) ? row.mediaIds.filter(Boolean) : commas(row.mediaIds),
       /* Un message privé ne se répond pas « en public » : la colonne n'a pas de sens là. */
       publicReplies: row.on === "comment" ? publicReplies : [],
       privateReply,
