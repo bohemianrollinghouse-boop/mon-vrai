@@ -414,7 +414,7 @@ export async function signAndOrderKitAction(formData: FormData): Promise<Partner
     contractType: contract.type,
     contractVersion: contract.version,
     /* Ce qu'il a emporté en signant : savoir ce qu'on a remis fait partie de l'accord. */
-    guideDocumentId: contract.guideDocumentId,
+    guide: contract.guide,
     ...party,
     products: kit.items.map((i) => ({ slug: i.slug, title: i.title, qty: i.qty, unitValue: i.unitValue })),
     totalValue: goods.reduce((sum, g) => sum + g.unitValue * g.qty, 0),

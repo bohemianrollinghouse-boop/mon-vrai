@@ -495,10 +495,23 @@ figée (`bodySnapshot`, `summarySnapshot`) et la version identifie ce qui a ét�
 Changer ce qu'un contrat réclame veut donc dire créer une **version**, pas corriger la
 précédente.
 
+Les deux contrats de 2026 — « Création de contenu Mon Vrai » (UGC) et
+« Collaboration Instagram Mon Vrai » (influence) — sont **rédigés dans le code**
+(`lib/contracts/drafts.ts`, registre `CONTRACT_DRAFTS`), comme les pages éditoriales le
+sont dans `blocks/editorial-pages.ts` et pour la même raison : un bouton de
+`/admin/contrats` les pose en production **sans ligne de commande ni clé de compte de
+service**. `scripts/seed-contracts.ts` lit le même registre — un seul texte, deux façons
+de le poser. L'installation est idempotente **par la version** : un contrat déjà présent
+sous la même version n'est jamais réécrit, et le bouton disparaît quand tout est posé.
+Les `.md` de `content/contracts/` restent ceux des trois contrats d'avant, qui ont été
+signés : ce fichier doit continuer de dire d'où ils viennent.
+
 Un contrat porte une **annexe** : le document que le créateur emporte en signant — kit
-de création de contenu, brief visuel. C'est une pièce de la bibliothèque
-(`Contract.guideDocumentId`), choisie par son identifiant et jamais par une URL, comme
-tout ce qui est privé. Elle est jointe au CONTRAT et non à la campagne : c'est lui qui
+de création de contenu, brief visuel. `Contract.guide` en porte **deux formes**, dont
+aucune n'est obligatoire : un **PDF** de la bibliothèque, désigné par son identifiant et
+jamais par une URL comme tout ce qui est privé ; et un **lien** externe, pour un guide
+qu'on retouche chaque semaine et qui vit mieux en ligne. Les deux peuvent coexister — le
+PDF à emporter, le lien pour la version vivante. Elle est jointe au CONTRAT et non à la campagne : c'est lui qui
 la cite en annexe, et une poignée de contrats sert à toutes les collaborations.
 
 C'est la **seule pièce de `documents/` qui sorte de l'administration**, et le droit de la

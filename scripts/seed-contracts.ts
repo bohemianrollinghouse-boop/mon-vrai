@@ -12,7 +12,8 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { listContracts, upsertContract } from "@/lib/db/contracts";
-import { EMPTY_QUOTA, type CollaborationType } from "@/lib/domain/types";
+import { EMPTY_GUIDE, EMPTY_QUOTA, type CollaborationType } from "@/lib/domain/types";
+import { CONTRACT_DRAFTS, draftToContract } from "@/lib/contracts/drafts";
 
 const APPLY = process.argv.includes("--apply");
 /* Remet les valeurs par défaut des variables sur un contrat déjà installé, sans toucher
@@ -102,7 +103,20 @@ async function main() {
     if (!APPLY) continue;
     /* La quantité attendue ne s'invente pas : elle se pose dans /admin/contrats, où
        elle vaudra pour toutes les campagnes du contrat. */
-    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: entry.variables, requiredVariables: [], expected: EMPTY_QUOTA, publications: [], guideDocumentId: "", active: true });
+    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: entry.variables, requiredVariables: [], expected: EMPTY_QUOTA, publications: [], guide: EMPTY_GUIDE, active: true });
+    console.log(`  → ${saved.id}`);
+  }
+
+  /* Les contrats rédigés d'aujourd'hui viennent du même registre que le bouton de
+     l'administration : un seul texte, deux façons de le poser. */
+  for (const draft of CONTRACT_DRAFTS) {
+    if (existing.some((c) => c.version === draft.version)) {
+      console.log(`= ${draft.version.padEnd(24)} déjà installé`);
+      continue;
+    }
+    console.log(`+ ${draft.version.padEnd(24)} ${draft.name}`);
+    if (!APPLY) continue;
+    const saved = await upsertContract(draftToContract(draft));
     console.log(`  → ${saved.id}`);
   }
 

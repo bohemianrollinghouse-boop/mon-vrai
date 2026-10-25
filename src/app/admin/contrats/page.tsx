@@ -3,7 +3,8 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { PublicationsEditor } from "@/components/admin/PublicationsEditor";
 import { suggestPublications } from "@/lib/admin/publications";
 import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
-import { deleteContractAction, saveContractAction } from "@/lib/admin/actions/contracts";
+import { deleteContractAction, installContractDraftsAction, saveContractAction } from "@/lib/admin/actions/contracts";
+import { CONTRACT_DRAFTS } from "@/lib/contracts/drafts";
 import { listContracts } from "@/lib/db/contracts";
 import { listDocuments } from "@/lib/db/documents";
 import { listAllCampaigns } from "@/lib/db/campaigns";
@@ -37,6 +38,9 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
   const [contracts, campaigns, documents] = await Promise.all([listContracts(), listAllCampaigns(), listDocuments().catch(() => [])]);
   /* Ce qu'un créateur peut ouvrir sans rien installer : un PDF, une image. */
   const guides = documents.filter((d) => d.mime === "application/pdf" || d.mime.startsWith("image/"));
+  /* Les contrats rédigés qui ne sont pas encore en base : le bouton ne paraît que pour eux. */
+  const installed = new Set(contracts.map((c) => c.version.trim().toLowerCase()));
+  const missingDrafts = CONTRACT_DRAFTS.filter((d) => !installed.has(d.version.trim().toLowerCase()));
   const isNew = wanted === "nouveau";
   /* Le contrat dont on repart : son contenu remplit le formulaire, son identifiant non. */
   const base = wantedBase ? contracts.find((c) => c.id === wantedBase) ?? null : null;
@@ -55,9 +59,26 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
         title="Contrats"
         subtitle="Le contrat qu'un partenaire signe avant de recevoir son kit. Chaque version est conservée telle qu'elle a été acceptée."
         actions={
-          <ButtonLink href="/admin/contrats?id=nouveau" tone="primary">
-            + Nouveau contrat
-          </ButtonLink>
+          <>
+            {/*
+              Les contrats rédigés, posés d'un clic. Ils ne paraissent qu'une fois : une
+              version déjà installée n'est jamais réécrite, puisqu'elle identifie ce qui
+              a été signé.
+            */}
+            {missingDrafts.length > 0 && (
+              <ActionForm
+                action={installContractDraftsAction}
+                submitLabel={missingDrafts.length === 1 ? "Installer le contrat rédigé" : `Installer les ${missingDrafts.length} contrats rédigés`}
+                submitTone="secondary"
+                className="!gap-0 [&>div:last-child]:justify-start"
+              >
+                <input type="hidden" name="go" value="1" />
+              </ActionForm>
+            )}
+            <ButtonLink href="/admin/contrats?id=nouveau" tone="primary">
+              + Nouveau contrat
+            </ButtonLink>
+          </>
         }
       />
 
@@ -182,9 +203,12 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                   </Link>
                   , puis choisissez-le ici.
                 </p>
-                <Field label="Document joint" hint="Aucun : le contrat ne cite aucune annexe." name="guideDocumentId">
-                  <Select name="guideDocumentId" defaultValue={form ? form.guideDocumentId : ""}>
-                    <option value="">Aucune annexe</option>
+                <Field label="Nom de l'annexe" hint="Celui que le créateur lira sur le bouton." name="guideLabel">
+                  <Input name="guideLabel" maxLength={120} defaultValue={form ? form.guide.label : ""} placeholder="Kit de création de contenu" />
+                </Field>
+                <Field label="Document déposé" hint="Un PDF de la bibliothèque, servi au seul créateur concerné." name="guideDocumentId">
+                  <Select name="guideDocumentId" defaultValue={form ? form.guide.documentId : ""}>
+                    <option value="">Aucun document</option>
                     {guides.map((d) => (
                       <option key={d.id} value={d.id}>
                         {d.title} — {d.filename}
@@ -192,11 +216,14 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                     ))}
                   </Select>
                 </Field>
-                {guides.length === 0 && (
-                  <span className="text-[0.6875rem] text-subtle">
-                    Aucun PDF ni image dans la bibliothèque pour l&apos;instant.
-                  </span>
-                )}
+                <Field label="Lien" hint="Un guide qu'on retouche souvent vit mieux en ligne. https:// obligatoire." name="guideUrl">
+                  <Input name="guideUrl" inputMode="url" maxLength={500} defaultValue={form ? form.guide.url : ""} placeholder="https://" />
+                </Field>
+                <span className="text-[0.6875rem] leading-relaxed text-subtle">
+                  Les deux peuvent coexister : le PDF à emporter, le lien pour la version vivante. Sans l&apos;un ni
+                  l&apos;autre, le contrat ne cite aucune annexe.
+                  {guides.length === 0 && " Aucun PDF ni image dans la bibliothèque pour l'instant."}
+                </span>
               </div>
 
               {/* ---------- Ce qui doit PARAÎTRE ---------- */}

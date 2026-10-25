@@ -1089,6 +1089,30 @@ export const CampaignPublication = z.object({
 export type CampaignPublication = z.infer<typeof CampaignPublication>;
 
 /*
+ * L'annexe d'un contrat : le kit de création de contenu, le brief visuel.
+ *
+ * Deux formes, parce qu'un guide vit des deux façons. Un PDF qu'on dépose une fois est
+ * une pièce de la bibliothèque, fermée, servie par une route qui relit le droit de la
+ * lire — on garde donc son identifiant, jamais une URL. Un guide qu'on retouche chaque
+ * semaine vit ailleurs, sur un espace qu'on édite : c'est alors un simple lien. Les
+ * deux peuvent coexister — le PDF à emporter, le lien pour la version vivante — et
+ * aucun n'est obligatoire.
+ *
+ * Le libellé est commun : c'est le nom sous lequel le créateur la reconnaît, et il ne
+ * change pas selon qu'il clique sur l'un ou sur l'autre.
+ */
+export const ContractGuide = z.object({
+  label: z.string().trim().max(120).default(""),
+  /** Pièce de la bibliothèque `documents`, servie par /api/contrats/[id]/annexe. */
+  documentId: z.string().max(60).default(""),
+  /** Lien externe, http(s) seulement : il s'ouvre dans un nouvel onglet. */
+  url: z.string().trim().max(500).default(""),
+});
+export type ContractGuide = z.infer<typeof ContractGuide>;
+
+export const EMPTY_GUIDE: ContractGuide = { label: "", documentId: "", url: "" };
+
+/*
  * Un contrat de collaboration, tel qu'il est rédigé dans l'administration.
  *
  * Il n'est JAMAIS réécrit en place une fois signé : une modification donne une nouvelle
@@ -1133,16 +1157,8 @@ export const Contract = z.object({
    * de publié — un contrat de gifting peut se contenter des fichiers.
    */
   publications: z.array(ContractPublication).max(40).default([]),
-  /*
-   * Le document que le créateur emporte en signant : le kit de création de contenu, le
-   * brief visuel. Un document de la bibliothèque (`documents`), choisi par son
-   * identifiant — jamais une URL, comme partout où un fichier est privé.
-   *
-   * Il est joint au CONTRAT et non à la campagne : c'est le contrat qui l'exige en
-   * annexe, et une poignée de contrats sert à toutes les collaborations. Vide : rien
-   * n'est joint, et le contrat n'annonce aucune annexe.
-   */
-  guideDocumentId: z.string().default(""),
+  /** L'annexe remise au créateur : un PDF, un lien, ou les deux (voir ContractGuide). */
+  guide: ContractGuide.default(EMPTY_GUIDE),
   /** Retiré : plus attribuable à personne, mais les signatures passées subsistent. */
   active: z.boolean().default(true),
   createdAt: z.number(),
@@ -1199,11 +1215,11 @@ export const ContractSignature = z.object({
   contractType: CollaborationType,
   contractVersion: z.string().default(""),
   /*
-   * Le document annexé au contrat au moment de la signature. Gardé ici comme le texte
+   * L'annexe telle qu'elle était au moment de la signature. Gardée ici comme le texte
    * l'est : savoir ce qu'on a remis fait partie de ce qui a été accepté, et détacher
    * l'annexe du contrat plus tard ne doit pas effacer qu'elle avait été donnée.
    */
-  guideDocumentId: z.string().default(""),
+  guide: ContractGuide.default(EMPTY_GUIDE),
 
   firstName: z.string().min(1).max(80),
   lastName: z.string().min(1).max(80),

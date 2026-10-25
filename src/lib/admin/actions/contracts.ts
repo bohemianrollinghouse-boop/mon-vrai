@@ -5,11 +5,27 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
-import { failed, type AdminResult } from "@/lib/admin/types";
+import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { deleteContract, getContract, listContracts, upsertContract } from "@/lib/db/contracts";
 import { publicationLines } from "@/lib/admin/publications";
 import { getDocument } from "@/lib/db/documents";
+import { cleanUrl } from "@/lib/admin/publications";
+import { CONTRACT_DRAFTS, draftToContract } from "@/lib/contracts/drafts";
+import { EMPTY_GUIDE, type ContractGuide } from "@/lib/domain/types";
+
+/*
+ * L'annexe telle qu'elle sera écrite : le document est relu en base — un identifiant
+ * posté qui ne désigne rien est écarté plutôt qu'écrit, sans quoi le contrat annoncerait
+ * une annexe introuvable — et le lien n'est retenu que s'il s'ouvre vraiment (http ou
+ * https). Sans PDF ni lien, le libellé seul ne vaut rien : l'annexe est alors vide.
+ */
+async function guideFrom(d: { guideDocumentId: string; guideUrl: string; guideLabel: string }): Promise<ContractGuide> {
+  const documentId = d.guideDocumentId && (await getDocument(d.guideDocumentId).catch(() => null)) ? d.guideDocumentId : "";
+  const url = cleanUrl(d.guideUrl) ?? "";
+  if (!documentId && !url) return EMPTY_GUIDE;
+  return { label: d.guideLabel, documentId, url };
+}
 import { newId } from "@/lib/db/helpers";
 import { CollaborationType } from "@/lib/domain/types";
 
@@ -19,6 +35,36 @@ import { CollaborationType } from "@/lib/domain/types";
  * Modifier le texte d'un contrat vaut donc pour les signatures À VENIR seulement — d'où
  * l'insistance de l'écran sur le numéro de version.
  */
+
+/*
+ * Installe les contrats rédigés (voir lib/contracts/drafts.ts).
+ *
+ * C'est le seul moyen de poser un contrat écrit à la main en production, sans ligne de
+ * commande ni clé de compte de service — le même besoin que le bouton « Reprendre le
+ * contenu rédigé » des pages éditoriales.
+ *
+ * Idempotent par la VERSION : un contrat déjà présent sous la même version n'est PAS
+ * réécrit, et c'est la règle qui compte ici — une version identifie ce qui a été signé,
+ * et le texte accepté ne se corrige jamais derrière son signataire. Pour changer un
+ * contrat installé, on en publie une version suivante.
+ */
+export async function installContractDraftsAction(): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const existing = await listContracts();
+  const versions = new Set(existing.map((c) => c.version.trim().toLowerCase()));
+
+  const added: string[] = [];
+  for (const draft of CONTRACT_DRAFTS) {
+    if (versions.has(draft.version.trim().toLowerCase())) continue;
+    await upsertContract(draftToContract(draft));
+    added.push(`${draft.name} (${draft.version})`);
+  }
+
+  if (added.length === 0) return saved("Les contrats rédigés sont déjà installés : rien n'a été réécrit.");
+  await audit(user.email, "contract.install", "contracts", added.join(" · "));
+  revalidatePath("/admin/contrats");
+  return saved(`${added.length === 1 ? "Contrat installé" : `${added.length} contrats installés`} : ${added.join(", ")}.`);
+}
 
 const Input = z.object({
   id: z.string().default(""),
@@ -34,6 +80,8 @@ const Input = z.object({
   /** Parutions exigées, sérialisées en JSON par l'éditeur. */
   publications: z.string().default(""),
   guideDocumentId: z.string().trim().max(60).default(""),
+  guideUrl: z.string().trim().max(500).default(""),
+  guideLabel: z.string().trim().max(120).default(""),
   active: z.boolean().default(true),
 });
 
@@ -77,9 +125,7 @@ export async function saveContractAction(formData: FormData): Promise<AdminResul
     body: d.body,
     expected: { photos: d.expectedPhotos, videos: d.expectedVideos },
     publications: publicationLines(d.publications, all.find((c) => c.id === d.id)?.publications ?? [], () => newId("pub")),
-    /* Relu en base : un identifiant posté qui ne désigne aucun document est écarté
-       plutôt qu'écrit — le contrat annoncerait sinon une annexe introuvable. */
-    guideDocumentId: d.guideDocumentId && (await getDocument(d.guideDocumentId).catch(() => null)) ? d.guideDocumentId : "",
+    guide: await guideFrom(d),
     ...variablesFrom(formData),
     active: d.active,
   });

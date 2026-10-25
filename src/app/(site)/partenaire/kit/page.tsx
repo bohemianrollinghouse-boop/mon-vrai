@@ -89,8 +89,9 @@ export default async function PartnerKitPage() {
         requiredVariables: contract.requiredVariables,
         expected: contract.expected,
         campaign: { startAt: campaign!.startAt ?? campaign!.createdAt, endAt: campaign!.endAt, expected: campaign!.expected },
-        /* L'annexe, servie par une route qui relit le droit de la lire en base. */
-        guide: guide ? { name: guide.title, href: `/api/contrats/${contract.id}/annexe` } : undefined,
+        /* L'annexe : le PDF passe par une route qui relit le droit de le lire en base,
+           le lien s'ouvre chez son hébergeur et n'a rien à protéger de notre côté. */
+        guide: guide ? { label: guide.label, pdf: guide.doc ? `/api/contrats/${contract.id}/annexe` : "", url: guide.url } : undefined,
       }
     : undefined;
 

@@ -48,9 +48,10 @@ export type ContractOffer = {
   /*
    * L'annexe que le créateur emporte en signant — le kit de création de contenu. Le
    * contrat la cite ; elle doit donc être lisible AVANT l'acceptation, et non promise
-   * pour plus tard. Absente quand le contrat n'en joint aucune.
+   * pour plus tard. Un PDF, un lien, ou les deux. Absente quand le contrat n'en joint
+   * aucune.
    */
-  guide?: { name: string; href: string };
+  guide?: { label: string; pdf: string; url: string };
 };
 
 const field =
@@ -476,19 +477,35 @@ export function KitOrderForm({
 
                   {/* L'annexe citée par le contrat, lisible avant de l'accepter. */}
                   {contract.guide && (
-                    <a
-                      href={contract.guide.href}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="flex items-center justify-between gap-3 rounded-card bg-tint-sand p-5 text-tint-sand-ink hover:opacity-80"
-                    >
+                    <div className="flex flex-col gap-2.5 rounded-card bg-tint-sand p-5 text-tint-sand-ink">
                       <span className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em]">Annexe au contrat</span>
-                        <span className="truncate text-[0.8125rem] font-extrabold text-ink">{contract.guide.name}</span>
-                        <span className="text-[0.6875rem]">À lire avant d&apos;accepter : vous le retrouverez ensuite dans votre espace.</span>
+                        <span className="truncate text-[0.8125rem] font-extrabold text-ink">{contract.guide.label}</span>
+                        <span className="text-[0.6875rem]">À lire avant d&apos;accepter : vous la retrouverez ensuite dans votre espace.</span>
                       </span>
-                      <span className="shrink-0 rounded-pill bg-white px-4 py-2.5 text-xs font-bold text-ink">Ouvrir</span>
-                    </a>
+                      <span className="flex flex-wrap gap-2">
+                        {contract.guide.pdf && (
+                          <a
+                            href={contract.guide.pdf}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="rounded-pill bg-white px-4 py-2.5 text-xs font-bold text-ink hover:opacity-80"
+                          >
+                            Ouvrir le PDF
+                          </a>
+                        )}
+                        {contract.guide.url && (
+                          <a
+                            href={contract.guide.url}
+                            target="_blank"
+                            rel="noreferrer noopener"
+                            className="rounded-pill bg-white px-4 py-2.5 text-xs font-bold text-ink hover:opacity-80"
+                          >
+                            Ouvrir le guide en ligne
+                          </a>
+                        )}
+                      </span>
+                    </div>
                   )}
                 </div>
 

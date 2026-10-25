@@ -22,10 +22,10 @@ export async function GET(_request: Request, ctx: { params: Promise<{ id: string
   const allowed = user.isAdmin || (user.influencerId ? await partnerMayReadGuide(user.influencerId, id) : false);
   if (!allowed) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 
-  const doc = await contractGuide(id);
-  if (!doc) return NextResponse.json({ error: "Aucune annexe sur ce contrat" }, { status: 404 });
+  const guide = await contractGuide(id);
+  if (!guide?.doc) return NextResponse.json({ error: "Aucun document annexé à ce contrat" }, { status: 404 });
 
-  const file = await readDocumentFile(doc.id);
+  const file = await readDocumentFile(guide.doc.id);
   if (!file) return NextResponse.json({ error: "Fichier introuvable" }, { status: 404 });
 
   /* Un PDF s'ouvre dans l'onglet, le reste se télécharge — comme pour les documents. */

@@ -443,14 +443,24 @@ function ContractRow({ signature, name, current }: { signature: ContractSignatur
         doit profiter à ceux qui ont déjà signé. C'est la signature qui dit qu'il y en
         avait une.
       */}
-      {signature.guideDocumentId && (
+      {signature.guide.documentId && (
         <a
           href={`/api/contrats/${signature.contractId}/annexe`}
           target="_blank"
           rel="noreferrer noopener"
           className="shrink-0 whitespace-nowrap border-b-[1.5px] border-ink text-xs font-bold"
         >
-          Annexe
+          {signature.guide.label || "Annexe"}
+        </a>
+      )}
+      {signature.guide.url && (
+        <a
+          href={signature.guide.url}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="shrink-0 whitespace-nowrap border-b-[1.5px] border-ink text-xs font-bold"
+        >
+          Guide en ligne
         </a>
       )}
       <SignedContractView
