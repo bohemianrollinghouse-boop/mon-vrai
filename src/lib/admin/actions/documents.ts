@@ -43,7 +43,31 @@ async function checkMeta(meta: z.infer<typeof Meta>): Promise<{ ok: true; isbn: 
   return { ok: true, isbn };
 }
 
+/*
+ * Le dépôt d'une pièce.
+ *
+ * Tout le corps est sous garde, et pas seulement l'écriture du fichier. Une action
+ * serveur qui LÈVE ne revient pas au formulaire : Next remonte l'exception jusqu'à la
+ * limite d'erreur de la route, qui remplace la page par « A server error occurred »,
+ * sans un mot sur ce qui s'est passé — le `<Toast>` d'ActionForm, lui, n'attend qu'un
+ * résultat `{ ok: false }`. Le dépôt paraissait donc ne pas marcher, et la raison
+ * n'existait que dans les journaux de Cloud Run.
+ *
+ * C'est la même règle qu'au champ « fichier » (voir DocumentFileField) : le pire des
+ * échecs est celui qui ne se dit pas. Le garde-fou ne corrige rien par lui-même — il
+ * fait remonter le motif là où on le lit, et c'est ce qui manquait.
+ */
 export async function uploadDocumentAction(formData: FormData): Promise<AdminResult> {
+  try {
+    return await deposit(formData);
+  } catch (e) {
+    /* Y compris une session expirée ou révoquée : « Accès réservé à l'administration »
+       se lit, là où une page morte laissait croire à une panne du dépôt. */
+    return failed(`Le dépôt a échoué : ${(e as Error).message}`);
+  }
+}
+
+async function deposit(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return failed("Choisissez un fichier.", { file: "Fichier requis" });
@@ -61,8 +85,14 @@ export async function uploadDocumentAction(formData: FormData): Promise<AdminRes
     return failed(`${file.name} : ${(e as Error).message}`, { file: "Fichier refusé" });
   }
 
-  await audit(user.email, "document.upload", `documents/${id}`, parsed.data.title);
+  /*
+   * Le fichier est déposé : à partir d'ici, plus rien ne doit faire échouer le dépôt.
+   * Le journal est une commodité, pas une condition — une écriture d'audit qui échoue
+   * ne doit pas faire croire que la pièce n'est pas arrivée, alors qu'elle l'est.
+   */
+  await audit(user.email, "document.upload", `documents/${id}`, parsed.data.title).catch(() => undefined);
   revalidatePath("/admin/documents");
+  revalidatePath("/admin/contrats");
   return saved(`« ${parsed.data.title} » déposé.`);
 }
 
