@@ -136,7 +136,18 @@ function Tile_({ item, folders }: { item: ShelfItem; folders: { name: string; co
           // eslint-disable-next-line @next/next/no-img-element -- vignette admin, source privée possible
           <img src={item.src} alt={item.alt} className="h-full w-full object-cover" loading="lazy" />
         ) : isVideo(item.mime) ? (
-          <video src={`${item.src}#t=0.1`} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+          /*
+            Un navigateur ne peint pas toujours une image avec `preload="metadata"` : la
+            vignette resterait noire, et une vidéo noire se confond avec une vidéo
+            absente. On la rend donc lisible quoi qu'il arrive — la pastille dit que
+            c'en est une, et le lecteur s'ouvre d'un clic.
+          */
+          <>
+            <video src={`${item.src}#t=0.1`} muted playsInline preload="metadata" controls className="h-full w-full bg-ink object-contain" />
+            <span className="pointer-events-none absolute right-2 top-2 rounded-pill bg-white/90 px-2.5 py-1 text-[0.625rem] font-bold text-ink">
+              Vidéo
+            </span>
+          </>
         ) : (
           <span className="text-xs font-bold text-subtle">{item.mime}</span>
         )}
@@ -148,9 +159,9 @@ function Tile_({ item, folders }: { item: ShelfItem; folders: { name: string; co
       </div>
 
       <div className="flex flex-col gap-1 text-xs text-subtle">
-        <span className="truncate font-semibold text-ink" title={item.filename}>
+        <a href={item.src} target="_blank" rel="noreferrer noopener" className="truncate font-semibold text-ink underline decoration-line-warm hover:opacity-70" title={item.filename}>
           {item.filename}
-        </span>
+        </a>
         <span>{new Date(item.at).toLocaleDateString("fr-FR")}</span>
 
         {content ? (
