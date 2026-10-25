@@ -12,19 +12,38 @@ import { publicationLines } from "@/lib/admin/publications";
 import { getDocument } from "@/lib/db/documents";
 import { cleanUrl } from "@/lib/admin/publications";
 import { CONTRACT_DRAFTS, draftToContract } from "@/lib/contracts/drafts";
-import { EMPTY_GUIDE, type ContractGuide } from "@/lib/domain/types";
+import { EMPTY_GUIDE, type BusinessDoc, type ContractGuide } from "@/lib/domain/types";
 
 /*
  * L'annexe telle qu'elle sera écrite : le document est relu en base — un identifiant
- * posté qui ne désigne rien est écarté plutôt qu'écrit, sans quoi le contrat annoncerait
- * une annexe introuvable — et le lien n'est retenu que s'il s'ouvre vraiment (http ou
+ * posté qui ne désigne rien ne doit pas être écrit, sans quoi le contrat annoncerait une
+ * annexe introuvable — et le lien n'est retenu que s'il s'ouvre vraiment (http ou
  * https). Sans PDF ni lien, le libellé seul ne vaut rien : l'annexe est alors vide.
+ *
+ * Un identifiant qui ne se relit pas fait désormais ÉCHOUER l'enregistrement, au lieu
+ * d'être remplacé par du vide. L'ancienne version avalait le cas : on choisissait son
+ * annexe, on enregistrait, et le menu réaffichait « Aucun document » sans un mot — le
+ * contraire d'un refus, puisque rien ne disait qu'il y avait eu refus. Choisir quelque
+ * chose et retrouver le vide est la pire des réponses : on recommence, et on recommence.
  */
-async function guideFrom(d: { guideDocumentId: string; guideUrl: string; guideLabel: string }): Promise<ContractGuide> {
-  const documentId = d.guideDocumentId && (await getDocument(d.guideDocumentId).catch(() => null)) ? d.guideDocumentId : "";
+type GuideResult = { ok: true; guide: ContractGuide } | { ok: false; error: string };
+
+async function guideFrom(d: { guideDocumentId: string; guideUrl: string; guideLabel: string }): Promise<GuideResult> {
   const url = cleanUrl(d.guideUrl) ?? "";
-  if (!documentId && !url) return EMPTY_GUIDE;
-  return { label: d.guideLabel, documentId, url };
+  if (!d.guideDocumentId) return { ok: true, guide: url ? { label: d.guideLabel, documentId: "", url } : EMPTY_GUIDE };
+
+  let doc: BusinessDoc | null;
+  try {
+    doc = await getDocument(d.guideDocumentId);
+  } catch (e) {
+    return { ok: false, error: `L'annexe choisie n'a pas pu être relue : ${(e as Error).message}` };
+  }
+  if (!doc) {
+    return { ok: false, error: "L'annexe choisie n'est plus dans la bibliothèque. Redéposez-la, ou choisissez-en une autre." };
+  }
+  /* L'identifiant vient du document relu, et non du formulaire : ce qu'on écrit est ce
+     qu'on a vérifié. */
+  return { ok: true, guide: { label: d.guideLabel, documentId: doc.id, url } };
 }
 import { newId } from "@/lib/db/helpers";
 import { CollaborationType } from "@/lib/domain/types";
@@ -116,6 +135,9 @@ export async function saveContractAction(formData: FormData): Promise<AdminResul
     return failed(`La version « ${d.version} » existe déjà. Une version ne se réutilise jamais : elle identifie ce qui a été signé.`, { version: "Déjà utilisée" });
   }
 
+  const guide = await guideFrom(d);
+  if (!guide.ok) return failed(guide.error, { guideDocumentId: "Annexe introuvable" });
+
   const contract = await upsertContract({
     id: d.id || undefined,
     name: d.name,
@@ -125,7 +147,7 @@ export async function saveContractAction(formData: FormData): Promise<AdminResul
     body: d.body,
     expected: { photos: d.expectedPhotos, videos: d.expectedVideos },
     publications: publicationLines(d.publications, all.find((c) => c.id === d.id)?.publications ?? [], () => newId("pub")),
-    guide: await guideFrom(d),
+    guide: guide.guide,
     ...variablesFrom(formData),
     active: d.active,
   });

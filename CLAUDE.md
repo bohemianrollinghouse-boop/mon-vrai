@@ -464,10 +464,11 @@ campagne il est parfaitement légitime. D'où `ugc/` dans le coffre, fermé
 par `storage.rules` à la lecture, servi par `/api/contenus/[id]` aux seuls
 administrateurs, et **aucune URL en base** : seulement le chemin, comme `documents`.
 
-**Le fichier ne passe pas par le serveur, et c'est la seule exception du projet.** Une
-action serveur plafonne à 45 Mo et tient le fichier entier dans la mémoire d'une
-instance qui n'en a qu'un : une vidéo de partenaire, qui pèse couramment le triple, ne
-passerait jamais. Le navigateur dépose donc directement dans le coffre
+**Le fichier ne passe pas par le serveur**, et c'est l'un des deux endroits où le
+navigateur écrit (l'autre est le dépôt des pièces administratives, voir plus bas — même
+motif, même trajet). Une action serveur plafonne à 45 Mo et tient le fichier entier dans
+la mémoire d'une instance qui n'en a qu'un : une vidéo de partenaire, qui pèse couramment
+le triple, ne passerait jamais. Le navigateur dépose donc directement dans le coffre
 (`clientStorage()`, `uploadBytesResumable`), où `storage.rules` n'ouvre l'écriture de
 `ugc/` qu'à une session portant le *claim* `admin`, et seulement pour une image ou une
 vidéo sous le plafond. Rien n'est cru du client pour autant : le chemin est **recalculé**
@@ -735,19 +736,39 @@ bâti d'abord.
   avec la médiathèque. Une pièce porte une fin de validité : `lib/admin/doc-status.ts`
   prévient deux mois avant l'échéance, pas le jour venu.
 
-Deux précautions au dépôt, apprises à nos dépens. Le **type se déduit de l'extension**
-quand le navigateur ne l'annonce pas (`domain/documents.documentMime`, pur et testé) :
+**Le fichier ne passe pas par le serveur** (`components/admin/DocumentDeposit`), comme
+pour les contenus de partenaires et pour le même motif : une action serveur tient le
+fichier entier dans la mémoire d'une instance qui n'a qu'un gigaoctet et le traverse
+trois fois (corps de la requête, `arrayBuffer`, `Buffer`). Un rapport de laboratoire
+scanné de 17 Mo tuait l'instance **avant qu'elle puisse répondre** — page d'erreur nue,
+rien en base, rien dans le coffre, et pas même un message, puisqu'il n'y avait plus
+personne pour le rendre. Trois temps, donc : `prepareDocumentAction` donne l'endroit, le
+navigateur dépose, `recordDocument` relit le type et la taille **réels** de l'objet avant
+d'écrire la fiche — et efface du coffre ce qui n'a pas sa place, sans quoi l'objet se
+paierait indéfiniment sans que rien ne le retrouve. `storage.rules` ouvre donc l'écriture
+de `documents/` à une session portant le *claim* `admin`, et **laisse la lecture fermée** :
+c'est toute la différence avec `media/`. Les règles doivent être déployées
+(`firebase deploy --only storage`, refait le 2026-10-25).
+
+La vérification de session du navigateur passe par **`auth.authStateReady()`** et jamais
+par `currentUser` seul : le SDK restaure la session de façon asynchrone, et lu trop tôt
+il fait dire « reconnectez-vous » à quelqu'un de parfaitement connecté.
+
+`uploadDocument` (par le serveur) reste pour les justificatifs de **dépenses**, joints à
+un formulaire déjà lourd en champs et qui pèsent rarement plus d'un mégaoctet.
+
+Une précaution de plus, apprise à nos dépens : le **type se déduit de l'extension**
+quand le navigateur ne l'annonce pas (`domain/documents.documentMime`, pur et testé) —
 Windows livre régulièrement un fichier avec `type` vide, et le dépôt refusait alors un
-PDF parfaitement ordinaire — c'est déjà la règle des contenus de partenaires. Et le
-**poids se vérifie dans le navigateur** (`components/admin/DocumentFileField`) : au-delà
-de la limite de corps d'une action serveur, la requête est refusée par le cadre AVANT que
-l'action ne s'exécute, le `try`/`catch` ne voit rien, et le dépôt paraît simplement ne
-pas marcher. Le pire des échecs est celui qui ne se dit pas.
+PDF parfaitement ordinaire. C'est déjà la règle des contenus de partenaires.
 
 Une annexe de contrat se dépose **depuis la fiche du contrat** (carte « Déposer une
 annexe »), sœur et non imbriquée du formulaire — deux `<form>` ne s'emboîtent pas. La
 pièce rejoint la bibliothèque comme les autres ; elle ne devient l'annexe que lorsqu'on
-la choisit et qu'on enregistre.
+la choisit et qu'on enregistre. Et si l'identifiant choisi ne se relit pas en base,
+l'enregistrement **échoue en le disant** (`guideFrom`) au lieu d'écrire du vide : on
+choisissait son annexe, on enregistrait, le menu réaffichait « Aucun document », et rien
+ne disait qu'il y avait eu refus.
 
 Les **ISBN** s'attribuent au bas de `/admin/documents`, l'attestation sous les yeux, et
 non dans la fiche produit : `saveIsbnAction` écrit `Product.isbn` après avoir vérifié la
