@@ -3,7 +3,7 @@ import { AutoSubmitSwitch } from "@/components/admin/AutoSubmitSwitch";
 import { CodeInput } from "@/components/admin/CodeInput";
 import { PromoTypeFields } from "@/components/admin/PromoTypeFields";
 import { ButtonLink, Card, Field, FilterPills, GridTable, Input, PageHeader, Pill, type PillTone } from "@/components/admin/ui";
-import { deletePromoAction, savePartnerPromoAction, savePromoAction, setCollectionOfferAction, setCollectionOfferEndAction, togglePromoAction } from "@/lib/admin/actions/promos";
+import { deletePromoAction, resyncPartnerPromosAction, savePartnerPromoAction, savePromoAction, setCollectionOfferAction, setCollectionOfferEndAction, togglePromoAction } from "@/lib/admin/actions/promos";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { listInfluencers, listPromos } from "@/lib/db/promos";
 import { getSettings } from "@/lib/db/settings";
@@ -234,11 +234,24 @@ function PartnerEditor({ promo, partner, status, house, partnerCount }: { promo:
         </div>
         <p className="text-[0.6875rem] leading-relaxed text-subtle">
           {promo.endAt ? `Du ${date(promo.startAt)} au ${date(promo.endAt)}.` : `Depuis le ${date(promo.startAt)}.`} La remise, les dates et l'extinction viennent de sa campagne : ce code n'en est que le reflet, et les changer ici serait effacé à son prochain enregistrement.
-          {!promo.active && " Code éteint : campagne terminée ou hors de ses dates, ou partenaire en pause."}
+          {!promo.active && " Code éteint : hors de ses dates, campagne annulée, ou partenaire en pause — clore une campagne ne l'éteint pas."}
         </p>
         <ButtonLink href={campaignHref} tone="secondary" className="w-fit">
           Ouvrir la campagne
         </ButtonLink>
+        {/*
+          Le reflet ne se refait qu'au moment où l'on touche à la campagne : un code
+          éteint par une règle qui n'a plus cours le resterait indéfiniment. Ce bouton
+          le relit, sans rien décider lui-même.
+        */}
+        <ActionForm
+          action={resyncPartnerPromosAction}
+          submitLabel="Recalculer sur sa campagne"
+          submitTone="ghost"
+          className="!gap-0 [&>div:last-child]:justify-start [&_button]:!px-0 [&_button]:text-[0.6875rem]"
+        >
+          <input type="hidden" name="code" value={promo.code} />
+        </ActionForm>
       </div>
       <ActionForm key={promo.code} action={savePartnerPromoAction} submitLabel="Enregistrer">
         <input type="hidden" name="code" value={promo.code} />

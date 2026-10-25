@@ -6,7 +6,8 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { deletePromo, getPromo, setPromoActive, setPromoSettings, upsertPromo } from "@/lib/db/promos";
+import { deletePromo, getPromo, listInfluencers, listPromos, setPromoActive, setPromoSettings, upsertPromo } from "@/lib/db/promos";
+import { syncCampaignPromo } from "@/lib/db/campaigns";
 import { getSettings, saveSettings } from "@/lib/db/settings";
 import { parseEuroToCents } from "@/lib/domain/money";
 import { formatOfferDay } from "@/lib/promos/collection";
@@ -20,6 +21,44 @@ import { PromoType } from "@/lib/domain/types";
  * extinction de sa campagne, dont il n'est que le reflet : savePromoAction refuse donc
  * de l'écraser, et savePartnerPromoAction n'écrit que ce qui lui appartient en propre.
  */
+
+/*
+ * Recalcule le code d'un partenaire sur ses campagnes — ou tous, si aucun n'est donné.
+ *
+ * Un code de partenaire est un REFLET : il n'est réécrit qu'au moment où l'on touche à
+ * sa campagne. Une règle qui change laisse donc derrière elle des reflets périmés, que
+ * rien ne redresse tout seul — ce fut le cas quand l'extinction est passée du statut de
+ * la campagne à ses dates : les codes éteints par une clôture passée l'étaient restés.
+ *
+ * Ce bouton n'invente rien et ne règle rien : il relit les campagnes et réécrit ce
+ * qu'elles disent. Il est donc sans danger à répéter, et ne touche pas à ce qui
+ * appartient au code en propre (panier minimum, limites, cumul, port offert) —
+ * `syncCampaignPromo` les reprend tels quels.
+ */
+export async function resyncPartnerPromosAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const one = String(formData.get("code") ?? "").trim().toUpperCase();
+  const [promos, influencers] = await Promise.all([listPromos(), listInfluencers()]);
+  const byId = new Map(influencers.map((i) => [i.id, i]));
+  const targets = promos.filter((p) => p.influencerId && (!one || p.code === one));
+  if (targets.length === 0) return failed(one ? "Ce code n'est pas celui d'un partenaire." : "Aucun code de partenaire à recalculer.");
+
+  let done = 0;
+  for (const promo of targets) {
+    const influencer = promo.influencerId ? byId.get(promo.influencerId) : undefined;
+    /* Partenaire supprimé : son code ne reflète plus personne, on le laisse tel quel
+       plutôt que de le rallumer sur des campagnes qui n'existent plus. */
+    if (!influencer) continue;
+    await syncCampaignPromo(influencer, promo.code).catch((err) => console.warn("[codes] non recalculé :", (err as Error).message));
+    done += 1;
+  }
+
+  await audit(user.email, "promo.resync", one ? `promos/${one}` : "promos", `${done} code(s)`);
+  revalidatePath("/admin/codes-promo");
+  revalidatePath("/admin/influenceurs");
+  revalidatePath("/admin/campagnes");
+  return saved(done === 1 ? `Code ${targets[0].code} recalculé sur sa campagne.` : `${done} codes recalculés sur leurs campagnes.`);
+}
 
 const Input = z.object({
   originalCode: z.string().default(""),

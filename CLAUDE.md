@@ -341,6 +341,14 @@ soldé. Trois conséquences, et une seule qui n'en est pas une.
   campagne avec la même personne **rallume** son code, parce que `codeCampaign` prend la
   plus récente qui en porte un de valable.
 
+Un code de partenaire est un **reflet** : il n'est réécrit qu'au moment où l'on touche
+à sa campagne (`syncCampaignPromo`). Une règle qui change laisse donc derrière elle des
+reflets périmés, que rien ne redresse tout seul — ce fut le cas de ce changement même :
+les codes éteints par une clôture antérieure l'étaient restés. D'où
+**« Recalculer sur sa campagne »** (`resyncPartnerPromosAction`, sur l'éditeur d'un code
+de partenaire) : il relit les campagnes et réécrit ce qu'elles disent, sans rien décider
+— répétable sans danger, et sans toucher à ce qui appartient au code en propre.
+
 `campaignLive` et `codeLive` répondent donc à deux questions différentes, et ne se
 remplacent jamais : la première dit ce que le partenaire a **sur le feu** (kit à
 commander, contrat à signer, espace partenaire) ; la seconde, ce que sa **communauté**
