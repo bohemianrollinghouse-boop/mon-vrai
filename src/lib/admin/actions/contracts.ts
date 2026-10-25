@@ -156,6 +156,41 @@ export async function saveContractAction(formData: FormData): Promise<AdminResul
   return { ok: true, message: `Contrat « ${contract.name} » enregistré.`, redirectTo: `/admin/contrats?id=${contract.id}` };
 }
 
+/*
+ * Attache une pièce de la bibliothèque comme annexe d'un contrat, et rien d'autre.
+ *
+ * Elle existe parce que le chemin d'avant demandait trois gestes pour un seul besoin :
+ * déposer le fichier, remonter le choisir dans un menu, puis enregistrer tout le
+ * contrat. Or on ne dépose une annexe DEPUIS la fiche d'un contrat que pour une raison :
+ * en faire l'annexe de ce contrat-là. Le dépôt le fait donc lui-même.
+ *
+ * Elle ne réécrit que `guide`, et garde le libellé et le lien déjà posés : attacher un
+ * PDF n'est pas renégocier l'annexe. Même principe que `savePublicationsAction`, qui
+ * constate une parution sans toucher au reste de la campagne.
+ */
+export async function attachContractGuideAction(contractId: string, documentId: string): Promise<AdminResult> {
+  try {
+    const user = await assertAdmin();
+    const contract = await getContract(contractId);
+    if (!contract) return failed("Ce contrat n'existe plus.");
+
+    const doc = await getDocument(documentId);
+    if (!doc) return failed("La pièce déposée est introuvable.");
+
+    await upsertContract({
+      ...contract,
+      /* Le libellé vide prend le titre de la pièce : une annexe sans nom afficherait un
+         bouton muet, et c'est le seul moment où l'on connaît un nom à proposer. */
+      guide: { label: contract.guide.label || doc.title, documentId: doc.id, url: contract.guide.url },
+    });
+    await audit(user.email, "contract.guide", `contracts/${contract.id}`, `annexe → documents/${doc.id}`);
+    revalidatePath("/admin/contrats");
+    return saved(`« ${doc.title} » est l'annexe de ce contrat.`);
+  } catch (e) {
+    return failed(`L'annexe n'a pas pu être attachée : ${(e as Error).message}`);
+  }
+}
+
 export async function deleteContractAction(formData: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const id = String(formData.get("id") ?? "");

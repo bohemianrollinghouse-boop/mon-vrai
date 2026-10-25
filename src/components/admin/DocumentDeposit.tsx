@@ -4,6 +4,7 @@ import { ref, uploadBytesResumable } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { confirmDocumentAction, prepareDocumentAction } from "@/lib/admin/actions/documents";
+import type { AdminResult } from "@/lib/admin/types";
 import { clientAuth, clientStorage } from "@/lib/firebase/client";
 import { documentMime, MAX_DOC_BYTES } from "@/lib/domain/documents";
 import { Button } from "./ui";
@@ -55,9 +56,15 @@ type Props = {
   submitLabel?: string;
   submitTone?: "primary" | "secondary";
   footerNote?: ReactNode;
+  /*
+   * Ce qu'on fait de la pièce une fois déposée, quand le dépôt a lieu quelque part où
+   * la réponse est connue d'avance — sur la fiche d'un contrat, elle en devient
+   * l'annexe. Action serveur déjà liée à sa cible par la page.
+   */
+  then?: (documentId: string) => Promise<AdminResult>;
 };
 
-export function DocumentDeposit({ children, accept, fileHint, submitLabel = "Déposer", submitTone = "primary", footerNote }: Props) {
+export function DocumentDeposit({ children, accept, fileHint, submitLabel = "Déposer", submitTone = "primary", footerNote, then: andThen }: Props) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -135,20 +142,32 @@ export function DocumentDeposit({ children, accept, fileHint, submitLabel = "Dé
     }
 
     const result = await confirmDocumentAction(prepared.id, file.name, new FormData(form));
-    setBusy(false);
 
     if (!result.ok) {
+      setBusy(false);
       setIssues(result.issues ?? {});
       setNotice({ tone: "error", text: result.error });
       return;
     }
+
+    /*
+     * La pièce est en bibliothèque. Reste à en faire ce pour quoi on l'a déposée — sur
+     * la fiche d'un contrat, son annexe. Un échec ici ne remet pas le dépôt en cause :
+     * la pièce est bien arrivée, et le dire autrement serait mentir.
+     */
+    const after = andThen ? await andThen(result.id) : null;
+    setBusy(false);
 
     /* Le formulaire se vide : la pièce suivante ne doit pas hériter du titre de la
        précédente, qui serait recopié sans qu'on y pense. */
     form.reset();
     setFile(null);
     setPercent(0);
-    setNotice({ tone: "ok", text: result.message ?? "Déposé." });
+    setNotice(
+      after && !after.ok
+        ? { tone: "error", text: `${result.message} En revanche, ${after.error}` }
+        : { tone: "ok", text: after?.ok ? after.message ?? result.message : result.message },
+    );
     router.refresh();
   }
 

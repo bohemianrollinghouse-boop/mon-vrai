@@ -3,7 +3,7 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { PublicationsEditor } from "@/components/admin/PublicationsEditor";
 import { suggestPublications } from "@/lib/admin/publications";
 import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
-import { deleteContractAction, installContractDraftsAction, saveContractAction } from "@/lib/admin/actions/contracts";
+import { attachContractGuideAction, deleteContractAction, installContractDraftsAction, saveContractAction } from "@/lib/admin/actions/contracts";
 import { DocumentDeposit } from "@/components/admin/DocumentDeposit";
 import { CONTRACT_DRAFTS } from "@/lib/contracts/drafts";
 import { listContracts } from "@/lib/db/contracts";
@@ -300,8 +300,15 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
             <DocumentDeposit
               accept="application/pdf,image/*,.pdf"
               fileHint="Le kit de création de contenu, le brief visuel."
-              submitLabel="Déposer dans la bibliothèque"
+              submitLabel={current ? "Déposer et en faire l'annexe" : "Déposer dans la bibliothèque"}
               submitTone="secondary"
+              /*
+                Sur un contrat enregistré, le dépôt attache l'annexe lui-même : on ne
+                dépose un fichier ICI que pour en faire l'annexe de CE contrat. Le
+                faire rechoisir dans le menu du dessus, puis réenregistrer tout le
+                contrat, c'était deux gestes de trop — et deux occasions de le perdre.
+              */
+              then={current ? attachContractGuideAction.bind(null, current.id) : undefined}
             >
               <Field label="Titre" hint="Celui sous lequel vous le retrouverez dans la liste." name="title">
                 <Input name="title" required maxLength={160} placeholder="Kit de création de contenu Mon Vrai" />
@@ -313,8 +320,9 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 <Link href="/admin/documents" className="font-bold underline">
                   Documents
                 </Link>{" "}
-                comme les autres, dans le même dossier privé. Elle ne devient l&apos;annexe de ce contrat que lorsque vous
-                la choisissez ci-dessus et que vous enregistrez.
+                comme les autres, dans le même dossier privé — et devient l&apos;annexe de ce contrat aussitôt, sans
+                avoir à la rechoisir ci-dessus ni à réenregistrer. Pour en changer plus tard, déposez-en une autre, ou
+                servez-vous du menu « Document déposé ».
               </p>
             </DocumentDeposit>
           </Card>

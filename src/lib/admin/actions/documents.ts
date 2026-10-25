@@ -33,13 +33,20 @@ const Meta = z.object({
   note: z.string().trim().max(500).default(""),
 });
 
+/*
+ * Un refus, sous une forme plus étroite qu'AdminResult : il s'assigne aussi bien à un
+ * AdminResult qu'à un ConfirmDocResult, ce qu'une union ouverte ne permet pas.
+ */
+type Refusal = { ok: false; error: string; issues?: Record<string, string> };
+const refuse = (error: string, issues?: Record<string, string>): Refusal => ({ ok: false, error, issues });
+
 /** Contrôles communs à l'envoi et à la modification : le titre lié existe, l'ISBN tient debout. */
-async function checkMeta(meta: z.infer<typeof Meta>): Promise<{ ok: true; isbn: string } | { ok: false; result: AdminResult }> {
-  if (meta.productSlug && !(await getProduct(meta.productSlug))) return { ok: false, result: failed("Ce titre n'existe pas.", { productSlug: "Titre inconnu" }) };
+async function checkMeta(meta: z.infer<typeof Meta>): Promise<{ ok: true; isbn: string } | { ok: false; result: Refusal }> {
+  if (meta.productSlug && !(await getProduct(meta.productSlug))) return { ok: false, result: refuse("Ce titre n'existe pas.", { productSlug: "Titre inconnu" }) };
   const isbn = meta.isbn ? normalizeIsbn(meta.isbn) : "";
-  if (isbn && !isValidIsbn(isbn)) return { ok: false, result: failed("Cet ISBN n'est pas valide (clé de contrôle).", { isbn: "ISBN invalide" }) };
+  if (isbn && !isValidIsbn(isbn)) return { ok: false, result: refuse("Cet ISBN n'est pas valide (clé de contrôle).", { isbn: "ISBN invalide" }) };
   if (meta.issuedAt && meta.expiresAt && meta.expiresAt < meta.issuedAt) {
-    return { ok: false, result: failed("La fin de validité précède la date du document.", { expiresAt: "Date invalide" }) };
+    return { ok: false, result: refuse("La fin de validité précède la date du document.", { expiresAt: "Date invalide" }) };
   }
   return { ok: true, isbn };
 }
@@ -47,6 +54,9 @@ async function checkMeta(meta: z.infer<typeof Meta>): Promise<{ ok: true; isbn: 
 /* ---------- Dépôt en trois temps : préparer, déposer, inscrire ---------- */
 
 export type PrepareDocResult = { ok: true; id: string; path: string; bucket: string } | { ok: false; error: string };
+
+/** Comme un AdminResult, mais qui rend l'identifiant de la pièce créée. */
+export type ConfirmDocResult = { ok: true; id: string; message: string } | { ok: false; error: string; issues?: Record<string, string> };
 
 /*
  * Où déposer ce fichier. Le chemin est CALCULÉ ici et recalculé à l'inscription : un
@@ -72,12 +82,12 @@ export async function prepareDocumentAction(filename: string, mime: string): Pro
  * Les métadonnées arrivent par le formulaire, comme avant — c'est le FICHIER qui ne
  * passe plus par là.
  */
-export async function confirmDocumentAction(id: string, filename: string, formData: FormData): Promise<AdminResult> {
+export async function confirmDocumentAction(id: string, filename: string, formData: FormData): Promise<ConfirmDocResult> {
   try {
     const user = await assertAdmin();
 
     const parsed = parseForm(Meta, formData);
-    if (!parsed.ok) return failed(parsed.error, parsed.issues);
+    if (!parsed.ok) return refuse(parsed.error, parsed.issues);
     const checked = await checkMeta(parsed.data);
     if (!checked.ok) return checked.result;
 
@@ -88,9 +98,11 @@ export async function confirmDocumentAction(id: string, filename: string, formDa
     await audit(user.email, "document.upload", `documents/${doc.id}`, doc.title).catch(() => undefined);
     revalidatePath("/admin/documents");
     revalidatePath("/admin/contrats");
-    return saved(`« ${doc.title} » déposé.`);
+    /* L'identifiant revient à l'appelant : c'est ce qui permet à la fiche d'un contrat
+       d'attacher l'annexe dans la foulée, sans la faire rechoisir dans un menu. */
+    return { ok: true, id: doc.id, message: `« ${doc.title} » déposé.` };
   } catch (e) {
-    return failed(`${filename} : ${(e as Error).message}`);
+    return refuse(`${filename} : ${(e as Error).message}`);
   }
 }
 
