@@ -134,3 +134,14 @@ env:
     availability: [RUNTIME]
   - variable: VAPID_PRIVATE_KEY
     secret: VAPID_PRIVATE_KEY
+
+  # Instagram — réponses automatiques (/admin/instagram).
+  # L'identifiant de l'application est public par nature : il paraît dans l'URL de
+  # consentement, au même titre qu'une clé publiable Stripe.
+  - variable: INSTAGRAM_APP_ID
+    value: "1640446760908762"
+  - variable: INSTAGRAM_APP_SECRET
+    secret: INSTAGRAM_APP_SECRET
+  # Mot de passe de la poignée de main du webhook, choisi par nous.
+  - variable: INSTAGRAM_WEBHOOK_VERIFY_TOKEN
+    secret: INSTAGRAM_WEBHOOK_VERIFY_TOKEN

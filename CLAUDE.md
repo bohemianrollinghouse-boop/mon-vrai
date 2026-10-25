@@ -602,6 +602,72 @@ seule paraît. `saveGuideAction` ne touche que `settings.guide`, comme /admin/re
 
 C'est l'adresse à coller dans le champ **Lien** de l'annexe d'un contrat.
 
+## Instagram (réponses automatiques)
+
+`/admin/instagram` — répondre tout seul aux commentaires sous nos publications et aux
+messages reçus. Montage **« Instagram API with Instagram Login »** (`lib/instagram/`,
+`graph.instagram.com`) : pas de Page Facebook à lier, le compte professionnel se
+connecte avec ses propres identifiants.
+
+**Ce que Meta n'autorise pas, et qui dessine tout le reste** : on ne peut PAS écrire à
+un nouvel abonné. On ne répond qu'à quelqu'un qui a engagé la conversation — un message
+reçu ouvre **24 h**, un commentaire ouvre **7 jours** et donne droit à **UNE** réponse
+privée. Le « message de bienvenue » existe donc, mais au premier DM reçu, jamais à
+l'abonnement. Les outils qui promettent le contraire passent par de l'automatisation
+non officielle, qui fait fermer des comptes. La carte « Ce que Meta autorise » est sur
+l'écran lui-même, et non dans un coin de documentation : c'est la question qu'on se
+repose à chaque nouvelle idée.
+
+**Rien n'est écrit à la place de personne.** Le dispositif part vide (`rules: []`) et
+éteint (`enabled: false`), et même allumé il commence en **essai à blanc**
+(`dryRun: true`) : tout se décide et se journalise, rien ne part. Trois gestes
+délibérés séparent l'installation du premier message envoyé.
+
+**Le garde-fou du dossier** est `ownComment()` : une réponse publique est elle-même un
+commentaire, que Meta nous renvoie par webhook dans la seconde. Sans cette question
+posée AVANT toute autre, le dispositif se répond à lui-même jusqu'à épuisement du
+quota. Trois autres l'accompagnent, et aucun n'est décoratif : `claimEvent()` réserve
+l'événement par un `create()` Firestore — et non un `exists ?` suivi d'un `set()`, qui
+laisserait passer deux instances —, l'écho (`message.is_echo`) est le même piège côté
+messagerie, et le **plafond horaire** empêche qu'un post qui s'emballe parte en trois
+mille DM.
+
+**La décision est pure, l'exécution ne décide rien.** `domain/instagram.decide()`
+tranche tout — quelle règle, quelle formulation, pourquoi rien — et
+`instagram/respond.ts` exécute puis consigne. C'est ce qui permet de vérifier hors
+ligne la totalité de ce qui peut être envoyé à de vraies personnes, et ce qui fait que
+le **bouton « Essayer une phrase »** emprunte exactement le chemin du vrai plutôt que
+de simuler quelque chose qui lui ressemble.
+
+Les **règles** vivent dans le document de connexion et non dans une collection : leur
+**ordre EST leur priorité** (la première qui correspond répond), et une liste dont
+l'ordre compte se réécrit d'un bloc — en documents séparés il aurait fallu un champ de
+position à tenir à jour, donc un état de plus qui puisse mentir. Une règle sans mot-clé
+attrape tout ce qui arrive par sa porte : `shadowedRules()` **le dit** plutôt que de
+réordonner dans le dos de celui qui a écrit la liste. Les mots-clés se reconnaissent
+comme des **mots** (« livre » ne se déclenche pas sur « délivrer »), accents et casse
+indifférents, emoji compris. Les réponses publiques sont **plusieurs**, tirées d'après
+l'identifiant du commentaire (`variantFor`) : déterministe, pour qu'un webhook rejoué
+ne produise pas une seconde réponse différente, et varié, parce que dix fois la même
+phrase sous dix commentaires se lit comme un robot.
+
+Le **jeton** vaut 60 jours et se renouvelle **paresseusement**, au passage de chaque
+webhook (`db/instagram.validToken`) : pas de tâche planifiée à protéger pour le seul
+cas d'un compte muet pendant cinquante jours — cas où l'écran affiche le compte à
+rebours. Un échec de renouvellement ne jette jamais le jeton courant.
+
+Deux choses à savoir pour la mise en route. L'**abonnement du compte**
+(`subscribeWebhooks`, `me/subscribed_apps`) est l'étape qu'on oublie : déclarer
+l'adresse dans le tableau de bord Meta dit quels événements l'APPLICATION peut
+recevoir, celui-ci dit pour quel COMPTE elle les reçoit — sans lui, tout semble en
+place et il ne se passe rien, jamais, sans message d'erreur. Et l'**accès** : Meta écrit
+qu'une application ne servant que son propre compte se contente de l'accès standard,
+mais plusieurs retours de terrain soutiennent qu'en mode développement les événements
+des gens **sans rôle sur l'app** sont silencieusement ignorés. À vérifier sur le
+premier vrai commentaire ; si c'est le cas, il faut passer l'app en Live et demander
+l'accès avancé — ce qui réclame une vidéo du dispositif en marche, donc de l'avoir
+bâti d'abord.
+
 ## Gestion (dépenses et documents)
 
 - `/admin/depenses` — **toute la trésorerie**, dans un seul compte. Deux sources s'y
