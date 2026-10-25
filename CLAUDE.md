@@ -448,8 +448,19 @@ fiche retient l'identifiant du média (`Deliverable.mediaId`), si bien qu'un sec
 ne fait pas de doublon. Copie et non déplacement : paraître ne retire pas la pièce du
 dossier de la campagne, qui reste le document de référence.
 
-Les formats qu'aucun navigateur n'affiche (HEIC, MOV) sont refusés **là** et seulement
-là : au dossier ils sont parfaitement légitimes. D'où `ugc/` dans le coffre, fermé
+Le **`.mov`** marche, et sans transcodage : un iPhone filme en H.264 dans un conteneur
+QuickTime — le navigateur sait le lire, il refuse seulement d'essayer sous ce nom-là. On
+le **rebaptise** donc en `video/mp4` au moment où il est servi (`domain/media-compat.ts`,
+pur et testé) : les octets ne changent pas d'un bit, une étiquette est corrigée. Rien ne
+serait moins raisonnable que de faire tourner un encodeur vidéo dans une requête web.
+La pièce privée du dossier de campagne, elle, garde son type **véritable** : on n'y
+arrange rien pour un navigateur.
+
+Ce que cela ne sauve pas : une vidéo en **HEVC** (iPhone en mode « Haute efficacité ») ne
+se lira ni sur Chrome ni sur Firefox, quel que soit son nom — le remède est sur le
+téléphone (Réglages → Appareil photo → Formats → « Plus compatible »). Le **HEIC** reste
+refusé pour la même raison, et seulement à l'entrée de la médiathèque : au dossier d'une
+campagne il est parfaitement légitime. D'où `ugc/` dans le coffre, fermé
 par `storage.rules` à la lecture, servi par `/api/contenus/[id]` aux seuls
 administrateurs, et **aucune URL en base** : seulement le chemin, comme `documents`.
 

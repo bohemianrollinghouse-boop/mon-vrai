@@ -2,6 +2,7 @@ import "server-only";
 import { storage } from "@/lib/firebase/admin";
 import { Media } from "@/lib/domain/types";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
+import { playableMime } from "@/lib/domain/media-compat";
 
 /*
  * Médiathèque : le fichier va dans Cloud Storage, sa fiche dans Firestore. L'envoi
@@ -15,7 +16,25 @@ const media = () => col("media");
  * Types acceptés. HEIC en est volontairement absent : aucun navigateur ne l'affiche,
  * mieux vaut le refuser clairement à l'envoi que publier une image invisible.
  */
-const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", "image/svg+xml", "image/gif", "video/mp4", "video/webm", "application/pdf"]);
+/*
+ * Ce qui peut paraître sur le site. `video/quicktime` y figure parce qu'un `.mov`
+ * d'iPhone contient presque toujours de l'H.264 — le navigateur le lit, il refuse
+ * seulement d'essayer sous ce nom-là. On le rebaptise donc en entrant (voir
+ * domain/media-compat.ts) : rien n'est transcodé, une étiquette est corrigée.
+ */
+const ALLOWED = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/avif",
+  "image/svg+xml",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-m4v",
+  "application/pdf",
+]);
 const MAX_BYTES = 40 * 1024 * 1024;
 
 export async function listMedia(limit = 200): Promise<Media[]> {
@@ -45,8 +64,11 @@ export async function uploadMedia(input: UploadInput): Promise<Media> {
 
   const bucket = storage().bucket();
   const file = bucket.file(path);
+  /* Servi sous le type que les navigateurs acceptent d'essayer, pas sous celui que le
+     téléphone annonce : c'est la même vidéo, sous un nom qu'ils reconnaissent. */
+  const served = playableMime(input.mime);
   await file.save(input.bytes, {
-    contentType: input.mime,
+    contentType: served,
     metadata: { cacheControl: "public, max-age=31536000, immutable" },
   });
 
@@ -57,7 +79,7 @@ export async function uploadMedia(input: UploadInput): Promise<Media> {
     alt: input.alt ?? "",
     width: input.width,
     height: input.height,
-    mime: input.mime,
+    mime: served,
     createdAt: now(),
   });
   await media().doc(id).set(doc);
@@ -86,9 +108,10 @@ export async function copyIntoMedia(input: { path: string; mime: string; filenam
   const id = newId("med");
   const safeName = input.filename.toLowerCase().replace(/[^a-z0-9.]+/g, "-").replace(/^-+|-+$/g, "");
   const path = `media/${id}/${safeName}`;
-  await source.copy(bucket.file(path), { contentType: input.mime, metadata: { cacheControl: "public, max-age=31536000, immutable" } });
+  const served = playableMime(input.mime);
+  await source.copy(bucket.file(path), { contentType: served, metadata: { cacheControl: "public, max-age=31536000, immutable" } });
 
-  const doc = Media.parse({ id, path, url: publicUrl(bucket.name, path), alt: input.alt ?? "", folder: input.folder ?? "", mime: input.mime, createdAt: now() });
+  const doc = Media.parse({ id, path, url: publicUrl(bucket.name, path), alt: input.alt ?? "", folder: input.folder ?? "", mime: served, createdAt: now() });
   await media().doc(id).set(doc);
   return doc;
 }

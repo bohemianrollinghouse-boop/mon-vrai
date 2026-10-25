@@ -2,6 +2,7 @@ import { Readable } from "node:stream";
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth/session";
 import { getDeliverable, openDeliverable } from "@/lib/db/deliverables";
+import { playableMime } from "@/lib/domain/media-compat";
 
 /*
  * Un contenu rendu par un partenaire (photo, vidéo). Ces fichiers vivent dans un dossier
@@ -43,7 +44,10 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   return new NextResponse(Readable.toWeb(opened.stream as Readable) as unknown as ReadableStream, {
     status: range ? 206 : 200,
     headers: {
-      "content-type": doc.mime,
+      /* Servi sous le type que les navigateurs acceptent d'essayer : un .mov d'iPhone
+         se lit, il refuse seulement de s'appeler ainsi. La fiche, elle, garde le type
+         véritable — on n'arrange rien dans le dossier de la campagne. */
+      "content-type": playableMime(doc.mime),
       "content-length": String(length),
       "accept-ranges": "bytes",
       ...(range ? { "content-range": `bytes ${range.start}-${range.end}/${doc.size}` } : {}),
