@@ -84,18 +84,26 @@ export function DocumentDeposit({ children, accept, fileHint, submitLabel = "Dé
       return;
     }
 
+    setBusy(true);
+    setPercent(0);
+
     /*
      * Le dépôt direct a besoin d'une session Firebase vivante dans CE navigateur : les
      * règles du coffre lisent le jeton, pas le cookie de session. Le dire franchement
      * vaut mieux qu'un « permission refusée » à mi-envoi.
+     *
+     * `authStateReady()` et non `currentUser` tout de suite : le SDK restaure la session
+     * depuis le stockage du navigateur de façon ASYNCHRONE, et `currentUser` vaut `null`
+     * tant que ce n'est pas fait. Lu trop tôt, il fait dire « reconnectez-vous » à
+     * quelqu'un qui est parfaitement connecté — ce qui est exactement arrivé.
      */
-    if (!clientAuth().currentUser) {
+    const auth = clientAuth();
+    await auth.authStateReady();
+    if (!auth.currentUser) {
+      setBusy(false);
       setNotice({ tone: "error", text: "Votre session s'est interrompue dans ce navigateur : reconnectez-vous avant de déposer." });
       return;
     }
-
-    setBusy(true);
-    setPercent(0);
 
     const prepared = await prepareDocumentAction(file.name, file.type);
     if (!prepared.ok) {

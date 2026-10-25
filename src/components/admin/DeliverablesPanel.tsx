@@ -85,17 +85,25 @@ export function DeliverablesPanel({ campaignId, bucket, items, expected }: { cam
     if (all.length === 0) return;
     setError("");
 
+    setBusy(true);
+
     /*
      * Le dépôt direct a besoin d'une session Firebase vivante dans CE navigateur : les
      * règles du coffre lisent le jeton, pas le cookie de session. Le dire franchement
      * vaut mieux qu'un « permission refusée » à mi-envoi.
+     *
+     * `authStateReady()` et non `currentUser` tout de suite : le SDK restaure la session
+     * depuis le stockage du navigateur de façon ASYNCHRONE, et `currentUser` vaut `null`
+     * tant que ce n'est pas fait. Lu trop tôt, il fait dire « reconnectez-vous » à
+     * quelqu'un qui est parfaitement connecté.
      */
-    if (!clientAuth().currentUser) {
+    const auth = clientAuth();
+    await auth.authStateReady();
+    if (!auth.currentUser) {
+      setBusy(false);
       setError("Votre session s'est interrompue dans ce navigateur : reconnectez-vous avant de déposer.");
       return;
     }
-
-    setBusy(true);
     setPending(all.map((f) => ({ name: f.name, percent: 0 })));
     const storage = clientStorage(bucket);
     const progress = (index: number, patch: Partial<Pending>) => setPending((list) => list.map((p, i) => (i === index ? { ...p, ...patch } : p)));
