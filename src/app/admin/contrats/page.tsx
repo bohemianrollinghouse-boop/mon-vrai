@@ -216,11 +216,16 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                     ))}
                   </Select>
                 </Field>
-                <Field label="Lien" hint="Un guide qu'on retouche souvent vit mieux en ligne. https:// obligatoire." name="guideUrl">
+                <Field label="Lien" hint="Votre guide maison : collez l'adresse de /guide-contenu. https:// obligatoire." name="guideUrl">
                   <Input name="guideUrl" inputMode="url" maxLength={500} defaultValue={form ? form.guide.url : ""} placeholder="https://" />
                 </Field>
                 <span className="text-[0.6875rem] leading-relaxed text-subtle">
-                  Les deux peuvent coexister : le PDF à emporter, le lien pour la version vivante. Sans l&apos;un ni
+                  Les deux peuvent coexister : le PDF à emporter, le lien pour la version vivante. Le guide du site se
+                  règle dans{" "}
+                  <Link href="/admin/guide" className="font-bold underline">
+                    Guide contenu
+                  </Link>
+                  . Sans l&apos;un ni
                   l&apos;autre, le contrat ne cite aucune annexe.
                   {guides.length === 0 && " Aucun PDF ni image dans la bibliothèque pour l'instant."}
                 </span>

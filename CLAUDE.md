@@ -533,6 +533,37 @@ reste à **retirer à la main** quand on ne veut plus la proposer : la retirer d
 effacerait un choix qui n'est pas le nôtre — on peut vouloir finir une campagne en cours
 sous l'ancienne.
 
+## Guide de création de contenu
+
+`/guide-contenu` — la page que les partenaires ouvrent avant de produire : lumière,
+rushes, exemples vidéo, mises en scène, ce qu'il faut éviter. Elle vit **hors du groupe
+`(site)`** : elle porte son propre en-tête et son propre pied, et l'habillage de la
+boutique n'a rien à faire sur un document de travail — même raison que la caisse.
+Publique mais **non référencée** (`robots: noindex`), délibérément : le créateur
+l'ouvre par le lien de son contrat, souvent sur un téléphone où il n'est pas connecté,
+et des conseils photo n'ont rien à protéger. Son adresse est dans `RESERVED_PATHS`.
+
+La frontière qui porte tout : le **texte** est écrit dans `lib/guide/content.ts` — il ne
+change qu'avec notre façon de travailler, et le faire passer par un formulaire
+reviendrait à ressaisir un mode d'emploi à chaque retouche. Les **photos et les vidéos**
+se règlent dans `/admin/guide` (`settings.guide`) : ce sont des exemples, et un exemple
+se remplace sans cesse — c'est même à cela qu'il sert.
+
+Les fichiers se posent à des emplacements **nommés** (`key`), et non dans une liste
+libre : chaque photo illustre une idée précise dont la légende appartient au texte. On
+choisit l'image qui vient à une place, jamais la place. Une clé qui ne désigne aucun
+emplacement est ignorée, et une adresse qui n'est plus dans la médiathèque est écartée
+à l'enregistrement — d'où des listes déroulantes et non un champ d'URL. Une place vide
+**se dit** (« Vidéo à venir », le sujet attendu) plutôt que de casser la mise en page :
+le guide se lit dès le premier jour.
+
+Deux réglages changent le texte sans le réécrire : la **durée minimale d'un plan**, citée
+par la première carte des rushes, et **l'enfant à l'image** — trois phrases écrites, une
+seule paraît. `saveGuideAction` ne touche que `settings.guide`, comme /admin/reglages et
+/admin/livraison ne touchent que les leurs.
+
+C'est l'adresse à coller dans le champ **Lien** de l'annexe d'un contrat.
+
 ## Gestion (dépenses et documents)
 
 - `/admin/depenses` — **toute la trésorerie**, dans un seul compte. Deux sources s'y

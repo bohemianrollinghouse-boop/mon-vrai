@@ -49,6 +49,7 @@ export const RESERVED_PATHS = new Set([
   "panier",
   "recherche",
   "newsletter",
+  "guide-contenu",
   "_next",
   "favicon.ico",
   "icon.png",

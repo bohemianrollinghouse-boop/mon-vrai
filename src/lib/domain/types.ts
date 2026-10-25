@@ -417,6 +417,51 @@ export const Costs = z.object({
 export type Costs = z.infer<typeof Costs>;
 export const DEFAULT_COSTS: Costs = { urssafBp: 1230, bookCost: 0, packagingCost: 0, kitBookCost: 0, kitPackagingCost: 0, stripeBp: 150, stripeFixed: 25, productionCost: 0, bookPrice: 1000 };
 
+/*
+ * Le guide de création de contenu remis aux partenaires (/guide-contenu).
+ *
+ * Seuls les FICHIERS s'y règlent — photos et vidéos d'exemple. Le texte, lui, est écrit
+ * dans `lib/guide/content.ts` : il ne change qu'avec notre façon de travailler, et le
+ * faire passer par un formulaire reviendrait à demander de ressaisir un mode d'emploi.
+ *
+ * Chaque fichier se pose à un emplacement NOMMÉ (`key`), et non dans une liste libre :
+ * une photo illustre une idée précise, dont la légende appartient au texte. Ce qu'on
+ * choisit, c'est l'image qui vient à cette place.
+ */
+export const GuideShot = z.object({
+  key: z.string().min(1).max(40),
+  /** URL d'un média de la médiathèque. Vide : la place reste libre et se dit telle. */
+  url: z.string().trim().max(500).default(""),
+});
+export type GuideShot = z.infer<typeof GuideShot>;
+
+export const GuideVideo = GuideShot.extend({
+  /** Image d'attente, pour ne pas charger la vidéo entière avant qu'on la lance. */
+  poster: z.string().trim().max(500).default(""),
+});
+export type GuideVideo = z.infer<typeof GuideVideo>;
+
+export const GuideSettings = z.object({
+  /** Durée minimale d'un plan, citée par le guide et par les contrats. */
+  rushSeconds: z.number().int().min(5).max(60).default(10),
+  /** Ce qu'on dit de l'enfant à l'image : trois phrases écrites, une seule paraît. */
+  childPolicy: z.enum(["choice", "noFace", "face"]).default("choice"),
+  hero: z.string().trim().max(500).default(""),
+  inspirations: z.array(GuideShot).max(12).default([]),
+  scenes: z.array(GuideShot).max(12).default([]),
+  videos: z.array(GuideVideo).max(12).default([]),
+});
+export type GuideSettings = z.infer<typeof GuideSettings>;
+
+export const EMPTY_GUIDE_SETTINGS: GuideSettings = {
+  rushSeconds: 10,
+  childPolicy: "choice",
+  hero: "",
+  inspirations: [],
+  scenes: [],
+  videos: [],
+};
+
 export const SiteSettings = z.object({
   shopName: z.string().min(1).default("Mon Vrai"),
   tagline: z.string().default(""),
@@ -455,6 +500,8 @@ export const SiteSettings = z.object({
       boxtalMode: z.enum(["live", "test"]).default("live"),
     })
     .default({ freeThreshold: 3000, countries: ["FR", "BE", "LU"], rates: DEFAULT_SHIPPING_RATES, parcel: DEFAULT_PARCEL, sender: EMPTY_SENDER, boxtalMode: "live" }),
+  /** Le guide remis aux partenaires : ses exemples, pas son texte. */
+  guide: GuideSettings.default(EMPTY_GUIDE_SETTINGS),
   inventory: z
     .object({
       /** En dessous de ce nombre d'exemplaires, un titre est signalé « stock bas ». */

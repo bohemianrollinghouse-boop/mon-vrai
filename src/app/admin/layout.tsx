@@ -97,6 +97,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
         { href: "/admin/concours", label: "Concours", badge: snap.contestsTodo, badgeTone: "sand" },
         { href: "/admin/influenceurs", label: "Influenceurs" },
         { href: "/admin/contrats", label: "Contrats" },
+        { href: "/admin/guide", label: "Guide contenu" },
         { href: "/admin/statistiques", label: "Statistiques" },
       ],
     },
