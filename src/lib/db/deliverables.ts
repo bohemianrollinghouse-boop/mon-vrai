@@ -3,6 +3,8 @@ import { storage } from "@/lib/firebase/admin";
 import { contentKind, contentPath, MAX_CONTENT_BYTES, safeFileName } from "@/lib/domain/deliverables";
 import { Deliverable } from "@/lib/domain/types";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
+import { copyIntoMedia } from "./media";
+import { getInfluencer } from "./promos";
 
 /*
  * Les contenus rendus par les partenaires : les fichiers sous `ugc/`, leurs fiches dans
@@ -116,7 +118,30 @@ export async function recordDeliverable(input: RecordInput): Promise<Deliverable
     receivedAt: now(),
   });
   await deliverables().doc(input.id).set(doc);
-  return doc;
+
+  /*
+   * Et il rejoint la médiathèque, dans le dossier du partenaire.
+   *
+   * Ce n'était pas le cas au départ, délibérément : la médiathèque sert à CHOISIR ce
+   * qui paraît sur le site, et y déverser cent fichiers bruts la rendait illisible. Ce
+   * qui a changé, ce sont les dossiers — « ce que Camille nous a envoyé » se retrouve
+   * maintenant d'un clic, et le fonds commun du site reste à part. Le classement règle
+   * ce que l'abstention réglait avant, et sans priver personne de ses fichiers.
+   *
+   * Jamais au prix du dépôt, en revanche : la copie échoue sans faire échouer la
+   * réception. Un MOV ou un HEIC qu'aucun navigateur n'affiche reste au dossier de la
+   * campagne, où il est parfaitement légitime, et n'entre simplement pas en
+   * médiathèque — `copyIntoMedia` le refuse, et c'est très bien ainsi.
+   */
+  try {
+    const owner = await getInfluencer(doc.influencerId).catch(() => null);
+    const copy = await copyIntoMedia({ path: doc.path, mime: doc.mime, filename: doc.filename, folder: owner?.name ?? "" });
+    await setDeliverableMedia(doc.id, copy.id);
+    return { ...doc, mediaId: copy.id };
+  } catch (err) {
+    console.warn("[contenus] non versé en médiathèque :", (err as Error).message);
+    return doc;
+  }
 }
 
 /** Note sur la fiche qu'il a rejoint la médiathèque, et sous quelle fiche. */

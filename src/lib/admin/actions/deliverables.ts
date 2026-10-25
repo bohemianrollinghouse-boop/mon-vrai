@@ -6,6 +6,7 @@ import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { getCampaign } from "@/lib/db/campaigns";
 import { deleteDeliverable, getDeliverable, newDeliverableId, recordDeliverable, setDeliverableMedia } from "@/lib/db/deliverables";
+import { getInfluencer } from "@/lib/db/promos";
 import { copyIntoMedia } from "@/lib/db/media";
 import { contentKind, contentPath } from "@/lib/domain/deliverables";
 
@@ -74,7 +75,10 @@ export async function publishDeliverableAction(formData: FormData): Promise<Admi
   if (doc.mediaId) return saved("Ce fichier est déjà dans la médiathèque.");
 
   try {
-    const media = await copyIntoMedia({ path: doc.path, mime: doc.mime, filename: doc.filename });
+    /* Le dossier du partenaire, comme au versement automatique : un fichier rattrapé
+       ici doit se ranger au même endroit que ses voisins. */
+    const owner = await getInfluencer(doc.influencerId).catch(() => null);
+    const media = await copyIntoMedia({ path: doc.path, mime: doc.mime, filename: doc.filename, folder: owner?.name ?? "" });
     await setDeliverableMedia(doc.id, media.id);
     await audit(user.email, "deliverable.publish", `deliverables/${doc.id}`, `→ médias/${media.id}`);
     revalidatePath(campaignPath(doc.influencerId, doc.campaignId));

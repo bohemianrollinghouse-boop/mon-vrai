@@ -420,18 +420,34 @@ contrat au lieu d'y annoncer une quantité nulle.
 
 Les fichiers reçus sont des documents à part (collection `deliverables`), et non des
 champs de la campagne : **une campagne dit ce qu'elle réclame, elle ne porte pas ses
-pièces jointes**. Ils ne rejoignent pas la médiathèque **d'office** — ce qui s'y trouve
-est destiné à PARAÎTRE sur le site ; ceci est d'abord une pièce versée au dossier, comme
-une norme CE l'est à celui d'un titre. On en **verse** un quand on décide de le publier
-(`publishDeliverableAction` → `db/media.copyIntoMedia`) : le coffre **copie** l'objet de
-`ugc/` vers `media/` sans le faire passer par la mémoire de l'instance — une vidéo pèse
-dix fois ce qu'une requête peut tenir —, et la fiche retient l'identifiant du média
-(`Deliverable.mediaId`), si bien qu'un second clic ne fait pas de doublon. Copie et non
-déplacement : publier ne retire pas la pièce du dossier. Fichier par fichier, et jamais
-en bloc : tout ce qu'un partenaire remet n'est pas destiné à paraître, et cent fichiers
-déversés d'un coup rendraient la médiathèque illisible. Les formats qu'aucun navigateur
-n'affiche (HEIC, MOV) sont refusés **là** et seulement là : au dossier ils sont
-parfaitement légitimes. D'où `ugc/` dans le coffre, fermé
+pièces jointes**.
+
+Ils **rejoignent la médiathèque à la réception**, dans le **dossier du partenaire**
+(`Media.folder`, posé par `recordDeliverable`). Ce ne fut pas le cas au départ, et le
+renversement se raconte : la médiathèque sert à CHOISIR ce qui paraît sur le site, et y
+déverser cent fichiers bruts la rendait illisible — on versait donc fichier par fichier,
+en décidant à chaque fois. Ce qui a changé, ce sont les **dossiers** : « ce que Camille
+nous a envoyé » se retrouve d'un clic, et le **fonds commun** (ce qu'on a constitué
+soi-même) reste à part. Le classement règle ce que l'abstention réglait avant, sans
+priver personne de ses fichiers.
+
+Un dossier est un **libellé**, jamais un chemin : le fichier reste sous `media/<id>/`, et
+ranger un écran ne doit pas casser l'adresse d'une image déjà publiée. Les dossiers se
+**déduisent** des fichiers (`db/media-folders.ts`, pur et testé) : aucune liste à tenir,
+aucun dossier vide qui traîne. La copie ne met jamais en péril la réception — elle
+échoue en silence et le contenu reste au dossier de la campagne : c'est le cas d'un MOV
+ou d'un HEIC, parfaitement légitimes là et qu'aucun navigateur n'afficherait ici.
+
+Le coffre **copie** l'objet de `ugc/` vers `media/` sans le faire passer par la mémoire
+de l'instance — une vidéo pèse dix fois ce qu'une requête peut tenir —, et la fiche
+retient l'identifiant du média (`Deliverable.mediaId`). Copie et non déplacement :
+paraître ne retire pas la pièce du dossier de la campagne, qui reste le document de
+référence. Le bouton « verser dans la médiathèque » subsiste pour rattraper ce que la
+copie automatique n'a pas pu prendre, et reste idempotent sur `mediaId` — un second clic
+ne fait pas de doublon.
+
+Les formats qu'aucun navigateur n'affiche (HEIC, MOV) sont refusés **là** et seulement
+là : au dossier ils sont parfaitement légitimes. D'où `ugc/` dans le coffre, fermé
 par `storage.rules` à la lecture, servi par `/api/contenus/[id]` aux seuls
 administrateurs, et **aucune URL en base** : seulement le chemin, comme `documents`.
 

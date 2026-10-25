@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { audit } from "@/lib/admin/audit";
 import { failed, saved, type AdminResult, type MediaUploadResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { deleteMedia, updateMediaAlt, uploadMedia } from "@/lib/db/media";
+import { deleteMedia, getMedia, setMediaFolder, updateMediaAlt, uploadMedia } from "@/lib/db/media";
 import type { Media } from "@/lib/domain/types";
 
 /*
@@ -75,6 +75,26 @@ export async function updateMediaAltAction(formData: FormData): Promise<AdminRes
   await updateMediaAlt(id, alt);
   revalidatePath("/admin/medias");
   return saved("Texte alternatif enregistré.");
+}
+
+/*
+ * Range un média dans un dossier, ou le remet au fonds commun.
+ *
+ * Les dossiers ne sont qu'un LIBELLÉ : le fichier ne bouge pas dans le coffre, et son
+ * adresse ne change donc jamais. Ranger un écran ne doit pas casser une image déjà
+ * publiée sur le site.
+ */
+export async function setMediaFolderAction(formData: FormData): Promise<AdminResult> {
+  const user = await assertAdmin();
+  const id = String(formData.get("id") ?? "");
+  const folder = String(formData.get("folder") ?? "").trim().slice(0, 80);
+  const doc = await getMedia(id);
+  if (!doc) return failed("Média introuvable");
+
+  await setMediaFolder(id, folder);
+  await audit(user.email, "media.folder", `media/${id}`, folder || "fonds commun");
+  revalidatePath("/admin/medias");
+  return saved(folder ? `Rangé dans « ${folder} ».` : "Remis au fonds commun.");
 }
 
 export async function deleteMediaAction(formData: FormData): Promise<AdminResult> {

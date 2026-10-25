@@ -43,6 +43,18 @@ export const Media = z.object({
   path: z.string(),
   url: z.url(),
   alt: z.string().default(""),
+  /*
+   * Le dossier où le média se range dans la médiathèque. Vide : le fonds commun, celui
+   * qu'on constitue soi-même pour le site.
+   *
+   * Un LIBELLÉ et non un chemin : le fichier reste sous `media/<id>/`, comme tous les
+   * autres, et ce champ ne décide que du rangement à l'écran. Déplacer des objets dans
+   * le coffre pour ranger un écran aurait cassé toutes les adresses déjà publiées.
+   *
+   * Les contenus que les partenaires remettent y arrivent sous leur nom : c'est ainsi
+   * qu'on retrouve « ce que Camille nous a envoyé » sans parcourir trois cents fichiers.
+   */
+  folder: z.string().trim().max(80).default(""),
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   mime: z.string(),

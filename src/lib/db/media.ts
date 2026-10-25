@@ -2,6 +2,7 @@ import "server-only";
 import { storage } from "@/lib/firebase/admin";
 import { Media } from "@/lib/domain/types";
 import { col, newId, now, parseDoc, parseQuery } from "./helpers";
+export { mediaFolders } from "./media-folders";
 
 /*
  * Médiathèque : le fichier va dans Cloud Storage, sa fiche dans Firestore. L'envoi
@@ -75,7 +76,7 @@ export async function uploadMedia(input: UploadInput): Promise<Media> {
  * Les types refusés le sont pour la même raison que partout ici : un HEIC ou un MOV ne
  * s'affiche dans aucun navigateur, et la médiathèque ne sert qu'à faire paraître.
  */
-export async function copyIntoMedia(input: { path: string; mime: string; filename: string; alt?: string }): Promise<Media> {
+export async function copyIntoMedia(input: { path: string; mime: string; filename: string; alt?: string; folder?: string }): Promise<Media> {
   if (!ALLOWED.has(input.mime)) throw new Error(`Ce format ne peut pas paraître sur le site (${input.mime}). Convertissez-le d'abord.`);
 
   const bucket = storage().bucket();
@@ -88,7 +89,7 @@ export async function copyIntoMedia(input: { path: string; mime: string; filenam
   const path = `media/${id}/${safeName}`;
   await source.copy(bucket.file(path), { contentType: input.mime, metadata: { cacheControl: "public, max-age=31536000, immutable" } });
 
-  const doc = Media.parse({ id, path, url: publicUrl(bucket.name, path), alt: input.alt ?? "", mime: input.mime, createdAt: now() });
+  const doc = Media.parse({ id, path, url: publicUrl(bucket.name, path), alt: input.alt ?? "", folder: input.folder ?? "", mime: input.mime, createdAt: now() });
   await media().doc(id).set(doc);
   return doc;
 }
@@ -96,6 +97,12 @@ export async function copyIntoMedia(input: { path: string; mime: string; filenam
 export async function updateMediaAlt(id: string, alt: string): Promise<void> {
   await media().doc(id).update({ alt });
 }
+
+/** Range un média dans un dossier, ou le remet au fonds commun avec une chaîne vide. */
+export async function setMediaFolder(id: string, folder: string): Promise<void> {
+  await media().doc(id).update({ folder: folder.trim().slice(0, 80) });
+}
+
 
 export async function deleteMedia(id: string): Promise<void> {
   const doc = await getMedia(id);
