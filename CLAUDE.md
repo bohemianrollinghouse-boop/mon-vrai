@@ -341,6 +341,17 @@ soldé. Trois conséquences, et une seule qui n'en est pas une.
   campagne avec la même personne **rallume** son code, parce que `codeCampaign` prend la
   plus récente qui en porte un de valable.
 
+Un code de partenaire **se supprime**, mais seulement s'il est **orphelin** : plus
+aucune campagne ne le porte. Tant qu'une le porte, l'effacer serait sans effet — le
+prochain enregistrement de cette campagne le réécrirait —, et l'écran renvoie donc aux
+campagnes concernées plutôt que d'offrir un bouton qui ment. Les doublons viennent de là :
+chaque campagne peut porter un code différent, et les précédents restent en base. L'espace
+partenaire, lui, n'en affiche qu'**UN** — celui de la campagne qui le fait vivre
+aujourd'hui —, si bien que les autres existaient sans qu'on sache qu'il ne les voyait
+pas. `lib/admin/promo-usage.ts` (pur et testé) répond aux deux questions d'un coup :
+qui porte ce code, et le partenaire le voit-il ? La liste le dit en sous-ligne, sa fiche
+en toutes lettres.
+
 Un code de partenaire est un **reflet** : il n'est réécrit qu'au moment où l'on touche
 à sa campagne (`syncCampaignPromo`). Une règle qui change laisse donc derrière elle des
 reflets périmés, que rien ne redresse tout seul — ce fut le cas de ce changement même :

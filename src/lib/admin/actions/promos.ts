@@ -7,7 +7,8 @@ import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { deletePromo, getPromo, listInfluencers, listPromos, setPromoActive, setPromoSettings, upsertPromo } from "@/lib/db/promos";
-import { syncCampaignPromo } from "@/lib/db/campaigns";
+import { listAllCampaigns, syncCampaignPromo } from "@/lib/db/campaigns";
+import { promoUsage } from "@/lib/admin/promo-usage";
 import { getSettings, saveSettings } from "@/lib/db/settings";
 import { parseEuroToCents } from "@/lib/domain/money";
 import { formatOfferDay } from "@/lib/promos/collection";
@@ -232,7 +233,21 @@ export async function deletePromoAction(formData: FormData): Promise<AdminResult
   const code = String(formData.get("code") ?? "").toUpperCase();
   const promo = await getPromo(code);
   if (!promo) return failed("Code introuvable");
-  if (promo.influencerId) return failed("Ce code appartient à un partenaire : il s'éteint avec sa campagne, et part avec lui.");
+
+  /*
+   * Un code de partenaire ne s'efface que s'il est ORPHELIN — plus aucune campagne ne
+   * le porte. Tant qu'une le porte, le supprimer serait sans effet : son prochain
+   * enregistrement le réécrirait (syncCampaignPromo). On le dit, et on renvoie à la
+   * campagne, qui est le seul endroit où ce code se décide.
+   */
+  if (promo.influencerId) {
+    const { carriers } = promoUsage(promo, await listAllCampaigns(), Date.now());
+    if (carriers.length > 0) {
+      const which = carriers.map((c) => c.name || `campagne n° ${c.seq}`).join(", ");
+      return failed(`${carriers.length > 1 ? "Des campagnes portent" : "Une campagne porte"} encore ce code (${which}) : il reviendrait au premier enregistrement. Retirez-le de ${carriers.length > 1 ? "ces campagnes" : "cette campagne"} d'abord.`);
+    }
+  }
+
   await deletePromo(code);
   await audit(user.email, "promo.delete", `promos/${code}`);
   revalidatePath("/admin/codes-promo");

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { AutoSubmitSwitch } from "@/components/admin/AutoSubmitSwitch";
 import { CodeInput } from "@/components/admin/CodeInput";
@@ -6,6 +7,8 @@ import { ButtonLink, Card, Field, FilterPills, GridTable, Input, PageHeader, Pil
 import { deletePromoAction, resyncPartnerPromosAction, savePartnerPromoAction, savePromoAction, setCollectionOfferAction, setCollectionOfferEndAction, togglePromoAction } from "@/lib/admin/actions/promos";
 import { adminSnapshot } from "@/lib/admin/counts";
 import { listInfluencers, listPromos } from "@/lib/db/promos";
+import { listAllCampaigns } from "@/lib/db/campaigns";
+import { promoUsage, visibilityLabel, type PromoUsage } from "@/lib/admin/promo-usage";
 import { getSettings } from "@/lib/db/settings";
 import { formatEuro } from "@/lib/domain/money";
 import type { Influencer, Product, Promo } from "@/lib/domain/types";
@@ -40,7 +43,13 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
   const filter = typeof sp.statut === "string" && FILTERS.includes(sp.statut as never) ? (sp.statut as (typeof FILTERS)[number]) : "Tous";
   const origin = typeof sp.origine === "string" && ORIGINS.includes(sp.origine as never) ? (sp.origine as (typeof ORIGINS)[number]) : "Tous";
   const selectedCode = typeof sp.code === "string" ? sp.code.toUpperCase() : "";
-  const [all, snap, settings, influencers] = await Promise.all([listPromos(), adminSnapshot(), getSettings(), listInfluencers()]);
+  const [all, snap, settings, influencers, campaigns] = await Promise.all([
+    listPromos(),
+    adminSnapshot(),
+    getSettings(),
+    listInfluencers(),
+    listAllCampaigns(),
+  ]);
   const now = snap.now;
   const offer = settings.promos.collectionOffer;
   const today = offerDay(now);
@@ -49,6 +58,12 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
   const partnerCodes = all.filter((p) => p.influencerId);
   const partners = new Map(influencers.map((i) => [i.id, i]));
   const stats = promoStats(all, snap.orders);
+  /*
+   * Ce que chaque code doit à ses campagnes, et ce que le partenaire en voit. Un espace
+   * partenaire n'affiche qu'UN code ; les autres existent sans qu'il les voie jamais, et
+   * c'est ce qui faisait des doublons inexplicables.
+   */
+  const usage = new Map(all.filter((p) => p.influencerId).map((p) => [p.code, promoUsage(p, campaigns, now)]));
 
   const scoped = origin === "Maison" ? house : origin === "Partenaires" ? partnerCodes : all;
   const withStatus = scoped.map((p) => ({ p, status: promoStatus(p, now) }));
@@ -125,6 +140,7 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
           rows={rows.map(({ p, status }) => {
             const st = stats.get(p.code) ?? { uses: p.uses, revenue: 0 };
             const partner = p.influencerId ? partners.get(p.influencerId) : undefined;
+            const use = usage.get(p.code);
             return {
               key: p.code,
               href: link({ code: p.code }),
@@ -135,6 +151,7 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
                   <span className="text-[0.6875rem] text-subtle">
                     {p.influencerId ? `Partenaire${partner ? ` · ${partner.name}` : ""} · ` : ""}
                     {p.minimum ? `dès ${formatEuro(p.minimum)}` : "sans minimum"} · {p.stackWith.length ? `cumulable (${p.stackWith.length})` : "non cumulable"}
+                    {use && (use.visible ? " · affiché dans son espace" : use.orphan ? " · plus porté par aucune campagne" : " · pas affiché chez lui")}
                   </span>
                 </span>,
                 <span key="r" className="font-bold">{promoLabel(p)}</span>,
@@ -152,7 +169,14 @@ export default async function PromosPage({ searchParams }: PageProps<"/admin/cod
         />
 
         {current?.influencerId && !isNew ? (
-          <PartnerEditor promo={current} partner={partners.get(current.influencerId)} status={promoStatus(current, now)} house={house} partnerCount={partnerCodes.length} />
+          <PartnerEditor
+            promo={current}
+            partner={partners.get(current.influencerId)}
+            status={promoStatus(current, now)}
+            house={house}
+            partnerCount={partnerCodes.length}
+            usage={usage.get(current.code)!}
+          />
         ) : (
           <HouseEditor current={current} isNew={isNew} house={house} partnerCount={partnerCodes.length} products={products} now={now} />
         )}
@@ -223,7 +247,21 @@ function HouseEditor({ current, isNew, house, partnerCount, products, now }: { c
  * régler ici serait réécrit au prochain enregistrement de la campagne. Le bandeau du
  * haut renvoie donc à la campagne, et le formulaire ne porte que le reste.
  */
-function PartnerEditor({ promo, partner, status, house, partnerCount }: { promo: Promo; partner?: Influencer; status: string; house: Promo[]; partnerCount: number }) {
+function PartnerEditor({
+  promo,
+  partner,
+  status,
+  house,
+  partnerCount,
+  usage,
+}: {
+  promo: Promo;
+  partner?: Influencer;
+  status: string;
+  house: Promo[];
+  partnerCount: number;
+  usage: PromoUsage;
+}) {
   const campaignHref = promo.campaignId ? `/admin/influenceurs/${promo.influencerId}/campagnes/${promo.campaignId}` : `/admin/influenceurs/${promo.influencerId}?onglet=campagnes`;
   return (
     <Card className="sticky top-6" title={promo.code} aside={<Pill tone={STATUS_TONE[status]}>{status}</Pill>}>
@@ -253,6 +291,18 @@ function PartnerEditor({ promo, partner, status, house, partnerCount }: { promo:
           <input type="hidden" name="code" value={promo.code} />
         </ActionForm>
       </div>
+      {/*
+        Ce que le partenaire en voit. Son espace n'affiche qu'UN code — celui de la
+        campagne qui le fait vivre aujourd'hui —, et les autres existent sans qu'il les
+        voie jamais : c'est ce qui rendait les doublons inexplicables.
+      */}
+      <div className="flex flex-col gap-1.5 rounded-[14px] bg-paper p-3.5">
+        <span className="flex items-center gap-2">
+          <Pill tone={usage.visible ? "ok" : "muted"}>{usage.visible ? "Affiché dans son espace" : "Pas affiché"}</Pill>
+        </span>
+        <span className="text-[0.6875rem] leading-relaxed text-subtle">{visibilityLabel(usage, partner?.name ?? "")}</span>
+      </div>
+
       <ActionForm key={promo.code} action={savePartnerPromoAction} submitLabel="Enregistrer">
         <input type="hidden" name="code" value={promo.code} />
         <Field label="Panier minimum" hint="En euros. Vide : aucun." name="minimumEuros">
@@ -268,6 +318,41 @@ function PartnerEditor({ promo, partner, status, house, partnerCount }: { promo:
         </label>
         <StackPicker current={promo} house={house} partnerCount={partnerCount} />
       </ActionForm>
+
+      {/*
+        Supprimer. Un code de partenaire n'est qu'un reflet : tant qu'une campagne le
+        porte, l'effacer serait sans effet — le prochain enregistrement le réécrirait.
+        On ne propose donc le bouton qu'aux ORPHELINS, et pour les autres on dit où
+        aller : c'est la campagne qui décide du code, pas cet écran.
+      */}
+      <div className="flex flex-col gap-2 border-t border-line-soft pt-3">
+        {usage.orphan ? (
+          <ActionForm
+            action={deletePromoAction}
+            submitLabel="Supprimer ce code"
+            submitTone="ghost"
+            confirm={`Supprimer ${promo.code} ? Plus aucune campagne ne le porte. Les commandes passées avec gardent sa trace.`}
+            className="!gap-1.5 [&>div:last-child]:justify-start [&_button]:!px-0 [&_button]:text-xs [&_button]:text-accent"
+            footerNote="Plus aucune campagne ne le porte : il ne reviendra pas."
+          >
+            <input type="hidden" name="code" value={promo.code} />
+          </ActionForm>
+        ) : (
+          <span className="text-[0.6875rem] leading-relaxed text-subtle">
+            {usage.carriers.length > 1 ? `${usage.carriers.length} campagnes portent` : "Une campagne porte"} ce code : l&apos;effacer
+            ici serait sans effet, il reviendrait au premier enregistrement. Retirez-le d&apos;abord de{" "}
+            {usage.carriers.map((c, i) => (
+              <span key={c.id}>
+                {i > 0 && ", "}
+                <Link href={`/admin/influenceurs/${c.influencerId}/campagnes/${c.id}`} className="font-bold underline">
+                  {c.name || `campagne n° ${c.seq}`}
+                </Link>
+              </span>
+            ))}
+            .
+          </span>
+        )}
+      </div>
     </Card>
   );
 }
