@@ -439,11 +439,16 @@ seule exception, et délibérément : une facture ou un rapport de laboratoire n
 média, et `media/` est servi publiquement — y copier une pièce comptable la publierait.
 
 Une règle qui ne vaudrait qu'à l'avenir obligerait à se souvenir de sa date pour savoir
-où chercher un fichier : un bouton de /admin/medias **rapatrie l'existant**
-(`backfillDeliverableMediaAction`). Idempotent sur `mediaId`, et **par lots de 25** — une
-action serveur ne tient pas trois cents copies de vidéos dans le temps qu'on lui laisse,
-et un rapatriement à moitié fait qui échouerait en bloc n'aurait rien rapatrié. Le
-bandeau ne paraît que s'il reste quelque chose à prendre.
+où chercher un fichier. L'existant est donc **rapatrié tout seul** : /admin/medias lance
+le rattrapage en s'ouvrant (`MediaBackfill` → `runMediaBackfillAction`), et il n'y a rien
+à cliquer — ce n'était pas un geste à demander, mais une dette laissée par le changement
+de règle. Idempotent sur `mediaId`, et **par lots de 25** : une action serveur ne tient
+pas trois cents copies de vidéos dans le temps qu'on lui laisse, et un rapatriement à
+moitié fait qui échouerait en bloc n'aurait rien rapatrié. L'action rend des **nombres**
+et non une phrase — c'est un appelant automatique qui la pilote, et relire sa propre
+prose pour savoir s'il faut continuer serait un piège —, et le bandeau disparaît quand
+il ne reste rien à prendre. Un tour qui n'avance plus arrête la boucle : un format que la
+médiathèque refuse ne passera jamais, et y revenir ferait tourner la page pour rien.
 
 Un dossier est un **libellé**, jamais un chemin : le fichier reste sous `media/<id>/`, et
 ranger un écran ne doit pas casser l'adresse d'une image déjà publiée. Les dossiers se

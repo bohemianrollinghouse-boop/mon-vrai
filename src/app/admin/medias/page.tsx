@@ -2,7 +2,8 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { AutoSubmitSelect } from "@/components/admin/AutoSubmitSelect";
 import { Card, Field, FilterPills, Input, PageHeader } from "@/components/admin/ui";
 import { deleteMediaAction, setMediaFolderAction, updateMediaAltAction, uploadMediaAction } from "@/lib/admin/actions/media";
-import { backfillDeliverableMediaAction } from "@/lib/admin/actions/media-backfill";
+import { runMediaBackfillAction } from "@/lib/admin/actions/media-backfill";
+import { MediaBackfill } from "@/components/admin/MediaBackfill";
 import { listAllDeliverables } from "@/lib/db/deliverables";
 import { listMedia, mediaFolders } from "@/lib/db/media";
 
@@ -33,31 +34,8 @@ export default async function MediaPage({ searchParams }: PageProps<"/admin/medi
     <>
       <PageHeader title="Médias" subtitle={`${all.length} fichiers. Copiez l'URL d'une image pour l'utiliser dans un contenu.`} />
 
-      {/*
-        Le passé mis au niveau du présent. Une règle qui ne vaudrait qu'à l'avenir
-        obligerait à se souvenir de sa date pour savoir où chercher un fichier.
-      */}
-      {pending > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-card bg-tint-blue px-6 py-5 text-tint-blue-ink">
-          <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-[0.8125rem] font-extrabold text-ink">
-              {pending} contenu{pending > 1 ? "s" : ""} de campagne {pending > 1 ? "ne sont" : "n'est"} pas encore ici
-            </span>
-            <span className="text-[0.6875rem] leading-relaxed">
-              Déposé{pending > 1 ? "s" : ""} par vos partenaires avant que le versement ne devienne automatique.
-              Rapatriez-les dans leur dossier — par lots de 25, on peut recliquer autant de fois qu'il faut.
-            </span>
-          </span>
-          <ActionForm
-            action={backfillDeliverableMediaAction}
-            submitLabel="Rapatrier"
-            submitTone="secondary"
-            className="!gap-0 [&>div:last-child]:justify-start"
-          >
-            <input type="hidden" name="go" value="1" />
-          </ActionForm>
-        </div>
-      )}
+      {/* Le rattrapage tourne tout seul : ce n'est pas un geste à demander. */}
+      <MediaBackfill pending={pending} run={runMediaBackfillAction} />
 
       {folders.length > 0 && (
         <FilterPills
