@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Tile } from "@/components/admin/ui";
+import { MediaChoice } from "@/components/admin/MediaChoice";
 import { saveGuideAction } from "@/lib/admin/actions/guide";
 import { listMedia } from "@/lib/db/media";
 import { getSettings } from "@/lib/db/settings";
@@ -88,7 +89,9 @@ export default async function GuideSettingsPage() {
         </Card>
 
         <Card title="Photo d'ouverture">
-          <MediaField name="hero" label="En haut du guide" hint="Une scène large, lumière naturelle, fond simple." options={images} value={guide.hero} />
+          <Field label="En haut du guide" hint="Une scène large, lumière naturelle, fond simple." name="hero">
+            <MediaChoice name="hero" options={images} value={guide.hero} kind="image" />
+          </Field>
         </Card>
 
         <Card title="Pour s'inspirer">
@@ -124,28 +127,12 @@ export default async function GuideSettingsPage() {
                   <span className="text-[0.8125rem] font-extrabold">{slot.title}</span>
                   <span className="text-[0.6875rem] leading-relaxed text-subtle">{slot.caption}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2.5 max-[749px]:grid-cols-1">
-                  <Field label="Vidéo" name={`videos.${slot.key}.url`}>
-                    <Select name={`videos.${slot.key}.url`} defaultValue={current?.url ?? ""}>
-                      <option value="">Aucune — « Vidéo à venir »</option>
-                      {videos.map((m) => (
-                        <option key={m.id} value={m.url}>
-                          {label(m)}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Image d'attente" hint="Facultative." name={`videos.${slot.key}.poster`}>
-                    <Select name={`videos.${slot.key}.poster`} defaultValue={current?.poster ?? ""}>
-                      <option value="">Aucune</option>
-                      {images.map((m) => (
-                        <option key={m.id} value={m.url}>
-                          {label(m)}
-                        </option>
-                      ))}
-                    </Select>
-                  </Field>
-                </div>
+                <Field label="Vidéo" name={`videos.${slot.key}.url`}>
+                  <MediaChoice name={`videos.${slot.key}.url`} options={videos} value={current?.url ?? ""} kind="video" emptyLabel="À venir" />
+                </Field>
+                <Field label="Image d'attente" hint="Facultative : elle s'affiche avant qu'on lance la vidéo." name={`videos.${slot.key}.poster`}>
+                  <MediaChoice name={`videos.${slot.key}.poster`} options={images} value={current?.poster ?? ""} kind="image" />
+                </Field>
               </div>
             );
           })}
@@ -162,27 +149,6 @@ export default async function GuideSettingsPage() {
   );
 }
 
-/** « Photo d'un livre.jpg · 1200×800 » : de quoi reconnaître un média dans une liste. */
-const label = (m: Media): string => {
-  const name = m.path.split("/").pop() ?? m.id;
-  return m.alt ? `${m.alt} — ${name}` : name;
-};
-
-function MediaField({ name, label: text, hint, options, value }: { name: string; label: string; hint?: string; options: Media[]; value: string }) {
-  return (
-    <Field label={text} hint={hint} name={name}>
-      <Select name={name} defaultValue={value}>
-        <option value="">Aucune</option>
-        {options.map((m) => (
-          <option key={m.id} value={m.url}>
-            {label(m)}
-          </option>
-        ))}
-      </Select>
-    </Field>
-  );
-}
-
 /** Un emplacement de photo : ce qu'il illustre, sa légende, et l'image qu'on y pose. */
 function SlotField({ prefix, slot, options, value }: { prefix: string; slot: Slot; options: Media[]; value: string }) {
   return (
@@ -191,14 +157,7 @@ function SlotField({ prefix, slot, options, value }: { prefix: string; slot: Slo
         <span className="text-[0.8125rem] font-extrabold">{slot.title || slot.hint}</span>
         <span className="text-[0.6875rem] leading-relaxed text-subtle">{slot.caption}</span>
       </div>
-      <Select name={`${prefix}.${slot.key}`} defaultValue={value}>
-        <option value="">Aucune — l&apos;emplacement s&apos;affiche en attente</option>
-        {options.map((m) => (
-          <option key={m.id} value={m.url}>
-            {label(m)}
-          </option>
-        ))}
-      </Select>
+      <MediaChoice name={`${prefix}.${slot.key}`} options={options} value={value} kind="image" emptyLabel="En attente" />
     </div>
   );
 }

@@ -557,6 +557,15 @@ emplacement est ignorée, et une adresse qui n'est plus dans la médiathèque es
 **se dit** (« Vidéo à venir », le sujet attendu) plutôt que de casser la mise en page :
 le guide se lit dès le premier jour.
 
+On choisit un média **en le voyant** (`components/admin/MediaChoice`) : une liste
+déroulante de noms de fichiers ne dit rien, et « IMG_7363.jpeg » se choisit à l'aveugle.
+Des vignettes en rangée, donc, et sans JavaScript — ce sont des boutons radio masqués,
+l'état est tenu par le navigateur (`has-[:checked]`) et le formulaire reste un
+formulaire. Les vidéos n'ont pas de miniature en base : on demande au navigateur la
+seule chose qu'il sache donner sans tout télécharger — les métadonnées et l'image à un
+dixième de seconde (`#t=0.1`). Le média choisi passe en tête de la rangée : on doit
+toujours voir ce qui est posé, même si c'est une vieille photo.
+
 Deux réglages changent le texte sans le réécrire : la **durée minimale d'un plan**, citée
 par la première carte des rushes, et **l'enfant à l'image** — trois phrases écrites, une
 seule paraît. `saveGuideAction` ne touche que `settings.guide`, comme /admin/reglages et
