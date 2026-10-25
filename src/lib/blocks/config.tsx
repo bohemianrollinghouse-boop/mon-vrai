@@ -1,7 +1,7 @@
 import Image from "next/image";
 import type { CSSProperties } from "react";
 import type { Config, RichText, Slot } from "@puckeditor/core";
-import { MediaPickerField } from "@/components/admin/MediaPickerField";
+import { MediaPickerField, type MediaKind } from "@/components/admin/MediaPickerField";
 import { CollectionOfferButton } from "@/components/site/CollectionOfferButton";
 import { ContactForm } from "@/components/site/ContactForm";
 import { CenteredProse, Chapter, Contents, DarkPanel, EditorialPanel, Figures, Timeline, TintBanner, type Emphasis, type Layout } from "@/components/site/editorial";
@@ -89,15 +89,24 @@ const EMPHASIS_OPTIONS = [
   { label: "Citation (filet vert)", value: "citation" },
 ];
 
-/** Champ image : ouvre la médiathèque plutôt que de réclamer une URL au clavier. */
-const imageField = (label: string) =>
+/*
+ * Champ média : ouvre la médiathèque plutôt que de réclamer une URL au clavier.
+ *
+ * La NATURE cherchée se déclare, et le sélecteur s'y tient. Un champ « Vidéo de fond »
+ * qui ne listait que des photos ne gênait pas : il fermait la porte — la vidéo du héro
+ * d'accueil ne pouvait plus se changer du tout depuis l'éditeur.
+ */
+const mediaField = (label: string, kind: MediaKind) =>
   ({
     type: "custom" as const,
     label,
     render: ({ value, onChange, readOnly }: { value: ImageRef | undefined; onChange: (v: ImageRef | undefined) => void; readOnly?: boolean }) => (
-      <MediaPickerField value={value} onChange={onChange} readOnly={readOnly} />
+      <MediaPickerField value={value} onChange={onChange} readOnly={readOnly} kind={kind} />
     ),
   });
+
+const imageField = (label: string) => mediaField(label, "image");
+const videoField = (label: string) => mediaField(label, "video");
 
 /*
  * Contenu d'une colonne : flux normal (voir la racine), et le `site-wrap` des blocs
@@ -215,7 +224,7 @@ export const blockConfig: Config<Props> = {
         badge: { type: "text", label: "Badge" },
         titre: { type: "text", label: "Titre" },
         texte: { type: "textarea", label: "Texte" },
-        video: imageField("Vidéo de fond"),
+        video: videoField("Vidéo de fond"),
         affiche: imageField("Image de repli"),
         ctaLabel: { type: "text", label: "Bouton principal — libellé" },
         ctaHref: { type: "text", label: "Bouton principal — lien" },

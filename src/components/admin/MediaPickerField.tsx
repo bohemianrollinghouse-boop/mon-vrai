@@ -22,14 +22,68 @@ import type { ImageRef } from "@/lib/domain/types";
 type Value = ImageRef | undefined;
 
 /*
+ * Ce que le champ cherche : une image, ou une vidéo.
+ *
+ * Un champ « Vidéo de fond » qui ne proposait que des photos n'était pas un manque de
+ * confort : c'était une impasse — la vidéo du héro d'accueil ne pouvait pas se changer
+ * depuis l'éditeur, alors que c'est précisément ce que le champ annonce. La nature
+ * cherchée se déclare donc, et elle commande tout ce qui en dépend : ce qu'on liste, ce
+ * qu'on accepte à l'envoi, et la façon d'en montrer une vignette.
+ */
+export type MediaKind = "image" | "video";
+
+/*
  * Formats réellement acceptés par la médiathèque (voir ALLOWED dans db/media.ts). On
  * ne met pas `image/*` : la photothèque d'un iPhone proposerait alors des HEIC, que le
  * serveur refuse ensuite — mieux vaut ne pas les laisser choisir.
+ *
+ * `video/quicktime` est de la partie pour la même raison qu'il l'est dans la
+ * médiathèque : un `.mov` d'iPhone contient presque toujours de l'H.264, et il est
+ * rebaptisé en entrant (domain/media-compat.ts) plutôt que transcodé.
  */
-const ACCEPTED = ["image/jpeg", "image/png", "image/webp", "image/avif"];
-const ACCEPT = ACCEPTED.join(",");
+const ACCEPTED: Record<MediaKind, string[]> = {
+  image: ["image/jpeg", "image/png", "image/webp", "image/avif"],
+  video: ["video/mp4", "video/webm", "video/quicktime", "video/x-m4v"],
+};
 
-export function MediaPickerField({ value, onChange, readOnly }: { value: Value; onChange: (v: Value) => void; readOnly?: boolean }) {
+const WORDS: Record<MediaKind, { one: string; many: string; choose: string; send: string; refused: string; formats: string; none: string }> = {
+  image: {
+    one: "image",
+    many: "images",
+    choose: "Choisir ou importer une image…",
+    send: "Importer une image",
+    refused: "Format non accepté : envoyez du JPG, PNG, WebP ou AVIF.",
+    formats: "JPG, PNG, WebP ou AVIF, 40 Mo maximum. Les fichiers envoyés rejoignent la médiathèque.",
+    none: "Aucune image. Importez-en ci-dessus, ou déposez un fichier ici.",
+  },
+  video: {
+    one: "vidéo",
+    many: "vidéos",
+    choose: "Choisir ou importer une vidéo…",
+    send: "Importer une vidéo",
+    refused: "Format non accepté : envoyez du MP4, WebM ou MOV.",
+    formats: "MP4, WebM ou MOV, 40 Mo maximum. Une vidéo lourde passe mieux par /admin/medias.",
+    none: "Aucune vidéo dans la médiathèque. Importez-en ci-dessus, ou déposez un fichier ici.",
+  },
+};
+
+/*
+ * La vignette d'un média, quelle que soit sa nature.
+ *
+ * Une vidéo n'a pas de miniature en base : on demande au navigateur la seule chose
+ * qu'il sache donner sans tout télécharger — les métadonnées et l'image à un dixième de
+ * seconde (`#t=0.1`). C'est déjà ce que fait le sélecteur du guide
+ * (components/admin/MediaChoice), et pour la même raison.
+ */
+function Vignette({ src, kind, alt = "", className = "" }: { src: string; kind: MediaKind; alt?: string; className?: string }) {
+  if (kind === "video") {
+    return <video src={`${src}#t=0.1`} muted playsInline preload="metadata" className={`bg-ink object-cover ${className}`} />;
+  }
+  // eslint-disable-next-line @next/next/no-img-element -- vignette admin
+  return <img src={src} alt={alt} loading="lazy" className={`object-cover ${className}`} />;
+}
+
+export function MediaPickerField({ value, onChange, readOnly, kind = "image" }: { value: Value; onChange: (v: Value) => void; readOnly?: boolean; kind?: MediaKind }) {
   const { media, add } = useMediaLibrary();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -38,18 +92,22 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
   const [dragging, setDragging] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const images = useMemo(() => media.filter((m) => m.mime.startsWith("image/")), [media]);
+  const words = WORDS[kind];
+  const accepted = ACCEPTED[kind];
+  const accept = accepted.join(",");
+
+  const candidates = useMemo(() => media.filter((m) => m.mime.startsWith(`${kind}/`)), [media, kind]);
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return images;
-    return images.filter((m) => m.path.toLowerCase().includes(q) || m.alt.toLowerCase().includes(q));
-  }, [images, query]);
+    if (!q) return candidates;
+    return candidates.filter((m) => m.path.toLowerCase().includes(q) || m.alt.toLowerCase().includes(q));
+  }, [candidates, query]);
 
   async function upload(files: FileList | File[] | null) {
     const all = Array.from(files ?? []);
-    const chosen = all.filter((f) => ACCEPTED.includes(f.type));
+    const chosen = all.filter((f) => accepted.includes(f.type));
     if (chosen.length === 0) {
-      setError(all.length ? "Format non accepté : envoyez du JPG, PNG, WebP ou AVIF." : "Aucun fichier à envoyer.");
+      setError(all.length ? words.refused : "Aucun fichier à envoyer.");
       return;
     }
     setBusy(true);
@@ -66,7 +124,7 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
     add(result.media);
     /* Un fichier refusé sur plusieurs : on garde la fenêtre ouverte pour le dire. */
     if (result.error) setError(result.error);
-    /* Le premier envoi devient la photo du bloc : c'est ce qu'on venait faire. */
+    /* Le premier envoi devient le média du bloc : c'est ce qu'on venait faire. */
     const first = result.media[0];
     if (first) {
       onChange({ url: first.url, alt: value?.alt || first.alt, width: first.width, height: first.height });
@@ -80,21 +138,27 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
     void upload(e.dataTransfer.files);
   }
 
-  if (readOnly) return <div className="text-xs text-subtle">{value?.url ? "Image définie" : "Aucune image"}</div>;
+  if (readOnly) {
+    return <div className="text-xs text-subtle">{value?.url ? `${kind === "video" ? "Vidéo" : "Image"} définie` : `Aucune ${words.one}`}</div>;
+  }
 
   return (
     <div className="flex flex-col gap-2">
       {value?.url ? (
         <div className="flex items-start gap-3 rounded-[12px] bg-paper p-2">
-          {/* eslint-disable-next-line @next/next/no-img-element -- vignette admin */}
-          <img src={value.url} alt="" className="h-16 w-16 shrink-0 rounded-[8px] object-cover" />
+          <Vignette src={value.url} kind={kind} className="h-16 w-16 shrink-0 rounded-[8px]" />
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-            <input
-              value={value.alt}
-              onChange={(e) => onChange({ ...value, alt: e.target.value })}
-              placeholder="Texte alternatif"
-              className="w-full rounded-[8px] border border-line bg-surface px-2 py-1.5 text-xs"
-            />
+            {/* Une vidéo de fond n'est pas décrite : le héro ne rend aucun texte de
+                remplacement pour elle, et proposer un champ qui ne sert à rien
+                reviendrait à promettre qu'il sert. */}
+            {kind === "image" && (
+              <input
+                value={value.alt}
+                onChange={(e) => onChange({ ...value, alt: e.target.value })}
+                placeholder="Texte alternatif"
+                className="w-full rounded-[8px] border border-line bg-surface px-2 py-1.5 text-xs"
+              />
+            )}
             <div className="flex gap-2">
               <button type="button" onClick={() => setOpen(true)} className="text-[0.6875rem] font-bold underline">
                 Changer
@@ -107,7 +171,7 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
         </div>
       ) : (
         <button type="button" onClick={() => setOpen(true)} className="rounded-[12px] border border-dashed border-line bg-paper px-3 py-6 text-xs font-bold text-subtle hover:opacity-70">
-          Choisir ou importer une image…
+          {words.choose}
         </button>
       )}
 
@@ -124,7 +188,7 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
             onDrop={onDrop}
           >
             <div className="flex items-center justify-between gap-3">
-              <strong className="text-sm">Médiathèque · {shown.length} image{shown.length > 1 ? "s" : ""}</strong>
+              <strong className="text-sm">Médiathèque · {shown.length} {shown.length > 1 ? words.many : words.one}</strong>
               <button type="button" onClick={() => setOpen(false)} className="text-xs font-bold underline">
                 Fermer
               </button>
@@ -140,7 +204,7 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
               <input
                 ref={fileInput}
                 type="file"
-                accept={ACCEPT}
+                accept={accept}
                 multiple
                 className="sr-only"
                 onChange={(e) => {
@@ -154,7 +218,7 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
                 onClick={() => fileInput.current?.click()}
                 className="rounded-[10px] bg-ink px-3.5 py-2 text-xs font-bold text-on-ink hover:opacity-80 disabled:opacity-50"
               >
-                {busy ? "Envoi…" : "Importer une image"}
+                {busy ? "Envoi…" : words.send}
               </button>
             </div>
 
@@ -162,9 +226,7 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
             {dragging && <p className="text-xs font-semibold text-subtle">Déposez les fichiers pour les envoyer.</p>}
 
             {shown.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted">
-                Aucune image. Importez-en ci-dessus, ou déposez un fichier ici.
-              </p>
+              <p className="py-8 text-center text-sm text-muted">{words.none}</p>
             ) : (
               /*
                 `min-h-0` et `flex-1` : sans eux, un enfant de colonne flex ne descend
@@ -185,16 +247,13 @@ export function MediaPickerField({ value, onChange, readOnly }: { value: Value; 
                     }}
                     className={`aspect-square overflow-hidden rounded-[10px] bg-paper ring-offset-2 hover:opacity-80 ${value?.url === m.url ? "ring-2 ring-ink" : ""}`}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element -- vignette admin */}
-                    <img src={m.url} alt={m.alt} loading="lazy" className="h-full w-full object-cover" />
+                    <Vignette src={m.url} kind={kind} alt={m.alt} className="h-full w-full" />
                   </button>
                 ))}
               </div>
             )}
 
-            <p className="text-[0.6875rem] text-subtle">
-              JPG, PNG, WebP ou AVIF, 40 Mo maximum. Les fichiers envoyés rejoignent la médiathèque.
-            </p>
+            <p className="text-[0.6875rem] text-subtle">{words.formats}</p>
           </div>
         </div>
       )}
