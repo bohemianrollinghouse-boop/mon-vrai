@@ -19,8 +19,21 @@ import { IG_STATE_COOKIE, exchangeCode, fetchProfile, instagramRedirectUri, subs
 
 export const dynamic = "force-dynamic";
 
+/*
+ * Le retour vers l'admin.
+ *
+ * L'adresse publique vient des RÉGLAGES et non de `request.url`. Derrière Cloud Run,
+ * le serveur ne voit pas l'adresse que le navigateur a demandée : il voit celle du
+ * conteneur, `https://0.0.0.0:8080`. Une redirection bâtie dessus renvoie donc le
+ * visiteur sur une adresse qui n'existe nulle part — la connexion avait réussi, mais
+ * le navigateur affichait une erreur, ce qui se lit comme un échec.
+ *
+ * `request.url` reste le repli, pour que la route fonctionne en local où la variable
+ * peut manquer.
+ */
 const back = (request: Request, params: Record<string, string>) => {
-  const url = new URL("/admin/instagram", request.url);
+  const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") || request.url;
+  const url = new URL("/admin/instagram", base);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
   return NextResponse.redirect(url);
 };
