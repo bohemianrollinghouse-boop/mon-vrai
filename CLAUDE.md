@@ -495,6 +495,22 @@ figée (`bodySnapshot`, `summarySnapshot`) et la version identifie ce qui a ét�
 Changer ce qu'un contrat réclame veut donc dire créer une **version**, pas corriger la
 précédente.
 
+Un contrat porte une **annexe** : le document que le créateur emporte en signant — kit
+de création de contenu, brief visuel. C'est une pièce de la bibliothèque
+(`Contract.guideDocumentId`), choisie par son identifiant et jamais par une URL, comme
+tout ce qui est privé. Elle est jointe au CONTRAT et non à la campagne : c'est lui qui
+la cite en annexe, et une poignée de contrats sert à toutes les collaborations.
+
+C'est la **seule pièce de `documents/` qui sorte de l'administration**, et le droit de la
+lire se relit donc en base (`db/contract-guide.ts`, `/api/contrats/[id]/annexe`) :
+administrateur, ou partenaire à qui ce contrat est proposé ou qu'il a signé — pas tous
+les partenaires, et jamais sur la foi de l'identifiant dans l'adresse. Le formulaire de
+signature l'ouvre AVANT l'acceptation (une annexe promise pour plus tard ne vaut rien),
+et l'espace partenaire la retrouve ensuite. La signature retient `guideDocumentId` : ce
+qu'on a remis fait partie de ce qui a été accepté. Le lien sert en revanche le document
+joint AUJOURD'HUI, non une copie figée — un kit de conseils qu'on améliore doit profiter
+à ceux qui ont déjà signé.
+
 Restait qu'en pratique cela voulait dire retaper vingt articles pour changer deux
 chiffres — ce que personne ne fait, et qui poussait à modifier l'original. D'où la
 **reprise** : `/admin/contrats?base=<id>` rouvre le même écran en mode création, tout

@@ -9,6 +9,7 @@ import { failed, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { deleteContract, getContract, listContracts, upsertContract } from "@/lib/db/contracts";
 import { publicationLines } from "@/lib/admin/publications";
+import { getDocument } from "@/lib/db/documents";
 import { newId } from "@/lib/db/helpers";
 import { CollaborationType } from "@/lib/domain/types";
 
@@ -32,6 +33,7 @@ const Input = z.object({
   expectedVideos: z.number().int().min(0).max(999).default(0),
   /** Parutions exigées, sérialisées en JSON par l'éditeur. */
   publications: z.string().default(""),
+  guideDocumentId: z.string().trim().max(60).default(""),
   active: z.boolean().default(true),
 });
 
@@ -75,6 +77,9 @@ export async function saveContractAction(formData: FormData): Promise<AdminResul
     body: d.body,
     expected: { photos: d.expectedPhotos, videos: d.expectedVideos },
     publications: publicationLines(d.publications, all.find((c) => c.id === d.id)?.publications ?? [], () => newId("pub")),
+    /* Relu en base : un identifiant posté qui ne désigne aucun document est écarté
+       plutôt qu'écrit — le contrat annoncerait sinon une annexe introuvable. */
+    guideDocumentId: d.guideDocumentId && (await getDocument(d.guideDocumentId).catch(() => null)) ? d.guideDocumentId : "",
     ...variablesFrom(formData),
     active: d.active,
   });

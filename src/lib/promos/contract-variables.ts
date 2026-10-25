@@ -126,6 +126,30 @@ export const VARIABLE_HELP: Record<string, VariableHelp> = {
   CONDITIONS_EXCLUSIVITE: { label: "Exclusivité", hint: "« Aucune », ou les conditions convenues.", example: "Aucune" },
   QUANTITE_UGC_CONVENUE: { label: "Quantité d'UGC convenue", hint: "S'il a été convenu un nombre précis de photos ou vidéos.", example: "Aucune quantité minimale convenue." },
   DROITS_SUPPLEMENTAIRES_INFLUENCE: { label: "Droits supplémentaires — partie Influence", hint: "Au-delà du repartage organique pendant 12 mois.", example: "Aucun droit supplémentaire accordé." },
+
+  /* ---------- Ce que les contenus doivent être, et par où ils arrivent ---------- */
+  BRIEF_VISUEL: { label: "Brief visuel annexé", hint: "Nom et date du PDF accepté avant l'envoi des livres. C'est lui qui fait foi sur la qualité attendue.", example: "Brief Mon Vrai — automne 2026 (PDF, 12 pages)" },
+  FORMATS_PHOTO: { label: "Formats des photos", hint: "Extension, définition minimale, orientation. Sans filigrane, c'est écrit dans le contrat.", example: "JPEG, 4000 px minimum sur le grand côté, vertical de préférence" },
+  FORMATS_VIDEO: { label: "Formats des vidéos", hint: "Extension, définition, cadence. Qualité d'origine, sans texte ni musique : c'est écrit dans le contrat.", example: "MP4 ou MOV, 1080 × 1920, 25 ou 30 images par seconde" },
+  DUREE_DES_RUSHS: { label: "Durée des rushs", hint: "Combien de temps doit durer chaque plan remis.", example: "10 secondes minimum par rush" },
+  MODE_DE_TRANSMISSION: { label: "Mode de transmission", hint: "Par où les fichiers arrivent.", example: "Dépôt dans l'espace partenaire monvrai.fr" },
+  DELAI_DE_VALIDATION: { label: "Délai de validation", hint: "Sous quel délai Mon Vrai dit si les contenus sont conformes au brief.", example: "10 jours ouvrés" },
+
+  /* ---------- Ce que la marque peut en faire ---------- */
+  SUPPORTS_AUTORISES: { label: "Supports autorisés", hint: "Où les contenus pourront paraître. Énumérez : ce qui n'est pas listé n'est pas cédé.", example: "Site monvrai.fr, comptes sociaux de la marque, infolettre, fiches produit des revendeurs" },
+  DUREE_DES_DROITS: { label: "Durée des droits", hint: "À compter de la remise. Une durée, jamais « illimitée ».", example: "24 mois à compter de la remise" },
+  TERRITOIRE_DES_DROITS: { label: "Territoire", hint: "Où les contenus pourront être diffusés.", example: "France et Union européenne" },
+  CREDIT_DU_CREATEUR: { label: "Crédit du créateur", hint: "Sous quelle forme il est cité, et sur quels supports.", example: "@pseudo, lorsque le support le permet" },
+  OPTION_SANS_VISAGE: { label: "Option sans visage", hint: "« Oui » : aucun visage reconnaissable dans les contenus, et aucune autorisation à produire.", example: "Non" },
+
+  /* ---------- Ce qui paraît chez le créateur (contrat influence) ---------- */
+  FORMAT_DE_LA_PUBLICATION: { label: "Format de la publication Instagram", hint: "Choisi et inscrit AVANT signature : photo, carrousel ou Reel.", example: "Reel" },
+  DATE_DE_LA_PUBLICATION: { label: "Date de la publication", hint: "Convenue avant signature.", example: "au plus tard le 30 novembre 2026" },
+  DATES_DES_PRISES_DE_PAROLE: { label: "Dates des quatre prises de parole", hint: "Quatre dates distinctes réparties sur deux mois, acceptées ensemble.", example: "12 nov., 26 nov., 10 déc., 23 déc. 2026" },
+  NOMBRE_ECRANS_PAR_PRISE_DE_PAROLE: { label: "Écrans par prise de parole", hint: "Une prise de parole n'est pas un écran : dites combien d'écrans elle compte au minimum.", example: "2 écrans minimum" },
+  DUREE_MAINTIEN_STORY_A_LA_UNE: { label: "Maintien de la story à la une", hint: "Combien de temps elle doit rester accessible sur le profil. Une durée, pas « si possible ».", example: "6 mois" },
+  DATE_LIMITE_STORY_A_LA_UNE: { label: "Date limite d'ajout à la une", hint: "Au plus tard quand la story à la une doit être en ligne.", example: "48 heures après la première prise de parole" },
+  DELAI_REMISE_FICHIERS: { label: "Délai de remise des fichiers", hint: "Après chaque publication ou prise de parole, sous quel délai les originaux et les rushs arrivent.", example: "7 jours" },
 };
 
 /** Le libellé d'une variable, ou son nom brut si elle n'est pas au dictionnaire. */

@@ -45,6 +45,12 @@ export type ContractOffer = {
   expected: ContentQuota;
   /* Les dates de la campagne : elles figurent au contrat et ne se saisissent pas. */
   campaign: { startAt: number; endAt?: number; expected?: ContentQuota };
+  /*
+   * L'annexe que le créateur emporte en signant — le kit de création de contenu. Le
+   * contrat la cite ; elle doit donc être lisible AVANT l'acceptation, et non promise
+   * pour plus tard. Absente quand le contrat n'en joint aucune.
+   */
+  guide?: { name: string; href: string };
 };
 
 const field =
@@ -459,13 +465,32 @@ export function KitOrderForm({
           {contract && (
             <Step n={2} title="Le contrat" className={only(2)} numbered aside={`${contract.typeLabel} · ${contract.name} · version ${contract.version}`}>
               <div className="grid grid-cols-2 items-start gap-5 max-[899px]:grid-cols-1">
-                {summaryProse(filled.summary) && (
-                  <div className="flex flex-col gap-2 rounded-card bg-tint-green p-5 text-tint-green-ink">
-                    <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em]">En résumé</span>
-                    <ContractText text={summaryProse(filled.summary)} className="!text-tint-green-ink" />
-                    <span className="text-[0.6875rem]">Ce résumé ne remplace pas le contrat : vous le lirez en entier avant de l&apos;accepter.</span>
-                  </div>
-                )}
+                <div className="flex flex-col gap-3">
+                  {summaryProse(filled.summary) && (
+                    <div className="flex flex-col gap-2 rounded-card bg-tint-green p-5 text-tint-green-ink">
+                      <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em]">En résumé</span>
+                      <ContractText text={summaryProse(filled.summary)} className="!text-tint-green-ink" />
+                      <span className="text-[0.6875rem]">Ce résumé ne remplace pas le contrat : vous le lirez en entier avant de l&apos;accepter.</span>
+                    </div>
+                  )}
+
+                  {/* L'annexe citée par le contrat, lisible avant de l'accepter. */}
+                  {contract.guide && (
+                    <a
+                      href={contract.guide.href}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="flex items-center justify-between gap-3 rounded-card bg-tint-sand p-5 text-tint-sand-ink hover:opacity-80"
+                    >
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-[0.6875rem] font-bold uppercase tracking-[0.1em]">Annexe au contrat</span>
+                        <span className="truncate text-[0.8125rem] font-extrabold text-ink">{contract.guide.name}</span>
+                        <span className="text-[0.6875rem]">À lire avant d&apos;accepter : vous le retrouverez ensuite dans votre espace.</span>
+                      </span>
+                      <span className="shrink-0 rounded-pill bg-white px-4 py-2.5 text-xs font-bold text-ink">Ouvrir</span>
+                    </a>
+                  )}
+                </div>
 
                 <div className="flex flex-col gap-3.5">
                   <div className="flex flex-col gap-1">

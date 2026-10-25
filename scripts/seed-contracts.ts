@@ -102,7 +102,7 @@ async function main() {
     if (!APPLY) continue;
     /* La quantité attendue ne s'invente pas : elle se pose dans /admin/contrats, où
        elle vaudra pour toutes les campagnes du contrat. */
-    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: entry.variables, requiredVariables: [], expected: EMPTY_QUOTA, publications: [], active: true });
+    const saved = await upsertContract({ name: entry.name, type: entry.type, version: entry.version, summary, body, variables: entry.variables, requiredVariables: [], expected: EMPTY_QUOTA, publications: [], guideDocumentId: "", active: true });
     console.log(`  → ${saved.id}`);
   }
 

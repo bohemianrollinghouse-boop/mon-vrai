@@ -437,6 +437,22 @@ function ContractRow({ signature, name, current }: { signature: ContractSignatur
           {signature.id.slice(0, 11)}
         </span>
       </span>
+      {/*
+        L'annexe qu'on lui a remise en signant. Le lien sert le document joint AU
+        CONTRAT aujourd'hui, et non une copie figée : un kit de conseils qu'on améliore
+        doit profiter à ceux qui ont déjà signé. C'est la signature qui dit qu'il y en
+        avait une.
+      */}
+      {signature.guideDocumentId && (
+        <a
+          href={`/api/contrats/${signature.contractId}/annexe`}
+          target="_blank"
+          rel="noreferrer noopener"
+          className="shrink-0 whitespace-nowrap border-b-[1.5px] border-ink text-xs font-bold"
+        >
+          Annexe
+        </a>
+      )}
       <SignedContractView
         title={signature.contractName}
         version={signature.contractVersion}

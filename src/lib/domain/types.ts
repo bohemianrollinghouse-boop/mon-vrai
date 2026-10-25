@@ -1133,6 +1133,16 @@ export const Contract = z.object({
    * de publié — un contrat de gifting peut se contenter des fichiers.
    */
   publications: z.array(ContractPublication).max(40).default([]),
+  /*
+   * Le document que le créateur emporte en signant : le kit de création de contenu, le
+   * brief visuel. Un document de la bibliothèque (`documents`), choisi par son
+   * identifiant — jamais une URL, comme partout où un fichier est privé.
+   *
+   * Il est joint au CONTRAT et non à la campagne : c'est le contrat qui l'exige en
+   * annexe, et une poignée de contrats sert à toutes les collaborations. Vide : rien
+   * n'est joint, et le contrat n'annonce aucune annexe.
+   */
+  guideDocumentId: z.string().default(""),
   /** Retiré : plus attribuable à personne, mais les signatures passées subsistent. */
   active: z.boolean().default(true),
   createdAt: z.number(),
@@ -1188,6 +1198,12 @@ export const ContractSignature = z.object({
   contractName: z.string().default(""),
   contractType: CollaborationType,
   contractVersion: z.string().default(""),
+  /*
+   * Le document annexé au contrat au moment de la signature. Gardé ici comme le texte
+   * l'est : savoir ce qu'on a remis fait partie de ce qui a été accepté, et détacher
+   * l'annexe du contrat plus tard ne doit pas effacer qu'elle avait été donnée.
+   */
+  guideDocumentId: z.string().default(""),
 
   firstName: z.string().min(1).max(80),
   lastName: z.string().min(1).max(80),

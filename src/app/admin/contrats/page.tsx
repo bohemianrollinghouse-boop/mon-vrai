@@ -5,6 +5,7 @@ import { suggestPublications } from "@/lib/admin/publications";
 import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
 import { deleteContractAction, saveContractAction } from "@/lib/admin/actions/contracts";
 import { listContracts } from "@/lib/db/contracts";
+import { listDocuments } from "@/lib/db/documents";
 import { listAllCampaigns } from "@/lib/db/campaigns";
 import { CollaborationType, COLLABORATION_LABELS, type Contract } from "@/lib/domain/types";
 import { nextVersion } from "@/lib/admin/contract-version";
@@ -33,7 +34,9 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
   const sp = await searchParams;
   const wanted = typeof sp.id === "string" ? sp.id : "";
   const wantedBase = typeof sp.base === "string" ? sp.base : "";
-  const [contracts, campaigns] = await Promise.all([listContracts(), listAllCampaigns()]);
+  const [contracts, campaigns, documents] = await Promise.all([listContracts(), listAllCampaigns(), listDocuments().catch(() => [])]);
+  /* Ce qu'un créateur peut ouvrir sans rien installer : un PDF, une image. */
+  const guides = documents.filter((d) => d.mime === "application/pdf" || d.mime.startsWith("image/"));
   const isNew = wanted === "nouveau";
   /* Le contrat dont on repart : son contenu remplit le formulaire, son identifiant non. */
   const base = wantedBase ? contracts.find((c) => c.id === wantedBase) ?? null : null;
@@ -160,6 +163,40 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                     <Input name="expectedVideos" type="number" min={0} max={999} defaultValue={form ? form.expected.videos : 0} />
                   </Field>
                 </div>
+              </div>
+
+              {/* ---------- Ce qu'on lui remet avec le contrat ---------- */}
+              {/*
+                L'annexe citée par le contrat : le kit de création de contenu, le brief
+                visuel. Elle vit dans la bibliothèque de documents, qui est fermée — la
+                route /api/contrats/[id]/annexe est la seule à l'ouvrir, et seulement au
+                créateur à qui ce contrat est proposé ou qui l'a signé.
+              */}
+              <div className="flex flex-col gap-3 rounded-card bg-paper p-5">
+                <span className="text-xs font-semibold text-subtle">Annexe remise au créateur</span>
+                <p className="-mt-1 text-[0.6875rem] leading-relaxed text-subtle">
+                  Le document qu&apos;il peut ouvrir au moment de signer, et retrouver ensuite dans son espace. Déposez-le
+                  d&apos;abord dans{" "}
+                  <Link href="/admin/documents" className="font-bold underline">
+                    Documents
+                  </Link>
+                  , puis choisissez-le ici.
+                </p>
+                <Field label="Document joint" hint="Aucun : le contrat ne cite aucune annexe." name="guideDocumentId">
+                  <Select name="guideDocumentId" defaultValue={form ? form.guideDocumentId : ""}>
+                    <option value="">Aucune annexe</option>
+                    {guides.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.title} — {d.filename}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                {guides.length === 0 && (
+                  <span className="text-[0.6875rem] text-subtle">
+                    Aucun PDF ni image dans la bibliothèque pour l&apos;instant.
+                  </span>
+                )}
               </div>
 
               {/* ---------- Ce qui doit PARAÎTRE ---------- */}

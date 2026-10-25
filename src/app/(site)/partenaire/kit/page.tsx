@@ -16,6 +16,7 @@ import { getContract } from "@/lib/db/contracts";
 import { COLLABORATION_LABELS } from "@/lib/domain/types";
 
 import type { ContractOffer } from "@/components/site/KitOrderForm";
+import { contractGuide } from "@/lib/db/contract-guide";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Commander mon kit" };
@@ -73,6 +74,7 @@ export default async function PartnerKitPage() {
    * qu'il sera figé dans la signature.
    */
   const contract = !campaign || campaign.signatureId ? null : await getContract(campaign.contractId);
+  const guide = contract ? await contractGuide(contract.id).catch(() => null) : null;
   const view: ContractOffer | undefined = contract
     ? {
         id: contract.id,
@@ -87,6 +89,8 @@ export default async function PartnerKitPage() {
         requiredVariables: contract.requiredVariables,
         expected: contract.expected,
         campaign: { startAt: campaign!.startAt ?? campaign!.createdAt, endAt: campaign!.endAt, expected: campaign!.expected },
+        /* L'annexe, servie par une route qui relit le droit de la lire en base. */
+        guide: guide ? { name: guide.title, href: `/api/contrats/${contract.id}/annexe` } : undefined,
       }
     : undefined;
 
