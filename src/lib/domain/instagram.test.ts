@@ -40,10 +40,24 @@ describe("hasKeyword", () => {
     expect(hasKeyword("trop beau, le livré 😍", "livre")).toBe(true);
   });
 
-  it("ne se déclenche pas sur un morceau de mot", () => {
+  it("ne se déclenche pas au milieu d'un autre mot", () => {
     /* C'est le piège : « livre » dans « délivrer » enverrait un lien à qui n'a rien demandé. */
     expect(hasKeyword("il faut délivrer le colis", "livre")).toBe(false);
-    expect(hasKeyword("un style livresque", "livre")).toBe(false);
+    expect(hasKeyword("on a sous-estimé", "test")).toBe(false);
+  });
+
+  it("reconnaît le pluriel et les accords, qui sont le cas courant", () => {
+    /*
+     * Le défaut qui a coûté le premier essai en vrai : « test » ne reconnaissait pas
+     * « Teste », et « livre » n'aurait jamais reconnu « les livres ».
+     */
+    expect(hasKeyword("j'adore vos livres !", "livre")).toBe(true);
+    expect(hasKeyword("Teste", "test")).toBe(true);
+    expect(hasKeyword("je commande les imagiers", "imagier")).toBe(true);
+  });
+
+  it("accepte en retour d'attraper un mot plus long — le prix de la règle", () => {
+    expect(hasKeyword("un style livresque", "livre")).toBe(true);
   });
 
   it("accepte un emoji comme mot-clé", () => {

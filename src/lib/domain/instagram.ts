@@ -176,19 +176,29 @@ export function normalise(text: string): string {
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /*
- * Le mot-clé est cherché comme un MOT, pas comme une suite de lettres : « livre » ne
- * doit pas se déclencher sur « délivrer » ni sur « livresque ». D'où les deux
- * sentinelles, qui exigent autre chose qu'une lettre ou un chiffre de part et d'autre.
+ * Le mot-clé est cherché au DÉBUT d'un mot, et la fin du mot est libre.
  *
- * Elles laissent passer les emoji sans rien de spécial à écrire : un cœur n'est ni
- * lettre ni chiffre, donc « ❤️ » posé comme mot-clé se reconnaît au milieu d'une
- * phrase comme en rafale. Et un mot-clé en plusieurs mots (« je veux ») marche aussi,
- * puisqu'on compare du texte déjà resserré.
+ * La sentinelle de gauche reste : « livre » ne doit pas se déclencher sur « délivrer »,
+ * où les lettres ne font que passer au milieu d'un autre mot. C'est elle qui distingue
+ * un mot-clé d'une suite de lettres.
+ *
+ * Il n'y en a pas à droite, et c'est délibéré : avec elle, « livre » ne reconnaissait
+ * pas « les livres ». Au pluriel — c'est-à-dire dans la moitié des commentaires. Le
+ * français accorde et conjugue ; exiger le mot exact revenait à demander aux gens
+ * d'écrire au singulier, ce qu'ils ne feront jamais.
+ *
+ * Le prix est assumé : « livre » reconnaît aussi « livresque », et « test »
+ * reconnaît « testament ». C'est rare, ça ne coûte qu'une réponse de trop, et
+ * l'inverse faisait manquer tous les pluriels.
+ *
+ * Les emoji passent sans rien d'écrit en plus : un cœur n'est ni lettre ni chiffre,
+ * donc la sentinelle de gauche le laisse toujours entrer. Et un mot-clé en plusieurs
+ * mots (« je veux ») marche aussi, puisqu'on compare du texte déjà resserré.
  */
 export function hasKeyword(text: string, keyword: string): boolean {
   const needle = normalise(keyword);
   if (!needle) return false;
-  return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(needle)}(?![\\p{L}\\p{N}])`, "u").test(normalise(text));
+  return new RegExp(`(?<![\\p{L}\\p{N}])${escapeRe(needle)}`, "u").test(normalise(text));
 }
 
 /** Un seul mot-clé suffit : la liste est un OU, jamais un ET. */

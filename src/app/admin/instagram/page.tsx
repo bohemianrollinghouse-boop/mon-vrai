@@ -338,7 +338,7 @@ function RuleRow({ index, rule, posts }: { index: number; rule: IgRule | null; p
 
         <Field
           label="Mots-clés"
-          hint="Séparés par des virgules. Vides = la règle prend tout. Les accents et la casse n'ont pas d'importance, les emoji fonctionnent."
+          hint="Séparés par des virgules. Vides = la règle prend tout. Le début du mot suffit — « livre » reconnaît aussi « livres ». Accents, majuscules et emoji sans importance."
           name={`${base}.keywords`}
         >
           <Input name={`${base}.keywords`} maxLength={600} defaultValue={rule?.keywords.join(", ") ?? ""} placeholder="un mot, un autre" />
