@@ -1,3 +1,8 @@
+/* Le nettoyage d'un nom de fichier est le même ici que pour les contenus de
+   partenaires, et il n'y a pas deux façons de le faire : on reprend celui qui est
+   écrit et testé là-bas plutôt que d'en tenir une seconde version. */
+import { safeFileName } from "./deliverables";
+
 /* Ce que la bibliothèque accepte : les pièces arrivent en PDF neuf fois sur dix, en
    photo le reste du temps, parfois en tableur ou en archive. */
 export const ALLOWED_DOC_MIMES = new Set([
@@ -48,3 +53,15 @@ export function documentMime(filename: string, declared: string): string {
   if (ALLOWED_DOC_MIMES.has(declared)) return declared;
   return EXT_MIME[filename.toLowerCase().split(".").pop() ?? ""] ?? declared;
 }
+
+/* Ce que le plafond du coffre accepte. Répété dans storage.rules, seul endroit capable
+   de le faire respecter AVANT l'envoi — et dans le navigateur, pour le dire avant. */
+export const MAX_DOC_BYTES = 40 * 1024 * 1024;
+
+/*
+ * Le chemin se CALCULE des deux côtés : le navigateur y dépose, le serveur l'y relit
+ * pour inscrire la pièce. Rien du client n'est donc cru sur parole — un chemin posté à
+ * la main ne désignerait qu'un objet recalculé, qui n'existe pas. Même règle que pour
+ * les contenus de partenaires (domain/deliverables.contentPath).
+ */
+export const documentPath = (id: string, filename: string) => `documents/${id}/${safeFileName(filename)}`;

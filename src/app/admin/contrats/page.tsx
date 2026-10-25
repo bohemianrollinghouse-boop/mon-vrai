@@ -4,8 +4,7 @@ import { PublicationsEditor } from "@/components/admin/PublicationsEditor";
 import { suggestPublications } from "@/lib/admin/publications";
 import { ButtonLink, Card, Field, Input, PageHeader, Pill, Select, Switch, Textarea } from "@/components/admin/ui";
 import { deleteContractAction, installContractDraftsAction, saveContractAction } from "@/lib/admin/actions/contracts";
-import { uploadDocumentAction } from "@/lib/admin/actions/documents";
-import { DocumentFileField } from "@/components/admin/DocumentFileField";
+import { DocumentDeposit } from "@/components/admin/DocumentDeposit";
 import { CONTRACT_DRAFTS } from "@/lib/contracts/drafts";
 import { listContracts } from "@/lib/db/contracts";
 import { listDocuments } from "@/lib/db/documents";
@@ -296,10 +295,14 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
             aside={<span className="text-xs font-bold text-subtle">PDF, photo — 40 Mo max</span>}
             className="!gap-2"
           >
-            <ActionForm action={uploadDocumentAction} submitLabel="Déposer dans la bibliothèque" submitTone="secondary">
-              <Field label="Fichier" hint="Le kit de création de contenu, le brief visuel." name="file">
-                <DocumentFileField accept="application/pdf,image/*,.pdf" />
-              </Field>
+            {/* Le fichier va droit au coffre privé, sans traverser le serveur : voir
+                DocumentDeposit, et la carte de dépôt de /admin/documents. */}
+            <DocumentDeposit
+              accept="application/pdf,image/*,.pdf"
+              fileHint="Le kit de création de contenu, le brief visuel."
+              submitLabel="Déposer dans la bibliothèque"
+              submitTone="secondary"
+            >
               <Field label="Titre" hint="Celui sous lequel vous le retrouverez dans la liste." name="title">
                 <Input name="title" required maxLength={160} placeholder="Kit de création de contenu Mon Vrai" />
               </Field>
@@ -313,7 +316,7 @@ export default async function ContractsPage({ searchParams }: PageProps<"/admin/
                 comme les autres, dans le même dossier privé. Elle ne devient l&apos;annexe de ce contrat que lorsque vous
                 la choisissez ci-dessus et que vous enregistrez.
               </p>
-            </ActionForm>
+            </DocumentDeposit>
           </Card>
 
           {current && (

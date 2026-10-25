@@ -16,8 +16,32 @@ service firebase.storage {
 
     // Pièces administratives (normes CE, laboratoire, ISBN, contrats) : privées, servies
     // par /api/documents/<id> après vérification de l'administrateur.
+    //
+    // L'ÉCRITURE y est ouverte à un administrateur connecté, pour la même raison que
+    // sous `ugc/` : un rapport de laboratoire scanné pèse couramment plus de quinze
+    // mégaoctets, et le faire transiter par une action serveur le fait traverser trois
+    // fois la mémoire d'une instance qui n'a qu'un gigaoctet. Le dépôt échouait alors
+    // sans un mot — une page d'erreur nue, rien en base, rien dans le coffre.
+    //
+    // La lecture, elle, reste fermée : c'est toute la différence avec `media/`. Rien de
+    // ce dossier n'a d'adresse publique, et /api/documents/<id> en est la seule porte.
+    // Et rien n'est inscrit en base avant que le serveur ait relu le type et la taille
+    // RÉELS de l'objet arrivé (db/documents.recordDocument).
     match /documents/{allPaths=**} {
-      allow read, write: if false;
+      allow read: if false;
+      allow write: if request.auth != null
+        && request.auth.token.admin == true
+        && request.resource != null
+        && request.resource.size <= 40 * 1024 * 1024
+        && (
+          request.resource.contentType == 'application/pdf'
+          || request.resource.contentType.matches('image/.*')
+          || request.resource.contentType.matches('text/csv')
+          || request.resource.contentType.matches('application/vnd.*')
+          || request.resource.contentType == 'application/msword'
+          || request.resource.contentType == 'application/zip'
+          || request.resource.contentType == 'application/x-zip-compressed'
+        );
     }
 
     // Contenus rendus par les partenaires (photos et vidéos d'une campagne) : privés

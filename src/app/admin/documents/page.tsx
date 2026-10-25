@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
-import { DocumentFileField } from "@/components/admin/DocumentFileField";
+import { DocumentDeposit } from "@/components/admin/DocumentDeposit";
 import { DocumentFields } from "@/components/admin/DocumentFields";
-import { ButtonLink, Card, Field, FilterPills, GridTable, Input, Notice, PageHeader, Pill, Thumb, Tile } from "@/components/admin/ui";
-import { deleteDocumentAction, saveIsbnAction, updateDocumentAction, uploadDocumentAction } from "@/lib/admin/actions/documents";
+import { ButtonLink, Card, FilterPills, GridTable, Input, Notice, PageHeader, Pill, Thumb, Tile } from "@/components/admin/ui";
+import { deleteDocumentAction, saveIsbnAction, updateDocumentAction } from "@/lib/admin/actions/documents";
 import { docStatus, needsAttention } from "@/lib/admin/doc-status";
 import { DOC_KIND_LABELS, DOC_KIND_TONE, dayLabel, fileSize } from "@/lib/admin/expense-ui";
 import { requireAdmin } from "@/lib/auth/session";
@@ -83,13 +83,20 @@ export default async function DocumentsPage({ searchParams }: PageProps<"/admin/
       </div>
 
       <Card collapsible defaultOpen title="Déposer une pièce" aside={<span className="text-xs font-bold text-subtle">PDF, photo, tableur, archive — 40 Mo max</span>}>
-        {/* Même ruse que sur les dépenses : la clé change après un dépôt, le formulaire se vide. */}
-        <ActionForm key={`depot-${documents.length}`} action={uploadDocumentAction} submitLabel="Déposer" footerNote="Le fichier n'est jamais publié sur le site : il reste dans un dossier privé.">
-          <Field label="Fichier" hint="PDF, JPEG, PNG, WebP, TIFF, CSV, Word, Excel ou ZIP." name="file">
-            <DocumentFileField accept="application/pdf,image/*,text/csv,.doc,.docx,.xls,.xlsx,.zip,.pdf" />
-          </Field>
+        {/*
+          Le FICHIER ne passe pas par le serveur : il va droit au coffre privé, et seule
+          la fiche remonte par une action. Une action serveur tenait le fichier entier en
+          mémoire et le traversait trois fois ; un rapport de laboratoire scanné de dix-sept
+          mégaoctets tuait l'instance, sans message ni trace. Voir DocumentDeposit.
+        */}
+        <DocumentDeposit
+          accept="application/pdf,image/*,text/csv,.doc,.docx,.xls,.xlsx,.zip,.pdf"
+          fileHint="PDF, JPEG, PNG, WebP, TIFF, CSV, Word, Excel ou ZIP."
+          submitLabel="Déposer"
+          footerNote="Le fichier n'est jamais publié sur le site : il reste dans un dossier privé."
+        >
           <DocumentFields products={products} />
-        </ActionForm>
+        </DocumentDeposit>
       </Card>
 
       {documents.length > 1 && (

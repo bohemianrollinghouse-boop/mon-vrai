@@ -6,7 +6,8 @@ import { audit } from "@/lib/admin/audit";
 import { parseForm } from "@/lib/admin/form";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { deleteDocument, getDocument, updateDocument, uploadDocument } from "@/lib/db/documents";
+import { bucketName, deleteDocument, getDocument, newDocumentId, recordDocument, updateDocument, uploadDocument } from "@/lib/db/documents";
+import { documentMime, documentPath, ALLOWED_DOC_MIMES } from "@/lib/domain/documents";
 import { detachDocument } from "@/lib/db/expenses";
 import { getProduct, listAllProducts, setProductIsbn } from "@/lib/db/products";
 import { isValidIsbn, normalizeIsbn } from "@/lib/domain/isbn";
@@ -43,8 +44,62 @@ async function checkMeta(meta: z.infer<typeof Meta>): Promise<{ ok: true; isbn: 
   return { ok: true, isbn };
 }
 
+/* ---------- Dépôt en trois temps : préparer, déposer, inscrire ---------- */
+
+export type PrepareDocResult = { ok: true; id: string; path: string; bucket: string } | { ok: false; error: string };
+
 /*
- * Le dépôt d'une pièce.
+ * Où déposer ce fichier. Le chemin est CALCULÉ ici et recalculé à l'inscription : un
+ * chemin posté à la main ne désignerait qu'un objet qui n'existe pas.
+ *
+ * Le type est refusé ici aussi, et pas seulement par les règles du coffre : mieux vaut
+ * le dire avant d'avoir envoyé vingt mégaoctets pour rien.
+ */
+export async function prepareDocumentAction(filename: string, mime: string): Promise<PrepareDocResult> {
+  await assertAdmin();
+  const real = documentMime(filename, mime);
+  if (!ALLOWED_DOC_MIMES.has(real)) {
+    return { ok: false, error: `${filename} : type refusé (${real || "inconnu"}). Acceptés : PDF, JPEG, PNG, WebP, TIFF, CSV, Word, Excel, ZIP.` };
+  }
+
+  const id = newDocumentId();
+  return { ok: true, id, path: documentPath(id, filename), bucket: bucketName() };
+}
+
+/*
+ * Le fichier est arrivé dans le coffre : on le relit, et on lui fait sa fiche.
+ *
+ * Les métadonnées arrivent par le formulaire, comme avant — c'est le FICHIER qui ne
+ * passe plus par là.
+ */
+export async function confirmDocumentAction(id: string, filename: string, formData: FormData): Promise<AdminResult> {
+  try {
+    const user = await assertAdmin();
+
+    const parsed = parseForm(Meta, formData);
+    if (!parsed.ok) return failed(parsed.error, parsed.issues);
+    const checked = await checkMeta(parsed.data);
+    if (!checked.ok) return checked.result;
+
+    const doc = await recordDocument({ ...parsed.data, isbn: checked.isbn, id, filename });
+
+    /* Le journal est une commodité, pas une condition : une écriture d'audit qui échoue
+       ne doit pas faire croire que la pièce n'est pas arrivée, alors qu'elle l'est. */
+    await audit(user.email, "document.upload", `documents/${doc.id}`, doc.title).catch(() => undefined);
+    revalidatePath("/admin/documents");
+    revalidatePath("/admin/contrats");
+    return saved(`« ${doc.title} » déposé.`);
+  } catch (e) {
+    return failed(`${filename} : ${(e as Error).message}`);
+  }
+}
+
+/*
+ * Le dépôt d'une pièce PAR LE SERVEUR. Conservé pour les justificatifs de dépenses,
+ * qui sont joints à un formulaire déjà lourd en champs et pèsent rarement plus d'un
+ * mégaoctet. Les deux cartes de dépôt, elles, passent désormais par le coffre
+ * directement (voir prepareDocumentAction) : un scan de rapport de laboratoire ne
+ * tenait pas dans la mémoire d'une instance.
  *
  * Tout le corps est sous garde, et pas seulement l'écriture du fichier. Une action
  * serveur qui LÈVE ne revient pas au formulaire : Next remonte l'exception jusqu'à la
