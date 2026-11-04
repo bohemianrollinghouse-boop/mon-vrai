@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import icon from "@/assets/pwa/admin-192.png";
 
 /*
  * Service worker de l'admin, servi à /admin/service-worker (donc scope /admin/). Trois
@@ -45,8 +46,8 @@ self.addEventListener("push", (event) => {
   const title = data.title || "Mon Vrai";
   const options = {
     body: data.body || "",
-    icon: "/pwa/admin-192.png",
-    badge: "/pwa/admin-192.png",
+    icon: "${icon.src}",
+    badge: "${icon.src}",
     tag: data.tag || undefined,
     data: { url: data.url || "/admin/commandes" },
   };

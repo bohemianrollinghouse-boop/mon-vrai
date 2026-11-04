@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import appleIcon from "@/assets/pwa/admin-180.png";
 import { signOut } from "@/lib/auth/actions";
 import { requireAdmin } from "@/lib/auth/session";
 import { adminSnapshot } from "@/lib/admin/counts";
@@ -22,7 +23,8 @@ export const metadata: Metadata = {
   title: { default: "Mon Vrai Admin", template: "%s · Mon Vrai Admin" },
   manifest: "/admin/manifest",
   appleWebApp: { capable: true, title: "Mon Vrai Admin", statusBarStyle: "default" },
-  icons: { apple: "/pwa/admin-180.png" },
+  // Importée comme celles du manifest : `public/` n'arrive pas en production (voir /admin/manifest).
+  icons: { apple: appleIcon.src },
 };
 
 /*
