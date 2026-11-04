@@ -11,6 +11,7 @@ import { getHomeContent } from "@/lib/db/content";
 import { getProduct, listPublishedProducts } from "@/lib/db/products";
 import { getSettings } from "@/lib/db/settings";
 import { formatEuro, formatEuroShort } from "@/lib/domain/money";
+import { shareImage } from "@/lib/domain/page-metadata";
 import { systemPath } from "@/lib/domain/system-pages";
 
 export const dynamic = "force-dynamic";
@@ -27,10 +28,14 @@ export async function generateMetadata({ params }: PageProps<"/livres/[slug]">):
   const { slug } = await params;
   const product = await getProduct(slug);
   if (!product || product.status !== "published") return {};
+  // Un livre se partage par sa couverture ; faute d'image, la carte du site plutôt que rien
+  // (Next remplace l'`openGraph` du segment parent, un tableau vide ne laisserait aucune image).
+  const image = product.images[0]?.url ?? shareImage().url;
   return {
     title: product.seo.title ?? product.title,
     description: product.seo.description ?? product.subtitle,
-    openGraph: { images: product.images[0] ? [product.images[0].url] : [] },
+    openGraph: { images: [image] },
+    twitter: { card: "summary_large_image", images: [image] },
   };
 }
 

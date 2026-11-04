@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import { StatsBeacon } from "@/components/site/StatsBeacon";
 import { getSettings } from "@/lib/db/settings";
+import { shareImage } from "@/lib/domain/page-metadata";
 import "./globals.css";
 
 /*
@@ -21,10 +22,22 @@ const montserrat = Montserrat({
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSettings();
   const title = settings.seo.title ?? settings.shopName;
+  const image = shareImage();
   return {
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
     title: { default: title, template: `%s — ${settings.shopName}` },
     description: settings.seo.description,
+    // Carte de partage par défaut : celle des routes qui n'en composent pas elles-mêmes
+    // (panier, recherche, compte, 404). Une page libre ou une fiche livre la remplacent.
+    openGraph: {
+      type: "website",
+      siteName: settings.shopName,
+      locale: "fr_FR",
+      title,
+      description: settings.seo.description,
+      images: [{ url: image.url, alt: image.alt, width: image.width, height: image.height }],
+    },
+    twitter: { card: "summary_large_image", title, description: settings.seo.description, images: [image.url] },
     // Favicon et icônes : fichiers app/favicon.ico, app/icon.png, app/apple-icon.png (détectés par Next).
   };
 }

@@ -15,6 +15,25 @@ export function siteUrl(): string {
   return (process.env.NEXT_PUBLIC_SITE_URL ?? "https://monvrai.fr").replace(/\/$/, "");
 }
 
+/*
+ * L'image de partage par défaut : la photo qui paraît quand on colle un lien du site
+ * et que la page n'en propose pas de meilleure. Elle est servie depuis `public/` et non
+ * depuis la médiathèque — c'est l'habillage du site, comme le favicon, pas un média
+ * qu'on range.
+ *
+ * Elle est répétée partout où une route compose son propre `openGraph` : Next remplace
+ * l'objet entier au segment le plus profond, si bien qu'une valeur posée à la racine ne
+ * survit pas à une page qui en écrit un. Un repli oublié vaudrait donc une carte muette.
+ */
+export function shareImage(): { url: string; alt: string; width: number; height: number } {
+  return {
+    url: `${siteUrl()}/partage.jpg`,
+    alt: "Un enfant feuillette deux imagiers Mon Vrai posés sur un drap, dans la lumière du matin",
+    width: 1200,
+    height: 630,
+  };
+}
+
 export function pageMetadata(page: Page): Metadata {
   const seo = page.seo;
   const title = seo.title || page.title;
@@ -23,6 +42,7 @@ export function pageMetadata(page: Page): Metadata {
   const shareDescription = seo.shareDescription || description;
   // L'accueil est servi à la racine : c'est elle, l'adresse canonique.
   const url = `${siteUrl()}${page.home ? "/" : pagePath(page.slug)}`;
+  const image = seo.image ?? shareImage();
 
   return {
     title,
@@ -37,13 +57,13 @@ export function pageMetadata(page: Page): Metadata {
       url,
       title: shareTitle,
       description: shareDescription,
-      images: seo.image ? [{ url: seo.image.url, alt: seo.image.alt, width: seo.image.width, height: seo.image.height }] : undefined,
+      images: [{ url: image.url, alt: image.alt, width: image.width, height: image.height }],
     },
     twitter: {
-      card: seo.image ? "summary_large_image" : "summary",
+      card: "summary_large_image",
       title: shareTitle,
       description: shareDescription,
-      images: seo.image ? [seo.image.url] : undefined,
+      images: [image.url],
     },
   };
 }
