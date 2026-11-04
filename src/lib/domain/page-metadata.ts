@@ -41,6 +41,47 @@ export function shareImage(): { url: string; alt: string; width: number; height:
   };
 }
 
+/*
+ * La carte de partage d'une page : `openGraph` ET `twitter` d'un seul tenant.
+ *
+ * Écrite ici, et nulle part ailleurs, parce que Next REMPLACE l'objet `openGraph` au
+ * segment le plus profond au lieu de le compléter : une page qui n'en pose qu'un
+ * morceau — l'image, par exemple — efface tout le reste. C'est ainsi qu'une fiche livre
+ * se partageait sans `og:type` ni `og:site_name`, alors que la racine les posait.
+ *
+ * `og:url` dit QUELLE page est partagée. Sans lui, Facebook rattache les partages à ce
+ * qu'il devine, et son outil de diagnostic le réclame ; il se déduit du chemin, jamais
+ * d'un champ à remplir — une adresse recopiée à la main finit toujours par mentir.
+ */
+export function shareCard(card: {
+  /** Chemin de la page, barre oblique comprise : « / » pour l'accueil. */
+  path: string;
+  title?: string;
+  description?: string;
+  siteName?: string;
+  /** L'image propre à la page (couverture d'un livre, visuel choisi) ; à défaut, celle du site. */
+  image?: { url: string; alt?: string; width?: number; height?: number };
+}): Pick<Metadata, "openGraph" | "twitter"> {
+  const image = card.image ?? shareImage();
+  return {
+    openGraph: {
+      type: "website",
+      siteName: card.siteName ?? "Mon Vrai",
+      locale: "fr_FR",
+      url: `${siteUrl()}${card.path}`,
+      title: card.title,
+      description: card.description,
+      images: [{ url: image.url, alt: image.alt, width: image.width, height: image.height }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: card.title,
+      description: card.description,
+      images: [image.url],
+    },
+  };
+}
+
 export function pageMetadata(page: Page): Metadata {
   const seo = page.seo;
   const title = seo.title || page.title;
@@ -48,29 +89,14 @@ export function pageMetadata(page: Page): Metadata {
   const shareTitle = seo.shareTitle || title;
   const shareDescription = seo.shareDescription || description;
   // L'accueil est servi à la racine : c'est elle, l'adresse canonique.
-  const url = `${siteUrl()}${page.home ? "/" : pagePath(page.slug)}`;
-  const image = seo.image ?? shareImage();
+  const path = page.home ? "/" : pagePath(page.slug);
 
   return {
     title,
     description,
-    alternates: { canonical: seo.canonical || url },
+    alternates: { canonical: seo.canonical || `${siteUrl()}${path}` },
     // `noindex` n'enlève pas la page du site : elle reste accessible par son adresse.
     robots: seo.noindex ? { index: false, follow: true } : undefined,
-    openGraph: {
-      type: "website",
-      siteName: "Mon Vrai",
-      locale: "fr_FR",
-      url,
-      title: shareTitle,
-      description: shareDescription,
-      images: [{ url: image.url, alt: image.alt, width: image.width, height: image.height }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: shareTitle,
-      description: shareDescription,
-      images: [image.url],
-    },
+    ...shareCard({ path, title: shareTitle, description: shareDescription, image: seo.image }),
   };
 }

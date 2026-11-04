@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import { StatsBeacon } from "@/components/site/StatsBeacon";
 import { getSettings } from "@/lib/db/settings";
-import { shareImage } from "@/lib/domain/page-metadata";
+import { headers } from "next/headers";
+import { shareCard } from "@/lib/domain/page-metadata";
 import "./globals.css";
 
 /*
@@ -22,22 +23,22 @@ const montserrat = Montserrat({
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getSettings();
   const title = settings.seo.title ?? settings.shopName;
-  const image = shareImage();
+  /*
+   * Carte de partage par défaut : celle des routes qui n'en composent pas elles-mêmes
+   * (panier, recherche, compte, 404) — et celle de l'ACCUEIL tant qu'aucune page n'est
+   * désignée comme telle, cas où la racine retombe sur `content/home` sans passer par
+   * `pageMetadata`. C'est ce qui la privait d'`og:url`.
+   *
+   * Le chemin vient de l'en-tête posé par le proxy, et non d'un « / » écrit en dur :
+   * `og:url` doit désigner la page partagée, pas l'accueil à sa place. Le lire ne coûte
+   * aucun prérendu — ce layout interroge déjà les réglages, donc rien n'est statique ici.
+   */
+  const pathname = (await headers()).get("x-pathname") || "/";
   return {
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
     title: { default: title, template: `%s — ${settings.shopName}` },
     description: settings.seo.description,
-    // Carte de partage par défaut : celle des routes qui n'en composent pas elles-mêmes
-    // (panier, recherche, compte, 404). Une page libre ou une fiche livre la remplacent.
-    openGraph: {
-      type: "website",
-      siteName: settings.shopName,
-      locale: "fr_FR",
-      title,
-      description: settings.seo.description,
-      images: [{ url: image.url, alt: image.alt, width: image.width, height: image.height }],
-    },
-    twitter: { card: "summary_large_image", title, description: settings.seo.description, images: [image.url] },
+    ...shareCard({ path: pathname, title, description: settings.seo.description, siteName: settings.shopName }),
     // Favicon et icônes : fichiers app/favicon.ico, app/icon.png, app/apple-icon.png (détectés par Next).
   };
 }
