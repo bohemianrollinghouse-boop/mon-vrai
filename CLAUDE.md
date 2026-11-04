@@ -603,6 +603,13 @@ seule paraît. `saveGuideAction` ne touche que `settings.guide`, comme /admin/re
 
 C'est l'adresse à coller dans le champ **Lien** de l'annexe d'un contrat.
 
+L'**espace partenaire y renvoie toujours** (carte « Comment réussir vos photos et vos
+vidéos », `(site)/partenaire/page.tsx`), sans condition de campagne ni de contrat : on
+vient chercher comment éclairer et de quoi s'inspirer entre deux collaborations, et
+surtout avant d'avoir signé quoi que ce soit. L'annexe d'un contrat reste autre chose :
+ce qu'on remet **en signant**, qui peut différer d'un contrat à l'autre et ne paraît
+donc qu'au bon de commande du kit puis sur la ligne du contrat signé.
+
 ## Instagram (réponses automatiques)
 
 `/admin/instagram` — répondre tout seul aux commentaires sous nos publications et aux

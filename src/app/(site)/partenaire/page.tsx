@@ -241,6 +241,28 @@ export default async function PartnerSpace({ searchParams }: PageProps<"/partena
             </div>
           </div>
 
+          {/*
+            Le guide de création de contenu, et il ne dépend de RIEN : ni d'une campagne,
+            ni d'un contrat, ni de son annexe. On vient y chercher comment éclairer, quoi
+            filmer, de quoi s'inspirer — y compris entre deux collaborations, et surtout
+            avant d'avoir signé quoi que ce soit. L'annexe d'un contrat reste ce qu'elle
+            est : ce qu'on remet en signant, et qui peut différer d'un contrat à l'autre.
+          */}
+          <div className="flex items-center justify-between gap-3 rounded-card bg-tint-blue px-[1.375rem] py-[1.125rem] max-[599px]:flex-col max-[599px]:items-start">
+            <span className="flex flex-col gap-0.5">
+              <span className="text-sm font-extrabold">Comment réussir vos photos et vos vidéos</span>
+              <span className="text-xs text-tint-blue-ink">Lumière, cadrages, mises en scène et exemples vidéo.</span>
+            </span>
+            <Link
+              href="/guide-contenu"
+              target="_blank"
+              rel="noreferrer noopener"
+              className="whitespace-nowrap rounded-pill bg-ink px-5 py-3 text-[0.8125rem] font-bold text-white hover:opacity-80"
+            >
+              Ouvrir le guide
+            </Link>
+          </div>
+
           {/* ---------- Nous écrire ---------- */}
           <div className="flex items-center justify-between gap-3 rounded-card bg-tint-sand px-[1.375rem] py-[1.125rem] max-[599px]:flex-col max-[599px]:items-start">
             <span className="flex flex-col gap-0.5">
