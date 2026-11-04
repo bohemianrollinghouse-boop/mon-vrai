@@ -31,7 +31,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="fr" className={`${montserrat.variable} h-full`}>
+    /*
+     * `suppressHydrationWarning` : le script Tampermonkey de COBA (relevé des posts
+     * Facebook, voir /admin/facebook) pose `data-coba-fbg-script` sur <html> avant
+     * l'hydratation, et React s'en plaignait à chaque page. Ne vaut que pour les
+     * attributs de CET élément, pas pour ce qu'il contient.
+     */
+    <html lang="fr" className={`${montserrat.variable} h-full`} suppressHydrationWarning>
       <body className="flex min-h-full flex-col">
         {children}
         {/* Fréquentation (pages vues, présence), sans cookie ; ignore /admin de lui-même. */}

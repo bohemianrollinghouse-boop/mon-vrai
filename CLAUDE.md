@@ -669,6 +669,51 @@ premier vrai commentaire ; si c'est le cas, il faut passer l'app en Live et dema
 l'accès avancé — ce qui réclame une vidéo du dispositif en marche, donc de l'avoir
 bâti d'abord.
 
+## Campagnes Facebook (groupes)
+
+`/admin/facebook` — repris du gestionnaire de groupes de COBA. Claude dans Chrome
+cherche les groupes, demande à les rejoindre, **rédige un message pour chacun** et
+l'enregistre par l'API ; l'écran tient la liste et l'on poste soi-même en copiant le
+message. Rien n'est publié automatiquement. Pur et testé : `domain/fb-groups.ts` ;
+base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookGroups`).
+
+- **Pas de message type.** Le texte porte `{lien}` ; le serveur y glisse le lien de suivi
+  du groupe au moment de la copie ou de l'affichage (`fillMessage`). Un message sans
+  `{lien}`, ou avec l'adresse du site en dur, est refusé (`checkMessage`) : aucun clic ne
+  serait attribué.
+- **Le slug est l'identifiant** du document et la valeur de `?fb=` : il est dans les
+  liens déjà postés, il ne change donc jamais (ni l'API ni l'écran ne le modifient).
+- **Le lien de suivi n'est pas une redirection** mais une vraie page (`/?fb=<slug>`, page
+  d'arrivée réglable). Le clic est compté par `StatsBeacon` → `/api/stats/fb`, c'est-à-
+  dire par du JavaScript : le robot d'aperçu de Facebook ne l'exécute pas et ne compte
+  jamais (le piège de COBA), et derrière App Hosting l'en-tête User-Agent arrive réécrit,
+  si bien qu'une redirection n'aurait même pas su le reconnaître. Le paramètre est ensuite
+  retiré de l'adresse. Mêmes exclusions que la fréquentation (admins connectés, IP
+  exclues) ; un navigateur qui se déclare robot (`isRobot`) et un second clic du même
+  visiteur à moins de 30 s sont gardés, marqués, et n'entrent dans aucun chiffre.
+- **La clé d'API** se génère, se copie et se révoque sur l'écran. Gardée en clair dans
+  `integrations/facebookGroups` (il faut pouvoir la recopier dans le prompt), comparée à
+  temps constant ; elle n'ouvre que `/api/fb-groups`. La documentation
+  (`/api/fb-groups/openapi.json`, `lib/fb-groups/openapi.ts`) est servie **sans** clé :
+  l'agent l'ouvre dans un onglet et appelle l'API par `fetch()` depuis celui-ci.
+- **Le prompt** (`lib/fb-groups/prompt.ts`) est écrit dans le code. Il fait d'abord
+  demander quels groupes chercher et combien en rejoindre, impose le **rythme** (`PACE` :
+  30 à 90 s entre deux demandes, une pause de 15 à 20 min toutes les 10, aucun plafond
+  sur le total — celui qui a servi pour COBA sans souci — et l'arrêt au premier
+  avertissement de Facebook) et finit par un compte rendu.
+- **Le post** se saisit sur la ligne (`FbPostInput`, enregistré en quittant le champ), avec
+  son état à côté. Un premier lien le met « en attente » et range le groupe dans « Fait » ;
+  changer de lien efface le relevé de l'ancien post.
+- **Le relevé** (état, réactions, commentaires, « dont x à lire » jusqu'au bouton « Vu »)
+  vient du **script Tampermonkey de COBA**, le même fichier, et non une copie
+  (`COBA/app/functions/web/admin/coba-fb-groups.user.js`, servi publiquement par l'admin de
+  COBA, autorisé sur `monvrai.fr/admin` depuis la 1.5.0). La page lui envoie la liste
+  (`postMessage {cobaFbg: 'scan'}`), il ouvre chaque post dans un onglet et rend le relevé
+  (`{cobaFbg: 'result'}`) ; c'est la page, connectée, qui l'enregistre
+  (`recordFbScanAction`, revalidé par `scanFrom`). L'état lu sur Facebook fait foi
+  (`applyScan`) : introuvable = supprimé, et l'adresse `pending_posts/…` est remplacée par
+  celle du post validé. Toucher au protocole, c'est toucher aux DEUX admins.
+
 ## Gestion (dépenses et documents)
 
 - `/admin/depenses` — **toute la trésorerie**, dans un seul compte. Deux sources s'y

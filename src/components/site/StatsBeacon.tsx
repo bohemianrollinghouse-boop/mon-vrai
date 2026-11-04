@@ -43,14 +43,30 @@ function visitorId(): string | undefined {
   }
 }
 
-function send(payload: Record<string, unknown>): void {
+function send(payload: Record<string, unknown>, url = "/api/stats/hit"): void {
   const body = JSON.stringify(payload);
   try {
-    if (navigator.sendBeacon?.("/api/stats/hit", new Blob([body], { type: "application/json" }))) return;
+    if (navigator.sendBeacon?.(url, new Blob([body], { type: "application/json" }))) return;
   } catch {
     // sendBeacon indisponible ou refusé : on passe par fetch.
   }
-  fetch("/api/stats/hit", { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => undefined);
+  fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, keepalive: true }).catch(() => undefined);
+}
+
+/*
+ * Lien de suivi d'un groupe Facebook (`?fb=<slug>`, voir /admin/facebook) : le clic est
+ * compté ici, dans le navigateur, et non par une redirection côté serveur — le robot
+ * d'aperçu de Facebook lit la page sans exécuter ce code, il ne compte donc jamais. Le
+ * paramètre est ensuite retiré de l'adresse : recharger la page, la mettre en favori ou
+ * la partager ne doit pas compter un clic de plus pour le groupe.
+ */
+function takeFbPlacement(): string | null {
+  const url = new URL(window.location.href);
+  const slug = url.searchParams.get("fb");
+  if (!slug) return null;
+  url.searchParams.delete("fb");
+  window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug) && slug.length <= 70 ? slug : null;
 }
 
 export function StatsBeacon() {
@@ -59,10 +75,14 @@ export function StatsBeacon() {
   useEffect(() => {
     if (!pathname || pathname.startsWith("/admin") || navigator.webdriver) return;
     const { sid, first } = session();
-    const utm = first ? new URLSearchParams(window.location.search).get("utm_source") ?? "" : "";
+    const fb = takeFbPlacement();
+    // Une arrivée par un groupe Facebook se range sous sa propre source dans les statistiques.
+    const utm = first ? (new URLSearchParams(window.location.search).get("utm_source") ?? (fb ? "groupes-facebook" : "")) : "";
+    const vid = visitorId();
+    if (fb) send({ g: fb, p: pathname, r: document.referrer, ua: navigator.userAgent, v: vid }, "/api/stats/fb");
     // Le navigateur est envoyé dans le corps : l'en-tête User-Agent n'atteint pas le serveur
     // tel quel derrière App Hosting.
-    send({ t: "view", p: pathname, r: first ? document.referrer : "", u: utm, s: sid, f: first, ua: navigator.userAgent, v: visitorId() });
+    send({ t: "view", p: pathname, r: first ? document.referrer : "", u: utm, s: sid, f: first, ua: navigator.userAgent, v: vid });
     const ping = () => {
       if (document.visibilityState === "visible") send({ t: "ping", p: pathname, s: sid });
     };

@@ -181,6 +181,7 @@ export function sourceMeta(key: string): SourceMeta {
     const v = key.slice(4);
     if (v === "newsletter" || v === "email") return { name: "Newsletter", ini: "@", tone: "green" };
     if (v.startsWith("influ")) return { name: "Liens influenceurs", ini: "★", tone: "sand" };
+    if (v === "groupes-facebook") return { name: "Groupes Facebook", ini: "FB", tone: "blue" };
     return { name: v.charAt(0).toUpperCase() + v.slice(1), ini: v.slice(0, 2).toUpperCase(), tone: "sand" };
   }
   const h = key.toLowerCase();
