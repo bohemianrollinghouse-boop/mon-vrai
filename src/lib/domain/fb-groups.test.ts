@@ -219,17 +219,20 @@ describe("où en est un groupe", () => {
     expect(stage({ ...posted, postStatus: "deleted" }).key).toBe("deleted");
   });
 
-  it("n'ouvre la ligne que lorsque le groupe attend quelque chose de nous", () => {
+  it("réserve le sable aux étapes qui attendent quelque chose de nous", () => {
     // À nous de jouer : demander, écrire, poster, reposter.
-    expect(stage({ membership: "none" }).ours).toBe(true);
-    expect(stage({ membership: "validated", message: null }).ours).toBe(true);
-    expect(stage({ membership: "validated", message: "Bonjour {lien}" }).ours).toBe(true);
-    // À eux : l'adhésion et la modération ne dépendent pas de nous.
-    expect(stage({ membership: "pending" }).ours).toBe(false);
-    expect(stage({ membership: "validated", message: "x {lien}", postUrl: "https://www.facebook.com/groups/1/posts/2", postStatus: "validated" }).ours).toBe(false);
+    expect(stage({ membership: "none" }).tone).toBe("warn");
+    expect(stage({ membership: "validated", message: null }).tone).toBe("warn");
+    expect(stage({ membership: "validated", message: "Bonjour {lien}" }).tone).toBe("warn");
+    const posted = { membership: "validated", message: "x {lien}", postUrl: "https://www.facebook.com/groups/1/posts/2" } as const;
+    expect(stage({ ...posted, postStatus: "deleted" }).tone).toBe("warn");
+    // À eux : l'adhésion et la modération ne dépendent pas de nous, un post validé non plus.
+    expect(stage({ membership: "pending" }).tone).toBe("blue");
+    expect(stage({ ...posted, postStatus: "pending" }).tone).toBe("blue");
+    expect(stage({ ...posted, postStatus: "validated" }).tone).toBe("ok");
   });
 
-  it("un post validé se replie, et un commentaire non lu le rouvre", () => {
+  it("un post validé est soldé, et un commentaire non lu le remet au sable", () => {
     const done = group({
       membership: "validated",
       message: "Bonjour {lien}",
@@ -237,12 +240,12 @@ describe("où en est un groupe", () => {
       postStatus: "validated",
       scan: { state: "validated", likes: 3, comments: 4, at: 5, note: null },
     });
-    expect(groupStage({ ...done, commentsSeen: 4 })).toMatchObject({ key: "done", ours: false });
-    expect(groupStage({ ...done, commentsSeen: 1 })).toMatchObject({ key: "read", label: "3 à lire", ours: true });
+    expect(groupStage({ ...done, commentsSeen: 4 })).toMatchObject({ key: "done", tone: "ok" });
+    expect(groupStage({ ...done, commentsSeen: 1 })).toMatchObject({ key: "read", label: "3 à lire", tone: "warn" });
   });
 
-  it("ignoré et refusé ne demandent plus rien", () => {
-    expect(stage({ status: "ignored", membership: "none" }).ours).toBe(false);
-    expect(stage({ status: "refused", membership: "none" }).ours).toBe(false);
+  it("ignoré et refusé ne demandent plus rien, quelle que soit l'adhésion", () => {
+    expect(stage({ status: "ignored", membership: "none" })).toMatchObject({ key: "ignored", tone: "muted" });
+    expect(stage({ status: "refused", membership: "none" })).toMatchObject({ key: "refused", tone: "pink" });
   });
 });

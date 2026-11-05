@@ -521,14 +521,19 @@ export const POST_LABELS: Record<FbPostState, string> = { pending: "Post en atte
 /*
  * Un groupe traverse toujours la même suite : demander l'adhésion, l'obtenir, écrire
  * un message, le poster, voir le post passer la modération, lire les commentaires.
- * `groupStage` dit en UN point où il en est — et surtout `ours`, qui tranche la seule
- * question de la journée : est-ce que ce groupe attend quelque chose DE MOI ?
+ * `groupStage` dit en UN point où il en est, et c'est tout ce que porte sa ligne une
+ * fois repliée — la liste se parcourt alors sans rien déplier.
  *
  * Rien n'est tenu à jour : tout se déduit de l'adhésion, du message, du post et du
  * relevé. C'est la règle du suivi des campagnes et des concours, et elle vaut ici pour
- * la même raison — un état qu'on ne maintient pas ne peut pas mentir. C'est aussi ce
- * qui permet à l'écran de REPLIER ce qui est soldé sans qu'on ait rien à cocher : un
- * groupe posté se referme de lui-même, et se rouvre tout seul si un commentaire arrive.
+ * la même raison — un état qu'on ne maintient pas ne peut pas mentir. Poster son
+ * message fait donc passer un groupe de « À poster » à « Post en attente » sans que
+ * personne ait coché quoi que ce soit.
+ *
+ * Le SABLE (`warn`) est réservé aux étapes qui attendent quelque chose de NOUS —
+ * demander, écrire, poster, reposter, lire. Une adhésion ou une modération en attente
+ * ne dépend pas de nous et reste bleue, un post validé est vert. C'est la convention
+ * du suivi des campagnes : la seule couleur qui appelle un geste aujourd'hui.
  */
 export type FbStageKey = "refused" | "ignored" | "join" | "joining" | "write" | "post" | "moderation" | "deleted" | "read" | "done";
 
@@ -541,25 +546,23 @@ export type FbStage = {
   /** Ce qui s'affiche sur la ligne repliée. Court : c'est un repère, pas une phrase. */
   label: string;
   tone: PillTone;
-  /** Vrai quand la balle est dans notre camp — la ligne s'ouvre alors d'elle-même. */
-  ours: boolean;
 };
 
 export function groupStage(g: Pick<FbGroup, "status" | "membership" | "message" | "postUrl" | "postStatus" | "scan" | "commentsSeen">): FbStage {
   const fresh = newComments(g);
   // Des commentaires non lus passent avant tout le reste : c'est quelqu'un qui parle.
-  if (fresh > 0) return { key: "read", label: `${fresh} à lire`, tone: "warn", ours: true };
-  if (g.status === "refused") return { key: "refused", label: "Refusé", tone: "pink", ours: false };
-  if (g.status === "ignored") return { key: "ignored", label: "Ignoré", tone: "muted", ours: false };
+  if (fresh > 0) return { key: "read", label: `${fresh} à lire`, tone: "warn" };
+  if (g.status === "refused") return { key: "refused", label: "Refusé", tone: "pink" };
+  if (g.status === "ignored") return { key: "ignored", label: "Ignoré", tone: "muted" };
   if (g.postUrl) {
-    if (g.postStatus === "deleted") return { key: "deleted", label: "Post supprimé", tone: "pink", ours: true };
-    if (g.postStatus === "validated") return { key: "done", label: "Posté", tone: "ok", ours: false };
-    return { key: "moderation", label: "Post en attente", tone: "blue", ours: false };
+    if (g.postStatus === "deleted") return { key: "deleted", label: "Post supprimé", tone: "warn" };
+    if (g.postStatus === "validated") return { key: "done", label: "Posté", tone: "ok" };
+    return { key: "moderation", label: "Post en attente", tone: "blue" };
   }
-  if (g.membership === "none") return { key: "join", label: "Adhésion à demander", tone: "warn", ours: true };
-  if (g.membership === "pending") return { key: "joining", label: "Adhésion en attente", tone: "blue", ours: false };
-  if (!g.message) return { key: "write", label: "Message à écrire", tone: "warn", ours: true };
-  return { key: "post", label: "À poster", tone: "warn", ours: true };
+  if (g.membership === "none") return { key: "join", label: "Adhésion à demander", tone: "warn" };
+  if (g.membership === "pending") return { key: "joining", label: "Adhésion en attente", tone: "blue" };
+  if (!g.message) return { key: "write", label: "Message à écrire", tone: "warn" };
+  return { key: "post", label: "À poster", tone: "warn" };
 }
 
 /* ---------- Ce que l'API accepte ---------- */

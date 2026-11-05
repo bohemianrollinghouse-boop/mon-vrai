@@ -256,21 +256,22 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
 const tiny = "!gap-0 [&>div:last-child]:justify-start [&_button]:!px-0 [&_button]:!py-1 [&_button]:text-[0.6875rem]";
 
 /*
- * Une ligne par groupe, REPLIÉE sur son nom : la liste se parcourt d'un coup d'œil,
- * et l'on n'ouvre que celui sur lequel on travaille. Le pli ne se règle pas, il se
- * déduit (`groupStage`) — un groupe qui attend quelque chose de nous s'ouvre de
- * lui-même, un groupe soldé se referme. Poster le sien le replie donc sans qu'on ait
- * rien à cocher, et un commentaire qui arrive le rouvre.
+ * Une ligne par groupe, REPLIÉE sur son nom : on travaille groupe par groupe, et
+ * déplier les trente pour en traiter un revenait à faire défiler tout ce qui est fait
+ * pour retrouver ce qui reste. Toutes repliées, donc, sans exception — ouvrir celles
+ * qui attendent quelque chose de nous a été essayé et rendait dix-sept lignes sur
+ * trente-trois, c'est-à-dire le mur qu'on voulait éviter. C'est l'étape affichée sur
+ * la ligne (`groupStage`) qui dit où regarder, et les onglets qui trient.
  *
- * `open` n'est posé qu'au rendu : ouvrir ou replier à la main tient ensuite, y compris
- * à travers les enregistrements de la ligne (les listes déroulantes s'envoient toutes
- * seules), parce que React ne retouche pas un attribut dont la valeur n'a pas changé.
+ * Ce qu'on ouvre le reste : `open` n'est pas une prop, l'état vit dans le DOM et
+ * survit donc aux enregistrements de la ligne — les listes déroulantes s'envoient
+ * toutes seules et rendent la page à chaque fois.
  */
 function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroupStats; link: string; statsHref: string; now: number }) {
   const final = g.message ? fillMessage(g.message, link) : null;
   const stage = groupStage(g);
   return (
-    <details open={stage.ours} className="group/row border-t border-line-soft first:border-t-0">
+    <details className="group/row border-t border-line-soft first:border-t-0">
       <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2.5 py-4 [&::-webkit-details-marker]:hidden">
         <span aria-hidden="true" className="text-xs font-bold text-faint transition-transform group-open/row:rotate-90">
           ▸
