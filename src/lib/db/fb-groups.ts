@@ -16,6 +16,7 @@ import {
   type FbGroupPatch,
   type FbGroupStats,
   type FbMembership,
+  type FbStaff,
 } from "@/lib/domain/fb-groups";
 import { col, now, parseDoc } from "./helpers";
 
@@ -109,6 +110,8 @@ export type NewFbGroup = {
   members?: number | null;
   message?: string | null;
   note?: string;
+  /** Déjà validée (`checkStaff`). */
+  staff?: FbStaff[];
   addedBy: "agent" | "admin";
 };
 
@@ -143,6 +146,8 @@ export async function addFbGroup(input: NewFbGroup): Promise<{ group: FbGroup; e
       message: input.message ?? null,
       messageAt: input.message ? at : null,
       note: (input.note ?? "").trim().slice(0, 500),
+      staff: input.staff ?? [],
+      staffAt: input.staff?.length ? at : null,
       addedBy: input.addedBy,
       createdAt: at,
       updatedAt: at,

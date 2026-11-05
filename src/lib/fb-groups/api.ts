@@ -44,6 +44,9 @@ export function apiView(g: FbGroup, config: FbGroupsConfig) {
     postUrl: g.postUrl,
     postStatus: g.postStatus,
     note: g.note,
+    /** Admins et modérateurs du groupe, avec le lien de leur profil. */
+    staff: g.staff,
+    staffAt: g.staffAt ? new Date(g.staffAt).toISOString() : null,
     /** Dernier relevé du post par le script Tampermonkey (lecture seule). */
     scan: g.scan,
     unreadComments: Math.max(0, (g.scan?.comments ?? 0) - g.commentsSeen),

@@ -1,4 +1,4 @@
-import { FB_MEMBERSHIPS, FB_MESSAGE_MAX, FB_NOTE_MAX, FB_POST_STATES, FB_TABS, LOT_MAX } from "@/lib/domain/fb-groups";
+import { FB_MEMBERSHIPS, FB_MESSAGE_MAX, FB_NOTE_MAX, FB_POST_STATES, FB_STAFF_MAX, FB_STAFF_ROLES, FB_TABS, LOT_MAX } from "@/lib/domain/fb-groups";
 
 /*
  * La documentation de l'API des Campagnes Facebook, au format OpenAPI 3.1. C'est elle
@@ -7,6 +7,35 @@ import { FB_MEMBERSHIPS, FB_MESSAGE_MAX, FB_NOTE_MAX, FB_POST_STATES, FB_TABS, L
  * est servie sans clé — elle ne contient rien de secret, et l'agent peut ainsi la lire
  * en ouvrant simplement l'onglet.
  */
+
+const STAFF = {
+  type: "object",
+  required: ["name", "role"],
+  additionalProperties: false,
+  properties: {
+    name: { type: "string", maxLength: 100, description: "Nom tel qu'affiché dans la liste des admins et modérateurs du groupe." },
+    role: { type: "string", enum: FB_STAFF_ROLES, description: "admin = administrateur, moderator = modérateur. Obligatoire : lis-le sur la page, ne le devine pas." },
+    profileUrl: {
+      type: ["string", "null"],
+      description:
+        "Lien de son profil (ou de sa Page) : l'adresse du lien posé sur son nom, sans avoir à ouvrir le profil. " +
+        "Formes acceptées : https://www.facebook.com/<nom>, /profile.php?id=…, /people/<nom>/<id>, /groups/<groupe>/user/<id>. " +
+        "Les paramètres de suivi (__cft__, __tn__…) sont retirés par le serveur. null si le nom n'est pas un lien.",
+    },
+  },
+} as const;
+
+const STAFF_LIST = {
+  type: "array",
+  maxItems: FB_STAFF_MAX,
+  items: { $ref: "#/components/schemas/Moderateur" },
+} as const;
+
+const STAFF_RULES =
+  "LES ADMINS ET MODÉRATEURS : relève-les sur l'onglet « Membres » du groupe, section « Administrateurs et modérateurs » " +
+  "(adresse directe : <groupUrl>/members/admins), dans l'ordre affiché : nom, rôle, et le lien posé sur le nom. " +
+  "Si la liste n'est pas visible (groupe privé dont tu n'es pas encore membre), n'envoie pas staff : tu le compléteras plus tard par PATCH. " +
+  "N'ouvre pas leurs profils et ne leur écris jamais.";
 
 const GROUP = {
   type: "object",
@@ -23,6 +52,8 @@ const GROUP = {
     postUrl: { type: ["string", "null"], description: "Lien du post publié dans le groupe." },
     postStatus: { type: ["string", "null"], enum: [...FB_POST_STATES, null] },
     note: { type: "string", description: "Ce qu'il faut savoir du groupe (règle de publication, jour réservé aux annonces…)." },
+    staff: { ...STAFF_LIST, description: "Admins et modérateurs du groupe (vide tant que personne ne les a relevés)." },
+    staffAt: { type: ["string", "null"], format: "date-time", description: "Quand la liste a été relevée." },
     createdAt: { type: "string", format: "date-time" },
   },
 } as const;
@@ -41,6 +72,7 @@ const NEW_GROUP = {
       description: "Facultatif mais attendu : le message rédigé pour CE groupe, avec {lien} à l'endroit du lien. Refusé sans {lien}, ou s'il contient l'adresse du site en dur.",
     },
     note: { type: "string", maxLength: FB_NOTE_MAX, description: "Facultatif : une phrase utile sur le groupe (règle de publication, jour des annonces…)." },
+    staff: { ...STAFF_LIST, description: "Facultatif mais attendu : les admins et modérateurs du groupe, avec le lien de leur profil." },
   },
 } as const;
 
@@ -54,22 +86,24 @@ export function fbGroupsOpenApi(apiBase: string) {
     openapi: "3.1.0",
     info: {
       title: "Mon Vrai : Campagnes Facebook",
-      version: "1.0.0",
+      version: "1.1.0",
       description:
         "Suivi des groupes Facebook où Mon Vrai (imagiers pour les bébés de 6 à 18 mois) est présenté. " +
-        "Lister, vérifier, ajouter des groupes et enregistrer le message rédigé pour chacun ; mettre à jour leur suivi. " +
+        "Lister, vérifier, ajouter des groupes, enregistrer le message rédigé pour chacun et ses admins et modérateurs ; mettre à jour leur suivi. " +
         "Rien ne se supprime par cette API, et ni le nom ni le slug d'un groupe ne s'y changent. " +
         "Chaque requête (sauf cette documentation) porte l'en-tête Authorization: Bearer <clé>. " +
         "Un même groupe a parfois deux adresses (alias et numéro) : vérifie le lien ET le nom avant d'ajouter (GET /check). " +
         "Depuis un environnement qui ne joint pas ce domaine (bac à sable cloud), ouvre un onglet du navigateur sur cette documentation " +
         "et fais les appels avec fetch() depuis cet onglet : même origine, donc pas de CORS. " +
-        MESSAGE_RULES,
+        MESSAGE_RULES +
+        " " +
+        STAFF_RULES,
     },
     servers: [{ url: apiBase }],
     security: [{ bearer: [] }],
     components: {
       securitySchemes: { bearer: { type: "http", scheme: "bearer", description: "Clé mv_fb_…, générée dans l'admin (Campagnes Facebook)." } },
-      schemas: { Groupe: GROUP, NouveauGroupe: NEW_GROUP },
+      schemas: { Groupe: GROUP, NouveauGroupe: NEW_GROUP, Moderateur: STAFF },
     },
     paths: {
       "/": {
@@ -89,7 +123,9 @@ export function fbGroupsOpenApi(apiBase: string) {
           description:
             "Enregistre le groupe JUSTE APRÈS avoir demandé à le rejoindre, avec son message. Un groupe déjà suivi (même adresse) n'est ni dupliqué ni modifié : il revient avec existed=true. " +
             "Toujours 200 pour un lot bien formé ; le sort de chaque groupe est dans results (ok=false + error en cas de refus). " +
-            MESSAGE_RULES,
+            MESSAGE_RULES +
+            " " +
+            STAFF_RULES,
           requestBody: {
             required: true,
             content: {
@@ -102,6 +138,10 @@ export function fbGroupsOpenApi(apiBase: string) {
                   members: 12400,
                   message: "Bonjour à toutes et à tous ! … Si ça vous parle, tout est expliqué ici : {lien}",
                   note: "Annonces autorisées le samedi uniquement.",
+                  staff: [
+                    { name: "Claire Martin", role: "admin", profileUrl: "https://www.facebook.com/groups/mamans.lyon/user/100004567890123" },
+                    { name: "Sophie Durand", role: "moderator", profileUrl: "https://www.facebook.com/sophie.durand.69" },
+                  ],
                 },
               },
             },
@@ -150,10 +190,11 @@ export function fbGroupsOpenApi(apiBase: string) {
           responses: { "200": { description: "Le groupe.", content: { "application/json": { schema: { type: "object", properties: { group: { $ref: "#/components/schemas/Groupe" }, text: { type: ["string", "null"] } } } } } }, "404": { description: "Groupe non suivi." } },
         },
         patch: {
-          summary: "Met à jour le suivi d'un groupe : adhésion, onglet, post, note, membres, message.",
+          summary: "Met à jour le suivi d'un groupe : adhésion, onglet, post, note, membres, message, admins et modérateurs.",
           description:
             "Seuls les champs envoyés changent ; un champ inconnu est refusé (400, nommé). Un premier lien de post part en pending et fait passer un groupe « à faire » dans « fait ». " +
-            "postUrl vide ou null retire le post. message null efface le message.",
+            "postUrl vide ou null retire le post. message null efface le message. " +
+            "staff REMPLACE la liste entière : envoie toujours la liste complète, telle que le groupe l'affiche (lis staff avec GET /{group} avant de la compléter) ; [] l'efface.",
           requestBody: {
             required: true,
             content: {
@@ -169,9 +210,10 @@ export function fbGroupsOpenApi(apiBase: string) {
                     postStatus: { type: "string", enum: FB_POST_STATES },
                     note: { type: "string", maxLength: FB_NOTE_MAX },
                     message: { type: ["string", "null"], description: "Avec {lien}." },
+                    staff: { ...STAFF_LIST, description: "La liste complète des admins et modérateurs (remplace l'ancienne)." },
                   },
                 },
-                example: { membership: "validated" },
+                example: { membership: "validated", staff: [{ name: "Claire Martin", role: "admin", profileUrl: "https://www.facebook.com/claire.martin" }] },
               },
             },
           },

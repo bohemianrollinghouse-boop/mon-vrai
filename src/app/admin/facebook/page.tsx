@@ -27,16 +27,19 @@ import {
   NO_STATS,
   POST_LABELS,
   SCAN_LABELS,
+  STAFF_LABELS,
   TAB_LABELS,
   addedToday,
   aggregateClicks,
   fillMessage,
   groupStage,
   newComments,
+  staffToText,
   trackingLink,
   type FbGroup,
   type FbGroupStats,
   type FbMetrics,
+  type FbStaff,
   type FbTab,
   type Ranked,
 } from "@/lib/domain/fb-groups";
@@ -110,7 +113,7 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
   const q = (sp.q ?? "").trim().toLowerCase();
   const shown = groups
     .filter((g) => !tab || g.status === tab)
-    .filter((g) => !q || `${g.name} ${g.slug} ${g.groupUrl} ${g.note}`.toLowerCase().includes(q))
+    .filter((g) => !q || `${g.name} ${g.slug} ${g.groupUrl} ${g.note} ${g.staff.map((p) => p.name).join(" ")}`.toLowerCase().includes(q))
     .sort((a, b) => (sp.tri === "clics" ? statOf(b).clicks - statOf(a).clicks : sp.tri === "commentaires" ? newComments(b) - newComments(a) || (b.scan?.comments ?? -1) - (a.scan?.comments ?? -1) : 0) || b.createdAt - a.createdAt);
   const unread = groups.reduce((s, g) => s + newComments(g), 0);
   const count = (t: FbTab) => groups.filter((g) => g.status === t).length;
@@ -340,6 +343,8 @@ function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroup
 
         {g.note && <p className="text-xs font-semibold text-tint-sand-ink">ⓘ {g.note}</p>}
 
+        <StaffLine staff={g.staff} at={g.staffAt} now={now} />
+
         <details className="group">
           <summary className="w-fit cursor-pointer list-none text-[0.6875rem] font-bold text-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
             <span className="group-open:hidden">Modifier ▸</span>
@@ -362,6 +367,9 @@ function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroup
               <Field label="Message" name="message" hint="{lien} marque l'endroit du lien de suivi du groupe ; laissé vide, le message est effacé.">
                 <Textarea name="message" defaultValue={g.message ?? ""} rows={8} className="!bg-surface" />
               </Field>
+              <Field label="Admins et modérateurs" name="staff" hint="Une personne par ligne : Nom | lien du profil | admin ou modérateur. Le lien et le rôle sont facultatifs (admin par défaut).">
+                <Textarea name="staff" defaultValue={staffToText(g.staff)} rows={Math.min(8, Math.max(3, g.staff.length + 1))} placeholder={"Claire Martin | https://www.facebook.com/claire.martin | admin\nPaul Durand | https://www.facebook.com/profile.php?id=… | modérateur"} className="!bg-surface" />
+              </Field>
             </ActionForm>
             <ActionForm action={deleteFbGroupAction} submitLabel="Supprimer le groupe" submitTone="ghost" confirm={`Supprimer « ${g.name} » du suivi ? Ses clics restent en base, mais son lien ne sera plus attribué.`} className={`${tiny} [&_button]:text-danger`}>
               <input type="hidden" name="slug" value={g.slug} />
@@ -370,6 +378,37 @@ function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroup
         </details>
       </article>
     </details>
+  );
+}
+
+/* ---------- Admins et modérateurs ---------- */
+
+/** Qui tient le groupe, chacun menant à son profil. Une liste vide le dit, pour qu'on sache qu'elle reste à relever. */
+function StaffLine({ staff, at, now }: { staff: FbStaff[]; at: number | null; now: number }) {
+  if (staff.length === 0) return <p className="text-xs font-semibold text-faint">Admins et modérateurs : pas encore relevés</p>;
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-semibold">
+      <span className="font-bold text-subtle" title={at ? `Relevés ${ago(at, now)}` : undefined}>
+        Admins et modérateurs
+      </span>
+      {staff.map((p) => {
+        const label = (
+          <>
+            {p.name}
+            {p.role === "moderator" && <span className="ml-1 text-subtle">· {STAFF_LABELS.moderator.toLowerCase()}</span>}
+          </>
+        );
+        return p.profileUrl ? (
+          <a key={p.profileUrl} href={p.profileUrl} target="_blank" rel="noreferrer" className="rounded-pill bg-paper px-2.5 py-1 hover:opacity-70">
+            {label} <span className="text-subtle">↗</span>
+          </a>
+        ) : (
+          <span key={`${p.name}-${p.role}`} className="rounded-pill bg-paper px-2.5 py-1">
+            {label}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 

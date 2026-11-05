@@ -708,6 +708,15 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   30 à 90 s entre deux demandes, une pause de 15 à 20 min toutes les 10, aucun plafond
   sur le total — celui qui a servi pour COBA sans souci — et l'arrêt au premier
   avertissement de Facebook) et finit par un compte rendu.
+- **Les admins et modérateurs** (`FbGroup.staff` : nom, rôle, lien de profil) sont relevés
+  par l'agent sur `<groupe>/members/admins` et envoyés avec le groupe (`POST`) ou plus tard
+  (`PATCH`, qui **remplace** la liste entière — une liste dont l'ordre est celui de
+  Facebook se réécrit d'un bloc). Le rôle est exigé par l'API : le deviner rangerait un
+  modérateur parmi les admins. Le lien est ramené à sa forme stable (`profileUrlFrom`) —
+  sans quoi les paramètres de suivi de Facebook feraient paraître deux fois la même
+  personne. Dans l'écran, une personne par ligne (`Nom | lien | rôle`, `staffFromText`) ;
+  une liste inchangée ne se réécrit pas, `staffAt` dit quand elle a été relevée. L'agent
+  ne leur écrit jamais et n'ouvre pas leurs profils : il lit le lien sur la page.
 - **Le post** se saisit sur la ligne (`FbPostInput`, enregistré en quittant le champ), avec
   son état à côté. Un premier lien le met « en attente » et range le groupe dans « Fait » ;
   changer de lien efface le relevé de l'ancien post.

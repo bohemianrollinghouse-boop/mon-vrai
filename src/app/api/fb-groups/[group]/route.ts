@@ -24,7 +24,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
   if (denied) return denied;
   const parsed = ApiPatch.safeParse(await readJson(request));
   if (!parsed.success) return json({ error: firstIssue(parsed.error) }, 400);
-  if (Object.keys(parsed.data).length === 0) return json({ error: "rien à modifier (champs : status, membership, members, postUrl, postStatus, note, message)" }, 400);
+  if (Object.keys(parsed.data).length === 0) return json({ error: "rien à modifier (champs : status, membership, members, postUrl, postStatus, note, message, staff)" }, 400);
   const group = await findFbGroup(groupRef((await ctx.params).group));
   if (!group) return notFound();
   try {

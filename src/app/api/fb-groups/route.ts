@@ -1,5 +1,5 @@
 import { addFbGroup, getFbConfig, listFbGroups } from "@/lib/db/fb-groups";
-import { ApiNewGroup, LOT_MAX, addedToday, checkMessage, firstIssue } from "@/lib/domain/fb-groups";
+import { ApiNewGroup, LOT_MAX, addedToday, checkMessage, checkStaff, firstIssue } from "@/lib/domain/fb-groups";
 import { apiView, denyWithoutKey, json, readJson, siteHost } from "@/lib/fb-groups/api";
 
 /*
@@ -47,8 +47,10 @@ export async function POST(request: Request) {
         if (!checked.ok) throw new Error(checked.error);
         message = checked.text;
       }
-      const { group, existed } = await addFbGroup({ ...parsed.data, message, addedBy: "agent" });
-      results.push({ url, ok: true, existed, group: apiView(group, config), ...(existed && message ? { warning: "groupe déjà suivi : rien n'a été modifié. Pour changer son message : PUT /{slug}/message" } : {}) });
+      const staff = parsed.data.staff ? checkStaff(parsed.data.staff) : undefined;
+      const { group, existed } = await addFbGroup({ ...parsed.data, message, staff, addedBy: "agent" });
+      const ignored = [message && "le message : PUT /{slug}/message", staff?.length && "les admins et modérateurs : PATCH /{slug} avec staff"].filter(Boolean);
+      results.push({ url, ok: true, existed, group: apiView(group, config), ...(existed && ignored.length ? { warning: `groupe déjà suivi : rien n'a été modifié. Pour changer ${ignored.join(" ; ")}` } : {}) });
     } catch (err) {
       results.push({ url, ok: false, error: (err as Error).message });
     }

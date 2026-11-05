@@ -67,6 +67,31 @@ export const FbScan = z.object({
 });
 export type FbScan = z.infer<typeof FbScan>;
 
+/* ---------- Admins et modérateurs ---------- */
+
+/*
+ * Ceux qui tiennent le groupe : ce sont eux qui valident une adhésion, laissent passer
+ * un post ou le retirent. Les connaître, c'est savoir à qui l'on a affaire quand un post
+ * reste en attente — et à qui écrire, à la main, si l'on veut demander la permission.
+ * Relevés par l'agent sur l'onglet « Membres » du groupe, jamais devinés.
+ *
+ * Le lien de profil est ramené à une forme stable (`profileUrlFrom`) : Facebook y colle
+ * des paramètres de suivi (`__cft__`, `__tn__`) qui changent à chaque affichage, et la
+ * même personne paraîtrait sinon deux fois dans la liste.
+ */
+export const FB_STAFF_ROLES = ["admin", "moderator"] as const;
+export type FbStaffRole = (typeof FB_STAFF_ROLES)[number];
+export const FB_STAFF_MAX = 30;
+export const STAFF_LABELS: Record<FbStaffRole, string> = { admin: "Admin", moderator: "Modérateur" };
+
+export const FbStaff = z.object({
+  name: z.string().min(1),
+  role: z.enum(FB_STAFF_ROLES).default("admin"),
+  /** Lien du profil (ou de la Page, quand c'est une Page qui administre). Null si l'agent ne l'a pas vu. */
+  profileUrl: z.string().nullable().default(null),
+});
+export type FbStaff = z.infer<typeof FbStaff>;
+
 export const FbGroup = z.object({
   /** Valeur de `?fb=` et identifiant du document : c'est lui qui rattache les clics au groupe. Ne change jamais. */
   slug: z.string().min(1),
@@ -84,6 +109,10 @@ export const FbGroup = z.object({
   postStatus: z.enum(FB_POST_STATES).nullable().default(null),
   /** Ce qu'il faut savoir du groupe en une phrase (« pub le samedi seulement »). */
   note: z.string().default(""),
+  /** Admins et modérateurs, dans l'ordre où Facebook les affiche. */
+  staff: z.array(FbStaff).default([]),
+  /** Quand la liste a été relevée pour la dernière fois. */
+  staffAt: z.number().nullable().default(null),
   addedBy: z.enum(["agent", "admin"]).default("agent"),
   /** Dernier relevé du post par le script Tampermonkey. */
   scan: FbScan.nullable().default(null),
@@ -194,9 +223,101 @@ export function postUrlFrom(raw: string | null | undefined): string | null {
   return url.slice(0, 400);
 }
 
+/* Chemins de facebook.com qui ne sont pas un profil, même s'ils n'ont qu'un segment. */
+const NOT_PROFILES = new Set([
+  "groups", "events", "watch", "marketplace", "gaming", "login", "login.php", "share", "sharer", "sharer.php",
+  "story.php", "permalink.php", "photo", "photo.php", "photos", "videos", "reel", "reels", "hashtag", "search",
+  "help", "settings", "notifications", "messages", "friends", "bookmarks", "pages", "home.php", "policies", "privacy",
+]);
+
+/**
+ * Un lien de profil Facebook (personne ou Page) ramené à sa forme stable, ou null s'il
+ * n'en est pas un. Formes admises : `/profile.php?id=…`, `/<nom d'utilisateur>`,
+ * `/people/<nom>/<id>`, et `/groups/<groupe>/user/<id>` — celle que donne la liste des
+ * membres d'un groupe. Paramètres de suivi, sous-domaine (`m.`, `web.`) et barre finale
+ * sont retirés.
+ */
+export function profileUrlFrom(raw: string | null | undefined): string | null {
+  let u: URL;
+  try {
+    u = new URL(String(raw ?? "").trim());
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+  if (!/(^|\.)facebook\.com$/i.test(u.hostname)) return null;
+  const base = "https://www.facebook.com";
+  const parts = u.pathname.split("/").filter(Boolean);
+  if (parts[0] === "profile.php") {
+    const id = u.searchParams.get("id") ?? "";
+    return /^\d{1,25}$/.test(id) ? `${base}/profile.php?id=${id}` : null;
+  }
+  if (parts[0] === "groups" && parts[2] === "user" && parts[1] && /^\d{1,25}$/.test(parts[3] ?? "")) {
+    return `${base}/groups/${parts[1]}/user/${parts[3]}`;
+  }
+  if (parts[0] === "people" && parts.length >= 3 && /^\d{1,25}$/.test(parts[2])) return `${base}/people/${parts[1]}/${parts[2]}`;
+  if (parts.length === 1 && /^[A-Za-z0-9.\-]{2,80}$/.test(parts[0]) && !NOT_PROFILES.has(parts[0].toLowerCase())) return `${base}/${parts[0]}`;
+  return null;
+}
+
+export type StaffInput = { name: string; role: FbStaffRole; profileUrl?: string | null };
+
+/**
+ * Valide une liste d'admins et de modérateurs. Lève, en nommant la ligne, sur un nom vide
+ * ou un lien qui n'est pas un profil : un lien refusé en silence serait un lien perdu.
+ * Une même personne (même profil, ou même nom sans profil) n'est gardée qu'une fois.
+ */
+export function checkStaff(list: StaffInput[]): FbStaff[] {
+  if (list.length > FB_STAFF_MAX) throw new Error(`staff : ${FB_STAFF_MAX} personnes au plus`);
+  const out: FbStaff[] = [];
+  const seen = new Set<string>();
+  list.forEach((p, i) => {
+    const name = String(p.name ?? "").trim().slice(0, 100);
+    if (!name) throw new Error(`staff[${i}].name : nom obligatoire`);
+    const given = String(p.profileUrl ?? "").trim();
+    const profileUrl = given ? profileUrlFrom(given) : null;
+    if (given && !profileUrl) throw new Error(`staff[${i}].profileUrl : lien de profil Facebook attendu (https://www.facebook.com/…), reçu « ${given.slice(0, 120)} »`);
+    const key = profileUrl ?? `nom:${slugify(name)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ name, role: p.role, profileUrl });
+  });
+  return out;
+}
+
+const ROLE_WORD = /^(admins?|administrat(eur|rice)s?|moderators?|modos?|mod[ée]rat(eur|rice)s?)$/i;
+
+/**
+ * La liste saisie dans l'écran, une personne par ligne : « Nom | lien | rôle », le lien
+ * et le rôle facultatifs, dans n'importe quel ordre (un lien se reconnaît, un rôle aussi).
+ * Rôle par défaut : admin.
+ */
+export function staffFromText(text: string): FbStaff[] {
+  const rows: StaffInput[] = [];
+  for (const line of String(text ?? "").split(/\r?\n/)) {
+    const cells = line.split(/[|\t]/).map((c) => c.trim()).filter(Boolean);
+    if (cells.length === 0) continue;
+    let role: FbStaffRole = "admin";
+    let profileUrl: string | null = null;
+    const rest: string[] = [];
+    for (const c of cells) {
+      if (/^https?:\/\/|facebook\.com\//i.test(c)) profileUrl = /^https?:\/\//i.test(c) ? c : `https://${c}`;
+      else if (ROLE_WORD.test(c)) role = /^admin/i.test(c) ? "admin" : "moderator";
+      else rest.push(c);
+    }
+    rows.push({ name: rest.join(" "), role, profileUrl });
+  }
+  return checkStaff(rows);
+}
+
+/** L'inverse de `staffFromText`, pour pré-remplir le champ. */
+export function staffToText(staff: FbStaff[]): string {
+  return staff.map((p) => [p.name, p.profileUrl, p.role === "admin" ? "admin" : "modérateur"].filter(Boolean).join(" | ")).join("\n");
+}
+
 /* ---------- Changer l'état d'un groupe ---------- */
 
-export type FbGroupPatch = Partial<Pick<FbGroup, "status" | "membership" | "postUrl" | "postStatus" | "note" | "members" | "name">> & {
+export type FbGroupPatch = Partial<Pick<FbGroup, "status" | "membership" | "postUrl" | "postStatus" | "note" | "members" | "name" | "staff">> & {
   message?: string | null;
 };
 
@@ -213,6 +334,10 @@ export function applyPatch(current: FbGroup, patch: FbGroupPatch, at: number): F
   if (patch.membership !== undefined) next.membership = patch.membership;
   if (patch.members !== undefined) next.members = patch.members;
   if (patch.note !== undefined) next.note = patch.note.trim().slice(0, FB_NOTE_MAX);
+  if (patch.staff !== undefined) {
+    next.staff = patch.staff;
+    next.staffAt = at;
+  }
   if (patch.message !== undefined) {
     next.message = patch.message;
     next.messageAt = patch.message === null ? null : at;
@@ -569,6 +694,15 @@ export function groupStage(g: Pick<FbGroup, "status" | "membership" | "message" 
 
 export const LOT_MAX = 50;
 
+/** Un admin ou un modérateur, tel que l'API le reçoit. Le rôle est exigé : le deviner rangerait un modérateur parmi les admins. */
+export const ApiStaff = z
+  .object({
+    name: z.string().trim().min(1, "nom obligatoire").max(100),
+    role: z.enum(FB_STAFF_ROLES, { message: "role : admin ou moderator" }),
+    profileUrl: z.string().nullable().optional(),
+  })
+  .strict();
+
 /** Un groupe à ajouter. Le nom est obligatoire : le serveur ne peut pas le lire sur Facebook. */
 export const ApiNewGroup = z.object({
   url: z.string().min(1, "url obligatoire"),
@@ -577,6 +711,7 @@ export const ApiNewGroup = z.object({
   members: z.number().int().nonnegative().nullable().optional(),
   message: z.string().nullable().optional(),
   note: z.string().max(FB_NOTE_MAX).optional(),
+  staff: z.array(ApiStaff).max(FB_STAFF_MAX).optional(),
 });
 export type ApiNewGroup = z.infer<typeof ApiNewGroup>;
 
@@ -594,6 +729,8 @@ export const ApiPatch = z
     postStatus: z.enum(FB_POST_STATES),
     note: z.string().max(FB_NOTE_MAX),
     message: z.string().nullable(),
+    /** Remplace la liste entière (vide = l'effacer). */
+    staff: z.array(ApiStaff).max(FB_STAFF_MAX),
   })
   .partial()
   .strict();
@@ -603,7 +740,9 @@ export type ApiPatch = z.infer<typeof ApiPatch>;
 export function firstIssue(error: z.ZodError): string {
   const i = error.issues[0];
   if (!i) return "requête invalide";
-  if (i.code === "unrecognized_keys") return `champ non modifiable par l'API : ${i.keys.join(", ")}`;
+  if (i.code === "unrecognized_keys") {
+    return i.path.length ? `${i.path.join(".")} : champ inconnu (${i.keys.join(", ")})` : `champ non modifiable par l'API : ${i.keys.join(", ")}`;
+  }
   const where = i.path.length ? `${i.path.join(".")} : ` : "";
   return `${where}${i.message}`;
 }
@@ -620,6 +759,7 @@ export function toPatch(input: ApiPatch, siteHost: string): FbGroupPatch {
   if (input.note !== undefined) patch.note = input.note;
   if (input.postUrl !== undefined) patch.postUrl = postUrlFrom(input.postUrl);
   if (input.postStatus !== undefined) patch.postStatus = input.postStatus;
+  if (input.staff !== undefined) patch.staff = checkStaff(input.staff);
   if (input.message !== undefined) {
     if (input.message === null || input.message.trim() === "") patch.message = null;
     else {

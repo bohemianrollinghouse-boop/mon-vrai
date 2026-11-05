@@ -6,7 +6,14 @@ import {
   scanFrom,
   aggregateClicks,
   applyPatch,
+  ApiNewGroup,
+  ApiPatch,
   browserFromUa,
+  checkStaff,
+  profileUrlFrom,
+  staffFromText,
+  staffToText,
+  toPatch,
   checkMessage,
   fillMessage,
   FbGroup,
@@ -111,6 +118,59 @@ describe("applyPatch", () => {
   it("date le message, et l'efface avec sa date", () => {
     expect(applyPatch(group(), { message: "a {lien}" }, 5).messageAt).toBe(5);
     expect(applyPatch(group({ message: "a", messageAt: 5 }), { message: null }, 6).messageAt).toBeNull();
+  });
+});
+
+describe("admins et modérateurs", () => {
+  it("ramène un lien de profil à sa forme stable", () => {
+    expect(profileUrlFrom("https://m.facebook.com/profile.php?id=1000123&__cft__[0]=AZX&__tn__=R")).toBe("https://www.facebook.com/profile.php?id=1000123");
+    expect(profileUrlFrom("https://www.facebook.com/groups/mamans.lyon/user/1000123/?__cft__[0]=x")).toBe("https://www.facebook.com/groups/mamans.lyon/user/1000123");
+    expect(profileUrlFrom("https://web.facebook.com/claire.martin.75/")).toBe("https://www.facebook.com/claire.martin.75");
+    expect(profileUrlFrom("https://www.facebook.com/people/Claire-Martin/61550000000000/")).toBe("https://www.facebook.com/people/Claire-Martin/61550000000000");
+  });
+  it("refuse ce qui n'est pas un profil", () => {
+    expect(profileUrlFrom("https://www.facebook.com/groups/123")).toBeNull();
+    expect(profileUrlFrom("https://www.facebook.com/groups/123/posts/4")).toBeNull();
+    expect(profileUrlFrom("https://www.facebook.com/watch")).toBeNull();
+    expect(profileUrlFrom("https://www.facebook.com/profile.php")).toBeNull();
+    expect(profileUrlFrom("https://evil.com/claire")).toBeNull();
+    expect(profileUrlFrom("pas un lien")).toBeNull();
+  });
+  it("valide la liste en nommant la ligne fautive, et ne garde chacun qu'une fois", () => {
+    const staff = checkStaff([
+      { name: " Claire ", role: "admin", profileUrl: "https://m.facebook.com/profile.php?id=1&__tn__=R" },
+      { name: "Claire M.", role: "admin", profileUrl: "https://www.facebook.com/profile.php?id=1" },
+      { name: "Paul", role: "moderator" },
+    ]);
+    expect(staff).toEqual([
+      { name: "Claire", role: "admin", profileUrl: "https://www.facebook.com/profile.php?id=1" },
+      { name: "Paul", role: "moderator", profileUrl: null },
+    ]);
+    expect(() => checkStaff([{ name: "A", role: "admin" }, { name: "B", role: "admin", profileUrl: "https://www.facebook.com/groups/1" }])).toThrow(/staff\[1\]\.profileUrl/);
+    expect(() => checkStaff([{ name: " ", role: "admin" }])).toThrow(/staff\[0\]\.name/);
+  });
+  it("lit la saisie de l'écran, une personne par ligne, et la réécrit à l'identique", () => {
+    const staff = staffFromText("Claire Martin | https://www.facebook.com/claire.martin\n\nmodératrice | Paul\nJeanne | facebook.com/profile.php?id=42 | modo");
+    expect(staff).toEqual([
+      { name: "Claire Martin", role: "admin", profileUrl: "https://www.facebook.com/claire.martin" },
+      { name: "Paul", role: "moderator", profileUrl: null },
+      { name: "Jeanne", role: "moderator", profileUrl: "https://www.facebook.com/profile.php?id=42" },
+    ]);
+    expect(staffFromText(staffToText(staff))).toEqual(staff);
+    expect(staffFromText("")).toEqual([]);
+  });
+  it("l'API exige le rôle, refuse un champ inconnu, et date la liste", () => {
+    expect(ApiNewGroup.safeParse({ url: "u", name: "n", staff: [{ name: "Claire" }] }).success).toBe(false);
+    expect(ApiPatch.safeParse({ staff: [{ name: "Claire", role: "admin", url: "x" }] }).success).toBe(false);
+    const parsed = ApiPatch.parse({ staff: [{ name: "Claire", role: "moderator", profileUrl: "https://www.facebook.com/claire" }] });
+    const g = applyPatch(group(), toPatch(parsed, "monvrai.fr"), 9);
+    expect(g.staff).toEqual([{ name: "Claire", role: "moderator", profileUrl: "https://www.facebook.com/claire" }]);
+    expect(g.staffAt).toBe(9);
+    expect(applyPatch(g, toPatch(ApiPatch.parse({ staff: [] }), "monvrai.fr"), 10).staff).toEqual([]);
+  });
+  it("un groupe d'avant se relit sans liste", () => {
+    expect(group().staff).toEqual([]);
+    expect(group().staffAt).toBeNull();
   });
 });
 

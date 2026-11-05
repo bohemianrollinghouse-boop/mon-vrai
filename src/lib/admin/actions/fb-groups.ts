@@ -6,7 +6,7 @@ import { audit } from "@/lib/admin/audit";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
 import { addFbGroup, deleteFbGroup, getFbGroup, markFbCommentsSeen, recordFbScan, revokeApiKey, rotateApiKey, setLandingPath, updateFbGroup } from "@/lib/db/fb-groups";
-import { ApiPatch, FB_MEMBERSHIPS, FB_POST_STATES, FB_TABS, firstIssue, landingPathFrom, postUrlFrom, toPatch } from "@/lib/domain/fb-groups";
+import { ApiPatch, FB_MEMBERSHIPS, FB_POST_STATES, FB_TABS, firstIssue, landingPathFrom, postUrlFrom, staffFromText, toPatch, type FbStaff } from "@/lib/domain/fb-groups";
 import { siteHost } from "@/lib/fb-groups/api";
 
 /*
@@ -85,7 +85,7 @@ export async function quickFbGroupAction(fd: FormData): Promise<AdminResult> {
   return saved(patch.status ? "Groupe déplacé." : "Enregistré.");
 }
 
-/** La fiche : nom, note, nombre de membres, message. Le lien du post se saisit sur la ligne. */
+/** La fiche : nom, note, nombre de membres, message, admins et modérateurs. Le lien du post se saisit sur la ligne. */
 export async function saveFbGroupAction(fd: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const raw = fields(fd);
@@ -101,9 +101,18 @@ export async function saveFbGroupAction(fd: FormData): Promise<AdminResult> {
     message: raw.message ?? null,
   });
   if (!parsed.success) return failed(firstIssue(parsed.error));
+  let staff: FbStaff[] | undefined;
+  try {
+    staff = raw.staff === undefined ? undefined : staffFromText(raw.staff);
+  } catch (err) {
+    const msg = (err as Error).message.replace(/^staff\[(\d+)\]\.\w+ : /, (_, n) => `Ligne ${Number(n) + 1} : `);
+    return failed(msg, { staff: msg });
+  }
   try {
     const patch = toPatch(parsed.data, siteHost());
     if (raw.name?.trim()) patch.name = raw.name;
+    // Une liste inchangée ne se réécrit pas : sa date dit quand on l'a relevée, pas quand on a enregistré la fiche.
+    if (staff && JSON.stringify(staff) !== JSON.stringify(current.staff)) patch.staff = staff;
     await updateFbGroup(slug.data, patch);
   } catch (err) {
     return failed((err as Error).message, /lien|message/i.test((err as Error).message) ? { message: (err as Error).message } : undefined);
