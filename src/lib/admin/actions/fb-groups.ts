@@ -5,8 +5,20 @@ import { z } from "zod";
 import { audit } from "@/lib/admin/audit";
 import { failed, saved, type AdminResult } from "@/lib/admin/types";
 import { assertAdmin } from "@/lib/auth/session";
-import { addFbGroup, deleteFbGroup, getFbGroup, markFbCommentsSeen, recordFbScan, revokeApiKey, rotateApiKey, setLandingPath, updateFbGroup } from "@/lib/db/fb-groups";
-import { ApiPatch, FB_MEMBERSHIPS, FB_POST_STATES, FB_TABS, firstIssue, landingPathFrom, postUrlFrom, staffFromText, toPatch, type FbStaff } from "@/lib/domain/fb-groups";
+import {
+  addFbGroup,
+  deleteFbGroup,
+  getFbGroup,
+  markFbCommentsSeen,
+  recordFbMembershipScan,
+  recordFbScan,
+  recordFbStaffReply,
+  revokeApiKey,
+  rotateApiKey,
+  setLandingPath,
+  updateFbGroup,
+} from "@/lib/db/fb-groups";
+import { ApiPatch, FB_MEMBERSHIPS, FB_POST_STATES, FB_STAFF_MAX, FB_STAFF_ROLES, FB_TABS, checkStaff, firstIssue, landingPathFrom, postUrlFrom, staffKey, staffReplyState, toPatch, type FbMembership } from "@/lib/domain/fb-groups";
 import { siteHost } from "@/lib/fb-groups/api";
 
 /*
@@ -85,7 +97,7 @@ export async function quickFbGroupAction(fd: FormData): Promise<AdminResult> {
   return saved(patch.status ? "Groupe déplacé." : "Enregistré.");
 }
 
-/** La fiche : nom, note, nombre de membres, message, admins et modérateurs. Le lien du post se saisit sur la ligne. */
+/** La fiche : nom, note, nombre de membres, message. Le lien du post se saisit sur la ligne, les admins dans leur formulaire. */
 export async function saveFbGroupAction(fd: FormData): Promise<AdminResult> {
   const user = await assertAdmin();
   const raw = fields(fd);
@@ -101,18 +113,9 @@ export async function saveFbGroupAction(fd: FormData): Promise<AdminResult> {
     message: raw.message ?? null,
   });
   if (!parsed.success) return failed(firstIssue(parsed.error));
-  let staff: FbStaff[] | undefined;
-  try {
-    staff = raw.staff === undefined ? undefined : staffFromText(raw.staff);
-  } catch (err) {
-    const msg = (err as Error).message.replace(/^staff\[(\d+)\]\.\w+ : /, (_, n) => `Ligne ${Number(n) + 1} : `);
-    return failed(msg, { staff: msg });
-  }
   try {
     const patch = toPatch(parsed.data, siteHost());
     if (raw.name?.trim()) patch.name = raw.name;
-    // Une liste inchangée ne se réécrit pas : sa date dit quand on l'a relevée, pas quand on a enregistré la fiche.
-    if (staff && JSON.stringify(staff) !== JSON.stringify(current.staff)) patch.staff = staff;
     await updateFbGroup(slug.data, patch);
   } catch (err) {
     return failed((err as Error).message, /lien|message/i.test((err as Error).message) ? { message: (err as Error).message } : undefined);
@@ -159,6 +162,73 @@ export async function recordFbScanAction(slug: string, releve: unknown): Promise
   }
   revalidatePath(PATH);
   return { ok: true };
+}
+
+/*
+ * Les admins et modérateurs, saisis dans leur formulaire (un bloc par personne). Le message
+ * envoyé, la date du contact et le relevé de la réponse n'y figurent pas : `mergeStaff` les
+ * garde. Une conversation ajoutée ou changée date le contact d'aujourd'hui.
+ */
+const StaffRow = z.object({
+  name: z.string().max(100),
+  role: z.enum(FB_STAFF_ROLES),
+  profileUrl: z.string().max(500),
+  conversationUrl: z.string().max(500),
+});
+const FIELD_LABELS: Record<string, string> = { name: "nom", profileUrl: "lien du profil", conversationUrl: "lien de la conversation" };
+
+export async function saveFbStaffAction(slug: string, rows: unknown): Promise<{ ok: boolean; error?: string }> {
+  const user = await assertAdmin();
+  if (!Slug.safeParse(slug).success) return { ok: false, error: "Requête invalide." };
+  const parsed = z.array(StaffRow).max(FB_STAFF_MAX, `${FB_STAFF_MAX} personnes au plus`).safeParse(rows);
+  if (!parsed.success) return { ok: false, error: firstIssue(parsed.error) };
+  if (!(await getFbGroup(slug))) return { ok: false, error: "Groupe introuvable." };
+  try {
+    const staff = checkStaff(
+      parsed.data.map((r) => ({ name: r.name, role: r.role, profileUrl: r.profileUrl.trim() || null, conversationUrl: r.conversationUrl.trim() || null })),
+    );
+    await updateFbGroup(slug, { staff });
+  } catch (err) {
+    // « staff[2].profileUrl : … » ne dit rien dans l'écran : « Personne 3 (lien du profil) : … ».
+    const msg = (err as Error).message.replace(/^staff\[(\d+)\]\.?(\w*) : /, (_, n: string, field: string) => `Personne ${Number(n) + 1}${field ? ` (${FIELD_LABELS[field] ?? field})` : ""} : `);
+    return { ok: false, error: msg };
+  }
+  await audit(user.email, "facebook.group.staff", `fbGroups/${slug}`);
+  revalidatePath(PATH);
+  return { ok: true };
+}
+
+/*
+ * Le relevé de la page d'un groupe (notre adhésion), rendu par le script à la page. Rend le
+ * nom et l'adhésion avant et après : la page en fait le bilan à la fin de la vérification.
+ */
+export async function recordFbMembershipScanAction(
+  slug: string,
+  releve: unknown,
+): Promise<{ ok: boolean; error?: string; name?: string; before?: FbMembership; after?: FbMembership }> {
+  await assertAdmin();
+  if (!Slug.safeParse(slug).success) return { ok: false, error: "Requête invalide." };
+  try {
+    const { group, before } = await recordFbMembershipScan(slug, releve);
+    revalidatePath(PATH);
+    return { ok: true, name: group.name, before, after: group.membership };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}
+
+/** Le relevé de la conversation avec un admin (a-t-il répondu ?). `key` : `staffKey` de la personne. */
+export async function recordFbStaffReplyAction(slug: string, key: string, releve: unknown): Promise<{ ok: boolean; error?: string; replied?: boolean; name?: string }> {
+  await assertAdmin();
+  if (!Slug.safeParse(slug).success || typeof key !== "string" || !key || key.length > 500) return { ok: false, error: "Requête invalide." };
+  try {
+    const group = await recordFbStaffReply(slug, key, releve);
+    revalidatePath(PATH);
+    const person = group.staff.find((p) => staffKey(p) === key);
+    return { ok: true, replied: person ? staffReplyState(person) === "replied" : false, name: person ? `${person.name} (${group.name})` : group.name };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
 }
 
 export async function markFbSeenAction(fd: FormData): Promise<AdminResult> {

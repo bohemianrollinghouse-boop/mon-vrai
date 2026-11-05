@@ -5,18 +5,25 @@ import {
   FbClick,
   FbGroup,
   FbGroupsConfig,
+  applyMembershipScan,
   applyPatch,
   applyScan,
+  applyStaffContact,
+  applyStaffReply,
+  conversationScanFrom,
   groupRoot,
   groupSlug,
   isDuplicate,
+  membershipScanFrom,
+  mergeStaff,
   sameName,
   scanFrom,
   statsByGroup,
+  type ApiStaffContact,
   type FbGroupPatch,
   type FbGroupStats,
   type FbMembership,
-  type FbStaff,
+  type StaffEntry,
 } from "@/lib/domain/fb-groups";
 import { col, now, parseDoc } from "./helpers";
 
@@ -111,7 +118,7 @@ export type NewFbGroup = {
   message?: string | null;
   note?: string;
   /** Déjà validée (`checkStaff`). */
-  staff?: FbStaff[];
+  staff?: StaffEntry[];
   addedBy: "agent" | "admin";
 };
 
@@ -146,7 +153,7 @@ export async function addFbGroup(input: NewFbGroup): Promise<{ group: FbGroup; e
       message: input.message ?? null,
       messageAt: input.message ? at : null,
       note: (input.note ?? "").trim().slice(0, 500),
-      staff: input.staff ?? [],
+      staff: mergeStaff([], input.staff ?? [], at),
       staffAt: input.staff?.length ? at : null,
       addedBy: input.addedBy,
       createdAt: at,
@@ -182,6 +189,47 @@ export async function recordFbScan(slug: string, raw: unknown): Promise<FbGroup>
     const current = parseDoc(FbGroup, await tx.get(ref));
     if (!current) throw new Error("groupe introuvable");
     const next = FbGroup.parse(applyScan(current, scanFrom(raw, now())));
+    tx.set(ref, next);
+    return next;
+  });
+}
+
+/**
+ * Enregistre le relevé de la page du groupe (notre adhésion). Rend aussi l'adhésion d'avant :
+ * l'écran en fait le bilan de la vérification.
+ */
+export async function recordFbMembershipScan(slug: string, raw: unknown): Promise<{ group: FbGroup; before: FbMembership }> {
+  const ref = groups().doc(slug);
+  return ref.firestore.runTransaction(async (tx) => {
+    const current = parseDoc(FbGroup, await tx.get(ref));
+    if (!current) throw new Error("groupe introuvable");
+    const next = FbGroup.parse(applyMembershipScan(current, membershipScanFrom(raw, now())));
+    tx.set(ref, next);
+    return { group: next, before: current.membership };
+  });
+}
+
+/** Note un message envoyé à un admin ou un modérateur du groupe (`applyStaffContact`). */
+export async function recordFbStaffContact(slug: string, input: ApiStaffContact): Promise<FbGroup> {
+  const ref = groups().doc(slug);
+  return ref.firestore.runTransaction(async (tx) => {
+    const current = parseDoc(FbGroup, await tx.get(ref));
+    if (!current) throw new Error("groupe introuvable");
+    const at = now();
+    const next = FbGroup.parse({ ...current, staff: applyStaffContact(current.staff, input, at), updatedAt: at });
+    tx.set(ref, next);
+    return next;
+  });
+}
+
+/** Enregistre le relevé de la conversation avec une personne du groupe (clé : `staffKey`). */
+export async function recordFbStaffReply(slug: string, key: string, raw: unknown): Promise<FbGroup> {
+  const ref = groups().doc(slug);
+  return ref.firestore.runTransaction(async (tx) => {
+    const current = parseDoc(FbGroup, await tx.get(ref));
+    if (!current) throw new Error("groupe introuvable");
+    const at = now();
+    const next = FbGroup.parse({ ...current, staff: applyStaffReply(current.staff, key, conversationScanFrom(raw, at)), updatedAt: at });
     tx.set(ref, next);
     return next;
   });

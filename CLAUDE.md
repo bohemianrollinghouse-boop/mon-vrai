@@ -710,17 +710,25 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   avertissement de Facebook) et finit par un compte rendu.
 - **Les admins et modérateurs** (`FbGroup.staff` : nom, rôle, lien de profil) sont relevés
   par l'agent sur `<groupe>/members/admins` et envoyés avec le groupe (`POST`) ou plus tard
-  (`PATCH`, qui **remplace** la liste entière — une liste dont l'ordre est celui de
+  (`PATCH`, qui **remplace** la liste entière : une liste dont l'ordre est celui de
   Facebook se réécrit d'un bloc). Le rôle est exigé par l'API : le deviner rangerait un
-  modérateur parmi les admins. Le lien est ramené à sa forme stable (`profileUrlFrom`) —
+  modérateur parmi les admins. Le lien est ramené à sa forme stable (`profileUrlFrom`),
   sans quoi les paramètres de suivi de Facebook feraient paraître deux fois la même
-  personne. Dans l'écran, une personne par ligne (`Nom | lien | rôle`, `staffFromText`) ;
-  une liste inchangée ne se réécrit pas, `staffAt` dit quand elle a été relevée. L'agent
-  ne leur écrit jamais et n'ouvre pas leurs profils : il lit le lien sur la page.
-  La ligne porte aussi **le lien de cette page** (`staffUrl`, déduite du groupe et jamais
-  stockée) : c'est par là qu'on va quand la liste est vide, quand quelqu'un n'y figure pas
-  encore, ou simplement pour écrire à un admin — beaucoup de groupes n'acceptent une
-  publication qu'avec son accord, et sans ce lien il faut rouvrir le groupe à chaque fois.
+  personne. Dans l'écran, un **formulaire** (`FbStaffEditor`, un bloc par personne : nom,
+  lien du profil, rôle, lien de la conversation Messenger), enregistré par
+  `saveFbStaffAction`. L'agent n'écrit à un admin que si on le lui demande.
+- **Le suivi des contacts** : chaque personne porte, en clés **absentes** tant qu'on ne lui
+  a pas écrit, `conversationUrl` (ramenée à `facebook.com/messages/t/…` ou
+  `/messages/e2ee/t/…` par `conversationUrlFrom`, messenger.com converti), `contactedAt`
+  (posé par le serveur quand la conversation apparaît ou change), `contactMessage` et
+  `reply` (dernier relevé de la conversation, oublié si elle change). Toute écriture d'une
+  liste passe par `mergeStaff` : une personne (clé `staffKey` : profil, sinon
+  `nom:<slug>`) renvoyée sans conversation ni message garde les siens, `null` les efface,
+  et les champs de lecture seule renvoyés par un agent (`contactedAt`, `replied`, `reply`)
+  sont ignorés. `staffAt` ne bouge que si les noms, rôles ou profils changent : noter un
+  contact n'est pas relever la liste. L'agent note un message envoyé par
+  `POST /api/fb-groups/{group}/staff/contact` (`applyStaffContact` : personne retrouvée par
+  profil puis par nom, ajoutée sinon, rôle alors exigé).
 - **Le post** se saisit sur la ligne (`FbPostInput`, enregistré en quittant le champ), avec
   son état à côté. Un premier lien le met « en attente » et range le groupe dans « Fait » ;
   changer de lien efface le relevé de l'ancien post.
@@ -733,6 +741,17 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   (`recordFbScanAction`, revalidé par `scanFrom`). L'état lu sur Facebook fait foi
   (`applyScan`) : introuvable = supprimé, et l'adresse `pending_posts/…` est remplacée par
   celle du post validé. Toucher au protocole, c'est toucher aux DEUX admins.
+- **Les deux autres relevés du script** passent par le même fournisseur (`FbScanProvider`),
+  chacun avec son `kind`. La page du groupe (`kind: 'group'`, script 1.6.0) dit notre
+  adhésion : `applyMembershipScan` en fait foi (membre → `validated`, demande en cours →
+  `pending`, « Rejoindre » revenu → `refused`, sauf pour une adhésion jamais demandée qui
+  reste `none` ; page introuvable ou illisible : rien ne change). Un refus range le groupe
+  dans « Refusés », une adhésion qui revient l'en ressort vers « À faire » s'il y était.
+  Le relevé reste à part (`membershipScan`, `membershipDiag`, `membershipChangedAt`). La
+  conversation avec un admin (`kind: 'staff'`, script 1.7.0) dit s'il a répondu
+  (`conversationScanFrom`, `applyStaffReply`) ; le script ne connaissant qu'un
+  identifiant, la page lui en donne un à elle (`st<n>`) qui renvoie au groupe et à la
+  personne. Un script trop ancien est signalé avec sa version, rien n'est envoyé.
 
 ## Gestion (dépenses et documents)
 

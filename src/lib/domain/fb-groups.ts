@@ -31,9 +31,15 @@ import { slugify } from "./slug";
 export const FB_TABS = ["new", "handled", "ignored", "refused"] as const;
 export type FbTab = (typeof FB_TABS)[number];
 
-/** Notre adhésion : pas demandée, en attente d'un admin du groupe, acceptée. */
-export const FB_MEMBERSHIPS = ["none", "pending", "validated"] as const;
+/**
+ * Notre adhésion : pas demandée, en attente d'un admin du groupe, acceptée, refusée. « Refusée »
+ * veut dire que le bouton « Rejoindre le groupe » est revenu : demande refusée, ou retirés du
+ * groupe. Elle ne vient que d'un relevé de la page du groupe ou d'un choix dans l'écran : un
+ * groupe ne s'ajoute jamais refusé (`FB_NEW_MEMBERSHIPS`).
+ */
+export const FB_MEMBERSHIPS = ["none", "pending", "validated", "refused"] as const;
 export type FbMembership = (typeof FB_MEMBERSHIPS)[number];
+export const FB_NEW_MEMBERSHIPS = ["none", "pending", "validated"] as const;
 
 /** Le post publié : en attente de modération, validé, supprimé par un admin du groupe. */
 export const FB_POST_STATES = ["pending", "validated", "deleted"] as const;
@@ -67,6 +73,44 @@ export const FbScan = z.object({
 });
 export type FbScan = z.infer<typeof FbScan>;
 
+/*
+ * Le relevé de la page du groupe (script 1.6.0 et plus, `kind: 'group'`) : ce que disent
+ * les boutons de son en-tête. « Membre » ou « Inviter » : membre ; « Annuler la demande » :
+ * en attente ; « Rejoindre le groupe » : pas membre ; page introuvable ; ou rien de
+ * reconnaissable. Gardé à part de l'adhésion, qu'il ne fait que proposer (`membershipFromScan`).
+ */
+export const FB_MEMBERSHIP_SCAN_STATES = ["member", "pending", "join", "unavailable", "unknown"] as const;
+export type FbMembershipScanState = (typeof FB_MEMBERSHIP_SCAN_STATES)[number];
+export const FbMembershipScan = z.object({
+  state: z.enum(FB_MEMBERSHIP_SCAN_STATES),
+  at: z.number(),
+  note: z.string().nullable().default(null),
+});
+export type FbMembershipScan = z.infer<typeof FbMembershipScan>;
+
+/*
+ * Le relevé d'une conversation Messenger (script 1.7.0 et plus, `kind: 'staff'`), lue comme
+ * une conversation Marketplace de COBA : a-t-on une réponse de l'admin à qui l'on a écrit ?
+ */
+export const FB_CONV_SCAN_STATES = ["ok", "unavailable", "unknown"] as const;
+export type FbConvScanState = (typeof FB_CONV_SCAN_STATES)[number];
+export const FbConversationScan = z.object({
+  state: z.enum(FB_CONV_SCAN_STATES),
+  /** Messages de l'autre restés sans réponse (ceux écrits après notre dernier) ; null = illisible. */
+  theirs: z.number().int().nonnegative().nullable().default(null),
+  /** Nos messages visibles. */
+  mine: z.number().int().nonnegative().nullable().default(null),
+  /** Qui a écrit le dernier. */
+  lastFrom: z.enum(["me", "them"]).nullable().default(null),
+  /** Début du dernier message, pour l'aperçu. */
+  lastText: z.string().nullable().default(null),
+  /** Empreinte du dernier message de l'autre ; null = il n'a rien écrit de visible. */
+  lastKey: z.string().nullable().default(null),
+  at: z.number(),
+  note: z.string().nullable().default(null),
+});
+export type FbConversationScan = z.infer<typeof FbConversationScan>;
+
 /* ---------- Admins et modérateurs ---------- */
 
 /*
@@ -84,11 +128,24 @@ export type FbStaffRole = (typeof FB_STAFF_ROLES)[number];
 export const FB_STAFF_MAX = 30;
 export const STAFF_LABELS: Record<FbStaffRole, string> = { admin: "Admin", moderator: "Modérateur" };
 
+/*
+ * Le suivi d'un contact (une conversation Messenger ouverte avec la personne) est fait de
+ * clés ABSENTES tant qu'on ne lui a pas écrit, jamais de `null` ni de chaîne vide : les
+ * documents écrits avant ce suivi restent valides tels quels.
+ */
 export const FbStaff = z.object({
   name: z.string().min(1),
   role: z.enum(FB_STAFF_ROLES).default("admin"),
   /** Lien du profil (ou de la Page, quand c'est une Page qui administre). Null si l'agent ne l'a pas vu. */
   profileUrl: z.string().nullable().default(null),
+  /** La conversation Messenger avec elle (`conversationUrlFrom`). */
+  conversationUrl: z.string().optional(),
+  /** Quand on lui a écrit : posé par le serveur quand la conversation apparaît ou change. */
+  contactedAt: z.number().optional(),
+  /** Le message qu'on lui a envoyé, tel quel. */
+  contactMessage: z.string().optional(),
+  /** Dernier relevé de la conversation. Oublié quand la conversation change. */
+  reply: FbConversationScan.optional(),
 });
 export type FbStaff = z.infer<typeof FbStaff>;
 
@@ -100,6 +157,12 @@ export const FbGroup = z.object({
   groupUrl: z.string().min(1),
   status: z.enum(FB_TABS).default("new"),
   membership: z.enum(FB_MEMBERSHIPS).default("pending"),
+  /** Quand l'adhésion a changé pour la dernière fois (relevé ou choix dans l'écran). */
+  membershipChangedAt: z.number().nullable().default(null),
+  /** Dernier relevé de la page du groupe par le script Tampermonkey. */
+  membershipScan: FbMembershipScan.nullable().default(null),
+  /** Ce que le script a vu dans l'en-tête du groupe, comme `scanDiag`. */
+  membershipDiag: z.string().nullable().default(null),
   /** Nombre de membres relevé par l'agent, s'il l'a vu. */
   members: z.number().int().nonnegative().nullable().default(null),
   /** Le message à poster, avec `{lien}`. Null tant que personne ne l'a rédigé. */
@@ -275,65 +338,243 @@ export function profileUrlFrom(raw: string | null | undefined): string | null {
   return null;
 }
 
-export type StaffInput = { name: string; role: FbStaffRole; profileUrl?: string | null };
+/**
+ * Un lien de conversation Messenger ramené à la forme que le script sait ouvrir
+ * (`https://www.facebook.com/messages/t/<id>` ou `/messages/e2ee/t/<id>`), ou null si vide.
+ * Les mêmes adresses sur messenger.com sont acceptées et converties. Lève sur toute autre
+ * adresse : un lien refusé en silence serait une conversation perdue.
+ */
+export function conversationUrlFrom(raw: unknown): string | null {
+  const given = String(raw ?? "").trim();
+  if (!given) return null;
+  const refused = new Error(`lien de conversation Messenger attendu (https://www.facebook.com/messages/t/…), reçu « ${given.slice(0, 120)} »`);
+  let u: URL;
+  try {
+    u = new URL(given);
+  } catch {
+    throw refused;
+  }
+  if (u.protocol !== "https:" && u.protocol !== "http:") throw refused;
+  const p = u.pathname.split("/").filter(Boolean);
+  let path: string[] | null = null;
+  if (/(^|\.)facebook\.com$/i.test(u.hostname) && p[0] === "messages") path = p.slice(1);
+  else if (/(^|\.)messenger\.com$/i.test(u.hostname)) path = p;
+  if (path?.[0] === "t" && /^[\w.-]{1,80}$/.test(path[1] ?? "")) return `https://www.facebook.com/messages/t/${path[1]}`;
+  if (path?.[0] === "e2ee" && path[1] === "t" && /^\d{1,30}$/.test(path[2] ?? "")) return `https://www.facebook.com/messages/e2ee/t/${path[2]}`;
+  throw refused;
+}
+
+/** L'identifiant d'une personne dans la liste : son profil, sinon son nom. */
+export function staffKey(p: Pick<FbStaff, "name" | "profileUrl">): string {
+  return p.profileUrl ?? `nom:${slugify(p.name)}`;
+}
+
+export const FB_CONTACT_MESSAGE_MAX = 4000;
 
 /**
- * Valide une liste d'admins et de modérateurs. Lève, en nommant la ligne, sur un nom vide
- * ou un lien qui n'est pas un profil : un lien refusé en silence serait un lien perdu.
- * Une même personne (même profil, ou même nom sans profil) n'est gardée qu'une fois.
+ * Ce qu'on reçoit d'une personne (API ou écran). Les champs de lecture seule que rend l'API
+ * (`contactedAt`, `replied`, `reply`) sont admis pour être IGNORÉS : un agent renvoie souvent
+ * la liste telle qu'il l'a lue, et la refuser pour ça ne servirait à rien.
  */
-export function checkStaff(list: StaffInput[]): FbStaff[] {
+export type StaffInput = {
+  name: string;
+  role: FbStaffRole;
+  profileUrl?: string | null;
+  conversationUrl?: string | null;
+  contactMessage?: string | null;
+};
+
+/**
+ * Une personne validée, prête à être fusionnée avec ce qu'on savait d'elle
+ * (`mergeStaff`). Pour `conversationUrl` et `contactMessage` : absent = inchangé,
+ * null = effacé.
+ */
+export type StaffEntry = {
+  name: string;
+  role: FbStaffRole;
+  profileUrl: string | null;
+  conversationUrl?: string | null;
+  contactMessage?: string | null;
+};
+
+/**
+ * Valide une liste d'admins et de modérateurs. Lève, en nommant la ligne et la personne, sur
+ * un nom vide ou un lien qui n'est pas ce qu'il prétend être : un lien refusé en silence
+ * serait un lien perdu. Une même personne (même profil, ou même nom sans profil) n'est
+ * gardée qu'une fois.
+ */
+export function checkStaff(list: StaffInput[]): StaffEntry[] {
   if (list.length > FB_STAFF_MAX) throw new Error(`staff : ${FB_STAFF_MAX} personnes au plus`);
-  const out: FbStaff[] = [];
+  const out: StaffEntry[] = [];
   const seen = new Set<string>();
   list.forEach((p, i) => {
     const name = String(p.name ?? "").trim().slice(0, 100);
     if (!name) throw new Error(`staff[${i}].name : nom obligatoire`);
     const given = String(p.profileUrl ?? "").trim();
     const profileUrl = given ? profileUrlFrom(given) : null;
-    if (given && !profileUrl) throw new Error(`staff[${i}].profileUrl : lien de profil Facebook attendu (https://www.facebook.com/…), reçu « ${given.slice(0, 120)} »`);
-    const key = profileUrl ?? `nom:${slugify(name)}`;
+    if (given && !profileUrl) throw new Error(`staff[${i}].profileUrl : lien de profil Facebook attendu pour ${name} (https://www.facebook.com/…), reçu « ${given.slice(0, 120)} »`);
+    const entry: StaffEntry = { name, role: p.role, profileUrl };
+    if (p.conversationUrl !== undefined) {
+      try {
+        entry.conversationUrl = conversationUrlFrom(p.conversationUrl);
+      } catch (err) {
+        throw new Error(`staff[${i}].conversationUrl : ${name} : ${(err as Error).message}`);
+      }
+    }
+    if (p.contactMessage !== undefined) entry.contactMessage = String(p.contactMessage ?? "").trim().slice(0, FB_CONTACT_MESSAGE_MAX) || null;
+    const key = staffKey(entry);
     if (seen.has(key)) return;
     seen.add(key);
-    out.push({ name, role: p.role, profileUrl });
+    out.push(entry);
   });
   return out;
 }
 
-const ROLE_WORD = /^(admins?|administrat(eur|rice)s?|moderators?|modos?|mod[ée]rat(eur|rice)s?)$/i;
+/**
+ * La liste à écrire : la nouvelle (ordre, noms, rôles, profils), avec ce que l'ancienne
+ * savait de chaque personne (conversation, date du contact, message, relevé de la réponse)
+ * quand la nouvelle ne le redonne pas. Une conversation qui apparaît ou change date le
+ * contact de `at` et oublie l'ancien relevé ; la même conversation renvoyée ne bouge rien.
+ * Aucune clé `undefined` ni vide en sortie : Firestore n'en veut pas.
+ */
+export function mergeStaff(previous: FbStaff[], next: StaffEntry[], at: number): FbStaff[] {
+  const before = new Map(previous.map((p) => [staffKey(p), p]));
+  return next.map((n) => {
+    const a = before.get(staffKey(n));
+    const out: FbStaff = { name: n.name, role: n.role, profileUrl: n.profileUrl };
+    const conversation = n.conversationUrl !== undefined ? n.conversationUrl : a?.conversationUrl;
+    const message = n.contactMessage !== undefined ? n.contactMessage : a?.contactMessage;
+    if (conversation) {
+      const same = a?.conversationUrl === conversation;
+      out.conversationUrl = conversation;
+      out.contactedAt = same && a?.contactedAt ? a.contactedAt : at;
+    }
+    if (message) out.contactMessage = message;
+    if (conversation && a?.conversationUrl === conversation && a.reply) out.reply = a.reply;
+    return out;
+  });
+}
+
+/** Les noms, rôles et profils seulement : c'est leur changement que date `staffAt`, pas un contact. */
+function staffPeople(staff: FbStaff[]): string {
+  return JSON.stringify(staff.map((p) => [p.name, p.role, p.profileUrl]));
+}
+
+/** Une valeur sérialisée clés triées : l'ordre des champs d'un document relu ne dit rien. */
+function stable(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
+  if (v && typeof v === "object") {
+    return `{${Object.keys(v)
+      .filter((k) => (v as Record<string, unknown>)[k] !== undefined)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(v);
+}
+
+/** Qu'on a écrit à quelqu'un du groupe : ce que reçoit `POST /{group}/staff/contact`. */
+export const ApiStaffContact = z
+  .object({
+    profileUrl: z.string().nullable().optional(),
+    name: z.string().max(100).nullable().optional(),
+    role: z.enum(FB_STAFF_ROLES, { message: "role : admin ou moderator" }).optional(),
+    conversationUrl: z.string({ message: "conversationUrl obligatoire : le lien de la conversation Messenger" }),
+    message: z.string().max(FB_CONTACT_MESSAGE_MAX).nullable().optional(),
+  })
+  .strict();
+export type ApiStaffContact = z.infer<typeof ApiStaffContact>;
 
 /**
- * La liste saisie dans l'écran, une personne par ligne : « Nom | lien | rôle », le lien
- * et le rôle facultatifs, dans n'importe quel ordre (un lien se reconnaît, un rôle aussi).
- * Rôle par défaut : admin.
+ * Note un message envoyé à quelqu'un du groupe : sa conversation, le message, la date. La
+ * personne est retrouvée par son profil, sinon par son nom ; absente de la liste, elle y
+ * est ajoutée, et son rôle est alors exigé. Rend la nouvelle liste. Lève avec un message
+ * lisible par l'agent.
  */
-export function staffFromText(text: string): FbStaff[] {
-  const rows: StaffInput[] = [];
-  for (const line of String(text ?? "").split(/\r?\n/)) {
-    const cells = line.split(/[|\t]/).map((c) => c.trim()).filter(Boolean);
-    if (cells.length === 0) continue;
-    let role: FbStaffRole = "admin";
-    let profileUrl: string | null = null;
-    const rest: string[] = [];
-    for (const c of cells) {
-      if (/^https?:\/\/|facebook\.com\//i.test(c)) profileUrl = /^https?:\/\//i.test(c) ? c : `https://${c}`;
-      else if (ROLE_WORD.test(c)) role = /^admin/i.test(c) ? "admin" : "moderator";
-      else rest.push(c);
-    }
-    rows.push({ name: rest.join(" "), role, profileUrl });
+export function applyStaffContact(staff: FbStaff[], input: ApiStaffContact, at: number): FbStaff[] {
+  const conversationUrl = conversationUrlFrom(input.conversationUrl);
+  if (!conversationUrl) throw new Error("conversationUrl obligatoire : le lien de la conversation Messenger");
+  const given = String(input.profileUrl ?? "").trim();
+  const profileUrl = given ? profileUrlFrom(given) : null;
+  if (given && !profileUrl) throw new Error(`profileUrl : lien de profil Facebook attendu, reçu « ${given.slice(0, 120)} »`);
+  const name = String(input.name ?? "").trim().slice(0, 100);
+  if (!profileUrl && !name) throw new Error("profileUrl ou name obligatoire : à qui as-tu écrit ?");
+
+  let i = profileUrl ? staff.findIndex((p) => p.profileUrl === profileUrl) : -1;
+  if (i === -1 && name) i = staff.findIndex((p) => sameName(p.name, name) && (!p.profileUrl || !profileUrl));
+  if (i === -1) {
+    if (!input.role) throw new Error(`role obligatoire : ${name || profileUrl} n'est pas dans la liste des admins et modérateurs, et sera ajouté (admin ou moderator, lu sur la page du groupe)`);
+    if (!name) throw new Error("name obligatoire pour ajouter quelqu'un à la liste");
+    if (staff.length >= FB_STAFF_MAX) throw new Error(`staff : ${FB_STAFF_MAX} personnes au plus`);
   }
-  return checkStaff(rows);
+  const person = i === -1 ? { name, role: input.role!, profileUrl } : { name: staff[i].name, role: staff[i].role, profileUrl: staff[i].profileUrl ?? profileUrl };
+  const entry: StaffEntry = { ...person, conversationUrl };
+  if (input.message !== undefined) entry.contactMessage = String(input.message ?? "").trim().slice(0, FB_CONTACT_MESSAGE_MAX) || null;
+  // La personne garde sa place et ce qu'on savait d'elle ; sa clé peut changer (profil appris).
+  const previous = i === -1 ? staff : staff.map((p, j) => (j === i ? { ...p, profileUrl: person.profileUrl } : p));
+  const [merged] = mergeStaff(previous, [entry], at);
+  return i === -1 ? [...staff, merged] : staff.map((p, j) => (j === i ? merged : p));
 }
 
-/** L'inverse de `staffFromText`, pour pré-remplir le champ. */
-export function staffToText(staff: FbStaff[]): string {
-  return staff.map((p) => [p.name, p.profileUrl, p.role === "admin" ? "admin" : "modérateur"].filter(Boolean).join(" | ")).join("\n");
+/** Valide le relevé d'une conversation rendu par le script (donc venu du navigateur). */
+export function conversationScanFrom(raw: unknown, at: number): FbConversationScan {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const count = (v: unknown): number | null => {
+    const n = Number(v);
+    return v === null || v === undefined || v === "" || !Number.isFinite(n) || n < 0 ? null : Math.floor(n);
+  };
+  const text = (v: unknown, max: number): string | null => String(v ?? "").trim().slice(0, max) || null;
+  return {
+    state: (FB_CONV_SCAN_STATES as readonly string[]).includes(String(r.state)) ? (r.state as FbConvScanState) : "unknown",
+    theirs: count(r.theirs),
+    mine: count(r.mine),
+    lastFrom: r.lastFrom === "them" || r.lastFrom === "me" ? r.lastFrom : null,
+    lastText: text(r.lastText, 200),
+    lastKey: text(r.lastKey, 200),
+    at,
+    note: text(r.note, 500),
+  };
 }
+
+/** Enregistre le relevé de la conversation d'une personne. Lève si elle n'est plus dans la liste. */
+export function applyStaffReply(staff: FbStaff[], key: string, scan: FbConversationScan): FbStaff[] {
+  const i = staff.findIndex((p) => staffKey(p) === key);
+  if (i === -1) throw new Error("personne introuvable dans la liste des admins (modifiée entre-temps ?)");
+  if (!staff[i].conversationUrl) throw new Error(`aucune conversation notée avec ${staff[i].name}`);
+  return staff.map((p, j) => (j === i ? { ...p, reply: scan } : p));
+}
+
+/** A-t-elle répondu ? Ce que l'API en dit : null tant que la conversation n'a pas été relue. */
+export function staffReplied(p: Pick<FbStaff, "reply">): boolean | null {
+  return p.reply && p.reply.state === "ok" ? !!p.reply.lastKey : null;
+}
+
+export type StaffReplyKey = "replied" | "ongoing" | "silent" | "missing" | "unreadable";
+
+/** La pastille de la réponse : a répondu, échange en cours, pas de réponse, introuvable, illisible. Null si jamais relue. */
+export function staffReplyState(p: Pick<FbStaff, "reply">): StaffReplyKey | null {
+  const r = p.reply;
+  if (!r) return null;
+  if (r.state === "unavailable") return "missing";
+  if (r.state !== "ok") return "unreadable";
+  if (r.lastFrom === "them") return "replied";
+  return r.lastKey ? "ongoing" : "silent";
+}
+
+export const STAFF_REPLY_LABELS: Record<StaffReplyKey, string> = {
+  replied: "A répondu",
+  ongoing: "Échange en cours",
+  silent: "Pas de réponse",
+  missing: "Conversation introuvable",
+  unreadable: "Illisible",
+};
 
 /* ---------- Changer l'état d'un groupe ---------- */
 
-export type FbGroupPatch = Partial<Pick<FbGroup, "status" | "membership" | "postUrl" | "postStatus" | "note" | "members" | "name" | "staff">> & {
+export type FbGroupPatch = Partial<Pick<FbGroup, "status" | "membership" | "postUrl" | "postStatus" | "note" | "members" | "name">> & {
   message?: string | null;
+  /** La liste entière, fusionnée avec ce qu'on savait de chacun (`mergeStaff`). */
+  staff?: StaffEntry[];
 };
 
 /**
@@ -346,12 +587,20 @@ export function applyPatch(current: FbGroup, patch: FbGroupPatch, at: number): F
   const next: FbGroup = { ...current, updatedAt: at };
   if (patch.name !== undefined) next.name = patch.name.trim().slice(0, 150) || current.name;
   if (patch.status !== undefined) next.status = patch.status;
-  if (patch.membership !== undefined) next.membership = patch.membership;
+  if (patch.membership !== undefined && patch.membership !== current.membership) {
+    next.membership = patch.membership;
+    next.membershipChangedAt = at;
+  }
   if (patch.members !== undefined) next.members = patch.members;
   if (patch.note !== undefined) next.note = patch.note.trim().slice(0, FB_NOTE_MAX);
   if (patch.staff !== undefined) {
-    next.staff = patch.staff;
-    next.staffAt = at;
+    // Une liste inchangée ne se réécrit pas, et `staffAt` dit quand on a relevé les
+    // personnes : noter un contact ne le change pas.
+    const merged = mergeStaff(current.staff, patch.staff, at);
+    if (stable(merged) !== stable(current.staff)) {
+      next.staff = merged;
+      if (staffPeople(merged) !== staffPeople(current.staff)) next.staffAt = at;
+    }
   }
   if (patch.message !== undefined) {
     next.message = patch.message;
@@ -411,6 +660,54 @@ export function newComments(g: Pick<FbGroup, "scan" | "commentsSeen">): number {
 }
 
 export const SCAN_LABELS: Record<FbScanState, string> = { pending: "En attente", validated: "Validé", unavailable: "Supprimé", unknown: "Illisible" };
+
+/** Valide un relevé de la page d'un groupe rendu par le script. */
+export function membershipScanFrom(raw: unknown, at: number): { scan: FbMembershipScan; diag: string | null } {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const state = (FB_MEMBERSHIP_SCAN_STATES as readonly string[]).includes(String(r.state)) ? (r.state as FbMembershipScanState) : "unknown";
+  return {
+    scan: { state, at, note: r.note ? String(r.note).slice(0, 500) : null },
+    diag: r.diag ? String(r.diag).slice(0, 3000) : null,
+  };
+}
+
+/**
+ * L'adhésion que dit un relevé, ou null quand il ne dit rien de sûr et qu'on garde ce qu'on
+ * sait. « Rejoindre le groupe » ne veut dire « refusée » que si l'on avait demandé : une
+ * adhésion jamais demandée reste « pas demandée ». Page introuvable (groupe supprimé, ou
+ * nous bannis : impossible de savoir lequel) et page illisible ne changent rien.
+ */
+export function membershipFromScan(state: FbMembershipScanState, current: FbMembership): FbMembership | null {
+  if (state === "member") return "validated";
+  if (state === "pending") return "pending";
+  if (state === "join") return current === "none" ? null : "refused";
+  return null;
+}
+
+/**
+ * Applique un relevé de la page du groupe. Comme pour les posts, la page fait foi : elle
+ * remplace l'adhésion saisie à la main. Un refus range le groupe dans « Refusés » ; une
+ * adhésion qui revient l'en ressort vers « À faire », mais seulement s'il y était : un
+ * groupe rangé ailleurs à la main y reste.
+ */
+export function applyMembershipScan(g: FbGroup, read: ReturnType<typeof membershipScanFrom>): FbGroup {
+  const next: FbGroup = { ...g, membershipScan: read.scan, membershipDiag: read.diag, updatedAt: read.scan.at };
+  const membership = membershipFromScan(read.scan.state, g.membership);
+  if (!membership || membership === g.membership) return next;
+  next.membership = membership;
+  next.membershipChangedAt = read.scan.at;
+  if (membership === "refused" && g.status !== "refused") next.status = "refused";
+  if (g.membership === "refused" && g.status === "refused") next.status = "new";
+  return next;
+}
+
+export const MEMBERSHIP_SCAN_LABELS: Record<FbMembershipScanState, string> = {
+  member: "Membre",
+  pending: "En attente",
+  join: "« Rejoindre » affiché",
+  unavailable: "Groupe introuvable",
+  unknown: "Illisible",
+};
 
 /* ---------- Robots ---------- */
 
@@ -653,7 +950,7 @@ export function addedToday(groups: Pick<FbGroup, "createdAt" | "addedBy">[], now
 }
 
 export const TAB_LABELS: Record<FbTab, string> = { new: "À faire", handled: "Fait", ignored: "Ignorés", refused: "Refusés" };
-export const MEMBERSHIP_LABELS: Record<FbMembership, string> = { none: "Pas demandée", pending: "En attente", validated: "Membre" };
+export const MEMBERSHIP_LABELS: Record<FbMembership, string> = { none: "Pas demandée", pending: "En attente", validated: "Membre", refused: "Refusée" };
 export const POST_LABELS: Record<FbPostState, string> = { pending: "Post en attente", validated: "Post validé", deleted: "Post supprimé" };
 
 /* ---------- Où en est un groupe ---------- */
@@ -699,6 +996,7 @@ export function groupStage(g: Pick<FbGroup, "status" | "membership" | "message" 
     if (g.postStatus === "validated") return { key: "done", label: "Posté", tone: "ok" };
     return { key: "moderation", label: "Post en attente", tone: "blue" };
   }
+  if (g.membership === "refused") return { key: "refused", label: "Adhésion refusée", tone: "pink" };
   if (g.membership === "none") return { key: "join", label: "Adhésion à demander", tone: "warn" };
   if (g.membership === "pending") return { key: "joining", label: "Adhésion en attente", tone: "blue" };
   if (!g.message) return { key: "write", label: "Message à écrire", tone: "warn" };
@@ -715,6 +1013,13 @@ export const ApiStaff = z
     name: z.string().trim().min(1, "nom obligatoire").max(100),
     role: z.enum(FB_STAFF_ROLES, { message: "role : admin ou moderator" }),
     profileUrl: z.string().nullable().optional(),
+    /** Absent = inchangé ; null ou vide = effacé. */
+    conversationUrl: z.string().nullable().optional(),
+    contactMessage: z.string().max(FB_CONTACT_MESSAGE_MAX).nullable().optional(),
+    /* Lecture seule : admis tels que l'API les rend, et ignorés. */
+    contactedAt: z.unknown().optional(),
+    replied: z.unknown().optional(),
+    reply: z.unknown().optional(),
   })
   .strict();
 
@@ -722,7 +1027,7 @@ export const ApiStaff = z
 export const ApiNewGroup = z.object({
   url: z.string().min(1, "url obligatoire"),
   name: z.string().trim().min(1, "name obligatoire : le nom du groupe tel qu'affiché sur Facebook").max(150),
-  membership: z.enum(FB_MEMBERSHIPS).optional(),
+  membership: z.enum(FB_NEW_MEMBERSHIPS).optional(),
   members: z.number().int().nonnegative().nullable().optional(),
   message: z.string().nullable().optional(),
   note: z.string().max(FB_NOTE_MAX).optional(),

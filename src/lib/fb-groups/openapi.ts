@@ -1,4 +1,4 @@
-import { FB_MEMBERSHIPS, FB_MESSAGE_MAX, FB_NOTE_MAX, FB_POST_STATES, FB_STAFF_MAX, FB_STAFF_ROLES, FB_TABS, LOT_MAX } from "@/lib/domain/fb-groups";
+import { FB_CONTACT_MESSAGE_MAX, FB_MEMBERSHIPS, FB_MESSAGE_MAX, FB_NEW_MEMBERSHIPS, FB_NOTE_MAX, FB_POST_STATES, FB_STAFF_MAX, FB_STAFF_ROLES, FB_TABS, LOT_MAX } from "@/lib/domain/fb-groups";
 
 /*
  * La documentation de l'API des Campagnes Facebook, au format OpenAPI 3.1. C'est elle
@@ -22,6 +22,19 @@ const STAFF = {
         "Formes acceptées : https://www.facebook.com/<nom>, /profile.php?id=…, /people/<nom>/<id>, /groups/<groupe>/user/<id>. " +
         "Les paramètres de suivi (__cft__, __tn__…) sont retirés par le serveur. null si le nom n'est pas un lien.",
     },
+    conversationUrl: {
+      type: ["string", "null"],
+      description:
+        "Lien de la conversation Messenger avec cette personne, si on lui a écrit (https://www.facebook.com/messages/t/<id>, /messages/e2ee/t/<id>, ou messenger.com/t/<id>, converti). " +
+        "Absent = inchangé ; null ou \"\" = effacé. Pour noter un nouveau contact, préfère POST /{group}/staff/contact.",
+    },
+    contactMessage: { type: ["string", "null"], maxLength: FB_CONTACT_MESSAGE_MAX, description: "Le message envoyé à cette personne, tel quel. Absent = inchangé ; null ou \"\" = effacé." },
+    contactedAt: { type: ["string", "null"], format: "date-time", readOnly: true, description: "Lecture seule : quand on lui a écrit (posé par le serveur quand la conversation apparaît ou change). Ignoré à l'écriture." },
+    replied: {
+      type: ["boolean", "null"],
+      readOnly: true,
+      description: "Lecture seule : a répondu (dernier relevé de la conversation par le script Tampermonkey de l'admin) ; null = jamais relevé. Ignoré à l'écriture.",
+    },
   },
 } as const;
 
@@ -35,7 +48,11 @@ const STAFF_RULES =
   "LES ADMINS ET MODÉRATEURS : relève-les sur l'onglet « Membres » du groupe, section « Administrateurs et modérateurs » " +
   "(adresse directe : <groupUrl>/members/admins), dans l'ordre affiché : nom, rôle, et le lien posé sur le nom. " +
   "Si la liste n'est pas visible (groupe privé dont tu n'es pas encore membre), n'envoie pas staff : tu le compléteras plus tard par PATCH. " +
-  "N'ouvre pas leurs profils et ne leur écris jamais.";
+  "N'ouvre pas leurs profils. " +
+  "LEUR ÉCRIRE : seulement si on te l'a explicitement demandé dans la conversation, jamais de ta propre initiative. " +
+  "Avant d'écrire à quelqu'un, vérifie qu'il n'a pas déjà été contacté dans un AUTRE groupe : une même personne administre souvent plusieurs groupes. " +
+  "Cherche-la dans le staff de TOUS les groupes de GET / (contactedAt non nul) par son profileUrl ; la forme /groups/<groupe>/user/<id> change d'un groupe à l'autre, compare alors l'identifiant numérique <id>. " +
+  "Déjà contactée : ne lui réécris pas, signale-le. Chaque message envoyé se note aussitôt par POST /{group}/staff/contact, avec le lien de la conversation et le texte exact.";
 
 const GROUP = {
   type: "object",
@@ -44,7 +61,11 @@ const GROUP = {
     name: { type: "string", description: "Nom du groupe tel qu'affiché sur Facebook." },
     groupUrl: { type: "string", description: "Racine canonique https://www.facebook.com/groups/<id ou alias>." },
     status: { type: "string", enum: FB_TABS, description: "Onglet de l'admin : new = à faire, handled = fait, ignored = ignoré, refused = refusé." },
-    membership: { type: "string", enum: FB_MEMBERSHIPS, description: "Adhésion : none = pas demandée, pending = demande envoyée, validated = membre." },
+    membership: {
+      type: "string",
+      enum: FB_MEMBERSHIPS,
+      description: "Adhésion : none = pas demandée, pending = demande envoyée, validated = membre, refused = refusée (le bouton « Rejoindre le groupe » est revenu : demande refusée, ou retiré du groupe).",
+    },
     members: { type: ["integer", "null"], description: "Nombre de membres relevé sur la page du groupe." },
     hasMessage: { type: "boolean" },
     message: { type: ["string", "null"], description: "Le message rédigé pour ce groupe, BRUT : {lien} n'y est pas remplacé." },
@@ -64,7 +85,7 @@ const NEW_GROUP = {
   properties: {
     url: { type: "string", description: "N'importe quel lien du groupe : il est ramené à sa racine." },
     name: { type: "string", description: "Nom exact du groupe tel qu'affiché sur Facebook (obligatoire : le serveur ne peut pas le lire)." },
-    membership: { type: "string", enum: FB_MEMBERSHIPS, description: "Facultatif, pending par défaut. validated si tu as été accepté aussitôt." },
+    membership: { type: "string", enum: FB_NEW_MEMBERSHIPS, description: "Facultatif, pending par défaut. validated si tu as été accepté aussitôt." },
     members: { type: ["integer", "null"], description: "Facultatif : nombre de membres affiché." },
     message: {
       type: ["string", "null"],
@@ -86,7 +107,7 @@ export function fbGroupsOpenApi(apiBase: string) {
     openapi: "3.1.0",
     info: {
       title: "Mon Vrai : Campagnes Facebook",
-      version: "1.1.0",
+      version: "1.2.0",
       description:
         "Suivi des groupes Facebook où Mon Vrai (imagiers pour les bébés de 6 à 18 mois) est présenté. " +
         "Lister, vérifier, ajouter des groupes, enregistrer le message rédigé pour chacun et ses admins et modérateurs ; mettre à jour leur suivi. " +
@@ -194,7 +215,9 @@ export function fbGroupsOpenApi(apiBase: string) {
           description:
             "Seuls les champs envoyés changent ; un champ inconnu est refusé (400, nommé). Un premier lien de post part en pending et fait passer un groupe « à faire » dans « fait ». " +
             "postUrl vide ou null retire le post. message null efface le message. " +
-            "staff REMPLACE la liste entière : envoie toujours la liste complète, telle que le groupe l'affiche (lis staff avec GET /{group} avant de la compléter) ; [] l'efface.",
+            "staff REMPLACE la liste entière (ordre, noms, rôles, profils) : envoie toujours la liste complète, telle que le groupe l'affiche (lis staff avec GET /{group} avant de la compléter) ; [] l'efface. " +
+            "La conversation, le message et la date de contact déjà notés pour une personne (même profileUrl, ou même nom sans profil) sont gardés si tu ne les renvoies pas ; " +
+            "contactedAt et replied, renvoyés tels que tu les as lus, sont ignorés.",
           requestBody: {
             required: true,
             content: {
@@ -218,6 +241,47 @@ export function fbGroupsOpenApi(apiBase: string) {
             },
           },
           responses: { "200": { description: "Le groupe à jour." }, "400": { description: "Champ refusé ou valeur invalide (error dit lequel)." }, "404": { description: "Groupe non suivi." } },
+        },
+      },
+      "/{group}/staff/contact": {
+        parameters: [{ name: "group", in: "path", required: true, schema: { type: "string" }, description: "Slug du groupe, ou son lien encodé." }],
+        post: {
+          summary: "Note qu'on a écrit à un admin ou un modérateur du groupe : lien de la conversation Messenger et message envoyé.",
+          description:
+            "À appeler juste après CHAQUE message envoyé (et seulement si on t'a demandé d'écrire : voir la règle des admins en tête de cette documentation). " +
+            "La personne est retrouvée dans staff par profileUrl, sinon par name ; absente, elle est ajoutée (role alors obligatoire, lu sur la page du groupe). " +
+            "contactedAt est posé par le serveur (inchangé si la même conversation était déjà notée). " +
+            "Le script Tampermonkey de l'admin relira ensuite la conversation pour savoir si la personne a répondu (replied). " +
+            "Avant d'écrire, vérifie qu'elle n'a pas déjà été contactée dans un autre groupe (staff de GET /, contactedAt).",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["conversationUrl"],
+                  additionalProperties: false,
+                  properties: {
+                    profileUrl: { type: ["string", "null"], description: "Profil de la personne (mêmes formes que dans staff)." },
+                    name: { type: ["string", "null"], description: "Son nom : si elle n'a pas de profileUrl, ou pour l'ajouter." },
+                    role: { type: "string", enum: FB_STAFF_ROLES, description: "Obligatoire seulement si la personne n'est pas encore dans staff." },
+                    conversationUrl: { type: "string", description: "Lien de la conversation, relevé dans la barre d'adresse après l'envoi." },
+                    message: { type: ["string", "null"], maxLength: FB_CONTACT_MESSAGE_MAX, description: "Le message envoyé, exactement." },
+                  },
+                },
+                example: {
+                  profileUrl: "https://www.facebook.com/groups/mamans.lyon/user/100004567890123",
+                  conversationUrl: "https://www.facebook.com/messages/t/100004567890123",
+                  message: "Bonjour Claire, …",
+                },
+              },
+            },
+          },
+          responses: {
+            "200": { description: "Le groupe à jour.", content: { "application/json": { schema: { type: "object", properties: { group: { $ref: "#/components/schemas/Groupe" } } } } } },
+            "400": { description: "Lien de conversation ou de profil invalide, personne absente sans rôle pour l'ajouter (error dit quoi)." },
+            "404": { description: "Groupe non suivi." },
+          },
         },
       },
       "/{group}/message": {

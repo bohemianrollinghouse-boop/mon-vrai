@@ -1,7 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { apiKeyValid } from "@/lib/db/fb-groups";
-import { fillMessage, trackingLink, type FbGroup, type FbGroupsConfig } from "@/lib/domain/fb-groups";
+import { fillMessage, staffReplied, trackingLink, type FbGroup, type FbGroupsConfig, type FbStaff } from "@/lib/domain/fb-groups";
 
 /*
  * Ce que partagent les routes de /api/fb-groups : le contrôle de la clé, la forme d'un
@@ -29,6 +29,22 @@ export async function denyWithoutKey(request: Request): Promise<NextResponse | n
   return json({ error: "Clé d'API manquante, invalide ou révoquée (en-tête Authorization: Bearer <clé>)." }, 401);
 }
 
+/**
+ * Une personne telle que l'API la rend : la date du contact en ISO, et du relevé de la
+ * conversation seulement « a répondu » (le détail n'est utile qu'à l'écran).
+ */
+export function apiStaff(p: FbStaff) {
+  return {
+    name: p.name,
+    role: p.role,
+    profileUrl: p.profileUrl,
+    conversationUrl: p.conversationUrl ?? null,
+    contactMessage: p.contactMessage ?? null,
+    contactedAt: p.contactedAt ? new Date(p.contactedAt).toISOString() : null,
+    replied: staffReplied(p),
+  };
+}
+
 /** Un groupe tel que l'API le rend : son lien de suivi, et son message brut ({lien} compris). */
 export function apiView(g: FbGroup, config: FbGroupsConfig) {
   return {
@@ -44,8 +60,8 @@ export function apiView(g: FbGroup, config: FbGroupsConfig) {
     postUrl: g.postUrl,
     postStatus: g.postStatus,
     note: g.note,
-    /** Admins et modérateurs du groupe, avec le lien de leur profil. */
-    staff: g.staff,
+    /** Admins et modérateurs du groupe, avec le lien de leur profil et le suivi du contact. */
+    staff: g.staff.map(apiStaff),
     staffAt: g.staffAt ? new Date(g.staffAt).toISOString() : null,
     /** Dernier relevé du post par le script Tampermonkey (lecture seule). */
     scan: g.scan,

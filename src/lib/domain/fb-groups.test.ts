@@ -11,9 +11,20 @@ import {
   browserFromUa,
   checkStaff,
   profileUrlFrom,
-  staffFromText,
-  staffToText,
   toPatch,
+  conversationUrlFrom,
+  mergeStaff,
+  staffKey,
+  applyStaffContact,
+  applyStaffReply,
+  conversationScanFrom,
+  staffReplied,
+  staffReplyState,
+  ApiStaffContact,
+  membershipScanFrom,
+  membershipFromScan,
+  applyMembershipScan,
+  type FbStaff,
   checkMessage,
   fillMessage,
   FbGroup,
@@ -155,16 +166,6 @@ describe("admins et modérateurs", () => {
     expect(() => checkStaff([{ name: "A", role: "admin" }, { name: "B", role: "admin", profileUrl: "https://www.facebook.com/groups/1" }])).toThrow(/staff\[1\]\.profileUrl/);
     expect(() => checkStaff([{ name: " ", role: "admin" }])).toThrow(/staff\[0\]\.name/);
   });
-  it("lit la saisie de l'écran, une personne par ligne, et la réécrit à l'identique", () => {
-    const staff = staffFromText("Claire Martin | https://www.facebook.com/claire.martin\n\nmodératrice | Paul\nJeanne | facebook.com/profile.php?id=42 | modo");
-    expect(staff).toEqual([
-      { name: "Claire Martin", role: "admin", profileUrl: "https://www.facebook.com/claire.martin" },
-      { name: "Paul", role: "moderator", profileUrl: null },
-      { name: "Jeanne", role: "moderator", profileUrl: "https://www.facebook.com/profile.php?id=42" },
-    ]);
-    expect(staffFromText(staffToText(staff))).toEqual(staff);
-    expect(staffFromText("")).toEqual([]);
-  });
   it("l'API exige le rôle, refuse un champ inconnu, et date la liste", () => {
     expect(ApiNewGroup.safeParse({ url: "u", name: "n", staff: [{ name: "Claire" }] }).success).toBe(false);
     expect(ApiPatch.safeParse({ staff: [{ name: "Claire", role: "admin", url: "x" }] }).success).toBe(false);
@@ -177,6 +178,180 @@ describe("admins et modérateurs", () => {
   it("un groupe d'avant se relit sans liste", () => {
     expect(group().staff).toEqual([]);
     expect(group().staffAt).toBeNull();
+  });
+});
+
+describe("contacts des admins", () => {
+  const claire = { name: "Claire", role: "admin" as const, profileUrl: "https://www.facebook.com/claire" };
+  const conv = "https://www.facebook.com/messages/t/1";
+  const reply = conversationScanFrom({ state: "ok", theirs: 1, mine: 1, lastFrom: "them", lastText: "Avec plaisir !", lastKey: "1|Avec" }, 3);
+  const known: FbStaff[] = [{ ...claire, conversationUrl: conv, contactedAt: 100, contactMessage: "Bonjour Claire", reply }];
+
+  it("ramène un lien de conversation à sa forme facebook.com, messenger.com compris", () => {
+    expect(conversationUrlFrom("https://www.facebook.com/messages/t/100004567890123/?ref=x#y")).toBe("https://www.facebook.com/messages/t/100004567890123");
+    expect(conversationUrlFrom("https://www.messenger.com/t/claire.martin")).toBe("https://www.facebook.com/messages/t/claire.martin");
+    expect(conversationUrlFrom("https://www.messenger.com/e2ee/t/123456")).toBe("https://www.facebook.com/messages/e2ee/t/123456");
+    expect(conversationUrlFrom("https://web.facebook.com/messages/e2ee/t/42")).toBe("https://www.facebook.com/messages/e2ee/t/42");
+    expect(conversationUrlFrom("  ")).toBeNull();
+    expect(conversationUrlFrom(null)).toBeNull();
+    expect(() => conversationUrlFrom("https://www.facebook.com/claire.martin")).toThrow(/conversation Messenger/);
+    expect(() => conversationUrlFrom("https://evil.com/messages/t/1")).toThrow();
+    expect(() => conversationUrlFrom("https://www.facebook.com/messages/e2ee/t/abc")).toThrow();
+    expect(() => conversationUrlFrom("pas un lien")).toThrow();
+  });
+
+  it("refuse une conversation invalide en nommant la personne", () => {
+    expect(() => checkStaff([claire, { name: "Paul Durand", role: "moderator", conversationUrl: "https://www.facebook.com/paul" }])).toThrow(/^staff\[1\]\.conversationUrl : Paul Durand : /);
+  });
+
+  it("garde conversation et message, ignore les champs de lecture seule renvoyés par l'agent", () => {
+    const parsed = ApiPatch.parse({ staff: [{ ...claire, conversationUrl: "https://www.messenger.com/t/9", contactMessage: " Salut ", contactedAt: "2026-11-05T10:00:00Z", replied: true }] });
+    expect(toPatch(parsed, "monvrai.fr").staff).toEqual([{ ...claire, conversationUrl: "https://www.facebook.com/messages/t/9", contactMessage: "Salut" }]);
+    // Absent = inchangé (aucune clé) ; vide = effacer (null).
+    expect(checkStaff([claire])[0]).not.toHaveProperty("conversationUrl");
+    expect(checkStaff([{ ...claire, conversationUrl: "", contactMessage: null }])[0]).toMatchObject({ conversationUrl: null, contactMessage: null });
+  });
+
+  it("garde ce qu'on savait d'une personne quand la nouvelle liste ne le redonne pas", () => {
+    // Un agent qui renvoie la liste relevée sur Facebook, sans les contacts.
+    expect(mergeStaff(known, [{ ...claire, role: "moderator" }], 999)).toEqual([{ ...known[0], role: "moderator" }]);
+  });
+
+  it("date le contact quand la conversation apparaît ou change, et oublie l'ancien relevé", () => {
+    expect(mergeStaff([claire], [{ ...claire, conversationUrl: conv }], 999)).toEqual([{ ...claire, conversationUrl: conv, contactedAt: 999 }]);
+    const other = "https://www.facebook.com/messages/t/2";
+    expect(mergeStaff(known, [{ ...claire, conversationUrl: other }], 999)).toEqual([{ ...claire, conversationUrl: other, contactedAt: 999, contactMessage: "Bonjour Claire" }]);
+    // Même conversation renvoyée : rien ne bouge.
+    expect(mergeStaff(known, [{ ...claire, conversationUrl: conv }], 999)).toEqual(known);
+  });
+
+  it("efface la conversation (et sa date) sur demande, sans laisser de clé vide", () => {
+    const [p] = mergeStaff(known, [{ ...claire, conversationUrl: null, contactMessage: null }], 999);
+    expect(p).toEqual(claire);
+    expect(Object.values(p).some((v) => v === undefined)).toBe(false);
+  });
+
+  it("retrouve une personne sans profil par son nom", () => {
+    const lea = { name: "Léa Garnier", role: "moderator" as const, profileUrl: null };
+    expect(staffKey(lea)).toBe("nom:lea-garnier");
+    expect(mergeStaff([{ ...lea, conversationUrl: conv, contactedAt: 5 }], [{ ...lea, name: "Léa  Garnier" }], 999)[0].contactedAt).toBe(5);
+  });
+
+  it("un contact noté ne change pas la date de relevé de la liste, une personne de plus si", () => {
+    const g = group({ staff: [claire], staffAt: 1 });
+    const contacted = applyPatch(g, { staff: [{ ...claire, conversationUrl: conv }] }, 50);
+    expect(contacted.staff[0].contactedAt).toBe(50);
+    expect(contacted.staffAt).toBe(1);
+    const grown = applyPatch(g, { staff: [claire, { name: "Paul", role: "moderator", profileUrl: null }] }, 60);
+    expect(grown.staffAt).toBe(60);
+    // Liste identique, champs relus dans un autre ordre : pas de réécriture.
+    const reordered = { reply, contactMessage: "Bonjour Claire", contactedAt: 100, conversationUrl: conv, profileUrl: claire.profileUrl, role: "admin", name: "Claire" } as FbStaff;
+    const same = { ...group({ staffAt: 1 }), staff: [reordered] };
+    expect(applyPatch(same, { staff: [{ ...claire }] }, 70).staff).toBe(same.staff);
+  });
+
+  it("note un message envoyé : la personne retrouvée par profil, puis par nom, sinon ajoutée", () => {
+    const input = (over: object) => ApiStaffContact.parse({ conversationUrl: "https://www.messenger.com/t/77", ...over });
+    // Par profil.
+    const a = applyStaffContact([claire], input({ profileUrl: "https://m.facebook.com/claire?__tn__=R", message: "Bonjour" }), 10);
+    expect(a).toEqual([{ ...claire, conversationUrl: "https://www.facebook.com/messages/t/77", contactedAt: 10, contactMessage: "Bonjour" }]);
+    // Par nom, et le profil appris est gardé.
+    const paul = { name: "Paul Durand", role: "moderator" as const, profileUrl: null };
+    const b = applyStaffContact([claire, paul], input({ name: "paul durand", profileUrl: "https://www.facebook.com/paul.d" }), 11);
+    expect(b[1]).toMatchObject({ name: "Paul Durand", role: "moderator", profileUrl: "https://www.facebook.com/paul.d", contactedAt: 11 });
+    // Absente : ajoutée, rôle exigé.
+    expect(() => applyStaffContact([claire], input({ name: "Inconnue" }), 12)).toThrow(/role obligatoire/);
+    expect(applyStaffContact([claire], input({ name: "Inconnue", role: "admin" }), 12)).toHaveLength(2);
+    // Même conversation redonnée : la date du premier contact reste.
+    expect(applyStaffContact(a, input({ profileUrl: claire.profileUrl }), 99)[0].contactedAt).toBe(10);
+    // Ni profil ni nom, ou lien qui n'est pas une conversation.
+    expect(() => applyStaffContact([claire], input({}), 12)).toThrow(/profileUrl ou name/);
+    expect(() => applyStaffContact([claire], input({ profileUrl: claire.profileUrl, conversationUrl: "https://www.facebook.com/claire" }), 12)).toThrow(/conversation Messenger/);
+    expect(ApiStaffContact.safeParse({ conversationUrl: conv, contactedAt: 1 }).success).toBe(false);
+  });
+
+  it("enregistre la réponse relevée, et dit qui a répondu", () => {
+    const scan = conversationScanFrom({ state: "ok", lastFrom: "me", lastKey: "k", theirs: "2", mine: -1, lastText: "x".repeat(400) }, 8);
+    expect(scan).toMatchObject({ state: "ok", theirs: 2, mine: null, lastFrom: "me", lastKey: "k", at: 8 });
+    expect(scan.lastText).toHaveLength(200);
+    expect(conversationScanFrom({ state: "bizarre", lastFrom: "lui" }, 8)).toMatchObject({ state: "unknown", lastFrom: null, lastKey: null });
+    const withConv = [{ ...claire, conversationUrl: conv, contactedAt: 1 }];
+    expect(applyStaffReply(withConv, staffKey(claire), scan)[0].reply).toEqual(scan);
+    expect(() => applyStaffReply(withConv, "nom:personne", scan)).toThrow(/introuvable/);
+    expect(() => applyStaffReply([claire], staffKey(claire), scan)).toThrow(/aucune conversation/);
+
+    expect(staffReplyState({ reply: undefined })).toBeNull();
+    expect(staffReplyState({ reply: { ...scan, lastFrom: "them" } })).toBe("replied");
+    expect(staffReplyState({ reply: scan })).toBe("ongoing");
+    expect(staffReplyState({ reply: { ...scan, lastKey: null } })).toBe("silent");
+    expect(staffReplyState({ reply: { ...scan, state: "unavailable" } })).toBe("missing");
+    expect(staffReplyState({ reply: { ...scan, state: "unknown" } })).toBe("unreadable");
+    expect(staffReplied({ reply: scan })).toBe(true);
+    expect(staffReplied({ reply: { ...scan, lastKey: null } })).toBe(false);
+    expect(staffReplied({ reply: { ...scan, state: "unknown" } })).toBeNull();
+  });
+
+  it("une personne d'avant le suivi se relit telle quelle", () => {
+    expect(group({ staff: [claire] }).staff).toEqual([claire]);
+  });
+});
+
+describe("adhésion relevée sur la page du groupe", () => {
+  it("valide ce que rend le script", () => {
+    expect(membershipScanFrom({ state: "join", note: "x", diag: "d" }, 5)).toEqual({ scan: { state: "join", at: 5, note: "x" }, diag: "d" });
+    expect(membershipScanFrom({ state: "nimporte" }, 5).scan.state).toBe("unknown");
+    expect(membershipScanFrom(null, 5)).toEqual({ scan: { state: "unknown", at: 5, note: null }, diag: null });
+    expect(membershipScanFrom({ diag: "a".repeat(5000) }, 5).diag).toHaveLength(3000);
+  });
+
+  it("traduit la page en adhésion, sans inventer de refus pour une adhésion jamais demandée", () => {
+    expect(membershipFromScan("member", "pending")).toBe("validated");
+    expect(membershipFromScan("pending", "none")).toBe("pending");
+    expect(membershipFromScan("join", "pending")).toBe("refused");
+    expect(membershipFromScan("join", "validated")).toBe("refused");
+    expect(membershipFromScan("join", "none")).toBeNull();
+    expect(membershipFromScan("unavailable", "pending")).toBeNull();
+    expect(membershipFromScan("unknown", "validated")).toBeNull();
+  });
+
+  it("une adhésion acceptée change l'adhésion, pas l'onglet, et se date", () => {
+    const g = applyMembershipScan(group({ membership: "pending" }), membershipScanFrom({ state: "member" }, 9));
+    expect(g).toMatchObject({ membership: "validated", membershipChangedAt: 9, status: "new", membershipScan: { state: "member", at: 9 } });
+  });
+
+  it("un refus range le groupe dans « Refusés »", () => {
+    expect(applyMembershipScan(group({ membership: "pending" }), membershipScanFrom({ state: "join" }, 9))).toMatchObject({ membership: "refused", status: "refused" });
+    expect(applyMembershipScan(group({ membership: "validated", status: "handled" }), membershipScanFrom({ state: "join" }, 9)).status).toBe("refused");
+    // Jamais demandée : rien ne change, sauf le relevé.
+    const never = applyMembershipScan(group({ membership: "none" }), membershipScanFrom({ state: "join" }, 9));
+    expect(never).toMatchObject({ membership: "none", status: "new", membershipChangedAt: null, membershipScan: { state: "join" } });
+  });
+
+  it("une adhésion qui revient ressort le groupe des « Refusés », seulement s'il y était", () => {
+    expect(applyMembershipScan(group({ membership: "refused", status: "refused" }), membershipScanFrom({ state: "pending" }, 9))).toMatchObject({ membership: "pending", status: "new" });
+    expect(applyMembershipScan(group({ membership: "refused", status: "ignored" }), membershipScanFrom({ state: "member" }, 9))).toMatchObject({ membership: "validated", status: "ignored" });
+  });
+
+  it("un groupe rangé dans « Refusés » pour un post retiré y reste quand on est toujours membre", () => {
+    expect(applyMembershipScan(group({ membership: "validated", status: "refused" }), membershipScanFrom({ state: "member" }, 9))).toMatchObject({ membership: "validated", status: "refused", membershipChangedAt: null });
+  });
+
+  it("page introuvable ou illisible : seul le relevé change", () => {
+    for (const state of ["unavailable", "unknown"]) {
+      const g = applyMembershipScan(group({ membership: "pending" }), membershipScanFrom({ state }, 9));
+      expect(g).toMatchObject({ membership: "pending", status: "new", membershipChangedAt: null });
+    }
+  });
+
+  it("un changement à la main se date aussi, et refusée s'accepte partout sauf à l'ajout", () => {
+    expect(applyPatch(group({ membership: "pending" }), { membership: "refused" }, 4).membershipChangedAt).toBe(4);
+    expect(applyPatch(group({ membership: "pending" }), { membership: "pending" }, 4).membershipChangedAt).toBeNull();
+    expect(ApiPatch.safeParse({ membership: "refused" }).success).toBe(true);
+    expect(ApiNewGroup.safeParse({ url: "u", name: "n", membership: "refused" }).success).toBe(false);
+  });
+
+  it("un groupe d'avant se relit sans relevé d'adhésion", () => {
+    expect(group()).toMatchObject({ membershipScan: null, membershipDiag: null, membershipChangedAt: null });
   });
 });
 
@@ -308,6 +483,10 @@ describe("où en est un groupe", () => {
     });
     expect(groupStage({ ...done, commentsSeen: 4 })).toMatchObject({ key: "done", tone: "ok" });
     expect(groupStage({ ...done, commentsSeen: 1 })).toMatchObject({ key: "read", label: "3 à lire", tone: "warn" });
+  });
+
+  it("une adhésion refusée se dit sur la ligne, même hors de l'onglet « Refusés »", () => {
+    expect(stage({ membership: "refused" })).toMatchObject({ key: "refused", label: "Adhésion refusée", tone: "pink" });
   });
 
   it("ignoré et refusé ne demandent plus rien, quelle que soit l'adhésion", () => {

@@ -1,18 +1,37 @@
 import Link from "next/link";
 import { ActionForm } from "@/components/admin/ActionForm";
 import { AutoSubmitSelect } from "@/components/admin/AutoSubmitSelect";
-import { FbCopy, FbKeyField, FbMessageButtons, FbModal, FbPostInput, FbScanAll, FbScanProvider, FbVerify } from "@/components/admin/FbGroupTools";
+import {
+  FbCopy,
+  FbKeyField,
+  FbMessageButtons,
+  FbModal,
+  FbPostInput,
+  FbScanAll,
+  FbScanMemberships,
+  FbScanProvider,
+  FbScanStaffReplies,
+  FbScriptLink,
+  FbStaffEditor,
+  FbVerify,
+  FbVerifyMembership,
+  FbVerifyStaff,
+  type StaffScanItem,
+} from "@/components/admin/FbGroupTools";
 import { Card, Field, Input, Notice, PageHeader, Pill, Textarea, Tile } from "@/components/admin/ui";
 import {
   addFbGroupAction,
   deleteFbGroupAction,
   markFbSeenAction,
   quickFbGroupAction,
+  recordFbMembershipScanAction,
   recordFbScanAction,
+  recordFbStaffReplyAction,
   revokeFbKeyAction,
   rotateFbKeyAction,
   saveFbGroupAction,
   saveFbLandingAction,
+  saveFbStaffAction,
   setFbPostAction,
 } from "@/lib/admin/actions/fb-groups";
 import { requireAdmin } from "@/lib/auth/session";
@@ -24,23 +43,26 @@ import {
   FB_POST_STATES,
   FB_TABS,
   MEMBERSHIP_LABELS,
+  MEMBERSHIP_SCAN_LABELS,
   NO_STATS,
   POST_LABELS,
   SCAN_LABELS,
   STAFF_LABELS,
+  STAFF_REPLY_LABELS,
   TAB_LABELS,
   addedToday,
   aggregateClicks,
   fillMessage,
   groupStage,
   newComments,
-  staffToText,
+  staffKey,
+  staffReplyState,
   staffUrl,
   trackingLink,
   type FbGroup,
   type FbGroupStats,
+  type FbMembership,
   type FbMetrics,
-  type FbStaff,
   type FbTab,
   type Ranked,
 } from "@/lib/domain/fb-groups";
@@ -62,7 +84,7 @@ export const metadata = { title: "Campagnes Facebook" };
  * Rien n'y est publié automatiquement : c'est nous qui postons, en copiant le message.
  */
 
-type Sp = { onglet?: string; q?: string; tri?: string; stats?: string };
+type Sp = { onglet?: string; q?: string; tri?: string; stats?: string; adhesion?: string };
 
 const DAY = 86_400_000;
 const fmt = (n: number) => n.toLocaleString("fr-FR");
@@ -91,7 +113,7 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
   await requireAdmin();
   const raw = await searchParams;
   const one = (k: string) => (typeof raw[k] === "string" ? (raw[k] as string) : "");
-  const sp: Sp = { onglet: one("onglet"), q: one("q"), tri: one("tri"), stats: one("stats") };
+  const sp: Sp = { onglet: one("onglet"), q: one("q"), tri: one("tri"), stats: one("stats"), adhesion: one("adhesion") };
   const now = clock();
 
   const [groups, config, stats] = await Promise.all([listFbGroups(), getFbConfig(), fbStatsByGroup()]);
@@ -103,6 +125,7 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
   /* ---------- Chiffres ---------- */
   const members = groups.filter((g) => g.membership === "validated").length;
   const pending = groups.filter((g) => g.membership === "pending").length;
+  const refused = groups.filter((g) => g.membership === "refused").length;
   const toPost = groups.filter((g) => g.membership === "validated" && g.message && !g.postUrl && g.status === "new").length;
   const posted = groups.filter((g) => g.postUrl).length;
   const clicks = groups.reduce((s, g) => s + statOf(g).clicks, 0);
@@ -111,9 +134,11 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
 
   /* ---------- Liste ---------- */
   const tab = (FB_TABS as readonly string[]).includes(sp.onglet ?? "") ? (sp.onglet as FbTab) : null;
+  const membership = (FB_MEMBERSHIPS as readonly string[]).includes(sp.adhesion ?? "") ? (sp.adhesion as FbMembership) : null;
   const q = (sp.q ?? "").trim().toLowerCase();
-  const shown = groups
-    .filter((g) => !tab || g.status === tab)
+  const inTab = groups.filter((g) => !tab || g.status === tab);
+  const shown = inTab
+    .filter((g) => !membership || g.membership === membership)
     .filter((g) => !q || `${g.name} ${g.slug} ${g.groupUrl} ${g.note} ${g.staff.map((p) => p.name).join(" ")}`.toLowerCase().includes(q))
     .sort((a, b) => (sp.tri === "clics" ? statOf(b).clicks - statOf(a).clicks : sp.tri === "commentaires" ? newComments(b) - newComments(a) || (b.scan?.comments ?? -1) - (a.scan?.comments ?? -1) : 0) || b.createdAt - a.createdAt);
   const unread = groups.reduce((s, g) => s + newComments(g), 0);
@@ -131,7 +156,7 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
 
       <div className="grid grid-cols-4 gap-3 max-[1099px]:grid-cols-2 max-[599px]:grid-cols-1">
         <Tile label="Groupes suivis" value={fmt(groups.length)} note={today ? `${today} ajouté${today > 1 ? "s" : ""} aujourd'hui par Claude` : "aucun ajout aujourd'hui"} />
-        <Tile tone="green" label="Membre" value={fmt(members)} note={`${pending} adhésion${pending > 1 ? "s" : ""} en attente`} />
+        <Tile tone="green" label="Membre" value={fmt(members)} note={`${pending} adhésion${pending > 1 ? "s" : ""} en attente${refused ? ` · ${refused} refusée${refused > 1 ? "s" : ""}` : ""}`} />
         <Tile tone="sand" label="À poster" value={fmt(toPost)} note={`membre, message prêt · ${posted} déjà posté${posted > 1 ? "s" : ""}`} />
         <Tile tone="blue" label="Clics" value={fmt(clicks)} note={`${clicks7} sur 7 jours · robots et doublons écartés`} />
       </div>
@@ -220,8 +245,21 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
         </div>
       </div>
 
-      <FbScanProvider record={recordFbScanAction}>
-      <div className="flex justify-end">
+      {/* L'adhésion filtre dans l'onglet choisi : les nombres sont ceux de cet onglet. */}
+      <nav className="flex flex-wrap items-center gap-1.5" aria-label="Adhésion">
+        {[{ key: "", label: "Toutes les adhésions", n: inTab.length }, ...FB_MEMBERSHIPS.map((m) => ({ key: m, label: MEMBERSHIP_LABELS[m], n: inTab.filter((g) => g.membership === m).length }))].map((m) => (
+          <Link key={m.key} href={href(sp, { adhesion: m.key, stats: "" })} aria-current={(membership ?? "") === m.key ? "true" : undefined} className={`rounded-pill px-3.5 py-2 text-xs font-bold ${(membership ?? "") === m.key ? "bg-ink text-on-ink" : "bg-surface hover:opacity-70"}`}>
+            {m.label}
+            <span className="ml-1.5 opacity-60">{m.n}</span>
+          </Link>
+        ))}
+      </nav>
+
+      <FbScanProvider record={recordFbScanAction} recordMembership={recordFbMembershipScanAction} recordStaffReply={recordFbStaffReplyAction}>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <FbScriptLink />
+        <FbScanStaffReplies items={shown.flatMap((g) => g.staff.filter((p) => p.conversationUrl).map((p) => ({ slug: g.slug, key: staffKey(p), url: p.conversationUrl! })))} />
+        <FbScanMemberships groups={shown.filter((g) => g.membership === "pending" || g.membership === "refused").map((g) => ({ id: g.slug, url: g.groupUrl }))} />
         <FbScanAll posts={shown.filter((g) => g.postUrl).map((g) => ({ id: g.slug, url: g.postUrl! }))} />
       </div>
       <section className="flex flex-col rounded-card bg-surface px-6 py-2">
@@ -310,6 +348,7 @@ function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroup
             <input type="hidden" name="slug" value={g.slug} />
             <AutoSubmitSelect name="membership" label={`Adhésion à ${g.name}`} value={g.membership} options={FB_MEMBERSHIPS.map((m) => ({ value: m, label: `Adhésion : ${MEMBERSHIP_LABELS[m]}` }))} className="!w-auto" />
           </ActionForm>
+          <MembershipScan g={g} now={now} />
           <ActionForm action={quickFbGroupAction} hideFooter className="!gap-0">
             <input type="hidden" name="slug" value={g.slug} />
             <AutoSubmitSelect name="status" label={`Onglet de ${g.name}`} value={g.status} options={FB_TABS.map((t) => ({ value: t, label: `Onglet : ${TAB_LABELS[t]}` }))} className="!w-auto" />
@@ -344,7 +383,7 @@ function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroup
 
         {g.note && <p className="text-xs font-semibold text-tint-sand-ink">ⓘ {g.note}</p>}
 
-        <StaffLine staff={g.staff} at={g.staffAt} now={now} url={staffUrl(g.groupUrl)} />
+        <StaffLine g={g} now={now} />
 
         <details className="group">
           <summary className="w-fit cursor-pointer list-none text-[0.6875rem] font-bold text-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
@@ -368,9 +407,6 @@ function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroup
               <Field label="Message" name="message" hint="{lien} marque l'endroit du lien de suivi du groupe ; laissé vide, le message est effacé.">
                 <Textarea name="message" defaultValue={g.message ?? ""} rows={8} className="!bg-surface" />
               </Field>
-              <Field label="Admins et modérateurs" name="staff" hint="Une personne par ligne : Nom | lien du profil | admin ou modérateur. Le lien et le rôle sont facultatifs (admin par défaut).">
-                <Textarea name="staff" defaultValue={staffToText(g.staff)} rows={Math.min(8, Math.max(3, g.staff.length + 1))} placeholder={"Claire Martin | https://www.facebook.com/claire.martin | admin\nPaul Durand | https://www.facebook.com/profile.php?id=… | modérateur"} className="!bg-surface" />
-              </Field>
             </ActionForm>
             <ActionForm action={deleteFbGroupAction} submitLabel="Supprimer le groupe" submitTone="ghost" confirm={`Supprimer « ${g.name} » du suivi ? Ses clics restent en base, mais son lien ne sera plus attribué.`} className={`${tiny} [&_button]:text-danger`}>
               <input type="hidden" name="slug" value={g.slug} />
@@ -382,55 +418,121 @@ function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroup
   );
 }
 
-/* ---------- Admins et modérateurs ---------- */
+/* ---------- L'adhésion ---------- */
+
+const MEMBERSHIP_SCAN_TONE = { member: "ok", pending: "blue", join: "pink", unavailable: "pink", unknown: "muted" } as const;
 
 /*
- * Qui tient le groupe, chacun menant à son profil. Une liste vide le dit, pour qu'on
- * sache qu'elle reste à relever.
+ * À côté de l'adhésion : son dernier relevé par le script (ce que montrait la page du
+ * groupe), « changée il y a… » pendant une semaine, et « Vérifier » pour la relire.
+ */
+function MembershipScan({ g, now }: { g: FbGroup; now: number }) {
+  const sc = g.membershipScan;
+  const changed = g.membershipChangedAt && now - g.membershipChangedAt < 7 * DAY ? g.membershipChangedAt : null;
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {changed && (
+        <span title={new Date(changed).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "medium", timeStyle: "short" })}>
+          <Pill tone="warn">changée {ago(changed, now)}</Pill>
+        </span>
+      )}
+      {sc && (
+        <span title={[`Relevé ${ago(sc.at, now)}`, sc.note].filter(Boolean).join(" · ")}>
+          <Pill tone={MEMBERSHIP_SCAN_TONE[sc.state]}>{MEMBERSHIP_SCAN_LABELS[sc.state]}</Pill>
+        </span>
+      )}
+      <FbVerifyMembership id={g.slug} url={g.groupUrl} />
+    </span>
+  );
+}
+
+/* ---------- Admins et modérateurs ---------- */
+
+const REPLY_TONE = { replied: "ok", ongoing: "warn", silent: "muted", missing: "pink", unreadable: "muted" } as const;
+
+/*
+ * Qui tient le groupe, une personne par ligne : son profil, son rôle, et le suivi du
+ * contact (la conversation, quand on lui a écrit, ce qu'on lui a écrit au survol, et sa
+ * réponse au dernier relevé). Une liste vide le dit, pour qu'on sache qu'elle reste à
+ * relever.
  *
  * Et dans les deux cas, le lien vers la page des admins du groupe (`staffUrl`, déduite).
  * C'est par là qu'on va quand la liste est vide, quand quelqu'un n'y figure pas encore,
  * ou quand il faut simplement écrire à un admin pour lui demander l'autorisation de
  * publier — ce que beaucoup de groupes exigent. Sans lui, il fallait rouvrir le groupe
  * et refaire le chemin à chaque fois.
+ *
+ * Dessous, le formulaire de la liste (`FbStaffEditor`), replié.
  */
-function StaffLine({ staff, at, now, url }: { staff: FbStaff[]; at: number | null; now: number; url: string | null }) {
+function StaffLine({ g, now }: { g: FbGroup; now: number }) {
+  const { staff, staffAt } = g;
+  const url = staffUrl(g.groupUrl);
   const seeAll = url && (
     <a href={url} target="_blank" rel="noreferrer" className="rounded-pill bg-paper px-2.5 py-1 font-bold hover:opacity-70">
       {staff.length === 0 ? "Aller les voir" : "Toute la liste"} <span className="text-subtle">↗</span>
     </a>
   );
-  if (staff.length === 0) {
-    return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-semibold">
-        <span className="text-faint">Admins et modérateurs : pas encore relevés</span>
+  return (
+    <div className="flex flex-col gap-2 text-xs font-semibold">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className={staff.length ? "font-bold text-subtle" : "text-faint"} title={staffAt ? `Relevés ${ago(staffAt, now)}` : undefined}>
+          Admins et modérateurs{staff.length ? "" : " : pas encore relevés"}
+        </span>
         {seeAll}
       </div>
-    );
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-semibold">
-      <span className="font-bold text-subtle" title={at ? `Relevés ${ago(at, now)}` : undefined}>
-        Admins et modérateurs
-      </span>
-      {staff.map((p) => {
-        const label = (
-          <>
-            {p.name}
-            {p.role === "moderator" && <span className="ml-1 text-subtle">· {STAFF_LABELS.moderator.toLowerCase()}</span>}
-          </>
-        );
-        return p.profileUrl ? (
-          <a key={p.profileUrl} href={p.profileUrl} target="_blank" rel="noreferrer" className="rounded-pill bg-paper px-2.5 py-1 hover:opacity-70">
-            {label} <span className="text-subtle">↗</span>
-          </a>
-        ) : (
-          <span key={`${p.name}-${p.role}`} className="rounded-pill bg-paper px-2.5 py-1">
-            {label}
-          </span>
-        );
-      })}
-      {seeAll}
+      {staff.length > 0 && (
+        <ul className="flex flex-col gap-1.5">
+          {staff.map((p) => {
+            const key = staffKey(p);
+            const reply = staffReplyState(p);
+            const r = p.reply;
+            return (
+              <li key={key} className="flex flex-wrap items-center gap-2">
+                {p.profileUrl ? (
+                  <a href={p.profileUrl} target="_blank" rel="noreferrer" title="Ouvrir le profil" className="rounded-pill bg-paper px-2.5 py-1 hover:opacity-70">
+                    {p.name} <span className="text-subtle">↗</span>
+                  </a>
+                ) : (
+                  <span className="rounded-pill bg-paper px-2.5 py-1">{p.name}</span>
+                )}
+                <span className="text-subtle">{STAFF_LABELS[p.role].toLowerCase()}</span>
+                {p.conversationUrl ? (
+                  <>
+                    <a href={p.conversationUrl} target="_blank" rel="noreferrer" className="rounded-pill bg-paper px-2.5 py-1 font-bold hover:opacity-70">
+                      Conversation ↗
+                    </a>
+                    {p.contactedAt && (
+                      <span className="text-subtle" title={p.contactMessage ?? "Message envoyé non noté"}>
+                        écrit {ago(p.contactedAt, now)}
+                      </span>
+                    )}
+                    {reply && r ? (
+                      <span title={[`Relevé ${ago(r.at, now)}`, r.lastText && `dernier message : ${r.lastText}`, r.note].filter(Boolean).join(" · ")}>
+                        <Pill tone={REPLY_TONE[reply]}>{STAFF_REPLY_LABELS[reply]}</Pill>
+                      </span>
+                    ) : (
+                      <span className="text-faint">réponse pas encore vérifiée</span>
+                    )}
+                    <FbVerifyStaff item={{ slug: g.slug, key, url: p.conversationUrl } satisfies StaffScanItem} />
+                  </>
+                ) : (
+                  <span className="text-faint">pas contacté</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <details className="group/staff">
+        <summary className="w-fit cursor-pointer list-none text-[0.6875rem] font-bold text-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
+          <span className="group-open/staff:hidden">{staff.length ? "Modifier la liste ▸" : "Ajouter des admins ▸"}</span>
+          <span className="hidden group-open/staff:inline">Replier ▾</span>
+        </summary>
+        <div className="mt-2 rounded-[18px] bg-paper p-3">
+          {/* La clé remonte le formulaire quand la liste change en base : il repart de ce qui est enregistré. */}
+          <FbStaffEditor key={JSON.stringify(staff.map((p) => [p.name, p.role, p.profileUrl, p.conversationUrl ?? ""]))} slug={g.slug} staff={staff} save={saveFbStaffAction} />
+        </div>
+      </details>
     </div>
   );
 }
