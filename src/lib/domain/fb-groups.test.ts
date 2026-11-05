@@ -12,6 +12,7 @@ import {
   FbGroup,
   groupRoot,
   groupSlug,
+  groupStage,
   isDuplicate,
   isRobot,
   landingPathFrom,
@@ -201,5 +202,47 @@ describe("relevé du post", () => {
     expect(moved.scan).toBeNull();
     expect(moved.commentsSeen).toBe(0);
     expect(applyPatch(read, { postUrl: read.postUrl }, 10).scan).not.toBeNull();
+  });
+});
+
+describe("où en est un groupe", () => {
+  const stage = (over: Partial<FbGroup> = {}) => groupStage(group(over));
+
+  it("suit la file des gestes, de l'adhésion au post validé", () => {
+    expect(stage({ membership: "none" }).key).toBe("join");
+    expect(stage({ membership: "pending" }).key).toBe("joining");
+    expect(stage({ membership: "validated", message: null }).key).toBe("write");
+    expect(stage({ membership: "validated", message: "Bonjour {lien}" }).key).toBe("post");
+    const posted = { membership: "validated", message: "Bonjour {lien}", postUrl: "https://www.facebook.com/groups/1/posts/2" } as const;
+    expect(stage({ ...posted, postStatus: "pending" }).key).toBe("moderation");
+    expect(stage({ ...posted, postStatus: "validated" }).key).toBe("done");
+    expect(stage({ ...posted, postStatus: "deleted" }).key).toBe("deleted");
+  });
+
+  it("n'ouvre la ligne que lorsque le groupe attend quelque chose de nous", () => {
+    // À nous de jouer : demander, écrire, poster, reposter.
+    expect(stage({ membership: "none" }).ours).toBe(true);
+    expect(stage({ membership: "validated", message: null }).ours).toBe(true);
+    expect(stage({ membership: "validated", message: "Bonjour {lien}" }).ours).toBe(true);
+    // À eux : l'adhésion et la modération ne dépendent pas de nous.
+    expect(stage({ membership: "pending" }).ours).toBe(false);
+    expect(stage({ membership: "validated", message: "x {lien}", postUrl: "https://www.facebook.com/groups/1/posts/2", postStatus: "validated" }).ours).toBe(false);
+  });
+
+  it("un post validé se replie, et un commentaire non lu le rouvre", () => {
+    const done = group({
+      membership: "validated",
+      message: "Bonjour {lien}",
+      postUrl: "https://www.facebook.com/groups/1/posts/2",
+      postStatus: "validated",
+      scan: { state: "validated", likes: 3, comments: 4, at: 5, note: null },
+    });
+    expect(groupStage({ ...done, commentsSeen: 4 })).toMatchObject({ key: "done", ours: false });
+    expect(groupStage({ ...done, commentsSeen: 1 })).toMatchObject({ key: "read", label: "3 à lire", ours: true });
+  });
+
+  it("ignoré et refusé ne demandent plus rien", () => {
+    expect(stage({ status: "ignored", membership: "none" }).ours).toBe(false);
+    expect(stage({ status: "refused", membership: "none" }).ours).toBe(false);
   });
 });

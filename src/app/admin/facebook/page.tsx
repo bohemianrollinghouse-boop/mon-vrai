@@ -31,6 +31,7 @@ import {
   addedToday,
   aggregateClicks,
   fillMessage,
+  groupStage,
   newComments,
   trackingLink,
   type FbGroup,
@@ -254,97 +255,120 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
 
 const tiny = "!gap-0 [&>div:last-child]:justify-start [&_button]:!px-0 [&_button]:!py-1 [&_button]:text-[0.6875rem]";
 
+/*
+ * Une ligne par groupe, REPLIÉE sur son nom : la liste se parcourt d'un coup d'œil,
+ * et l'on n'ouvre que celui sur lequel on travaille. Le pli ne se règle pas, il se
+ * déduit (`groupStage`) — un groupe qui attend quelque chose de nous s'ouvre de
+ * lui-même, un groupe soldé se referme. Poster le sien le replie donc sans qu'on ait
+ * rien à cocher, et un commentaire qui arrive le rouvre.
+ *
+ * `open` n'est posé qu'au rendu : ouvrir ou replier à la main tient ensuite, y compris
+ * à travers les enregistrements de la ligne (les listes déroulantes s'envoient toutes
+ * seules), parce que React ne retouche pas un attribut dont la valeur n'a pas changé.
+ */
 function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroupStats; link: string; statsHref: string; now: number }) {
   const final = g.message ? fillMessage(g.message, link) : null;
+  const stage = groupStage(g);
   return (
-    <article className="flex flex-col gap-3 border-t border-line-soft py-4 first:border-t-0">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <a href={g.groupUrl} target="_blank" rel="noreferrer" className="text-sm font-extrabold hover:underline">
-            {g.name} <span className="text-subtle">↗</span>
-          </a>
-          <span className="text-xs font-semibold text-faint">
-            fb={g.slug}
-            {g.members !== null && ` · ${fmt(g.members)} membres`} · ajouté {ago(g.createdAt, now)} {g.addedBy === "agent" ? "par Claude" : "à la main"}
-          </span>
-        </div>
-        <Link href={statsHref} scroll={false} title="Voir le détail des clics" className="flex flex-wrap items-center gap-1.5 rounded-pill hover:opacity-70">
-          <Pill tone={stat.clicks ? "ok" : "neutral"}>
-            {fmt(stat.clicks)} clic{stat.clicks > 1 ? "s" : ""}
-          </Pill>
-          {stat.last7 > 0 && <Pill tone="warn">{stat.last7} sur 7 j</Pill>}
-          <span className="text-xs font-semibold text-subtle">{stat.last ? `dernier ${ago(stat.last, now)}` : "détail"} ›</span>
-        </Link>
-      </div>
+    <details open={stage.ours} className="group/row border-t border-line-soft first:border-t-0">
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-2.5 py-4 [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className="text-xs font-bold text-faint transition-transform group-open/row:rotate-90">
+          ▸
+        </span>
+        <span className="min-w-0 flex-1 truncate text-sm font-extrabold">{g.name}</span>
+        <Pill tone={stage.tone}>{stage.label}</Pill>
+        <span className="whitespace-nowrap text-xs font-semibold text-subtle">
+          {fmt(stat.clicks)} clic{stat.clicks > 1 ? "s" : ""}
+        </span>
+      </summary>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <ActionForm action={quickFbGroupAction} hideFooter className="!gap-0">
-          <input type="hidden" name="slug" value={g.slug} />
-          <AutoSubmitSelect name="membership" label={`Adhésion à ${g.name}`} value={g.membership} options={FB_MEMBERSHIPS.map((m) => ({ value: m, label: `Adhésion : ${MEMBERSHIP_LABELS[m]}` }))} className="!w-auto" />
-        </ActionForm>
-        <ActionForm action={quickFbGroupAction} hideFooter className="!gap-0">
-          <input type="hidden" name="slug" value={g.slug} />
-          <AutoSubmitSelect name="status" label={`Onglet de ${g.name}`} value={g.status} options={FB_TABS.map((t) => ({ value: t, label: `Onglet : ${TAB_LABELS[t]}` }))} className="!w-auto" />
-        </ActionForm>
-        <span className="flex-1" />
-        <FbMessageButtons text={final} groupName={g.name} />
-        <FbCopy text={link} label="Copier le lien" />
-      </div>
-
-      {/* Le post : son lien, saisi sur place et enregistré en quittant le champ, et son état à côté. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <ActionForm action={setFbPostAction} hideFooter className="!gap-0 min-w-0 flex-1">
-          <input type="hidden" name="slug" value={g.slug} />
-          <FbPostInput key={g.postUrl ?? ""} initial={g.postUrl ?? ""} />
-        </ActionForm>
-        {g.postUrl ? (
-          <>
-            <ActionForm action={quickFbGroupAction} hideFooter className="!gap-0">
-              <input type="hidden" name="slug" value={g.slug} />
-              <AutoSubmitSelect name="postStatus" label={`État du post dans ${g.name}`} value={g.postStatus ?? "pending"} options={FB_POST_STATES.map((p) => ({ value: p, label: POST_LABELS[p] }))} className="!w-auto" />
-            </ActionForm>
-            <a href={g.postUrl} target="_blank" rel="noreferrer" className="rounded-pill bg-paper px-3 py-2 text-[0.6875rem] font-bold hover:opacity-70">
-              Ouvrir ↗
+      <article className="flex flex-col gap-3 pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <a href={g.groupUrl} target="_blank" rel="noreferrer" className="text-sm font-extrabold hover:underline">
+              Ouvrir le groupe <span className="text-subtle">↗</span>
             </a>
-          </>
-        ) : (
-          <span className="text-xs font-semibold text-faint">Pas encore posté</span>
-        )}
-      </div>
-
-      {g.postUrl && <ScanLine g={g} now={now} />}
-
-      {g.note && <p className="text-xs font-semibold text-tint-sand-ink">ⓘ {g.note}</p>}
-
-      <details className="group">
-        <summary className="w-fit cursor-pointer list-none text-[0.6875rem] font-bold text-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
-          <span className="group-open:hidden">Modifier ▸</span>
-          <span className="hidden group-open:inline">Replier ▾</span>
-        </summary>
-        <div className="mt-3 flex flex-col gap-3 rounded-[18px] bg-paper p-4">
-          <ActionForm action={saveFbGroupAction} submitLabel="Enregistrer le groupe">
-            <input type="hidden" name="slug" value={g.slug} />
-            <div className="grid grid-cols-[1fr_160px] gap-3 max-[699px]:grid-cols-1">
-              <Field label="Nom">
-                <Input name="name" defaultValue={g.name} className="!bg-surface" />
-              </Field>
-              <Field label="Membres">
-                <Input name="members" inputMode="numeric" defaultValue={g.members ?? ""} className="!bg-surface" />
-              </Field>
-            </div>
-            <Field label="Note" hint="Ce qu'il faut savoir du groupe : règle de publication, jour des annonces…">
-              <Input name="note" defaultValue={g.note} className="!bg-surface" />
-            </Field>
-            <Field label="Message" name="message" hint="{lien} marque l'endroit du lien de suivi du groupe ; laissé vide, le message est effacé.">
-              <Textarea name="message" defaultValue={g.message ?? ""} rows={8} className="!bg-surface" />
-            </Field>
-          </ActionForm>
-          <ActionForm action={deleteFbGroupAction} submitLabel="Supprimer le groupe" submitTone="ghost" confirm={`Supprimer « ${g.name} » du suivi ? Ses clics restent en base, mais son lien ne sera plus attribué.`} className={`${tiny} [&_button]:text-danger`}>
-            <input type="hidden" name="slug" value={g.slug} />
-          </ActionForm>
+            <span className="text-xs font-semibold text-faint">
+              fb={g.slug}
+              {g.members !== null && ` · ${fmt(g.members)} membres`} · ajouté {ago(g.createdAt, now)} {g.addedBy === "agent" ? "par Claude" : "à la main"}
+            </span>
+          </div>
+          {/* Le total est déjà sur la ligne repliée : ici, ce qu'elle ne porte pas — la semaine, la date, et l'entrée du détail. */}
+          <Link href={statsHref} scroll={false} title="Voir le détail des clics" className="flex flex-wrap items-center gap-1.5 rounded-pill hover:opacity-70">
+            {stat.last7 > 0 && <Pill tone="warn">{stat.last7} sur 7 j</Pill>}
+            <span className="text-xs font-semibold text-subtle">{stat.last ? `dernier clic ${ago(stat.last, now)}` : "détail des clics"} ›</span>
+          </Link>
         </div>
-      </details>
-    </article>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <ActionForm action={quickFbGroupAction} hideFooter className="!gap-0">
+            <input type="hidden" name="slug" value={g.slug} />
+            <AutoSubmitSelect name="membership" label={`Adhésion à ${g.name}`} value={g.membership} options={FB_MEMBERSHIPS.map((m) => ({ value: m, label: `Adhésion : ${MEMBERSHIP_LABELS[m]}` }))} className="!w-auto" />
+          </ActionForm>
+          <ActionForm action={quickFbGroupAction} hideFooter className="!gap-0">
+            <input type="hidden" name="slug" value={g.slug} />
+            <AutoSubmitSelect name="status" label={`Onglet de ${g.name}`} value={g.status} options={FB_TABS.map((t) => ({ value: t, label: `Onglet : ${TAB_LABELS[t]}` }))} className="!w-auto" />
+          </ActionForm>
+          <span className="flex-1" />
+          <FbMessageButtons text={final} groupName={g.name} />
+          <FbCopy text={link} label="Copier le lien" />
+        </div>
+
+        {/* Le post : son lien, saisi sur place et enregistré en quittant le champ, et son état à côté. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <ActionForm action={setFbPostAction} hideFooter className="!gap-0 min-w-0 flex-1">
+            <input type="hidden" name="slug" value={g.slug} />
+            <FbPostInput key={g.postUrl ?? ""} initial={g.postUrl ?? ""} />
+          </ActionForm>
+          {g.postUrl ? (
+            <>
+              <ActionForm action={quickFbGroupAction} hideFooter className="!gap-0">
+                <input type="hidden" name="slug" value={g.slug} />
+                <AutoSubmitSelect name="postStatus" label={`État du post dans ${g.name}`} value={g.postStatus ?? "pending"} options={FB_POST_STATES.map((p) => ({ value: p, label: POST_LABELS[p] }))} className="!w-auto" />
+              </ActionForm>
+              <a href={g.postUrl} target="_blank" rel="noreferrer" className="rounded-pill bg-paper px-3 py-2 text-[0.6875rem] font-bold hover:opacity-70">
+                Ouvrir ↗
+              </a>
+            </>
+          ) : (
+            <span className="text-xs font-semibold text-faint">Pas encore posté</span>
+          )}
+        </div>
+
+        {g.postUrl && <ScanLine g={g} now={now} />}
+
+        {g.note && <p className="text-xs font-semibold text-tint-sand-ink">ⓘ {g.note}</p>}
+
+        <details className="group">
+          <summary className="w-fit cursor-pointer list-none text-[0.6875rem] font-bold text-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">Modifier ▸</span>
+            <span className="hidden group-open:inline">Replier ▾</span>
+          </summary>
+          <div className="mt-3 flex flex-col gap-3 rounded-[18px] bg-paper p-4">
+            <ActionForm action={saveFbGroupAction} submitLabel="Enregistrer le groupe">
+              <input type="hidden" name="slug" value={g.slug} />
+              <div className="grid grid-cols-[1fr_160px] gap-3 max-[699px]:grid-cols-1">
+                <Field label="Nom">
+                  <Input name="name" defaultValue={g.name} className="!bg-surface" />
+                </Field>
+                <Field label="Membres">
+                  <Input name="members" inputMode="numeric" defaultValue={g.members ?? ""} className="!bg-surface" />
+                </Field>
+              </div>
+              <Field label="Note" hint="Ce qu'il faut savoir du groupe : règle de publication, jour des annonces…">
+                <Input name="note" defaultValue={g.note} className="!bg-surface" />
+              </Field>
+              <Field label="Message" name="message" hint="{lien} marque l'endroit du lien de suivi du groupe ; laissé vide, le message est effacé.">
+                <Textarea name="message" defaultValue={g.message ?? ""} rows={8} className="!bg-surface" />
+              </Field>
+            </ActionForm>
+            <ActionForm action={deleteFbGroupAction} submitLabel="Supprimer le groupe" submitTone="ghost" confirm={`Supprimer « ${g.name} » du suivi ? Ses clics restent en base, mais son lien ne sera plus attribué.`} className={`${tiny} [&_button]:text-danger`}>
+              <input type="hidden" name="slug" value={g.slug} />
+            </ActionForm>
+          </div>
+        </details>
+      </article>
+    </details>
   );
 }
 

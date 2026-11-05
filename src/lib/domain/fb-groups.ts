@@ -516,6 +516,52 @@ export const TAB_LABELS: Record<FbTab, string> = { new: "À faire", handled: "Fa
 export const MEMBERSHIP_LABELS: Record<FbMembership, string> = { none: "Pas demandée", pending: "En attente", validated: "Membre" };
 export const POST_LABELS: Record<FbPostState, string> = { pending: "Post en attente", validated: "Post validé", deleted: "Post supprimé" };
 
+/* ---------- Où en est un groupe ---------- */
+
+/*
+ * Un groupe traverse toujours la même suite : demander l'adhésion, l'obtenir, écrire
+ * un message, le poster, voir le post passer la modération, lire les commentaires.
+ * `groupStage` dit en UN point où il en est — et surtout `ours`, qui tranche la seule
+ * question de la journée : est-ce que ce groupe attend quelque chose DE MOI ?
+ *
+ * Rien n'est tenu à jour : tout se déduit de l'adhésion, du message, du post et du
+ * relevé. C'est la règle du suivi des campagnes et des concours, et elle vaut ici pour
+ * la même raison — un état qu'on ne maintient pas ne peut pas mentir. C'est aussi ce
+ * qui permet à l'écran de REPLIER ce qui est soldé sans qu'on ait rien à cocher : un
+ * groupe posté se referme de lui-même, et se rouvre tout seul si un commentaire arrive.
+ */
+export type FbStageKey = "refused" | "ignored" | "join" | "joining" | "write" | "post" | "moderation" | "deleted" | "read" | "done";
+
+/* Les teintes de `Pill` (components/admin/ui.tsx), redites ici parce que le domaine
+   n'importe rien d'un composant : c'est le typage de l'écran qui vérifie l'accord. */
+type PillTone = "neutral" | "ok" | "warn" | "muted" | "blue" | "pink";
+
+export type FbStage = {
+  key: FbStageKey;
+  /** Ce qui s'affiche sur la ligne repliée. Court : c'est un repère, pas une phrase. */
+  label: string;
+  tone: PillTone;
+  /** Vrai quand la balle est dans notre camp — la ligne s'ouvre alors d'elle-même. */
+  ours: boolean;
+};
+
+export function groupStage(g: Pick<FbGroup, "status" | "membership" | "message" | "postUrl" | "postStatus" | "scan" | "commentsSeen">): FbStage {
+  const fresh = newComments(g);
+  // Des commentaires non lus passent avant tout le reste : c'est quelqu'un qui parle.
+  if (fresh > 0) return { key: "read", label: `${fresh} à lire`, tone: "warn", ours: true };
+  if (g.status === "refused") return { key: "refused", label: "Refusé", tone: "pink", ours: false };
+  if (g.status === "ignored") return { key: "ignored", label: "Ignoré", tone: "muted", ours: false };
+  if (g.postUrl) {
+    if (g.postStatus === "deleted") return { key: "deleted", label: "Post supprimé", tone: "pink", ours: true };
+    if (g.postStatus === "validated") return { key: "done", label: "Posté", tone: "ok", ours: false };
+    return { key: "moderation", label: "Post en attente", tone: "blue", ours: false };
+  }
+  if (g.membership === "none") return { key: "join", label: "Adhésion à demander", tone: "warn", ours: true };
+  if (g.membership === "pending") return { key: "joining", label: "Adhésion en attente", tone: "blue", ours: false };
+  if (!g.message) return { key: "write", label: "Message à écrire", tone: "warn", ours: true };
+  return { key: "post", label: "À poster", tone: "warn", ours: true };
+}
+
 /* ---------- Ce que l'API accepte ---------- */
 
 export const LOT_MAX = 50;
