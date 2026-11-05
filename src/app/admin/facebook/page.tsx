@@ -35,6 +35,7 @@ import {
   groupStage,
   newComments,
   staffToText,
+  staffUrl,
   trackingLink,
   type FbGroup,
   type FbGroupStats,
@@ -343,7 +344,7 @@ function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroup
 
         {g.note && <p className="text-xs font-semibold text-tint-sand-ink">ⓘ {g.note}</p>}
 
-        <StaffLine staff={g.staff} at={g.staffAt} now={now} />
+        <StaffLine staff={g.staff} at={g.staffAt} now={now} url={staffUrl(g.groupUrl)} />
 
         <details className="group">
           <summary className="w-fit cursor-pointer list-none text-[0.6875rem] font-bold text-subtle hover:text-ink [&::-webkit-details-marker]:hidden">
@@ -383,9 +384,30 @@ function GroupRow({ g, stat, link, statsHref, now }: { g: FbGroup; stat: FbGroup
 
 /* ---------- Admins et modérateurs ---------- */
 
-/** Qui tient le groupe, chacun menant à son profil. Une liste vide le dit, pour qu'on sache qu'elle reste à relever. */
-function StaffLine({ staff, at, now }: { staff: FbStaff[]; at: number | null; now: number }) {
-  if (staff.length === 0) return <p className="text-xs font-semibold text-faint">Admins et modérateurs : pas encore relevés</p>;
+/*
+ * Qui tient le groupe, chacun menant à son profil. Une liste vide le dit, pour qu'on
+ * sache qu'elle reste à relever.
+ *
+ * Et dans les deux cas, le lien vers la page des admins du groupe (`staffUrl`, déduite).
+ * C'est par là qu'on va quand la liste est vide, quand quelqu'un n'y figure pas encore,
+ * ou quand il faut simplement écrire à un admin pour lui demander l'autorisation de
+ * publier — ce que beaucoup de groupes exigent. Sans lui, il fallait rouvrir le groupe
+ * et refaire le chemin à chaque fois.
+ */
+function StaffLine({ staff, at, now, url }: { staff: FbStaff[]; at: number | null; now: number; url: string | null }) {
+  const seeAll = url && (
+    <a href={url} target="_blank" rel="noreferrer" className="rounded-pill bg-paper px-2.5 py-1 font-bold hover:opacity-70">
+      {staff.length === 0 ? "Aller les voir" : "Toute la liste"} <span className="text-subtle">↗</span>
+    </a>
+  );
+  if (staff.length === 0) {
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-semibold">
+        <span className="text-faint">Admins et modérateurs : pas encore relevés</span>
+        {seeAll}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs font-semibold">
       <span className="font-bold text-subtle" title={at ? `Relevés ${ago(at, now)}` : undefined}>
@@ -408,6 +430,7 @@ function StaffLine({ staff, at, now }: { staff: FbStaff[]; at: number | null; no
           </span>
         );
       })}
+      {seeAll}
     </div>
   );
 }

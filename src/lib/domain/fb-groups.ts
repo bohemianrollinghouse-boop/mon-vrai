@@ -165,6 +165,21 @@ export function groupRoot(url: string): string | null {
   }
 }
 
+/**
+ * La page « Administrateurs et modérateurs » du groupe — celle où l'agent relève
+ * `staff`, et celle où aller soi-même quand la liste est vide ou qu'on veut écrire à
+ * quelqu'un qui n'y figure pas encore. Beaucoup de groupes n'acceptent une publication
+ * qu'avec l'accord d'un admin : sans ce lien, il faut rouvrir le groupe et chercher.
+ *
+ * Déduite du groupe, jamais stockée : une adresse recopiée sur chaque groupe serait
+ * autant d'occasions de se tromper, et le jour où Facebook la change il y a UN endroit
+ * à corriger. Null si l'adresse du groupe n'en est pas une.
+ */
+export function staffUrl(groupUrl: string): string | null {
+  const root = groupRoot(groupUrl);
+  return root && `${root}/members/admins`;
+}
+
 /** Le slug d'un groupe d'après son nom, à défaut d'après l'identifiant de son adresse. 60 caractères au plus. */
 export function groupSlug(name: string, groupUrl: string): string {
   const fromName = slugify(name).slice(0, 60).replace(/-+$/, "");

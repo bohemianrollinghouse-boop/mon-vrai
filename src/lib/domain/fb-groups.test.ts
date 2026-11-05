@@ -18,6 +18,7 @@ import {
   fillMessage,
   FbGroup,
   groupRoot,
+  staffUrl,
   groupSlug,
   groupStage,
   isDuplicate,
@@ -45,6 +46,11 @@ describe("groupRoot", () => {
     expect(groupRoot("https://www.facebook.com/groups/123/posts/456?ref=share")).toBe("https://www.facebook.com/groups/123");
     expect(groupRoot("https://m.facebook.com/groups/mamans.paris/about")).toBe("https://www.facebook.com/groups/mamans.paris");
     expect(groupRoot(" https://web.facebook.com/groups/abc ")).toBe("https://www.facebook.com/groups/abc");
+  });
+  it("déduit de n'importe quel lien du groupe la page de ses admins", () => {
+    expect(staffUrl("https://www.facebook.com/groups/123/posts/456?ref=share")).toBe("https://www.facebook.com/groups/123/members/admins");
+    expect(staffUrl("https://m.facebook.com/groups/mamans.paris/about")).toBe("https://www.facebook.com/groups/mamans.paris/members/admins");
+    expect(staffUrl("https://evil.com/groups/123")).toBeNull();
   });
   it("refuse ce qui n'est pas un groupe", () => {
     expect(groupRoot("https://www.facebook.com/monvrai")).toBeNull();

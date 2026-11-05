@@ -717,6 +717,10 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   personne. Dans l'écran, une personne par ligne (`Nom | lien | rôle`, `staffFromText`) ;
   une liste inchangée ne se réécrit pas, `staffAt` dit quand elle a été relevée. L'agent
   ne leur écrit jamais et n'ouvre pas leurs profils : il lit le lien sur la page.
+  La ligne porte aussi **le lien de cette page** (`staffUrl`, déduite du groupe et jamais
+  stockée) : c'est par là qu'on va quand la liste est vide, quand quelqu'un n'y figure pas
+  encore, ou simplement pour écrire à un admin — beaucoup de groupes n'acceptent une
+  publication qu'avec son accord, et sans ce lien il faut rouvrir le groupe à chaque fois.
 - **Le post** se saisit sur la ligne (`FbPostInput`, enregistré en quittant le champ), avec
   son état à côté. Un premier lien le met « en attente » et range le groupe dans « Fait » ;
   changer de lien efface le relevé de l'ancien post.
