@@ -431,22 +431,13 @@ export function checkStaff(list: StaffInput[]): StaffEntry[] {
 }
 
 /**
- * Le passage d'une conversation à son fil chiffré : l'ancienne adresse
- * (`/messages/t/<id de la personne>`) n'ouvre plus que les messages d'avant le chiffrement
- * de bout en bout, la vraie conversation est `/messages/e2ee/t/<autre id>`. C'est la même
- * conversation : le contact garde sa date. `after` est déjà normalisée (`conversationUrlFrom`).
- */
-export function passageAuChiffrement(before: string | null | undefined, after: string | null | undefined): boolean {
-  return !!before && !!after && /\/messages\/t\//.test(before) && /\/messages\/e2ee\/t\//.test(after);
-}
-
-/**
  * La liste à écrire : la nouvelle (ordre, noms, rôles, profils), avec ce que l'ancienne
  * savait de chaque personne (conversation, date du contact, message, relevé de la réponse)
- * quand la nouvelle ne le redonne pas. Une conversation qui apparaît ou change date le
- * contact de `at` et oublie l'ancien relevé ; la même conversation renvoyée ne bouge rien.
- * Seule exception : le passage au fil chiffré (`passageAuChiffrement`) garde la date du
- * contact, le relevé étant oublié comme pour tout changement.
+ * quand la nouvelle ne le redonne pas. Une conversation qui apparaît date le contact de
+ * `at` ; une conversation qui change garde la date du contact et oublie l'ancien relevé :
+ * c'est une correction du lien (ancien fil d'avant le chiffrement, identifiant provisoire
+ * noté juste après l'envoi), la personne n'a pas été recontactée. La même conversation
+ * renvoyée ne bouge rien.
  * Aucune clé `undefined` ni vide en sortie : Firestore n'en veut pas.
  */
 export function mergeStaff(previous: FbStaff[], next: StaffEntry[], at: number): FbStaff[] {
@@ -457,9 +448,8 @@ export function mergeStaff(previous: FbStaff[], next: StaffEntry[], at: number):
     const conversation = n.conversationUrl !== undefined ? n.conversationUrl : a?.conversationUrl;
     const message = n.contactMessage !== undefined ? n.contactMessage : a?.contactMessage;
     if (conversation) {
-      const same = a?.conversationUrl === conversation;
       out.conversationUrl = conversation;
-      out.contactedAt = (same || passageAuChiffrement(a?.conversationUrl, conversation)) && a?.contactedAt ? a.contactedAt : at;
+      out.contactedAt = a?.conversationUrl && a.contactedAt ? a.contactedAt : at;
     }
     if (message) out.contactMessage = message;
     if (conversation && a?.conversationUrl === conversation && a.reply) out.reply = a.reply;
@@ -550,9 +540,11 @@ export function conversationScanFrom(raw: unknown, at: number): FbConversationSc
 
 /**
  * Enregistre le relevé de la conversation d'une personne. Lève si elle n'est plus dans la
- * liste. `finalUrl` est l'adresse où le script a fini (`releve.conversationUrl`, script
- * 1.8.0) : s'il est passé de l'ancienne adresse au fil chiffré, elle remplace celle notée,
- * date du contact gardée. Une adresse illisible est ignorée : le relevé, lui, vaut.
+ * liste. `finalUrl` est l'adresse où le script a lu la conversation (`releve.conversationUrl`) :
+ * si elle diffère de celle notée (ancien fil d'avant le chiffrement, lien introuvable retrouvé
+ * par la recherche Messenger) et que le relevé est lisible (`state: ok`), elle la remplace,
+ * date du contact gardée. Une adresse illisible, ou un relevé qui n'a rien lu, ne remplace
+ * rien : le relevé, lui, vaut.
  */
 export function applyStaffReply(staff: FbStaff[], key: string, scan: FbConversationScan, finalUrl?: unknown): FbStaff[] {
   const i = staff.findIndex((p) => staffKey(p) === key);
@@ -564,7 +556,7 @@ export function applyStaffReply(staff: FbStaff[], key: string, scan: FbConversat
   } catch {
     final = null;
   }
-  const moved = final && passageAuChiffrement(staff[i].conversationUrl, final) ? { conversationUrl: final } : {};
+  const moved = final && scan.state === "ok" && final !== staff[i].conversationUrl ? { conversationUrl: final } : {};
   return staff.map((p, j) => (j === i ? { ...p, ...moved, reply: scan } : p));
 }
 

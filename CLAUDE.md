@@ -754,21 +754,27 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   reste `none` ; page introuvable ou illisible : rien ne change). Un refus range le groupe
   dans « Refusés », une adhésion qui revient l'en ressort vers « À faire » s'il y était.
   Le relevé reste à part (`membershipScan`, `membershipDiag`, `membershipChangedAt`). La
-  conversation avec un admin (`kind: 'staff'`, script 1.9.0, qui lit les conversations
+  conversation avec un admin (`kind: 'staff'`, script 1.9.2, qui lit les conversations
   chiffrées) dit s'il a répondu
   (`conversationScanFrom`, `applyStaffReply`) ; le script ne connaissant qu'un
   identifiant, la page lui en donne un à elle (`st<n>`) qui renvoie au groupe et à la
   personne. Un script trop ancien est signalé avec sa version, rien n'est envoyé.
-- **Ancienne adresse, fil chiffré** : `/messages/t/<id de la personne>` n'ouvre que l'ancien
-  fil d'avant le chiffrement de bout en bout (avis « Continuer », sans les réponses), la
-  vraie conversation est `/messages/e2ee/t/<autre id>`. La page envoie le nom de la personne
-  avec chaque conversation à relire ; le script (1.8.0 et plus) cherche la conversation chiffrée à ce
-  nom et rend l'adresse finale (`releve.conversationUrl`). Un passage t → e2ee
-  (`passageAuChiffrement`) remplace l'adresse notée en gardant `contactedAt`, au relevé
-  comme dans `mergeStaff` ; une adresse finale invalide est ignorée. L'agent doit noter
-  l'adresse e2ee (OpenAPI 1.4.0, `prompt.ts`).
+- **Ancienne adresse, lien introuvable** : `/messages/t/<id de la personne>` n'ouvre que
+  l'ancien fil d'avant le chiffrement de bout en bout (avis « Continuer », sans les
+  réponses), la vraie conversation est `/messages/e2ee/t/<autre id>` ; et l'adresse e2ee
+  lue juste après l'envoi peut être provisoire (« Ce contenu n'est pas disponible »
+  ensuite). La page envoie avec chaque conversation à relire le nom de la personne et
+  `pid`, l'identifiant Facebook tiré de son lien de profil (vide sinon) ; le script (1.9.2)
+  cherche la conversation dans la liste Messenger puis par la recherche, en visant `pid`,
+  et rend l'adresse où il l'a lue (`releve.conversationUrl`). Un relevé lisible
+  (`state: ok`) fait à une autre adresse que celle notée la remplace, quelle qu'en soit la
+  forme (`applyStaffReply`) ; adresse invalide ou relevé non lu : rien ne change. Tout
+  changement de lien garde `contactedAt` (une correction, pas un nouveau contact) et
+  efface le relevé (`mergeStaff`) ; seule une conversation qui apparaît date le contact.
+  L'agent doit attendre, recharger https://www.facebook.com/messages/ et noter l'adresse
+  prise dans la liste (OpenAPI 1.4.1, `prompt.ts`).
 - **Réponse automatique de Page** : elle compte comme une réponse (choix de Steve). Le
-  script 1.9.0 la reconnaît à sa formule et l'écrit dans `reply.note` ; `staffAutoReply`
+  script (1.9.0 et plus) la reconnaît à sa formule et l'écrit dans `reply.note` ; `staffAutoReply`
   fait alors afficher « *réponse automatique » à côté de la pastille, rien d'autre ne change.
 
 ## Gestion (dépenses et documents)

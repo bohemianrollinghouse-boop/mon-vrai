@@ -305,7 +305,7 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
       <FbScanProvider record={recordFbScanAction} recordMembership={recordFbMembershipScanAction} recordStaffReply={recordFbStaffReplyAction}>
       <div className="flex flex-wrap items-center justify-end gap-2">
         <FbScriptLink />
-        <FbScanStaffReplies items={shown.flatMap((g) => g.staff.filter((p) => p.conversationUrl).map((p) => ({ slug: g.slug, key: staffKey(p), url: p.conversationUrl!, name: p.name })))} />
+        <FbScanStaffReplies items={shown.flatMap((g) => g.staff.filter((p) => p.conversationUrl).map((p) => ({ slug: g.slug, key: staffKey(p), url: p.conversationUrl!, name: p.name, profileUrl: p.profileUrl })))} />
         <FbScanMemberships groups={shown.filter((g) => g.membership === "pending" || g.membership === "refused").map((g) => ({ id: g.slug, url: g.groupUrl }))} />
         <FbScanAll posts={shown.filter((g) => g.postUrl).map((g) => ({ id: g.slug, url: g.postUrl! }))} />
       </div>
@@ -565,7 +565,7 @@ function StaffLine({ g, now }: { g: FbGroup; now: number }) {
                     ) : (
                       <span className="text-faint">réponse pas encore vérifiée</span>
                     )}
-                    <FbVerifyStaff item={{ slug: g.slug, key, url: p.conversationUrl, name: p.name } satisfies StaffScanItem} />
+                    <FbVerifyStaff item={{ slug: g.slug, key, url: p.conversationUrl, name: p.name, profileUrl: p.profileUrl } satisfies StaffScanItem} />
                   </>
                 ) : (
                   <span className="text-faint">pas contacté</span>
