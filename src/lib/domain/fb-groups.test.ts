@@ -14,6 +14,7 @@ import {
   toPatch,
   conversationUrlFrom,
   mergeStaff,
+  staffAutoReply,
   passageAuChiffrement,
   staffKey,
   applyStaffContact,
@@ -312,6 +313,14 @@ describe("contacts des admins", () => {
     expect(staffReplied({ reply: scan })).toBe(true);
     expect(staffReplied({ reply: { ...scan, lastKey: null } })).toBe(false);
     expect(staffReplied({ reply: { ...scan, state: "unknown" } })).toBeNull();
+    // Réponse automatique de Page (notée par le script 1.9.0) : une vraie réponse, signalée.
+    const auto = { ...scan, lastFrom: "them" as const, note: "réponse automatique" };
+    expect(staffAutoReply({ reply: auto })).toBe(true);
+    expect(staffReplied({ reply: auto })).toBe(true);
+    expect(staffAutoReply({ reply: scan })).toBe(false);
+    expect(staffAutoReply({ reply: { ...auto, lastKey: null } })).toBe(false);
+    expect(staffAutoReply({ reply: { ...auto, state: "unknown" } })).toBe(false);
+    expect(staffAutoReply({ reply: undefined })).toBe(false);
   });
 
   it("une personne d'avant le suivi se relit telle quelle", () => {

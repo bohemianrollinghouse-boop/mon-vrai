@@ -89,7 +89,7 @@ export const FbMembershipScan = z.object({
 export type FbMembershipScan = z.infer<typeof FbMembershipScan>;
 
 /*
- * Le relevé d'une conversation Messenger (script 1.8.0 et plus, `kind: 'staff'`), lue comme
+ * Le relevé d'une conversation Messenger (script 1.9.0 et plus, `kind: 'staff'`), lue comme
  * une conversation Marketplace de COBA : a-t-on une réponse de l'admin à qui l'on a écrit ?
  */
 export const FB_CONV_SCAN_STATES = ["ok", "unavailable", "unknown"] as const;
@@ -571,6 +571,16 @@ export function applyStaffReply(staff: FbStaff[], key: string, scan: FbConversat
 /** A-t-elle répondu ? Ce que l'API en dit : null tant que la conversation n'a pas été relue. */
 export function staffReplied(p: Pick<FbStaff, "reply">): boolean | null {
   return p.reply && p.reply.state === "ok" ? !!p.reply.lastKey : null;
+}
+
+/**
+ * Son dernier message ressemble-t-il à une réponse automatique de Page ? Le script (1.9.0) le
+ * note quand il en reconnaît la formule. Ça reste une vraie réponse (`staffReplied`) : seule
+ * une mention discrète le signale à côté de la pastille.
+ */
+export function staffAutoReply(p: Pick<FbStaff, "reply">): boolean {
+  const r = p.reply;
+  return !!r && r.state === "ok" && !!r.lastKey && /réponse automatique/.test(r.note ?? "");
 }
 
 export type StaffReplyKey = "replied" | "ongoing" | "silent" | "missing" | "unreadable";

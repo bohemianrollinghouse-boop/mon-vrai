@@ -61,6 +61,7 @@ import {
   matchesStaffFilters,
   newComments,
   staffKey,
+  staffAutoReply,
   staffReplyState,
   staffUrl,
   trackingLink,
@@ -555,6 +556,11 @@ function StaffLine({ g, now }: { g: FbGroup; now: number }) {
                     {reply && r ? (
                       <span title={[`Relevé ${ago(r.at, now)}`, r.lastText && `dernier message : ${r.lastText}`, r.note].filter(Boolean).join(" · ")}>
                         <Pill tone={REPLY_TONE[reply]}>{STAFF_REPLY_LABELS[reply]}</Pill>
+                        {staffAutoReply(p) && (
+                          <span className="ml-1.5 text-subtle" title="Son dernier message ressemble à une réponse automatique de Page">
+                            *réponse automatique
+                          </span>
+                        )}
                       </span>
                     ) : (
                       <span className="text-faint">réponse pas encore vérifiée</span>

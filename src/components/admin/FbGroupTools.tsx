@@ -179,7 +179,7 @@ export const COBA_USERSCRIPT_URL = "https://europe-west1-traveloc.cloudfunctions
 type Item = { id: string; url: string; name?: string };
 /**
  * Une conversation à relire : le groupe, la personne (`staffKey`), l'adresse, et son nom, avec
- * lequel le script 1.8.0 retrouve la conversation chiffrée quand l'adresse notée est l'ancienne.
+ * lequel le script (1.8.0 et plus) retrouve la conversation chiffrée quand l'adresse notée est l'ancienne.
  */
 export type StaffScanItem = { slug: string; key: string; url: string; name: string };
 type Kind = "post" | "group" | "staff";
@@ -207,9 +207,10 @@ const MEMBERSHIP_WORDS: Record<string, string> = { none: "pas demandée", pendin
  *  - les posts (`kind: 'post'`) : état, réactions, commentaires ;
  *  - la page du groupe (`kind: 'group'`, script 1.6.0) : notre adhésion. La fin dresse le
  *    bilan de ce qui a changé ;
- *  - la conversation avec un admin (`kind: 'staff'`, script 1.8.0 : quand l'adresse notée est
- *    l'ancienne `/messages/t/…`, il cherche la conversation chiffrée au nom de la personne et
- *    rend l'adresse finale, que le serveur garde) : a-t-il répondu ? Le
+ *  - la conversation avec un admin (`kind: 'staff'`, script 1.9.0 : il lit les conversations
+ *    chiffrées ; quand l'adresse notée est l'ancienne `/messages/t/…`, il cherche la
+ *    conversation chiffrée au nom de la personne et rend l'adresse finale, que le serveur
+ *    garde) : a-t-il répondu ? Le
  *    script ne connaît qu'un identifiant (`[\w-]+`) : on lui en donne un à nous, qui
  *    renvoie au groupe et à la personne.
  * Un résultat est compté quand il est ENREGISTRÉ, pas quand il arrive : le bilan attend
@@ -374,7 +375,7 @@ export function FbScanProvider({
     scanStaff: (items) => {
       const todo = items.filter((i) => !busy.has(`staff:${i.slug}|${i.key}`));
       const sent = todo.map((i) => ({ id: `st${++counter.current}`, url: i.url, name: i.name }));
-      const ok = send("staff", sent, todo.map((i) => `staff:${i.slug}|${i.key}`), [1, 8, 0], "Vérifier les réponses des admins", "il retrouve la conversation chiffrée quand le lien noté est l'ancien");
+      const ok = send("staff", sent, todo.map((i) => `staff:${i.slug}|${i.key}`), [1, 9, 0], "Vérifier les réponses des admins", "il lit les conversations chiffrées et retrouve celle d'un lien ancien");
       if (ok) sent.forEach((s, j) => staffIds.current.set(s.id, todo[j]));
     },
   };
@@ -423,7 +424,7 @@ export function FbScanStaffReplies({ items }: { items: StaffScanItem[] }) {
       type="button"
       disabled={!items.length}
       onClick={() => ctx?.scanStaff(items)}
-      title="Ouvre chaque conversation notée avec un admin ou un modérateur des groupes affichés (script Tampermonkey 1.8.0) et regarde s'il a répondu"
+      title="Ouvre chaque conversation notée avec un admin ou un modérateur des groupes affichés (script Tampermonkey 1.9.0) et regarde s'il a répondu"
       className={`${bigButton} bg-surface hover:opacity-70`}
     >
       Vérifier les réponses des admins{items.length ? ` (${items.length})` : ""}
