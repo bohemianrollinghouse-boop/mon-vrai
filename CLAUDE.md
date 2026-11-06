@@ -729,6 +729,12 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   contact n'est pas relever la liste. L'agent note un message envoyé par
   `POST /api/fb-groups/{group}/staff/contact` (`applyStaffContact` : personne retrouvée par
   profil puis par nom, ajoutée sinon, rôle alors exigé).
+- **Où en est le contact** d'un groupe (`staffContactState`, le même calcul que COBA) :
+  `replied` dès qu'une personne a un message relevé (`staffReplied`, même si l'on a réécrit
+  depuis), sinon `sent` si une conversation est notée, sinon `none` (liste vide comprise).
+  L'écran le filtre (`admins=with|without`, puis `contact=…`, visible et gardé seulement
+  avec `with`) et l'API le rend (`contactState`) et le filtre (`GET /?staff=…&contact=…`,
+  400 sur une valeur inconnue), tous deux par `matchesStaffFilters`.
 - **Le post** se saisit sur la ligne (`FbPostInput`, enregistré en quittant le champ), avec
   son état à côté. Un premier lien le met « en attente » et range le groupe dans « Fait » ;
   changer de lien efface le relevé de l'ancien post.

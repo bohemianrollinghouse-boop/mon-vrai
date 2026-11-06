@@ -1,5 +1,17 @@
 import { addFbGroup, getFbConfig, listFbGroups } from "@/lib/db/fb-groups";
-import { ApiNewGroup, LOT_MAX, addedToday, checkMessage, checkStaff, firstIssue } from "@/lib/domain/fb-groups";
+import {
+  ApiNewGroup,
+  FB_CONTACT_STATES,
+  FB_STAFF_FILTERS,
+  LOT_MAX,
+  addedToday,
+  checkMessage,
+  checkStaff,
+  firstIssue,
+  matchesStaffFilters,
+  type FbContactState,
+  type FbStaffFilter,
+} from "@/lib/domain/fb-groups";
 import { apiView, denyWithoutKey, json, readJson, siteHost } from "@/lib/fb-groups/api";
 
 /*
@@ -10,13 +22,23 @@ import { apiView, denyWithoutKey, json, readJson, siteHost } from "@/lib/fb-grou
 
 export const dynamic = "force-dynamic";
 
-/** Tous les groupes suivis, tous onglets, et le nombre ajoutés aujourd'hui par l'agent (règle du rythme). */
+/**
+ * Tous les groupes suivis, tous onglets, et le nombre ajoutés aujourd'hui par l'agent (règle
+ * du rythme). `?staff=with|without` et `?contact=none|sent|replied` reprennent les filtres de
+ * l'écran et se cumulent (`matchesStaffFilters`) ; `addedToday` compte toujours sur tous.
+ */
 export async function GET(request: Request) {
   const denied = await denyWithoutKey(request);
   if (denied) return denied;
+  const params = new URL(request.url).searchParams;
+  const staff = params.get("staff") || null;
+  const contact = params.get("contact") || null;
+  if (staff && !(FB_STAFF_FILTERS as readonly string[]).includes(staff)) return json({ error: `staff : ${FB_STAFF_FILTERS.join(" ou ")}` }, 400);
+  if (contact && !(FB_CONTACT_STATES as readonly string[]).includes(contact)) return json({ error: `contact : ${FB_CONTACT_STATES.join(", ")}` }, 400);
   const [groups, config] = await Promise.all([listFbGroups(), getFbConfig()]);
   groups.sort((a, b) => b.createdAt - a.createdAt);
-  return json({ count: groups.length, addedToday: addedToday(groups, Date.now()), groups: groups.map((g) => apiView(g, config)) });
+  const shown = groups.filter((g) => matchesStaffFilters(g, { staff: staff as FbStaffFilter | null, contact: contact as FbContactState | null }));
+  return json({ count: shown.length, addedToday: addedToday(groups, Date.now()), groups: shown.map((g) => apiView(g, config)) });
 }
 
 /**

@@ -38,15 +38,19 @@ import { requireAdmin } from "@/lib/auth/session";
 import { fbStatsByGroup, getFbConfig, listFbClicks, listFbGroups } from "@/lib/db/fb-groups";
 import { now as clock } from "@/lib/db/helpers";
 import {
+  CONTACT_LABELS,
   DIRECT_KEY,
+  FB_CONTACT_STATES,
   FB_MEMBERSHIPS,
   FB_POST_STATES,
+  FB_STAFF_FILTERS,
   FB_TABS,
   MEMBERSHIP_LABELS,
   MEMBERSHIP_SCAN_LABELS,
   NO_STATS,
   POST_LABELS,
   SCAN_LABELS,
+  STAFF_FILTER_LABELS,
   STAFF_LABELS,
   STAFF_REPLY_LABELS,
   TAB_LABELS,
@@ -54,15 +58,18 @@ import {
   aggregateClicks,
   fillMessage,
   groupStage,
+  matchesStaffFilters,
   newComments,
   staffKey,
   staffReplyState,
   staffUrl,
   trackingLink,
+  type FbContactState,
   type FbGroup,
   type FbGroupStats,
   type FbMembership,
   type FbMetrics,
+  type FbStaffFilter,
   type FbTab,
   type Ranked,
 } from "@/lib/domain/fb-groups";
@@ -84,7 +91,7 @@ export const metadata = { title: "Campagnes Facebook" };
  * Rien n'y est publié automatiquement : c'est nous qui postons, en copiant le message.
  */
 
-type Sp = { onglet?: string; q?: string; tri?: string; stats?: string; adhesion?: string };
+type Sp = { onglet?: string; q?: string; tri?: string; stats?: string; adhesion?: string; admins?: string; contact?: string };
 
 const DAY = 86_400_000;
 const fmt = (n: number) => n.toLocaleString("fr-FR");
@@ -113,7 +120,7 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
   await requireAdmin();
   const raw = await searchParams;
   const one = (k: string) => (typeof raw[k] === "string" ? (raw[k] as string) : "");
-  const sp: Sp = { onglet: one("onglet"), q: one("q"), tri: one("tri"), stats: one("stats"), adhesion: one("adhesion") };
+  const sp: Sp = { onglet: one("onglet"), q: one("q"), tri: one("tri"), stats: one("stats"), adhesion: one("adhesion"), admins: one("admins"), contact: one("contact") };
   const now = clock();
 
   const [groups, config, stats] = await Promise.all([listFbGroups(), getFbConfig(), fbStatsByGroup()]);
@@ -135,10 +142,16 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
   /* ---------- Liste ---------- */
   const tab = (FB_TABS as readonly string[]).includes(sp.onglet ?? "") ? (sp.onglet as FbTab) : null;
   const membership = (FB_MEMBERSHIPS as readonly string[]).includes(sp.adhesion ?? "") ? (sp.adhesion as FbMembership) : null;
+  const staffFilter = (FB_STAFF_FILTERS as readonly string[]).includes(sp.admins ?? "") ? (sp.admins as FbStaffFilter) : null;
+  /* L'état du contact n'a de sens qu'avec des admins renseignés : sans « Avec admins renseignés », il est ignoré. */
+  const contact = staffFilter === "with" && (FB_CONTACT_STATES as readonly string[]).includes(sp.contact ?? "") ? (sp.contact as FbContactState) : null;
   const q = (sp.q ?? "").trim().toLowerCase();
+  /* Chaque filtre compte dans ce que laissent passer ceux d'avant : onglet, adhésion, admins, contact. */
   const inTab = groups.filter((g) => !tab || g.status === tab);
-  const shown = inTab
-    .filter((g) => !membership || g.membership === membership)
+  const inMembership = inTab.filter((g) => !membership || g.membership === membership);
+  const withStaff = inMembership.filter((g) => matchesStaffFilters(g, { staff: "with" }));
+  const shown = inMembership
+    .filter((g) => matchesStaffFilters(g, { staff: staffFilter, contact }))
     .filter((g) => !q || `${g.name} ${g.slug} ${g.groupUrl} ${g.note} ${g.staff.map((p) => p.name).join(" ")}`.toLowerCase().includes(q))
     .sort((a, b) => (sp.tri === "clics" ? statOf(b).clicks - statOf(a).clicks : sp.tri === "commentaires" ? newComments(b) - newComments(a) || (b.scan?.comments ?? -1) - (a.scan?.comments ?? -1) : 0) || b.createdAt - a.createdAt);
   const unread = groups.reduce((s, g) => s + newComments(g), 0);
@@ -240,6 +253,9 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
           <form action="/admin/facebook" method="get" role="search">
             {sp.onglet && <input type="hidden" name="onglet" value={sp.onglet} />}
             {sp.tri && <input type="hidden" name="tri" value={sp.tri} />}
+            {sp.adhesion && <input type="hidden" name="adhesion" value={sp.adhesion} />}
+            {sp.admins && <input type="hidden" name="admins" value={sp.admins} />}
+            {sp.contact && <input type="hidden" name="contact" value={sp.contact} />}
             <input type="search" name="q" defaultValue={sp.q} placeholder="Rechercher un groupe…" className="min-w-[220px] rounded-pill bg-surface px-[1.125rem] py-3 text-[0.8125rem] font-semibold outline-none placeholder:text-faint focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink" />
           </form>
         </div>
@@ -254,6 +270,36 @@ export default async function FacebookPage({ searchParams }: PageProps<"/admin/f
           </Link>
         ))}
       </nav>
+
+      {/*
+        Les admins, dans l'onglet et l'adhésion choisis. L'état du contact n'apparaît qu'avec
+        « Avec admins renseignés », et quitter ce choix l'efface (`contact` remis à vide).
+      */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <nav className="flex flex-wrap items-center gap-1.5" aria-label="Admins renseignés">
+          {[{ key: "", label: "Admins renseignés ou non", n: inMembership.length }, ...FB_STAFF_FILTERS.map((f) => ({ key: f, label: STAFF_FILTER_LABELS[f], n: f === "with" ? withStaff.length : inMembership.length - withStaff.length }))].map((f) => (
+            <Link key={f.key} href={href(sp, { admins: f.key, contact: f.key === "with" ? sp.contact : "", stats: "" })} aria-current={(staffFilter ?? "") === f.key ? "true" : undefined} className={`rounded-pill px-3.5 py-2 text-xs font-bold ${(staffFilter ?? "") === f.key ? "bg-ink text-on-ink" : "bg-surface hover:opacity-70"}`}>
+              {f.label}
+              <span className="ml-1.5 opacity-60">{f.n}</span>
+            </Link>
+          ))}
+        </nav>
+        {staffFilter === "with" && (
+          <nav className="flex flex-wrap items-center gap-1.5 border-l border-line-soft pl-1.5" aria-label="État du contact des admins">
+            {[{ key: "", label: "Tous les contacts", n: withStaff.length }, ...FB_CONTACT_STATES.map((c) => ({ key: c, label: CONTACT_LABELS[c], n: withStaff.filter((g) => matchesStaffFilters(g, { contact: c })).length }))].map((c) => (
+              <Link key={c.key} href={href(sp, { contact: c.key, stats: "" })} aria-current={(contact ?? "") === c.key ? "true" : undefined} className={`rounded-pill px-3.5 py-2 text-xs font-bold ${(contact ?? "") === c.key ? "bg-ink text-on-ink" : "bg-surface hover:opacity-70"}`}>
+                {c.label}
+                <span className="ml-1.5 opacity-60">{c.n}</span>
+              </Link>
+            ))}
+          </nav>
+        )}
+        {(membership || staffFilter) && (
+          <Link href={href(sp, { adhesion: "", admins: "", contact: "", stats: "" })} className="px-2 py-2 text-xs font-bold text-subtle hover:text-ink">
+            Effacer les filtres
+          </Link>
+        )}
+      </div>
 
       <FbScanProvider record={recordFbScanAction} recordMembership={recordFbMembershipScanAction} recordStaffReply={recordFbStaffReplyAction}>
       <div className="flex flex-wrap items-center justify-end gap-2">

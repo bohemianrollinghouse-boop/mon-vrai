@@ -1,7 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import { apiKeyValid } from "@/lib/db/fb-groups";
-import { fillMessage, staffReplied, trackingLink, type FbGroup, type FbGroupsConfig, type FbStaff } from "@/lib/domain/fb-groups";
+import { fillMessage, staffContactState, staffReplied, trackingLink, type FbGroup, type FbGroupsConfig, type FbStaff } from "@/lib/domain/fb-groups";
 
 /*
  * Ce que partagent les routes de /api/fb-groups : le contrôle de la clé, la forme d'un
@@ -63,6 +63,8 @@ export function apiView(g: FbGroup, config: FbGroupsConfig) {
     /** Admins et modérateurs du groupe, avec le lien de leur profil et le suivi du contact. */
     staff: g.staff.map(apiStaff),
     staffAt: g.staffAt ? new Date(g.staffAt).toISOString() : null,
+    /** Où en est le contact des admins (lecture seule) : none, sent ou replied (`staffContactState`). */
+    contactState: staffContactState(g.staff),
     /** Dernier relevé du post par le script Tampermonkey (lecture seule). */
     scan: g.scan,
     unreadComments: Math.max(0, (g.scan?.comments ?? 0) - g.commentsSeen),

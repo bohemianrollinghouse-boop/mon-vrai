@@ -1,4 +1,4 @@
-import { FB_CONTACT_MESSAGE_MAX, FB_MEMBERSHIPS, FB_MESSAGE_MAX, FB_NEW_MEMBERSHIPS, FB_NOTE_MAX, FB_POST_STATES, FB_STAFF_MAX, FB_STAFF_ROLES, FB_TABS, LOT_MAX } from "@/lib/domain/fb-groups";
+import { FB_CONTACT_MESSAGE_MAX, FB_CONTACT_STATES, FB_STAFF_FILTERS, FB_MEMBERSHIPS, FB_MESSAGE_MAX, FB_NEW_MEMBERSHIPS, FB_NOTE_MAX, FB_POST_STATES, FB_STAFF_MAX, FB_STAFF_ROLES, FB_TABS, LOT_MAX } from "@/lib/domain/fb-groups";
 
 /*
  * La documentation de l'API des Campagnes Facebook, au format OpenAPI 3.1. C'est elle
@@ -75,6 +75,14 @@ const GROUP = {
     note: { type: "string", description: "Ce qu'il faut savoir du groupe (règle de publication, jour réservé aux annonces…)." },
     staff: { ...STAFF_LIST, description: "Admins et modérateurs du groupe (vide tant que personne ne les a relevés)." },
     staffAt: { type: ["string", "null"], format: "date-time", description: "Quand la liste a été relevée." },
+    contactState: {
+      type: "string",
+      enum: FB_CONTACT_STATES,
+      readOnly: true,
+      description:
+        "Lecture seule, contact des admins : replied = au moins une personne a répondu (replied vaut true pour elle), " +
+        "sent = au moins une a reçu un message sans réponse relevée, none = personne contactée (ou staff vide).",
+    },
     createdAt: { type: "string", format: "date-time" },
   },
 } as const;
@@ -107,7 +115,7 @@ export function fbGroupsOpenApi(apiBase: string) {
     openapi: "3.1.0",
     info: {
       title: "Mon Vrai : Campagnes Facebook",
-      version: "1.2.0",
+      version: "1.3.0",
       description:
         "Suivi des groupes Facebook où Mon Vrai (imagiers pour les bébés de 6 à 18 mois) est présenté. " +
         "Lister, vérifier, ajouter des groupes, enregistrer le message rédigé pour chacun et ses admins et modérateurs ; mettre à jour leur suivi. " +
@@ -130,12 +138,31 @@ export function fbGroupsOpenApi(apiBase: string) {
       "/": {
         get: {
           summary: "Tous les groupes suivis, tous onglets, du plus récent au plus ancien.",
-          description: "addedToday = groupes ajoutés aujourd'hui (heure de Paris) par l'agent : à titre indicatif, pour le compte rendu.",
+          description:
+            "addedToday = groupes ajoutés aujourd'hui (heure de Paris) par l'agent : à titre indicatif, pour le compte rendu, compté sur tous les groupes même filtrés. " +
+            "Sans paramètre, tous les groupes ; les filtres reprennent ceux de l'admin et se cumulent (count = groupes rendus).",
+          parameters: [
+            {
+              name: "staff",
+              in: "query",
+              required: false,
+              schema: { type: "string", enum: FB_STAFF_FILTERS },
+              description: "with = groupes dont les admins sont renseignés (staff non vide), without = les autres. Autre valeur : 400.",
+            },
+            {
+              name: "contact",
+              in: "query",
+              required: false,
+              schema: { type: "string", enum: FB_CONTACT_STATES },
+              description: "État du contact des admins (contactState). Implique staff=with : un groupe sans admins renseignés n'en sort jamais. Autre valeur : 400.",
+            },
+          ],
           responses: {
             "200": {
               description: "La liste.",
               content: { "application/json": { schema: { type: "object", properties: { count: { type: "integer" }, addedToday: { type: "integer" }, groups: { type: "array", items: { $ref: "#/components/schemas/Groupe" } } } } } },
             },
+            "400": { description: "Valeur inconnue pour staff ou contact." },
             "401": { description: "Clé absente, invalide ou révoquée." },
           },
         },

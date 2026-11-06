@@ -569,6 +569,42 @@ export const STAFF_REPLY_LABELS: Record<StaffReplyKey, string> = {
   unreadable: "Illisible",
 };
 
+/*
+ * Où en est le contact des admins d'un groupe, pour le filtre de l'écran et le champ
+ * `contactState` de l'API (le même calcul des deux côtés, et le même que COBA) :
+ * « replied » dès qu'une personne a répondu, c'est-à-dire qu'un message d'elle a été relevé
+ * (`staffReplied`), même si l'on a réécrit depuis ; « sent » si au moins une a reçu un
+ * message (conversation notée) ; « none » sinon, liste vide comprise. Un relevé illisible ou
+ * une conversation introuvable ne disent pas qu'elle a répondu : le groupe reste « sent ».
+ */
+export const FB_CONTACT_STATES = ["none", "sent", "replied"] as const;
+export type FbContactState = (typeof FB_CONTACT_STATES)[number];
+export const CONTACT_LABELS: Record<FbContactState, string> = {
+  none: "Pas encore contacté",
+  sent: "Message envoyé, sans réponse",
+  replied: "Réponse reçue",
+};
+
+export function staffContactState(staff: Pick<FbStaff, "conversationUrl" | "reply">[]): FbContactState {
+  if (staff.some((p) => staffReplied(p) === true)) return "replied";
+  return staff.some((p) => !!p.conversationUrl) ? "sent" : "none";
+}
+
+/** Le filtre « admins renseignés » : with = liste non vide, without = vide. */
+export const FB_STAFF_FILTERS = ["with", "without"] as const;
+export type FbStaffFilter = (typeof FB_STAFF_FILTERS)[number];
+export const STAFF_FILTER_LABELS: Record<FbStaffFilter, string> = { with: "Avec admins renseignés", without: "Sans admins renseignés" };
+
+/**
+ * Les deux filtres sur les admins, cumulables. L'état du contact implique des admins
+ * renseignés : un groupe sans personne relevée n'en sort jamais, même pour « none ».
+ */
+export function matchesStaffFilters(g: Pick<FbGroup, "staff">, f: { staff?: FbStaffFilter | null; contact?: FbContactState | null }): boolean {
+  const has = g.staff.length > 0;
+  if (f.staff && (f.staff === "with") !== has) return false;
+  return !f.contact || (has && staffContactState(g.staff) === f.contact);
+}
+
 /* ---------- Changer l'état d'un groupe ---------- */
 
 export type FbGroupPatch = Partial<Pick<FbGroup, "status" | "membership" | "postUrl" | "postStatus" | "note" | "members" | "name">> & {

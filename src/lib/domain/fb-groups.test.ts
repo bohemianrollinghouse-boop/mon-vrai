@@ -20,6 +20,8 @@ import {
   conversationScanFrom,
   staffReplied,
   staffReplyState,
+  staffContactState,
+  matchesStaffFilters,
   ApiStaffContact,
   membershipScanFrom,
   membershipFromScan,
@@ -293,6 +295,46 @@ describe("contacts des admins", () => {
 
   it("une personne d'avant le suivi se relit telle quelle", () => {
     expect(group({ staff: [claire] }).staff).toEqual([claire]);
+  });
+});
+
+describe("état du contact des admins d'un groupe", () => {
+  const conv = "https://www.facebook.com/messages/t/1";
+  const read = (lastKey: string | null, state: "ok" | "unavailable" | "unknown" = "ok") =>
+    conversationScanFrom({ state, lastFrom: "me", lastKey, theirs: 0, mine: 1 }, 1);
+  const lea: FbStaff = { name: "Léa", role: "admin", profileUrl: null };
+  const tom: FbStaff = { name: "Tom", role: "moderator", profileUrl: null };
+
+  it("none : liste vide, ou personne contactée", () => {
+    expect(staffContactState([])).toBe("none");
+    expect(staffContactState([lea, tom])).toBe("none");
+  });
+
+  it("sent : une conversation notée, aucune réponse relevée", () => {
+    expect(staffContactState([{ ...lea, conversationUrl: conv }])).toBe("sent");
+    expect(staffContactState([{ ...lea, conversationUrl: conv, reply: read(null) }, tom])).toBe("sent");
+  });
+
+  it("replied : un message de la personne relevé, même si l'on a réécrit depuis", () => {
+    expect(staffContactState([{ ...lea, conversationUrl: conv, reply: read(null) }, { ...tom, conversationUrl: conv, reply: read("k1") }])).toBe("replied");
+  });
+
+  it("un relevé illisible ou une conversation introuvable ne sont pas une réponse", () => {
+    expect(staffContactState([{ ...lea, conversationUrl: conv, reply: read("k1", "unknown") }])).toBe("sent");
+    expect(staffContactState([{ ...lea, conversationUrl: conv, reply: read("k1", "unavailable") }])).toBe("sent");
+  });
+
+  it("les filtres se cumulent, et l'état du contact implique des admins renseignés", () => {
+    const empty = group();
+    const silent = group({ staff: [lea] });
+    const answered = group({ staff: [{ ...lea, conversationUrl: conv, reply: read("k1") }] });
+    const pick = (f: Parameters<typeof matchesStaffFilters>[1]) => [empty, silent, answered].filter((g) => matchesStaffFilters(g, f));
+    expect(pick({})).toEqual([empty, silent, answered]);
+    expect(pick({ staff: "with" })).toEqual([silent, answered]);
+    expect(pick({ staff: "without" })).toEqual([empty]);
+    expect(pick({ contact: "none" })).toEqual([silent]);
+    expect(pick({ contact: "replied" })).toEqual([answered]);
+    expect(pick({ staff: "without", contact: "none" })).toEqual([]);
   });
 });
 
