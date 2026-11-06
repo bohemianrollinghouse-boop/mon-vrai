@@ -14,6 +14,7 @@ import {
   toPatch,
   conversationUrlFrom,
   mergeStaff,
+  passageAuChiffrement,
   staffKey,
   applyStaffContact,
   applyStaffReply,
@@ -227,6 +228,19 @@ describe("contacts des admins", () => {
     expect(mergeStaff(known, [{ ...claire, conversationUrl: conv }], 999)).toEqual(known);
   });
 
+  it("passage au fil chiffré : /messages/t/ → /messages/e2ee/t/ garde la date du contact", () => {
+    const e2ee = "https://www.facebook.com/messages/e2ee/t/1818328696959987";
+    expect(passageAuChiffrement(conv, e2ee)).toBe(true);
+    expect(passageAuChiffrement(undefined, e2ee)).toBe(false);
+    expect(passageAuChiffrement(e2ee, conv)).toBe(false);
+    expect(passageAuChiffrement(e2ee, "https://www.facebook.com/messages/e2ee/t/2")).toBe(false);
+    expect(passageAuChiffrement(conv, "https://www.facebook.com/messages/t/2")).toBe(false);
+    // L'ancien relevé est oublié, comme pour tout changement de conversation.
+    expect(mergeStaff(known, [{ ...claire, conversationUrl: e2ee }], 999)).toEqual([{ ...claire, conversationUrl: e2ee, contactedAt: 100, contactMessage: "Bonjour Claire" }]);
+    // Retour en arrière ou autre conversation : nouveau contact, daté de maintenant.
+    expect(mergeStaff([{ ...known[0], conversationUrl: e2ee }], [{ ...claire, conversationUrl: conv }], 999)[0].contactedAt).toBe(999);
+  });
+
   it("efface la conversation (et sa date) sur demande, sans laisser de clé vide", () => {
     const [p] = mergeStaff(known, [{ ...claire, conversationUrl: null, contactMessage: null }], 999);
     expect(p).toEqual(claire);
@@ -281,6 +295,13 @@ describe("contacts des admins", () => {
     expect(applyStaffReply(withConv, staffKey(claire), scan)[0].reply).toEqual(scan);
     expect(() => applyStaffReply(withConv, "nom:personne", scan)).toThrow(/introuvable/);
     expect(() => applyStaffReply([claire], staffKey(claire), scan)).toThrow(/aucune conversation/);
+    // Le script est passé au fil chiffré : l'adresse est remplacée, la date du contact gardée.
+    const e2ee = "https://www.messenger.com/e2ee/t/1818328696959987";
+    expect(applyStaffReply(withConv, staffKey(claire), scan, e2ee)[0]).toEqual({ ...withConv[0], conversationUrl: "https://www.facebook.com/messages/e2ee/t/1818328696959987", reply: scan });
+    // Même adresse, autre /messages/t/, adresse invalide ou absente : rien ne change que le relevé.
+    for (const final of [conv, "https://www.facebook.com/messages/t/2", "https://www.facebook.com/claire", "pas une adresse", null, undefined]) {
+      expect(applyStaffReply(withConv, staffKey(claire), scan, final)[0]).toEqual({ ...withConv[0], reply: scan });
+    }
 
     expect(staffReplyState({ reply: undefined })).toBeNull();
     expect(staffReplyState({ reply: { ...scan, lastFrom: "them" } })).toBe("replied");

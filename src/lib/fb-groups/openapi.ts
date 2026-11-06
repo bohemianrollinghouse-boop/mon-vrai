@@ -26,7 +26,8 @@ const STAFF = {
       type: ["string", "null"],
       description:
         "Lien de la conversation Messenger avec cette personne, si on lui a écrit (https://www.facebook.com/messages/t/<id>, /messages/e2ee/t/<id>, ou messenger.com/t/<id>, converti). " +
-        "Absent = inchangé ; null ou \"\" = effacé. Pour noter un nouveau contact, préfère POST /{group}/staff/contact.",
+        "Absent = inchangé ; null ou \"\" = effacé. Pour noter un nouveau contact, préfère POST /{group}/staff/contact. " +
+        "Une adresse /messages/t/ remplacée par l'adresse chiffrée /messages/e2ee/t/ garde la date du contact.",
     },
     contactMessage: { type: ["string", "null"], maxLength: FB_CONTACT_MESSAGE_MAX, description: "Le message envoyé à cette personne, tel quel. Absent = inchangé ; null ou \"\" = effacé." },
     contactedAt: { type: ["string", "null"], format: "date-time", readOnly: true, description: "Lecture seule : quand on lui a écrit (posé par le serveur quand la conversation apparaît ou change). Ignoré à l'écriture." },
@@ -115,7 +116,7 @@ export function fbGroupsOpenApi(apiBase: string) {
     openapi: "3.1.0",
     info: {
       title: "Mon Vrai : Campagnes Facebook",
-      version: "1.3.0",
+      version: "1.4.0",
       description:
         "Suivi des groupes Facebook où Mon Vrai (imagiers pour les bébés de 6 à 18 mois) est présenté. " +
         "Lister, vérifier, ajouter des groupes, enregistrer le message rédigé pour chacun et ses admins et modérateurs ; mettre à jour leur suivi. " +
@@ -292,13 +293,20 @@ export function fbGroupsOpenApi(apiBase: string) {
                     profileUrl: { type: ["string", "null"], description: "Profil de la personne (mêmes formes que dans staff)." },
                     name: { type: ["string", "null"], description: "Son nom : si elle n'a pas de profileUrl, ou pour l'ajouter." },
                     role: { type: "string", enum: FB_STAFF_ROLES, description: "Obligatoire seulement si la personne n'est pas encore dans staff." },
-                    conversationUrl: { type: "string", description: "Lien de la conversation, relevé dans la barre d'adresse après l'envoi." },
+                    conversationUrl: {
+                      type: "string",
+                      description:
+                        "Lien de la conversation, relevé dans la barre d'adresse après l'envoi. " +
+                        "Préfère l'adresse chiffrée /messages/e2ee/t/<id> : /messages/t/<id de la personne> n'ouvre que l'ancien fil d'avant le chiffrement " +
+                        "de bout en bout (avis « Continuer »), sans les réponses. Après l'envoi, ouvre https://www.facebook.com/messages/, clique la conversation " +
+                        "avec la personne et note cette adresse-là.",
+                    },
                     message: { type: ["string", "null"], maxLength: FB_CONTACT_MESSAGE_MAX, description: "Le message envoyé, exactement." },
                   },
                 },
                 example: {
                   profileUrl: "https://www.facebook.com/groups/mamans.lyon/user/100004567890123",
-                  conversationUrl: "https://www.facebook.com/messages/t/100004567890123",
+                  conversationUrl: "https://www.facebook.com/messages/e2ee/t/1818328696959987",
                   message: "Bonjour Claire, …",
                 },
               },

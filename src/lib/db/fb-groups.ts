@@ -229,7 +229,7 @@ export async function recordFbStaffReply(slug: string, key: string, raw: unknown
     const current = parseDoc(FbGroup, await tx.get(ref));
     if (!current) throw new Error("groupe introuvable");
     const at = now();
-    const next = FbGroup.parse({ ...current, staff: applyStaffReply(current.staff, key, conversationScanFrom(raw, at)), updatedAt: at });
+    const next = FbGroup.parse({ ...current, staff: applyStaffReply(current.staff, key, conversationScanFrom(raw, at), (raw as { conversationUrl?: unknown } | null)?.conversationUrl), updatedAt: at });
     tx.set(ref, next);
     return next;
   });

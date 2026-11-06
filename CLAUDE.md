@@ -754,11 +754,18 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   reste `none` ; page introuvable ou illisible : rien ne change). Un refus range le groupe
   dans « Refusés », une adhésion qui revient l'en ressort vers « À faire » s'il y était.
   Le relevé reste à part (`membershipScan`, `membershipDiag`, `membershipChangedAt`). La
-  conversation avec un admin (`kind: 'staff'`, script 1.7.1, qui passe l'avis « messages
-  envoyés avant le chiffrement de bout en bout ») dit s'il a répondu
+  conversation avec un admin (`kind: 'staff'`, script 1.8.0) dit s'il a répondu
   (`conversationScanFrom`, `applyStaffReply`) ; le script ne connaissant qu'un
   identifiant, la page lui en donne un à elle (`st<n>`) qui renvoie au groupe et à la
   personne. Un script trop ancien est signalé avec sa version, rien n'est envoyé.
+- **Ancienne adresse, fil chiffré** : `/messages/t/<id de la personne>` n'ouvre que l'ancien
+  fil d'avant le chiffrement de bout en bout (avis « Continuer », sans les réponses), la
+  vraie conversation est `/messages/e2ee/t/<autre id>`. La page envoie le nom de la personne
+  avec chaque conversation à relire ; le script 1.8.0 cherche la conversation chiffrée à ce
+  nom et rend l'adresse finale (`releve.conversationUrl`). Un passage t → e2ee
+  (`passageAuChiffrement`) remplace l'adresse notée en gardant `contactedAt`, au relevé
+  comme dans `mergeStaff` ; une adresse finale invalide est ignorée. L'agent doit noter
+  l'adresse e2ee (OpenAPI 1.4.0, `prompt.ts`).
 
 ## Gestion (dépenses et documents)
 
