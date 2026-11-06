@@ -89,7 +89,7 @@ export const FbMembershipScan = z.object({
 export type FbMembershipScan = z.infer<typeof FbMembershipScan>;
 
 /*
- * Le relevé d'une conversation Messenger (script 1.7.0 et plus, `kind: 'staff'`), lue comme
+ * Le relevé d'une conversation Messenger (script 1.7.1 et plus, `kind: 'staff'`), lue comme
  * une conversation Marketplace de COBA : a-t-on une réponse de l'admin à qui l'on a écrit ?
  */
 export const FB_CONV_SCAN_STATES = ["ok", "unavailable", "unknown"] as const;

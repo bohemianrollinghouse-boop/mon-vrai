@@ -203,7 +203,8 @@ const MEMBERSHIP_WORDS: Record<string, string> = { none: "pas demandée", pendin
  *  - les posts (`kind: 'post'`) : état, réactions, commentaires ;
  *  - la page du groupe (`kind: 'group'`, script 1.6.0) : notre adhésion. La fin dresse le
  *    bilan de ce qui a changé ;
- *  - la conversation avec un admin (`kind: 'staff'`, script 1.7.0) : a-t-il répondu ? Le
+ *  - la conversation avec un admin (`kind: 'staff'`, script 1.7.1 : il clique « Continuer »
+ *    sur l'avis des messages envoyés avant le chiffrement de bout en bout) : a-t-il répondu ? Le
  *    script ne connaît qu'un identifiant (`[\w-]+`) : on lui en donne un à nous, qui
  *    renvoie au groupe et à la personne.
  * Un résultat est compté quand il est ENREGISTRÉ, pas quand il arrive : le bilan attend
@@ -321,7 +322,7 @@ export function FbScanProvider({
   );
 
   /** Envoie une liste au script, après avoir vérifié qu'il est là et assez récent. */
-  const send = (kind: Kind, items: Item[], keys: string[], min: [number, number, number] | null, what: string): boolean => {
+  const send = (kind: Kind, items: Item[], keys: string[], min: [number, number, number] | null, what: string, why?: string): boolean => {
     if (!document.documentElement.getAttribute("data-coba-fbg-script")) {
       setStatus(
         <>
@@ -333,7 +334,7 @@ export function FbScanProvider({
     if (min && !scriptAtLeast(min)) {
       setStatus(
         <>
-          {what} demande le script {min.join(".")} ou plus (installé : {document.documentElement.getAttribute("data-coba-fbg-script")}) : {updateLink}, puis recharger la page.
+          {what} demande le script {min.join(".")} ou plus ({why ? `${why} ; ` : ""}installé : {document.documentElement.getAttribute("data-coba-fbg-script")}) : {updateLink}, puis recharger la page.
         </>,
       );
       return false;
@@ -368,7 +369,7 @@ export function FbScanProvider({
     scanStaff: (items) => {
       const todo = items.filter((i) => !busy.has(`staff:${i.slug}|${i.key}`));
       const sent = todo.map((i) => ({ id: `st${++counter.current}`, url: i.url }));
-      const ok = send("staff", sent, todo.map((i) => `staff:${i.slug}|${i.key}`), [1, 7, 0], "Vérifier les réponses des admins");
+      const ok = send("staff", sent, todo.map((i) => `staff:${i.slug}|${i.key}`), [1, 7, 1], "Vérifier les réponses des admins", "il passe l'avis « messages envoyés avant le chiffrement de bout en bout »");
       if (ok) sent.forEach((s, j) => staffIds.current.set(s.id, todo[j]));
     },
   };
@@ -417,7 +418,7 @@ export function FbScanStaffReplies({ items }: { items: StaffScanItem[] }) {
       type="button"
       disabled={!items.length}
       onClick={() => ctx?.scanStaff(items)}
-      title="Ouvre chaque conversation notée avec un admin ou un modérateur des groupes affichés (script Tampermonkey 1.7.0) et regarde s'il a répondu"
+      title="Ouvre chaque conversation notée avec un admin ou un modérateur des groupes affichés (script Tampermonkey 1.7.1) et regarde s'il a répondu"
       className={`${bigButton} bg-surface hover:opacity-70`}
     >
       Vérifier les réponses des admins{items.length ? ` (${items.length})` : ""}

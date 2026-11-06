@@ -754,7 +754,8 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   reste `none` ; page introuvable ou illisible : rien ne change). Un refus range le groupe
   dans « Refusés », une adhésion qui revient l'en ressort vers « À faire » s'il y était.
   Le relevé reste à part (`membershipScan`, `membershipDiag`, `membershipChangedAt`). La
-  conversation avec un admin (`kind: 'staff'`, script 1.7.0) dit s'il a répondu
+  conversation avec un admin (`kind: 'staff'`, script 1.7.1, qui passe l'avis « messages
+  envoyés avant le chiffrement de bout en bout ») dit s'il a répondu
   (`conversationScanFrom`, `applyStaffReply`) ; le script ne connaissant qu'un
   identifiant, la page lui en donne un à elle (`st<n>`) qui renvoie au groupe et à la
   personne. Un script trop ancien est signalé avec sa version, rien n'est envoyé.
