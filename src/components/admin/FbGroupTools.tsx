@@ -212,7 +212,7 @@ const MEMBERSHIP_WORDS: Record<string, string> = { none: "pas demandée", pendin
  *  - les posts (`kind: 'post'`) : état, réactions, commentaires ;
  *  - la page du groupe (`kind: 'group'`, script 1.6.0) : notre adhésion. La fin dresse le
  *    bilan de ce qui a changé ;
- *  - la conversation avec un admin (`kind: 'staff'`, script 1.9.2 : il lit les conversations
+ *  - la conversation avec un admin (`kind: 'staff'`, script 1.9.3 : il lit les conversations
  *    chiffrées ; quand l'adresse notée est l'ancienne `/messages/t/…` ou ne mène nulle part,
  *    il cherche la conversation au nom de la personne, visant l'identifiant tiré de son
  *    profil (`pid`), et rend l'adresse finale, que le serveur garde) : a-t-il répondu ? Le
@@ -380,7 +380,7 @@ export function FbScanProvider({
     scanStaff: (items) => {
       const todo = items.filter((i) => !busy.has(`staff:${i.slug}|${i.key}`));
       const sent = todo.map((i) => ({ id: `st${++counter.current}`, url: i.url, name: i.name, pid: profileId(i.profileUrl) }));
-      const ok = send("staff", sent, todo.map((i) => `staff:${i.slug}|${i.key}`), [1, 9, 2], "Vérifier les réponses des admins", "il lit les conversations chiffrées et retrouve celle d'un lien ancien ou introuvable");
+      const ok = send("staff", sent, todo.map((i) => `staff:${i.slug}|${i.key}`), [1, 9, 3], "Vérifier les réponses des admins", "il lit les conversations chiffrées et retrouve celle d'un lien ancien, introuvable ou illisible");
       if (ok) sent.forEach((s, j) => staffIds.current.set(s.id, todo[j]));
     },
   };
@@ -429,7 +429,7 @@ export function FbScanStaffReplies({ items }: { items: StaffScanItem[] }) {
       type="button"
       disabled={!items.length}
       onClick={() => ctx?.scanStaff(items)}
-      title="Ouvre chaque conversation notée avec un admin ou un modérateur des groupes affichés (script Tampermonkey 1.9.2) et regarde s'il a répondu"
+      title="Ouvre chaque conversation notée avec un admin ou un modérateur des groupes affichés (script Tampermonkey 1.9.3) et regarde s'il a répondu"
       className={`${bigButton} bg-surface hover:opacity-70`}
     >
       Vérifier les réponses des admins{items.length ? ` (${items.length})` : ""}
