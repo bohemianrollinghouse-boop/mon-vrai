@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0810">
+<meta name="robots" content="noindex, nofollow">
+<title>Loy Krathong · Bangkok · 24 nov. 2026</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  *,*::before,*::after{box-sizing:border-box}
+  :root{
+    --bg:#0b0810; --card:#191224; --card2:#1f1730;
+    --line:#32264a; --gold:#f3c87d; --gold2:#ffe3ab; --ember:#ff8f4a;
+    --text:#f5eee1; --muted:#a99cb8; --river:#5fc8dd;
+    --shadow:0 10px 30px rgba(0,0,0,.55);
+  }
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1100px 620px at 50% -220px, #3a1f3c 0%, rgba(58,31,60,0) 62%),
+      radial-gradient(760px 420px at 112% 8%, #4a2a18 0%, rgba(74,42,24,0) 60%),
+      var(--bg);
+    color:var(--text);
+    font:16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-text-size-adjust:100%;
+    padding:0 0 env(safe-area-inset-bottom);
+  }
+  .wrap{max-width:720px;margin:0 auto;padding:0 14px 56px}
+
+  /* en-tete */
+  header{position:relative;padding:26px 2px 16px;text-align:center;overflow:hidden}
+  .lanterns{position:absolute;inset:0;pointer-events:none;z-index:0}
+  .lanterns i{
+    position:absolute;width:7px;height:10px;border-radius:50% 50% 45% 45%;
+    background:radial-gradient(circle at 50% 35%, #fff2cf, #f3a93d 60%, rgba(243,169,61,0) 72%);
+    box-shadow:0 0 12px 3px rgba(243,169,61,.5);opacity:.75;
+    animation:float 9s ease-in-out infinite;
+  }
+  .lanterns i:nth-child(1){left:8%;top:62%;animation-delay:0s}
+  .lanterns i:nth-child(2){left:24%;top:24%;animation-delay:1.6s;transform:scale(.8)}
+  .lanterns i:nth-child(3){left:46%;top:76%;animation-delay:3.1s;transform:scale(1.2)}
+  .lanterns i:nth-child(4){left:70%;top:34%;animation-delay:.8s}
+  .lanterns i:nth-child(5){left:88%;top:66%;animation-delay:4.2s;transform:scale(.9)}
+  @keyframes float{0%,100%{transform:translateY(6px) scale(1);opacity:.45}50%{transform:translateY(-12px) scale(1.06);opacity:.95}}
+  @media (prefers-reduced-motion:reduce){.lanterns i{animation:none}}
+  .kicker{position:relative;z-index:1;font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);opacity:.85}
+  h1{position:relative;z-index:1;margin:8px 0 6px;font-size:28px;line-height:1.15;font-weight:800;
+     background:linear-gradient(180deg,#fff7e6,#f0bc67 70%,#d99a3d);
+     -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{position:relative;z-index:1;margin:0;color:var(--muted);font-size:14px}
+  .countdown{position:relative;z-index:1;display:inline-flex;align-items:center;gap:8px;margin-top:12px;
+    padding:7px 14px;border-radius:999px;border:1px solid rgba(243,200,125,.4);
+    background:rgba(243,200,125,.08);color:var(--gold2);font-size:13px;font-weight:600}
+  .countdown .dot{width:7px;height:7px;border-radius:50%;background:var(--ember);box-shadow:0 0 8px var(--ember);animation:blink 1.8s infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  /* barre d outils */
+  .tools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 10px}
+  button,.btn{font:inherit}
+  .btn{
+    flex:1 1 auto;min-height:46px;padding:10px 14px;border-radius:12px;cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;gap:7px;
+    border:1px solid var(--line);background:var(--card);color:var(--text);
+    font-size:14px;font-weight:600;text-decoration:none;-webkit-tap-highlight-color:transparent;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn-gold{border-color:rgba(243,200,125,.55);
+    background:linear-gradient(180deg,#f7d796,#e0ab53);color:#2b1a05}
+  .btn-gold.on{background:linear-gradient(180deg,#8ff0c0,#4cc98c);border-color:rgba(125,224,167,.6);color:#07240f}
+  .btn-sm{min-height:38px;padding:7px 12px;font-size:13px;flex:0 0 auto}
+
+  /* carte */
+  #map{height:clamp(300px,54vh,520px);border-radius:16px;border:1px solid var(--line);
+       box-shadow:var(--shadow);background:#0f0b16;z-index:1}
+  /* rendu nuit sans cle API : on inverse uniquement les tuiles OSM */
+  #map.night .leaflet-tile-pane{
+    filter:invert(1) hue-rotate(188deg) brightness(.92) contrast(.92) saturate(.72);
+  }
+  .status{margin:8px 2px 0;font-size:12.5px;color:var(--muted);min-height:18px}
+  .status b{color:var(--gold2);font-weight:600}
+  .status.err{color:#ffb4a0}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:10px 2px 0;font-size:12px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{display:inline-block;width:22px;height:0;border-top:3px solid var(--ember)}
+  .swatch.walk{border-top:3px dashed var(--gold)}
+
+  /* marqueurs */
+  .pin{
+    width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+    font:700 15px/1 -apple-system,"Segoe UI",Roboto,sans-serif;color:#2b1a05;
+    background:radial-gradient(circle at 50% 30%,#fff3d6,#f1bd68 65%,#d9983c);
+    border:2px solid #fff6e2;box-shadow:0 0 0 3px rgba(243,200,125,.22),0 0 16px rgba(243,169,61,.75);
+  }
+  .pin.live{animation:pulse 1.9s ease-out infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 3px rgba(243,200,125,.3),0 0 16px rgba(243,169,61,.8)}
+    70%{box-shadow:0 0 0 16px rgba(243,200,125,0),0 0 22px rgba(243,169,61,.9)}
+    100%{box-shadow:0 0 0 3px rgba(243,200,125,.3),0 0 16px rgba(243,169,61,.8)}}
+  .pin-ref{width:22px;height:22px;border-radius:50%;background:rgba(95,200,221,.25);
+    border:2px solid var(--river);box-shadow:0 0 12px rgba(95,200,221,.6)}
+  .pin-me{width:18px;height:18px;border-radius:50%;background:#56a8ff;border:3px solid #eaf4ff;
+    box-shadow:0 0 0 4px rgba(86,168,255,.25),0 0 18px rgba(86,168,255,.9)}
+
+  /* popups */
+  .leaflet-popup-content-wrapper{background:var(--card2);color:var(--text);border:1px solid var(--line);
+    border-radius:14px;box-shadow:var(--shadow)}
+  .leaflet-popup-content{margin:13px 14px;width:238px !important;font-size:13.5px;line-height:1.5}
+  .leaflet-popup-tip{background:var(--card2)}
+  .leaflet-popup-close-button{color:var(--muted) !important;font-size:20px !important;padding:6px 8px 0 0 !important}
+  .pop-time{color:var(--gold);font-weight:700;font-size:12px;letter-spacing:.06em}
+  .pop-title{font-weight:700;font-size:15px;margin:2px 0 8px}
+  .pop-row{display:flex;gap:7px;margin:6px 0}
+  .pop-row .ic{flex:0 0 16px;text-align:center;opacity:.9}
+  .pop-row .tx{flex:1;color:#e4dbec}
+  .pop-row.tip .tx{color:#f6e3c4}
+  .pop-go{display:block;margin-top:10px;text-align:center;padding:10px;border-radius:10px;
+    background:linear-gradient(180deg,#f7d796,#e0ab53);color:#2b1a05 !important;font-weight:700;
+    text-decoration:none;font-size:13.5px}
+  .leaflet-control-attribution{background:rgba(10,8,16,.78) !important;color:#9a90a8 !important;font-size:10px !important}
+  .leaflet-control-attribution a{color:#c8bcd8 !important}
+  .leaflet-bar a{background:#1a1326 !important;color:var(--gold2) !important;border-color:#32264a !important}
+
+  /* timeline */
+  h2{margin:30px 2px 4px;font-size:13px;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+  .h2sub{margin:0 2px 16px;font-size:13px;color:var(--muted)}
+  .tl{position:relative;margin:0;padding:0 0 0 44px;list-style:none}
+  .tl::before{content:"";position:absolute;left:16px;top:10px;bottom:28px;width:2px;
+    background:linear-gradient(180deg,rgba(243,200,125,.1),rgba(243,200,125,.65),rgba(255,143,74,.5),rgba(243,200,125,.1))}
+  .tl li{position:relative;margin:0 0 12px}
+  .num{position:absolute;left:-44px;top:12px;width:34px;height:34px;border-radius:50%;
+    display:grid;place-items:center;font-weight:700;font-size:14px;color:#2b1a05;
+    background:radial-gradient(circle at 50% 30%,#fff3d6,#f1bd68 65%,#d9983c);
+    border:2px solid rgba(255,246,226,.9);box-shadow:0 0 14px rgba(243,169,61,.45)}
+  .card{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
+    border-radius:14px;padding:13px 14px;color:inherit;cursor:pointer;display:block}
+  .card:active{background:var(--card2)}
+  li.now .card{border-color:rgba(243,200,125,.7);background:linear-gradient(180deg,#241a33,#1b1428);
+    box-shadow:0 0 0 1px rgba(243,200,125,.25),0 0 26px rgba(243,169,61,.18)}
+  li.now .num{animation:pulse 1.9s ease-out infinite}
+  li.done .card{opacity:.6}
+  .c-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .time{font-weight:800;color:var(--gold2);font-size:15px;font-variant-numeric:tabular-nums}
+  .chip{font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:999px;
+    background:rgba(255,143,74,.16);color:#ffc49a;border:1px solid rgba(255,143,74,.35);font-weight:700}
+  .title{display:block;font-weight:700;margin:3px 0 7px;font-size:15.5px}
+  .meta{display:flex;gap:7px;margin:5px 0;font-size:13px;color:#ded5e8}
+  .meta .ic{flex:0 0 16px;text-align:center;opacity:.85}
+  .meta.tip{color:#f3e0c2}
+  .c-acts{display:flex;gap:8px;margin-top:11px}
+
+  /* encadres */
+  .box{border:1px solid var(--line);border-radius:16px;padding:16px;margin:18px 0 0;
+    background:linear-gradient(180deg,#1b1327,#15101f)}
+  .box.warn{border-color:rgba(255,143,74,.45);background:linear-gradient(180deg,#2a1a18,#1b1218)}
+  .box h3{margin:0 0 10px;font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold)}
+  .box.warn h3{color:#ffb98c}
+  .box ul{margin:0;padding-left:20px}
+  .box li{margin:0 0 9px;font-size:14px}
+  .box li:last-child{margin-bottom:0}
+  .box b{color:var(--gold2)}
+  details.box summary{cursor:pointer;list-style:none;font-size:14px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--gold);font-weight:700}
+  details.box summary::-webkit-details-marker{display:none}
+  details.box summary::after{content:" \25BE";opacity:.7}
+  details.box[open] summary::after{content:" \25B4"}
+  details.box[open] summary{margin-bottom:10px}
+  .rdv{display:flex;gap:10px;align-items:flex-start;margin-top:12px;padding:11px 12px;border-radius:12px;
+    background:rgba(95,200,221,.08);border:1px solid rgba(95,200,221,.3);font-size:13.5px}
+  .rdv b{color:var(--river)}
+  footer{margin:26px 2px 0;font-size:11.5px;color:#7d7389;text-align:center;line-height:1.7}
+  footer a{color:#9d93ab}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="lanterns"><i></i><i></i><i></i><i></i><i></i></div>
+    <p class="kicker">&#3621;&#3629;&#3617;&#3585;&#3619;&#3632;&#3607;&#3591; &middot; Mardi 24 novembre 2026</p>
+    <h1>Loy Krathong<br>sur le Chao Phraya</h1>
+    <p class="sub">Song Wat &middot; Yaowarat &middot; Santichaiprakan &middot; Khao San</p>
+    <div class="countdown" id="cd"><span class="dot"></span><span id="cdtx">&hellip;</span></div>
+  </header>
+
+  <div class="tools">
+    <button class="btn btn-gold" id="locBtn">&#9678; Me localiser</button>
+    <button class="btn" id="fitBtn">&#10530; Tout voir</button>
+    <button class="btn btn-sm" id="tileBtn">&#9686; Carte claire</button>
+  </div>
+
+  <div id="map"></div>
+  <p class="status" id="status">Touchez un marqueur ou une &eacute;tape pour les d&eacute;tails.</p>
+  <div class="legend">
+    <span><i class="swatch"></i> Grab / taxi</span>
+    <span><i class="swatch walk"></i> &Agrave; pied</span>
+    <span style="color:var(--river)">&#9673; Rep&egrave;re utile</span>
+  </div>
+
+  <h2>La soir&eacute;e, heure par heure</h2>
+  <p class="h2sub">Touchez une &eacute;tape pour la centrer sur la carte.</p>
+  <ol class="tl" id="tl"></ol>
+
+  <div class="box warn">
+    <h3>&#9888; Alerte horaire</h3>
+    <ul>
+      <li>Le programme officiel annonce le <b>show de drones &agrave; 20h05</b> (c&eacute;r&eacute;monie d&rsquo;ouverture 19h30), alors que le minist&egrave;re de la Culture a aussi communiqu&eacute; une ouverture &agrave; 20h30. <b>Soyez en place vers 19h50</b> : partez plut&ocirc;t vers <b>19h10&ndash;19h15</b>.</li>
+      <li>De Yaowarat au parc Santichaiprakan, comptez <b>15 &agrave; 25 min</b> de Grab ce soir-l&agrave;. Un d&eacute;part &agrave; 21h45 vous met au parc vers 22h05&ndash;22h10 : Khao San sera plut&ocirc;t <b>22h30</b>.</li>
+      <li>Les rues du bord de fleuve (Song Wat, Yaowarat) sont g&eacute;n&eacute;ralement <b>ferm&eacute;es &agrave; la circulation</b> pendant la f&ecirc;te : votre Grab vous d&eacute;posera &agrave; quelques centaines de m&egrave;tres.</li>
+    </ul>
+  </div>
+
+  <div class="box">
+    <h3>&#9733; &Agrave; savoir</h3>
+    <ul>
+      <li>Les <b>10 ponts du Chao Phraya</b> sont illumin&eacute;s de <b>19h &agrave; minuit</b>.</li>
+      <li><b>Lanternes volantes et feux d&rsquo;artifice priv&eacute;s interdits</b> : amendes lourdes (et le ciel est en zone de contr&ocirc;le a&eacute;rien).</li>
+      <li><b>Krathongs biod&eacute;gradables uniquement</b> (pain, feuille de bananier, glace). On en ach&egrave;te sur place, comptez 30&ndash;100 &#3647;.</li>
+      <li>Pour le retour, <b>commandez le Grab depuis une rue &eacute;loign&eacute;e du fleuve</b> : remontez de 2&ndash;3 rues, c&rsquo;est moins bouch&eacute; et la prise en charge est bien plus rapide.</li>
+      <li><b>D&eacute;finissez un point de rendez-vous</b> &agrave; chaque &eacute;tape si on se perd avec les enfants, et photographiez-les avant de partir (tenue du soir, utile si besoin).</li>
+    </ul>
+    <div class="rdv">
+      <span>&#9673;</span>
+      <div>
+        <b>Points de rendez-vous propos&eacute;s</b><br>
+        Song Wat &rarr; l&rsquo;embarcadère <b>Ratchawong Pier</b> (grand, &eacute;clair&eacute;, signal&eacute;).<br>
+        Yaowarat &rarr; l&rsquo;entr&eacute;e du <b>7-Eleven de Soi Phadungdao</b>.<br>
+        Parc &rarr; le <b>fort Phra Sumen</b>, la tour blanche &eacute;clair&eacute;e.<br>
+        Khao San &rarr; le <b>Burger King</b> de l&rsquo;angle Chakrabongse.
+      </div>
+    </div>
+  </div>
+
+  <details class="box">
+    <summary>Coordonn&eacute;es v&eacute;rifi&eacute;es</summary>
+    <ul>
+      <li><b>D&eacute;part (Wisut Kasat Rd)</b> : corrig&eacute; de 13.7610, 100.5030 &rarr; <b>13.7646, 100.5030</b>. L&rsquo;ancien point tombait sur Soi Phiphit Phokhai ; le nouveau est bien sur Wisut Kasat Rd, khwaeng Ban Phan Thom, 10200 (v&eacute;rifi&eacute; par g&eacute;ocodage inverse OSM). Le num&eacute;ro 80/15 n&rsquo;est pas cartographi&eacute; : pr&eacute;cision &plusmn;150 m.</li>
+      <li><b>Yaowarat street food</b> : d&eacute;plac&eacute; de 13.7400, 100.5090 &rarr; <b>13.7401, 100.5104</b>, le vrai c&oelig;ur des stands (Soi Phadungdao / Soi Texas, T&amp;K Seafood). Du coup c&rsquo;est 8&ndash;10 min de marche depuis Song Wat, pas 5.</li>
+      <li><b>Larn Chang AWC Plaza</b> : non cartographi&eacute; dans OSM. Point cal&eacute; sur l&rsquo;angle <b>Song Wat Rd &times; Ratchawong Rd (13.7391, 100.5055)</b>, &agrave; 150 m de Ratchawong Pier &mdash; l&rsquo;acc&egrave;s officiel indiqu&eacute; par les organisateurs (ou MRT Wat Mangkon). Pr&eacute;cision &plusmn;300 m.</li>
+      <li><b>Parc Santichaiprakan</b> : <b>13.7641, 100.4955</b> (OSM, l&eacute;g&egrave;re correction) &mdash; <b>Khao San Road</b> : <b>13.7589, 100.4973</b> (confirm&eacute;) &mdash; <b>pont Rama VIII</b> : <b>13.7692, 100.4967</b>.</li>
+    </ul>
+  </details>
+
+  <details class="box">
+    <summary>Si &laquo; Me localiser &raquo; ne marche pas</summary>
+    <ul>
+      <li>La premi&egrave;re fois, le navigateur demande l&rsquo;autorisation d&rsquo;acc&eacute;der &agrave; votre position : r&eacute;pondez <b>Autoriser</b>. Si vous avez refus&eacute; par erreur, rouvrez le cadenas dans la barre d&rsquo;adresse pour revenir dessus.</li>
+      <li>V&eacute;rifiez que le <b>GPS du t&eacute;l&eacute;phone est activ&eacute;</b> ; entre les immeubles de Chinatown, le premier point peut mettre 10 &agrave; 20 secondes.</li>
+      <li>Sans g&eacute;oloc, tout le reste fonctionne : la carte, les &eacute;tapes et les boutons &laquo; Y aller &raquo; (Google Maps utilisera sa propre position).</li>
+      <li><b>R&eacute;seau satur&eacute; ?</b> Affichez la carte une fois avant de partir, en zoomant sur chaque &eacute;tape : les tuiles d&eacute;j&agrave; vues restent en cache et s&rsquo;afficheront m&ecirc;me sans data.</li>
+    </ul>
+  </details>
+
+  <footer>
+    Fond de carte &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> &middot; rendu nuit appliqu&eacute; localement, sans cl&eacute; API<br>
+    Coordonn&eacute;es v&eacute;rifi&eacute;es via Nominatim (OSM) &middot; horaires d&rsquo;apr&egrave;s les annonces officielles du 24/11/2026<br>Page priv&eacute;e, non r&eacute;f&eacute;renc&eacute;e et absente du plan du site
+  </footer>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------
+     Le parcours. "mode" = comment on rejoint l'etape SUIVANTE.
+     "go" = mode de deplacement utilise pour le lien Google Maps.
+  ------------------------------------------------------------------ */
+  var STEPS = [
+    {
+      n: 0, time: "19:40", t0: "19:40",
+      title: "Départ — 80/15 Wisut Kasat Road",
+      lat: 13.7646, lng: 100.5030,
+      mode: "car", go: "driving",
+      transport: "Grab ou taxi vers Song Wat / Yaowarat — 20 à 30 min avec le trafic. Pas de MRT pratique d’ici.",
+      tip: "Partez plutôt à 19h10 : les drones peuvent décoller dès 20h05. Commandez le Grab depuis Wisut Kasat Rd côté Samsen, pas dans la ruelle.",
+      note: "C’est aussi votre point d’arrivée en fin de soirée."
+    },
+    {
+      n: 1, time: "20:05", t0: "20:05",
+      title: "Larn Chang AWC Plaza — Song Wat Road",
+      lat: 13.7391, lng: 100.5055,
+      mode: "walk", go: "driving",
+      transport: "Dites « Ratchawong Pier » au chauffeur : c’est le repère que donnent les organisateurs. Le bord du fleuve sera fermé aux voitures.",
+      tip: "Placez-vous tôt, face au fleuve : il y aura beaucoup de monde. Repérez tout de suite une sortie et le point de RDV avec les enfants.",
+      note: "Position approchée (±300 m) : le plaza n’est pas dans OpenStreetMap."
+    },
+    {
+      n: 2, time: "20:30", t0: "20:05",
+      title: "Show « River Meets Magic »",
+      lat: 13.7376, lng: 100.5038,
+      mode: "walk", go: "walking",
+      transport: "Sur place, face au Chao Phraya — le marqueur est posé au milieu du fleuve, là où sont tirés les feux.",
+      tip: "300 drones, plus de 560 krathongs et feux d’artifice au milieu du fleuve. Programme officiel : 17h krathong numérique, 19h30 ouverture, 20h05 drones + pluie de feux, puis scènes et marché jusqu’à 23h.",
+      note: "Casque anti-bruit ou boules Quies pour les plus petits : les feux sont tirés près du quai."
+    },
+    {
+      n: 3, time: "21:00", t0: "21:00",
+      title: "Dîner street food — Yaowarat",
+      lat: 13.7401, lng: 100.5104,
+      mode: "car", go: "walking",
+      transport: "8 à 10 min à pied (≈ 750 m) : remontez Ratchawong Road, puis Yaowarat à droite jusqu’à Soi Phadungdao.",
+      tip: "Soi Phadungdao / Soi Texas : fruits de mer grillés, nouilles, dim sum. Pour les enfants : roti à la banane, jus de grenade, mango sticky rice. Trottoirs très denses, gardez-les à l’intérieur.",
+      note: "Repli en cas de queue : les stands de Soi Yaowarat 11, juste en face."
+    },
+    {
+      n: 4, time: "21:45", t0: "21:45",
+      title: "Parc Santichaiprakan — lâcher de krathong",
+      lat: 13.7641, lng: 100.4955,
+      mode: "walk", go: "driving",
+      transport: "Grab commandé depuis Charoen Krung ou Chakkraphet (pas depuis Yaowarat, bouché) — 15 à 25 min selon le trafic.",
+      tip: "Krathong biodégradable en vente sur place (30–100 ฿). Vue sur le pont Rama VIII illuminé jusqu’à minuit. Les marches vers l’eau sont mouillées et sans garde-corps : main dans la main.",
+      note: "Point de RDV idéal : le fort Phra Sumen, la tour blanche éclairée."
+    },
+    {
+      n: 5, time: "22:15", t0: "22:15",
+      title: "Khao San Road",
+      lat: 13.7589, lng: 100.4973,
+      mode: "walk", go: "walking",
+      transport: "5 à 7 min à pied du parc (≈ 450 m) par Chakrabongse Road.",
+      tip: "Très dense et très bruyant après 22h. Avec des enfants, préférez la rue parallèle Rambuttri : mêmes stands, moitié moins de foule et d’alcool.",
+      note: ""
+    },
+    {
+      n: 6, time: "23:00", t0: "23:00",
+      title: "Retour à pied au point de départ",
+      lat: 13.7646, lng: 100.5030,
+      mode: null, go: "walking",
+      transport: "≈ 15 min à pied (1,1 km) par Chakrabongse puis Phra Sumen / Wisut Kasat.",
+      tip: "Si les enfants ne tiennent plus : Grab depuis Tanao Road ou Phra Sumen Road, en vous éloignant du fleuve.",
+      note: "Pas de marqueur séparé : c’est le même point que l’étape 0.",
+      sameAs: 0
+    }
+  ];
+
+  var REFS = [
+    { lat: 13.7692, lng: 100.4967, title: "Pont Rama VIII",
+      txt: "Illuminé de 19h à minuit, visible depuis le parc Santichaiprakan — le meilleur arrière-plan pour les photos." },
+    { lat: 13.7385, lng: 100.5047, title: "Ratchawong Pier",
+      txt: "Accès officiel au site de Song Wat (bateau express Chao Phraya). Grand, éclairé : bon point de rendez-vous." },
+    { lat: 13.7418, lng: 100.5112, title: "MRT Wat Mangkon",
+      txt: "Autre accès au site, et porte de sortie si le Grab est impossible à trouver." }
+  ];
+
+  /* ------------------------------- carte ------------------------------- */
+  var map = L.map("map", { zoomControl: true, scrollWheelZoom: false, tap: true });
+
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19, attribution: "&copy; OpenStreetMap"
+  }).addTo(map);
+
+  var mapEl = document.getElementById("map");
+  var isDark = true;
+  mapEl.classList.add("night");
+
+  /* ------------------------------ trajets ----------------------------- */
+  var legs = [];
+  for (var i = 0; i < STEPS.length - 1; i++) {
+    var a = STEPS[i], b = STEPS[i + 1];
+    if (a.lat === b.lat && a.lng === b.lng) { continue; }
+    legs.push({ from: [a.lat, a.lng], to: [b.lat, b.lng], mode: a.mode });
+  }
+  legs.forEach(function (leg) {
+    L.polyline([leg.from, leg.to], {
+      color: leg.mode === "car" ? "#ff8f4a" : "#f3c87d",
+      weight: 11, opacity: 0.1, lineCap: "round"
+    }).addTo(map);
+    L.polyline([leg.from, leg.to], {
+      color: leg.mode === "car" ? "#ff8f4a" : "#f3c87d",
+      weight: 3.5, opacity: 0.95, lineCap: "round",
+      dashArray: leg.mode === "car" ? null : "2 9"
+    }).addTo(map);
+  });
+
+  /* ---------------------------- Google Maps --------------------------- */
+  var myPos = null;
+
+  function gmapsUrl(step) {
+    var u = "https://www.google.com/maps/dir/?api=1&destination=" +
+            step.lat.toFixed(5) + "," + step.lng.toFixed(5) +
+            "&travelmode=" + (step.go || "driving");
+    if (myPos) {
+      u += "&origin=" + myPos.lat.toFixed(5) + "," + myPos.lng.toFixed(5);
+    }
+    return u;
+  }
+
+  function row(icon, text, cls) {
+    if (!text) { return ""; }
+    return '<div class="pop-row ' + (cls || "") + '"><span class="ic">' + icon +
+           '</span><span class="tx">' + text + "</span></div>";
+  }
+
+  /* ----------------------------- marqueurs ---------------------------- */
+  var markers = {};
+  STEPS.forEach(function (s) {
+    if (s.sameAs !== undefined) { return; }
+    var m = L.marker([s.lat, s.lng], {
+      icon: L.divIcon({
+        className: "",
+        html: '<div class="pin" data-pin="' + s.n + '">' + s.n + "</div>",
+        iconSize: [34, 34], iconAnchor: [17, 17], popupAnchor: [0, -16]
+      }),
+      zIndexOffset: 400 + (9 - s.n) * 20,
+      title: s.n + ". " + s.title
+    }).addTo(map);
+
+    m.bindPopup(function () {
+      return '<div class="pop-time">ÉTAPE ' + s.n + " · " + s.time + "</div>" +
+             '<div class="pop-title">' + s.title + "</div>" +
+             row("▸", s.transport) +
+             row("★", s.tip, "tip") +
+             row("ⓘ", s.note) +
+             '<a class="pop-go" target="_blank" rel="noopener" href="' + gmapsUrl(s) + '">Y aller &rarr;</a>';
+    }, { maxWidth: 270, autoPanPadding: [16, 16] });
+
+    markers[s.n] = m;
+  });
+
+  REFS.forEach(function (r) {
+    L.marker([r.lat, r.lng], {
+      icon: L.divIcon({ className: "", html: '<div class="pin-ref"></div>',
+        iconSize: [22, 22], iconAnchor: [11, 11], popupAnchor: [0, -10] }),
+      title: r.title
+    }).addTo(map).bindPopup(
+      '<div class="pop-time">REPÈRE</div><div class="pop-title">' + r.title +
+      '</div><div class="pop-row"><span class="tx">' + r.txt + "</span></div>",
+      { maxWidth: 260 }
+    );
+  });
+
+  var bounds = L.latLngBounds(STEPS.map(function (s) { return [s.lat, s.lng]; }))
+                .extend([REFS[0].lat, REFS[0].lng]);
+
+  function fitAll() { map.fitBounds(bounds, { padding: [34, 34] }); }
+  fitAll();
+
+  /* ----------------------------- timeline ----------------------------- */
+  var tl = document.getElementById("tl");
+
+  STEPS.forEach(function (s) {
+    var li = document.createElement("li");
+    li.id = "step-" + s.n;
+
+    var badge = document.createElement("div");
+    badge.className = "num";
+    badge.textContent = s.sameAs !== undefined ? "↺" : String(s.n);
+    li.appendChild(badge);
+
+    var card = document.createElement("div");
+    card.className = "card";
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+    card.innerHTML =
+      '<div class="c-top"><span class="time">' + s.time.replace(":", "h") + "</span>" +
+      (s.n === 2 ? '<span class="chip">drones dès 20h05</span>' : "") +
+      (s.n === 6 ? '<span class="chip">retour</span>' : "") + "</div>" +
+      '<span class="title">' + s.title + "</span>" +
+      '<div class="meta"><span class="ic">▸</span><span>' + s.transport + "</span></div>" +
+      '<div class="meta tip"><span class="ic">★</span><span>' + s.tip + "</span></div>" +
+      (s.note ? '<div class="meta"><span class="ic">ⓘ</span><span>' + s.note + "</span></div>" : "");
+
+    var acts = document.createElement("div");
+    acts.className = "c-acts";
+
+    var go = document.createElement("a");
+    go.className = "btn btn-gold btn-sm";
+    go.target = "_blank";
+    go.rel = "noopener";
+    go.href = gmapsUrl(s);
+    go.textContent = "➤ Y aller";
+    go.setAttribute("data-go", String(s.n));
+    go.addEventListener("click", function (e) { e.stopPropagation(); });
+
+    var show = document.createElement("button");
+    show.className = "btn btn-sm";
+    show.textContent = "◎ Sur la carte";
+
+    acts.appendChild(go);
+    acts.appendChild(show);
+    card.appendChild(acts);
+    li.appendChild(card);
+    tl.appendChild(li);
+
+    function focusStep(e) {
+      if (e) { e.stopPropagation(); }
+      var n = s.sameAs !== undefined ? s.sameAs : s.n;
+      map.setView([s.lat, s.lng], 16, { animate: true });
+      if (markers[n]) { markers[n].openPopup(); }
+      document.getElementById("map").scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    show.addEventListener("click", focusStep);
+    card.addEventListener("click", focusStep);
+    card.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); focusStep(); }
+    });
+  });
+
+  function refreshGoLinks() {
+    var links = document.querySelectorAll("[data-go]");
+    for (var i = 0; i < links.length; i++) {
+      var n = Number(links[i].getAttribute("data-go"));
+      var s = STEPS.filter(function (x) { return x.n === n; })[0];
+      if (s) { links[i].href = gmapsUrl(s); }
+    }
+  }
+
+  /* -------------------- etape en cours + compte a rebours -------------------- */
+  var EVENT_DAY = [2026, 10, 24]; // 24 novembre 2026
+
+  function stepTime(step, key) {
+    var hm = (step[key] || step.time).split(":");
+    var d = new Date(EVENT_DAY[0], EVENT_DAY[1], EVENT_DAY[2],
+                     Number(hm[0]), Number(hm[1]), 0, 0);
+    if (Number(hm[0]) < 4) { d.setDate(d.getDate() + 1); } // apres minuit
+    return d;
+  }
+
+  function tick() {
+    var now = new Date();
+    var current = -1;
+    for (var i = 0; i < STEPS.length; i++) {
+      if (now >= stepTime(STEPS[i], "time")) { current = i; }
+    }
+    STEPS.forEach(function (s, i) {
+      var li = document.getElementById("step-" + s.n);
+      if (!li) { return; }
+      li.classList.toggle("now", i === current);
+      li.classList.toggle("done", current > -1 && i < current);
+      var pin = document.querySelector('[data-pin="' + s.n + '"]');
+      if (pin) { pin.classList.toggle("live", i === current); }
+    });
+
+    var drones = new Date(EVENT_DAY[0], EVENT_DAY[1], EVENT_DAY[2], 20, 5, 0, 0);
+    var diff = drones - now;
+    var cdtx = document.getElementById("cdtx");
+    if (diff > 0 && diff < 86400000) {
+      var mins = Math.floor(diff / 60000);
+      var h = Math.floor(mins / 60), m = mins % 60;
+      cdtx.textContent = "Drones (20h05) dans " + (h > 0 ? h + " h " + (m < 10 ? "0" : "") + m : m + " min");
+    } else if (diff <= 0 && diff > -3600000) {
+      cdtx.textContent = "Le show est en cours — levez les yeux";
+    } else if (current > -1 && current < STEPS.length) {
+      cdtx.textContent = "Étape en cours : " + STEPS[current].n + " · " + STEPS[current].title;
+    } else {
+      cdtx.textContent = "Soirée du mardi 24 novembre, dès 19h40";
+    }
+  }
+  tick();
+  setInterval(tick, 30000);
+
+  /* ------------------------- geolocalisation ------------------------- */
+  var statusEl = document.getElementById("status");
+  var locBtn = document.getElementById("locBtn");
+  var watchId = null, meMarker = null, meCircle = null, firstFix = true;
+
+  function setStatus(html, isErr) {
+    statusEl.innerHTML = html;
+    statusEl.classList.toggle("err", !!isErr);
+  }
+
+  function haversine(a, b) {
+    var R = 6371000, dLat = (b.lat - a.lat) * Math.PI / 180,
+        dLng = (b.lng - a.lng) * Math.PI / 180,
+        la1 = a.lat * Math.PI / 180, la2 = b.lat * Math.PI / 180;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return Math.round(2 * R * Math.asin(Math.sqrt(h)));
+  }
+
+  function nearestStep(p) {
+    var best = null, bestD = Infinity;
+    STEPS.forEach(function (s) {
+      if (s.sameAs !== undefined) { return; }
+      var d = haversine(p, { lat: s.lat, lng: s.lng });
+      if (d < bestD) { bestD = d; best = s; }
+    });
+    return { step: best, dist: bestD };
+  }
+
+  function onFix(pos) {
+    var p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    myPos = p;
+    var acc = Math.max(8, Math.round(pos.coords.accuracy || 0));
+
+    if (!meMarker) {
+      meMarker = L.marker([p.lat, p.lng], {
+        icon: L.divIcon({ className: "", html: '<div class="pin-me"></div>',
+          iconSize: [18, 18], iconAnchor: [9, 9] }),
+        zIndexOffset: 900, title: "Vous êtes ici"
+      }).addTo(map);
+      meCircle = L.circle([p.lat, p.lng], { radius: acc, color: "#56a8ff",
+        weight: 1, opacity: .55, fillColor: "#56a8ff", fillOpacity: .12 }).addTo(map);
+    } else {
+      meMarker.setLatLng([p.lat, p.lng]);
+      meCircle.setLatLng([p.lat, p.lng]).setRadius(acc);
+    }
+
+    if (firstFix) {
+      firstFix = false;
+      map.setView([p.lat, p.lng], 16, { animate: true });
+    }
+
+    var near = nearestStep(p);
+    var d = near.dist;
+    var dTxt = d > 950 ? (d / 1000).toFixed(1) + " km" : d + " m";
+    setStatus("Position active (&plusmn;" + acc + " m) &middot; &eacute;tape la plus proche : <b>" +
+              near.step.n + ". " + near.step.title + "</b> &agrave; " + dTxt);
+    refreshGoLinks();
+  }
+
+  function onFixError(err) {
+    stopWatch();
+    var msg;
+    if (err && err.code === 1) {
+      msg = "Localisation refus&eacute;e. Autorisez-la pour ce site dans les r&eacute;glages du navigateur.";
+    } else if (location.protocol === "file:") {
+      msg = "G&eacute;olocalisation indisponible : la page est ouverte en <b>file://</b>, que Chrome bloque. Servez-la en https ou localhost (voir l&rsquo;encadr&eacute; en bas).";
+    } else if (err && err.code === 3) {
+      msg = "Signal GPS trop lent. R&eacute;essayez dehors, &agrave; l&rsquo;&eacute;cart des b&acirc;timents.";
+    } else {
+      msg = "Position introuvable. V&eacute;rifiez que le GPS du t&eacute;l&eacute;phone est activ&eacute;.";
+    }
+    setStatus(msg, true);
+  }
+
+  function stopWatch() {
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    locBtn.classList.remove("on");
+    locBtn.innerHTML = "◎ Me localiser";
+  }
+
+  locBtn.addEventListener("click", function () {
+    if (watchId !== null) {
+      stopWatch();
+      setStatus("Suivi de position arr&ecirc;t&eacute;.");
+      return;
+    }
+    if (!navigator.geolocation) {
+      setStatus("Ce navigateur ne g&egrave;re pas la g&eacute;olocalisation.", true);
+      return;
+    }
+    setStatus("Recherche de votre position&hellip;");
+    locBtn.classList.add("on");
+    locBtn.innerHTML = "◎ Suivi actif — arr&ecirc;ter";
+    firstFix = true;
+    watchId = navigator.geolocation.watchPosition(onFix, onFixError, {
+      enableHighAccuracy: true, maximumAge: 5000, timeout: 20000
+    });
+  });
+
+  /* --------------------------- autres boutons --------------------------- */
+  document.getElementById("fitBtn").addEventListener("click", function () {
+    map.closePopup();
+    fitAll();
+  });
+
+  var tileBtn = document.getElementById("tileBtn");
+  tileBtn.addEventListener("click", function () {
+    isDark = !isDark;
+    mapEl.classList.toggle("night", isDark);
+    tileBtn.innerHTML = isDark ? "◖ Carte claire" : "◑ Carte nuit";
+  });
+
+  /* le scroll a deux doigts reste naturel sur mobile, molette desactivee */
+  map.on("click", function () { map.closePopup(); });
+})();
+</script>
+</body>
+</html>
