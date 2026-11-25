@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ButtonLink, PageHeader, Pill, Table } from "@/components/admin/ui";
 import { listPages } from "@/lib/db/pages";
+import { PERSO_PAGES } from "@/lib/domain/perso-pages";
 import { pagePath } from "@/lib/domain/system-pages";
 import type { Page } from "@/lib/domain/types";
 
@@ -75,6 +76,32 @@ export default async function PagesAdmin() {
             </section>
           ))}
         </div>
+      )}
+      {PERSO_PAGES.length > 0 && (
+        <section className="mt-6 flex flex-col gap-2.5">
+          <h2 className="flex items-baseline gap-2 px-1 text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-faint">
+            Pages perso
+            <span className="font-semibold normal-case tracking-normal text-subtle">
+              {PERSO_PAGES.length} page{PERSO_PAGES.length > 1 ? "s" : ""} · hors éditeur, liée nulle part, non indexée
+            </span>
+          </h2>
+          <Table head={["Titre", "Adresse", "Fichier", "Statut"]}>
+            {PERSO_PAGES.map((p) => (
+              <tr key={p.path} className="hover:bg-paper">
+                <td>
+                  <a href={p.path} target="_blank" rel="noopener" className="font-bold hover:underline">
+                    {p.title}
+                  </a>
+                </td>
+                <td className="text-subtle">{p.path}</td>
+                <td className="text-subtle">{p.file}</td>
+                <td>
+                  <Pill tone="ok">En ligne</Pill>
+                </td>
+              </tr>
+            ))}
+          </Table>
+        </section>
       )}
     </>
   );
