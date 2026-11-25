@@ -97,6 +97,8 @@ h1{margin:2px 0 0;font-size:30px;font-weight:800;line-height:1.05;letter-spacing
 .links .vid{background:var(--violet-wash);color:var(--violet-ink)}
 .links .site{background:var(--well);color:var(--ink)}
 .links .y{background:var(--btn);color:var(--btn-ink)}
+.links .ph{gap:6px;background:var(--well);color:var(--ink)}
+.links .ph svg{width:15px;height:15px}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 </head>
@@ -131,6 +133,8 @@ const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;'
 const safe=u=>{u=String(u||'').trim();return /^https:\/\/\S+$/i.test(u)?u:'';};
 const gm=q=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);
 const goUrl=p=>safe(p.m)||gm(p.q||p.n+' Bangkok');
+/* Photos : recherche Google Images sur le nom du lieu (+ Bangkok s'il n'y est pas déjà). */
+const photosUrl=p=>{const q=(p.q&&p.q.length>8?p.q:p.n);return 'https://www.google.com/search?tbm=isch&q='+encodeURIComponent(/bangkok|thailand|ratchaburi|nakhon|sam phran|salaya/i.test(q)?q:q+' Bangkok');};
 const calm=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const LAB={jour:'Jour',nuit:'Nuit',deux:'Jour et nuit'};
 const code=n=>String(n||0).padStart(2,'0');
@@ -153,7 +157,8 @@ const clock='<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="cur
 const numCls=p=>'num n-'+esc(p.w)+(p.w==='nuit'?' nuit':'');
 function linksHtml(p){
   const v=safe(p.v),v2=safe(p.v2),s=safe(p.s);
-  return '<div class="links">'+(v?'<a class="vid" href="'+esc(v)+'" target="_blank" rel="noopener">Vidéo</a>':'')+(v2?'<a class="vid" href="'+esc(v2)+'" target="_blank" rel="noopener">2e vidéo</a>':'')+(s?'<a class="site" href="'+esc(s)+'" target="_blank" rel="noopener">Site</a>':'')+'<a class="y" href="'+esc(goUrl(p))+'" target="_blank" rel="noopener">Y aller</a></div>';
+  return '<div class="links">'+(v?'<a class="vid" href="'+esc(v)+'" target="_blank" rel="noopener">Vidéo</a>':'')+(v2?'<a class="vid" href="'+esc(v2)+'" target="_blank" rel="noopener">2e vidéo</a>':'')+(s?'<a class="site" href="'+esc(s)+'" target="_blank" rel="noopener">Site</a>':'')+'<a class="ph" href="'+esc(photosUrl(p))+'" target="_blank" rel="noopener"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="9" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/></svg>Photos</a>'
+    +'<a class="y" href="'+esc(goUrl(p))+'" target="_blank" rel="noopener">Y aller</a></div>';
 }
 function paintFilters(){
   $('#fWhen').innerHTML=[['tous','Tout',''],['jour','Jour','d-jour'],['nuit','Nuit','d-nuit']].map(([v,l,d])=>'<button type="button" data-v="'+v+'" aria-pressed="'+(v===W)+'">'+(d?'<span class="dot '+d+'" aria-hidden="true"></span>':'')+l+'</button>').join('');
