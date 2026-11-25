@@ -134,7 +134,7 @@ const safe=u=>{u=String(u||'').trim();return /^https:\/\/\S+$/i.test(u)?u:'';};
 const gm=q=>'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(q);
 const goUrl=p=>safe(p.m)||gm(p.q||p.n+' Bangkok');
 /* Photos : recherche Google Images sur le nom du lieu (+ Bangkok s'il n'y est pas déjà). */
-const photosUrl=p=>{const q=(p.q&&p.q.length>8?p.q:p.n);return 'https://www.google.com/search?tbm=isch&q='+encodeURIComponent(/bangkok|thailand|ratchaburi|nakhon|sam phran|salaya/i.test(q)?q:q+' Bangkok');};
+const photosUrl=p=>{const q=(p.q&&p.q.length>8?p.q:p.n);const city=(String(p.d||'').match(/Ratchaburi|Nakhon Pathom|Sam Phran|Salaya/)||['Bangkok'])[0];return 'https://www.google.com/search?tbm=isch&q='+encodeURIComponent(/bangkok|thailand|ratchaburi|nakhon|sam phran|salaya/i.test(q)?q:q+' '+city);};
 const calm=matchMedia('(prefers-reduced-motion: reduce)').matches;
 const LAB={jour:'Jour',nuit:'Nuit',deux:'Jour et nuit'};
 const code=n=>String(n||0).padStart(2,'0');
