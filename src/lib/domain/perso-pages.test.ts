@@ -14,7 +14,8 @@ describe("pages perso", () => {
   });
 
   it("chaque route sous /perso est notée au registre", () => {
-    const dirs = readdirSync(path.join(root, "src", "app", "perso"));
+    const dir = path.join(root, "src", "app", "perso");
+    const dirs = existsSync(dir) ? readdirSync(dir) : [];
     expect(dirs.map((d) => `/perso/${d}`).sort()).toEqual(PERSO_PAGES.map((p) => p.path).sort());
   });
 });

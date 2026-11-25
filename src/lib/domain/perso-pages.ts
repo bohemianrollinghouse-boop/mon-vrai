@@ -13,6 +13,4 @@ export type PersoPage = {
   file: string;
 };
 
-export const PERSO_PAGES: PersoPage[] = [
-  { title: "Bangkok, on pioche", path: "/perso/bangkok-98d1a987", file: "content/perso/bangkok.html" },
-];
+export const PERSO_PAGES: PersoPage[] = [];
