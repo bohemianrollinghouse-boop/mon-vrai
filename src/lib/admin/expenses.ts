@@ -9,7 +9,16 @@ import { partOf } from "./revenue";
  * Deux sources se rejoignent ici. Les lignes SAISIES à la main (les frais, et les
  * entrées d'un autre bord : apport, subvention, remboursement) ; et les VENTES du site,
  * qui ne se saisissent pas — elles sont déduites des commandes encaissées, et elles
- * emportent avec elles les cotisations URSSAF, prélevées sur chaque encaissement.
+ * emportent avec elles ce que chaque commande coûte en caisse : les cotisations URSSAF
+ * et la commission Stripe prélevées sur l'encaissement, le port réellement payé au
+ * transporteur, et le carton du colis.
+ *
+ * Ce qu'elles n'emportent PAS, et c'est la frontière de cet écran : la fabrication des
+ * livres. Le tirage est payé d'un bloc, le jour de la facture d'imprimeur, et il est
+ * saisi comme tel ; en retenir une part à chaque vente le compterait deux fois.
+ * /admin/revenus fait l'inverse, et c'est son office — il amortit ce stock vente par
+ * vente pour dire ce qu'un livre laisse. Les deux écrans ne peuvent donc pas tomber sur
+ * le même chiffre, et ne le doivent pas.
  *
  * Convention : les montants saisis sont positifs en base, le sens vient de `direction`.
  * Une sortie « engagée » (facture reçue, pas encore payée) est comptée à part — elle
@@ -46,12 +55,60 @@ export type SalesFlow = {
    * pas par Stripe et ne coûte rien.
    */
   stripeFee: number;
+  /*
+   * Le port RÉELLEMENT payé à Boxtal pour ces ventes, et non celui facturé au client.
+   *
+   * Il manquait, et c'était le trou de cet écran : le port du client entre avec
+   * l'encaissement (`revenue` est port compris) sans que la facture du transporteur en
+   * sorte jamais. Le solde d'un mois s'en trouvait surévalué d'autant, et ne pouvait
+   * donc pas se rapprocher du relevé bancaire — qui voit bien le prélèvement Boxtal.
+   */
+  shippingCost: number;
+  /** Ventes dont le port réel n'a pas pu être établi : estimé au port facturé. */
+  shippingUnknown: number;
+  /** Cartons et calage : un par colis vendu. */
+  packagingCost: number;
 };
 
-export const NO_SALES: SalesFlow = { orders: 0, revenue: 0, urssaf: 0, stripeFee: 0 };
+export const NO_SALES: SalesFlow = { orders: 0, revenue: 0, urssaf: 0, stripeFee: 0, shippingCost: 0, shippingUnknown: 0, packagingCost: 0 };
 
 export function sumSales(list: SalesFlow[]): SalesFlow {
-  return list.reduce((t, s) => ({ orders: t.orders + s.orders, revenue: t.revenue + s.revenue, urssaf: t.urssaf + s.urssaf, stripeFee: t.stripeFee + s.stripeFee }), NO_SALES);
+  return list.reduce(
+    (t, s) => ({
+      orders: t.orders + s.orders,
+      revenue: t.revenue + s.revenue,
+      urssaf: t.urssaf + s.urssaf,
+      stripeFee: t.stripeFee + s.stripeFee,
+      shippingCost: t.shippingCost + s.shippingCost,
+      shippingUnknown: t.shippingUnknown + s.shippingUnknown,
+      packagingCost: t.packagingCost + s.packagingCost,
+    }),
+    NO_SALES,
+  );
+}
+
+/*
+ * Ce qu'un colis OFFERT coûte à la caisse : son carton, et rien d'autre.
+ *
+ * Pas ses livres : ils sortent du tirage, payé d'un bloc le jour de la facture
+ * d'imprimeur et saisi comme tel — les compter ici les compterait deux fois. C'est la
+ * même raison qui fait que la fabrication n'entre pas non plus dans le coût d'une vente
+ * sur cet écran, alors que /admin/revenus la retient : là-bas on amortit un stock sur ce
+ * qu'il laisse, ici on suit l'argent qui passe.
+ *
+ * Pas son étiquette non plus : elle s'inscrit d'office en dépense à la création de
+ * l'expédition (`admin/gift-expense.ts`), elle est donc déjà dans les frais saisis.
+ */
+export type GiftFlow = {
+  /** Colis offerts — kits de partenaires, lots de concours. */
+  parcels: number;
+  packagingCost: number;
+};
+
+export const NO_GIFTS: GiftFlow = { parcels: 0, packagingCost: 0 };
+
+export function sumGifts(list: GiftFlow[]): GiftFlow {
+  return list.reduce((t, g) => ({ parcels: t.parcels + g.parcels, packagingCost: t.packagingCost + g.packagingCost }), NO_GIFTS);
 }
 
 /*
@@ -64,15 +121,21 @@ export type CashTotals = {
   entered: ExpenseTotals;
   /** Ventes du site sur la même période. */
   sales: SalesFlow;
+  /** Colis offerts expédiés sur la même période. */
+  gifts: GiftFlow;
   /** Chiffre d'affaires saisi à la main : cotisable au même titre qu'une vente. */
   enteredTurnover: number;
   /** Cotisations sur TOUT le chiffre d'affaires de la période, saisi et encaissé en ligne. */
   urssaf: number;
   /** Commission de paiement retenue par Stripe sur les ventes du site. */
   stripeFee: number;
+  /** Port réellement payé à Boxtal pour les ventes de la période. */
+  shippingCost: number;
+  /** Cartons de tous les colis partis : ceux des ventes et ceux des colis offerts. */
+  packagingCost: number;
   /** Tout ce qui entre : ventes + entrées saisies. */
   in: number;
-  /** Tout ce qui sort : cotisations, commission de paiement, et frais payés. */
+  /** Tout ce qui sort : cotisations, commission, port, cartons, et frais payés. */
   out: number;
   /** Sorties engagées, pas encore payées : à part, elles n'ont pas quitté le compte. */
   pending: number;
@@ -99,13 +162,15 @@ export function urssafOn(e: Expense, bp: number): number {
   return e.direction === "in" && e.status === "paid" && e.taxable ? partOf(e.amount, bp) : 0;
 }
 
-export function cashTotals(list: Expense[], sales: SalesFlow = NO_SALES, urssafBp = 0): CashTotals {
+export function cashTotals(list: Expense[], sales: SalesFlow = NO_SALES, gifts: GiftFlow = NO_GIFTS, urssafBp = 0): CashTotals {
   const entered = sumExpenses(list);
   const enteredTurnover = list.filter((e) => e.direction === "in" && e.status === "paid" && e.taxable).reduce((s, e) => s + e.amount, 0);
   const urssaf = sales.urssaf + list.reduce((sum, e) => sum + urssafOn(e, urssafBp), 0);
+  /* Un carton part avec chaque colis, qu'il soit vendu ou offert. */
+  const packagingCost = sales.packagingCost + gifts.packagingCost;
   const cashIn = entered.in + sales.revenue;
-  const cashOut = entered.out + urssaf + sales.stripeFee;
-  return { entered, sales, enteredTurnover, urssaf, stripeFee: sales.stripeFee, in: cashIn, out: cashOut, pending: entered.pending, net: cashIn - cashOut };
+  const cashOut = entered.out + urssaf + sales.stripeFee + sales.shippingCost + packagingCost;
+  return { entered, sales, gifts, enteredTurnover, urssaf, stripeFee: sales.stripeFee, shippingCost: sales.shippingCost, packagingCost, in: cashIn, out: cashOut, pending: entered.pending, net: cashIn - cashOut };
 }
 
 export function sumExpenses(list: Expense[]): ExpenseTotals {
@@ -150,17 +215,18 @@ export type MonthTotal = { month: string } & CashTotals;
 
 /*
  * Mois par mois, du plus récent au plus ancien. Un mois n'existe que s'il a vu quelque
- * chose : une ligne saisie OU une vente — d'où l'union des deux jeux de clés, sinon un
- * mois sans frais mais plein de ventes n'apparaîtrait pas du tout.
+ * chose : une ligne saisie, une vente OU un colis offert — d'où l'union des trois jeux de
+ * clés, sinon un mois sans frais mais plein de ventes n'apparaîtrait pas du tout, et un
+ * mois qui n'aurait fait qu'offrir des kits non plus.
  */
-export function byMonth(list: Expense[], sales: Map<string, SalesFlow> = new Map(), urssafBp = 0): MonthTotal[] {
+export function byMonth(list: Expense[], sales: Map<string, SalesFlow> = new Map(), gifts: Map<string, GiftFlow> = new Map(), urssafBp = 0): MonthTotal[] {
   const map = new Map<string, Expense[]>();
   for (const e of list) {
     const key = e.date.slice(0, 7);
     map.set(key, [...(map.get(key) ?? []), e]);
   }
-  const months = new Set([...map.keys(), ...sales.keys()]);
-  return [...months].sort((a, b) => b.localeCompare(a)).map((month) => ({ month, ...cashTotals(map.get(month) ?? [], sales.get(month) ?? NO_SALES, urssafBp) }));
+  const months = new Set([...map.keys(), ...sales.keys(), ...gifts.keys()]);
+  return [...months].sort((a, b) => b.localeCompare(a)).map((month) => ({ month, ...cashTotals(map.get(month) ?? [], sales.get(month) ?? NO_SALES, gifts.get(month) ?? NO_GIFTS, urssafBp) }));
 }
 
 /** Ce que pèse un frais récurrent sur un mois. Un frais ponctuel ne pèse rien de fixe. */

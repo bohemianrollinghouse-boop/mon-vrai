@@ -3,10 +3,11 @@ import { ActionForm } from "@/components/admin/ActionForm";
 import { ExpenseFields } from "@/components/admin/ExpenseFields";
 import { Button, ButtonLink, Card, FilterPills, GridTable, Input, Notice, PageHeader, Pill, SearchBox, Select, Tile } from "@/components/admin/ui";
 import { saveExpenseAction } from "@/lib/admin/actions/expenses";
+import { giftExpenseId } from "@/lib/admin/gift-expense";
 import { CATEGORY_LABELS, FAR_FUTURE, METHOD_LABELS, PERIODS, RECURRENCE_LABELS, dayLabel, matchesExpense, monthLabel, resolveRange } from "@/lib/admin/expense-ui";
-import { NO_SALES, type SalesFlow, byCategory, byMonth, byProduct, cashTotals, fixedCharges, fixedMonthly, inPeriod, sumSales, urssafOn } from "@/lib/admin/expenses";
+import { NO_GIFTS, NO_SALES, type GiftFlow, type SalesFlow, byCategory, byMonth, byProduct, cashTotals, fixedCharges, fixedMonthly, inPeriod, sumGifts, sumSales, urssafOn } from "@/lib/admin/expenses";
 import { COUNTED, capitalize } from "@/lib/admin/order-ui";
-import { partOf } from "@/lib/admin/revenue";
+import { partOf, shippingCostFor } from "@/lib/admin/revenue";
 import { requireAdmin } from "@/lib/auth/session";
 import { listDocuments } from "@/lib/db/documents";
 import { listExpenses } from "@/lib/db/expenses";
@@ -63,7 +64,7 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
   const search = typeof q === "string" ? q.trim() : "";
 
   const [all, products, documents, orders, settings] = await Promise.all([listExpenses(), listAllProducts(), listDocuments(), listOrders({ limit: 2000 }), getSettings()]);
-  const { urssafBp, stripeBp, stripeFixed } = settings.costs;
+  const { urssafBp, stripeBp, stripeFixed, packagingCost, kitPackagingCost } = settings.costs;
 
   const today = dayKey(clock());
   /* Une seule fenêtre, d'où qu'elle vienne : pilule glissante, mois civil ou dates libres. */
@@ -81,19 +82,36 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
    * que les deux écrans tombent au centime près sur le même chiffre.
    */
   const salesByMonth = new Map<string, SalesFlow>();
+  /*
+   * Les colis OFFERTS ne font pas un mois de vente, mais ils font sortir de l'argent :
+   * leur carton. Leur étiquette, elle, est déjà une ligne saisie d'office (`gift-expense`),
+   * et leurs livres sortent du tirage, payé d'un bloc — voir `GiftFlow`.
+   */
+  const giftsByMonth = new Map<string, GiftFlow>();
   for (const o of orders) {
-    if (!o.livemode || !COUNTED.includes(o.status) || offeredOrder(o)) continue;
+    if (!o.livemode || !COUNTED.includes(o.status)) continue;
     const day = dayKey(o.createdAt);
     if ((from && day < from) || day > to) continue;
     const month = day.slice(0, 7);
+    if (offeredOrder(o)) {
+      const g = giftsByMonth.get(month) ?? { ...NO_GIFTS };
+      /* Le carton d'un kit peut être d'un autre format ; à zéro, c'est celui d'une vente. */
+      giftsByMonth.set(month, { parcels: g.parcels + 1, packagingCost: g.packagingCost + (kitPackagingCost || packagingCost) });
+      continue;
+    }
     const flow = salesByMonth.get(month) ?? { ...NO_SALES };
     const total = o.totals.total;
+    /* Le port RÉEL, au barème fournisseur Boxtal — le même calcul que /admin/revenus. */
+    const ship = shippingCostFor(o, settings);
     salesByMonth.set(month, {
       orders: flow.orders + 1,
       revenue: flow.revenue + total,
       urssaf: flow.urssaf + partOf(total, urssafBp),
       // Part variable + part fixe, par transaction : c'est ainsi que Stripe facture.
       stripeFee: flow.stripeFee + (total > 0 ? partOf(total, stripeBp) + stripeFixed : 0),
+      shippingCost: flow.shippingCost + ship.cents,
+      shippingUnknown: flow.shippingUnknown + (ship.known ? 0 : 1),
+      packagingCost: flow.packagingCost + packagingCost,
     });
   }
 
@@ -104,10 +122,11 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
    */
   const narrowed = Boolean(category || search);
   const sales = narrowed ? NO_SALES : sumSales([...salesByMonth.values()]);
+  const gifts = narrowed ? NO_GIFTS : sumGifts([...giftsByMonth.values()]);
 
-  const t = cashTotals(rows, sales, urssafBp);
+  const t = cashTotals(rows, sales, gifts, urssafBp);
   const incomes = byCategory(rows, "in");
-  const months = byMonth(rows, narrowed ? new Map() : salesByMonth, urssafBp);
+  const months = byMonth(rows, narrowed ? new Map() : salesByMonth, narrowed ? new Map() : giftsByMonth, urssafBp);
   const pending = rows.filter((e) => e.status === "pending").length;
 
   /*
@@ -149,6 +168,28 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
     ...(t.stripeFee > 0
       ? [{ key: "stripe", label: "Commission de paiement (Stripe)", amount: t.stripeFee, note: `${bpLabel(stripeBp)} + ${formatEuro(stripeFixed)} par commande · ${fmt(sales.orders)} commande${sales.orders > 1 ? "s" : ""}`, href: undefined as string | undefined }]
       : []),
+    ...(t.shippingCost > 0
+      ? [
+          {
+            key: "port",
+            label: "Port des ventes (Boxtal)",
+            amount: t.shippingCost,
+            note: `${fmt(sales.orders)} colis vendu${sales.orders > 1 ? "s" : ""} · barème fournisseur${sales.shippingUnknown > 0 ? ` · ${fmt(sales.shippingUnknown)} estimé${sales.shippingUnknown > 1 ? "s" : ""}` : ""}`,
+            href: undefined as string | undefined,
+          },
+        ]
+      : []),
+    ...(t.packagingCost > 0
+      ? [
+          {
+            key: "cartons",
+            label: "Emballages",
+            amount: t.packagingCost,
+            note: `${fmt(sales.orders + gifts.parcels)} colis × ${formatEuro(packagingCost)}${gifts.parcels > 0 ? ` · dont ${fmt(gifts.parcels)} offert${gifts.parcels > 1 ? "s" : ""}` : ""}`,
+            href: undefined as string | undefined,
+          },
+        ]
+      : []),
     ...byCategory(rows).map((c) => ({
       key: c.category,
       label: CATEGORY_LABELS[c.category],
@@ -161,6 +202,20 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
 
   /* Le versement à l'URSSAF saisi à la main ferait doublon avec la provision ci-dessus. */
   const urssafEntered = rows.filter((e) => e.direction === "out" && e.category === "taxes" && /urssaf/i.test(e.label));
+
+  /*
+   * Le port et les cartons sont désormais CALCULÉS, colis par colis. Une facture de
+   * transport ou un achat de cartons saisi à la main les compterait donc deux fois —
+   * exactement le piège de l'URSSAF, et celui du tirage qui a fait retirer la
+   * fabrication de cet écran.
+   *
+   * Les étiquettes des colis OFFERTS sont la seule exception, et elles ne sont pas un
+   * doublon : leur port n'est jamais calculé ici (voir `GiftFlow`), il n'existe que par
+   * ces lignes. On les reconnaît à leur identifiant, déduit de la commande — et non à
+   * leur libellé, qui porte le nom d'un partenaire et pourrait être réécrit.
+   */
+  const giftLabelIds = new Set(orders.filter((o) => offeredOrder(o)).map((o) => giftExpenseId(o)));
+  const parcelEntered = rows.filter((e) => e.direction === "out" && (e.category === "shipping" || e.category === "packaging") && !giftLabelIds.has(e.id));
 
   /*
    * Charges fixes et coût par titre se lisent sur TOUT l'historique : ce que coûte un
@@ -281,6 +336,14 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
         </Notice>
       )}
 
+      {parcelEntered.length > 0 && (
+        <Notice tone="error">
+          {parcelEntered.length > 1 ? `${fmt(parcelEntered.length)} lignes saisies portent du transport ou de l'emballage` : `« ${parcelEntered[0].label} » porte du transport ou de l'emballage`} : le port et les cartons sont
+          désormais calculés colis par colis ci-dessous, ces lignes comptent donc deux fois. Supprimez-les, ou changez leur poste si elles portent sur autre chose. Les étiquettes des kits et des lots offerts, elles, ne
+          sont pas concernées : leur port n'est calculé nulle part, ces lignes sont la seule trace de cette sortie.
+        </Notice>
+      )}
+
       {pending > 0 && (
         <Notice tone="info">
           {fmt(pending)} ligne{pending > 1 ? "s" : ""} engagée{pending > 1 ? "s" : ""} pour {formatEuro(t.pending)} : reçue{pending > 1 ? "s" : ""}, pas encore payée{pending > 1 ? "s" : ""}. Elles ne comptent pas dans les sorties
@@ -297,8 +360,13 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
           href="/admin/revenus"
         />
         <Tile tone="pink" label="Cotisations URSSAF" value={minus(t.urssaf)} note={`${bpLabel(urssafBp)} du chiffre d'affaires`} />
-        <Tile tone="sand" label="Frais payés" value={minus(t.entered.out + t.stripeFee)} note={t.stripeFee > 0 ? `dont ${formatEuro(t.stripeFee)} de commission Stripe` : `${fmt(rows.filter((e) => e.direction === "out" && e.status === "paid").length)} paiement(s) saisi(s)`} />
-        <Tile tone={t.net >= 0 ? "green" : "pink"} label="Solde" value={formatEuro(t.net)} note="entrées − cotisations − frais" />
+        <Tile
+          tone="sand"
+          label="Frais payés"
+          value={minus(t.entered.out + t.stripeFee + t.shippingCost + t.packagingCost)}
+          note={[t.stripeFee > 0 ? `${formatEuro(t.stripeFee)} de commission` : "", t.shippingCost > 0 ? `${formatEuro(t.shippingCost)} de port` : "", t.packagingCost > 0 ? `${formatEuro(t.packagingCost)} de cartons` : ""].filter(Boolean).join(" · ") || `${fmt(rows.filter((e) => e.direction === "out" && e.status === "paid").length)} paiement(s) saisi(s)`}
+        />
+        <Tile tone={t.net >= 0 ? "green" : "pink"} label="Solde" value={formatEuro(t.net)} note="entrées − cotisations − tous les frais" />
       </div>
 
       <div className="grid grid-cols-[1.4fr_1fr] items-start gap-3 max-[1099px]:grid-cols-1">
@@ -415,13 +483,38 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
                   <span className="whitespace-nowrap font-extrabold">{minus(t.stripeFee)}</span>
                 </div>
               )}
+              {t.shippingCost > 0 && (
+                <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
+                  <span className="flex min-w-0 flex-col">
+                    <span>Port payé au transporteur</span>
+                    <span className="text-xs opacity-70">
+                      {fmt(sales.orders)} colis vendu{sales.orders > 1 ? "s" : ""}, au barème Boxtal
+                      {sales.shippingUnknown > 0 ? ` — dont ${fmt(sales.shippingUnknown)} estimé${sales.shippingUnknown > 1 ? "s" : ""} au port facturé` : ""}
+                    </span>
+                  </span>
+                  <span className="whitespace-nowrap font-extrabold">{minus(t.shippingCost)}</span>
+                </div>
+              )}
+              {t.packagingCost > 0 && (
+                <div className="flex items-baseline justify-between gap-3 text-[0.8125rem]">
+                  <span className="flex min-w-0 flex-col">
+                    <span>Emballages</span>
+                    <span className="text-xs opacity-70">
+                      {fmt(sales.orders + gifts.parcels)} colis × {formatEuro(packagingCost)}
+                      {gifts.parcels > 0 ? ` — dont ${fmt(gifts.parcels)} colis offert${gifts.parcels > 1 ? "s" : ""}` : ""}
+                    </span>
+                  </span>
+                  <span className="whitespace-nowrap font-extrabold">{minus(t.packagingCost)}</span>
+                </div>
+              )}
               <div className="flex items-baseline justify-between gap-3 border-t border-current/20 pt-2.5">
                 <span className="text-[0.9375rem] font-extrabold">Ce qui reste</span>
-                <span className="whitespace-nowrap text-[1.25rem] font-extrabold">{formatEuro(t.in - t.urssaf - t.stripeFee)}</span>
+                <span className="whitespace-nowrap text-[1.25rem] font-extrabold">{formatEuro(t.in - t.urssaf - t.stripeFee - t.shippingCost - t.packagingCost)}</span>
               </div>
               <span className="text-[0.6875rem] leading-relaxed">
-                Les kits offerts aux partenaires ne sont pas là : ils n'encaissent rien. Une entrée saisie ne cotise que si la case « Déduire les {bpLabel(urssafBp)} d'URSSAF » a été laissée cochée — un don ou un apport
-                n'est pas du chiffre d'affaires. Ce que chaque vente laisse une fois TOUS ses coûts retirés (fabrication, port réel) se lit dans Revenus.
+                Les kits offerts aux partenaires n'entrent pas dans l'encaissement : ils ne rapportent rien. Leur carton compte en revanche parmi les emballages, et leur étiquette parmi les frais saisis. Une entrée saisie
+                ne cotise que si la case « Déduire les {bpLabel(urssafBp)} d'URSSAF » a été laissée cochée — un don ou un apport n'est pas du chiffre d'affaires. La fabrication des livres n'est pas retirée ici : le tirage
+                est payé d'un bloc et saisi comme tel. C'est Revenus qui l'amortit vente par vente, pour dire ce qu'un livre laisse.
               </span>
             </Card>
           )}
@@ -542,9 +635,13 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
 
       {months.length > 1 && (
         <Card title="Mois par mois" className="!p-6 [&>div:last-child]:-mx-6 [&>div:last-child]:rounded-none [&>div:last-child]:py-0">
+          <p className="-mt-1 text-[0.8125rem] leading-relaxed text-subtle">
+            Chaque ligne se refait de tête : ventes + autres entrées − cotisations − Stripe − colis − frais payés = solde. « Colis » réunit le port réellement payé au transporteur et le carton de chaque colis parti, ceux
+            des kits offerts compris. La fabrication des livres n&apos;y est pas : le tirage est saisi le jour de sa facture.
+          </p>
           <GridTable
-            columns="1fr 110px 110px 110px 110px 110px 110px"
-            head={["Mois", "Ventes", "Cotisations", "Stripe", "Frais payés", "Autres entrées", "Solde"]}
+            columns="1fr 105px 100px 95px 105px 105px 105px 105px"
+            head={["Mois", "Ventes", "Cotisations", "Stripe", "Colis", "Frais payés", "Autres entrées", "Solde"]}
             rows={months.map((m) => ({
               key: m.month,
               cells: [
@@ -559,6 +656,10 @@ export default async function DepensesPage({ searchParams }: PageProps<"/admin/d
                 </span>,
                 <span key="sf" className="whitespace-nowrap text-subtle">
                   {m.stripeFee > 0 ? minus(m.stripeFee) : "—"}
+                </span>,
+                /* Port réel + cartons : les deux sorties qu'un colis entraîne, en une colonne. */
+                <span key="p" className="whitespace-nowrap text-subtle">
+                  {m.shippingCost + m.packagingCost > 0 ? minus(m.shippingCost + m.packagingCost) : "—"}
                 </span>,
                 <span key="o" className="whitespace-nowrap text-subtle">
                   {m.entered.out > 0 ? minus(m.entered.out) : "—"}

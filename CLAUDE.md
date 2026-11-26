@@ -824,9 +824,33 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   doivent continuer de se retrouver). Le montant vient du
   prix rendu par Boxtal (HT, passé en TTC), à défaut du barème de `shipping/tariffs.ts` ;
   faute des deux, la ligne est posée à zéro et « engagée », à compléter à la main. Les
-  ventes ne passent pas par là : leur port réel est déjà retiré du revenu dans
-  /admin/revenus, commande par commande. Conséquence assumée : le port d'un colis offert
-  se lit aux deux endroits — retranché du net dans Revenus, et en dépense ici.
+  ventes ne passent pas par là, et c'est ce qui fait la seule exception de l'écran : leur
+  port est **calculé**, celui d'un colis offert est **saisi**. Conséquence assumée : le
+  port d'un colis offert se lit aux deux endroits — retranché du net dans Revenus, et en
+  dépense ici.
+
+- **Ce qu'un colis coûte en caisse est calculé, colis par colis** : le port réellement
+  payé au transporteur (barème fournisseur, le même calcul que Revenus) et le carton de
+  chaque colis parti, ceux des **kits et lots offerts** compris (`SalesFlow.shippingCost`,
+  `SalesFlow.packagingCost`, `GiftFlow`). Sans eux, le solde d'un mois ne pouvait pas se
+  rapprocher du relevé bancaire : le port du client entrait avec l'encaissement — `revenue`
+  est port compris — sans que la facture du transporteur en sorte jamais, et le solde était
+  surévalué d'autant. Deux garde-fous vont avec, et aucun n'est décoratif. Le port d'un
+  colis **offert** n'est jamais calculé ici : il n'existe que par sa ligne saisie d'office,
+  reconnue à son identifiant (`giftExpenseId`) — déduit de la commande, et non à son
+  libellé, qui porte le nom d'un partenaire et peut être réécrit. Et une facture de
+  transport ou un achat de cartons **saisi à la main** refait une sortie désormais
+  calculée : l'écran le **dit** (`parcelEntered`), comme il le dit déjà d'un versement
+  URSSAF ressaisi.
+
+- **La fabrication des livres n'est PAS retirée ici**, et c'est la frontière de l'écran.
+  Le tirage est payé d'un bloc, le jour de la facture d'imprimeur, et il est saisi comme
+  tel ; en retenir une part à chaque vente le compterait deux fois. Un colis offert ne
+  coûte donc à la caisse que son carton — ses livres sortent d'un stock déjà payé.
+  /admin/revenus fait l'inverse, et c'est son office : il amortit ce stock vente par vente
+  pour dire ce qu'un livre laisse. **Les deux écrans ne peuvent donc pas tomber sur le
+  même chiffre, et ne le doivent pas** — l'écart d'un mois est fait du port, des cartons
+  et des colis offerts d'un côté, des frais saisis de l'autre.
 
 - Le schéma d'`Expense` a changé une fois (un titre → plusieurs, un justificatif →
   plusieurs, exemplaires retirés). Plutôt qu'une migration, `upgradeExpense` reprend
@@ -834,8 +858,9 @@ base : `db/fb-groups.ts` (`fbGroups/<slug>`, `fbClicks`, `integrations/facebookG
   lève sur un document invalide, et l'écran entier tomberait. `src/lib/domain/expense.test.ts`
   garde ce filet en place — ne pas le retirer tant que des lignes d'avant subsistent.
 - La différence avec `/admin/revenus` tient en une phrase : là-bas on regarde ce qu'une
-  **vente** laisse une fois tous ses coûts retirés (fabrication, port réel, commission) ;
-  ici, ce que le **compte** fait sur une période, frais de structure compris.
+  **vente** laisse une fois tous ses coûts retirés (fabrication comprise) ; ici, ce que le
+  **compte** fait sur une période — l'argent qui passe, frais de structure compris, et
+  jamais un stock amorti. C'est cet écran qui répond à « combien puis-je virer ».
 - `/admin/documents` — les pièces administratives (collection `documents`) : normes CE,
   rapports de laboratoire, attributions d'ISBN, contrats, assurances. **Rien n'est
   public** : le fichier va sous `documents/` (fermé par `storage.rules`, comme

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { CATEGORY_LABELS, FAR_FUTURE, METHOD_LABELS, RECURRENCE_LABELS, matchesExpense, resolveRange } from "@/lib/admin/expense-ui";
-import { NO_SALES, type SalesFlow, inPeriod } from "@/lib/admin/expenses";
+import { NO_GIFTS, NO_SALES, type GiftFlow, type SalesFlow, inPeriod } from "@/lib/admin/expenses";
 import { COUNTED } from "@/lib/admin/order-ui";
-import { partOf } from "@/lib/admin/revenue";
+import { partOf, shippingCostFor } from "@/lib/admin/revenue";
 import { getSessionUser } from "@/lib/auth/session";
 import { listDocuments } from "@/lib/db/documents";
 import { listExpenses } from "@/lib/db/expenses";
@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   const q = url.searchParams.get("q") ?? "";
 
   const [all, products, documents, orders, settings] = await Promise.all([listExpenses(), listAllProducts(), listDocuments(), listOrders({ limit: 2000 }), getSettings()]);
-  const { urssafBp, stripeBp, stripeFixed } = settings.costs;
+  const { urssafBp, stripeBp, stripeFixed, packagingCost, kitPackagingCost } = settings.costs;
   const today = dayKey(Date.now());
   /* La même fenêtre que l'écran, résolue par la même fonction : le fichier porte ce qu'on regardait. */
   const range = resolveRange({ periode: url.searchParams.get("periode"), mois: url.searchParams.get("mois"), du: url.searchParams.get("du"), au: url.searchParams.get("au") }, today);
@@ -69,18 +69,29 @@ export async function GET(request: Request) {
 
   if (!poste && !q) {
     const byMonth = new Map<string, SalesFlow>();
+    /* Les colis offerts ne vendent rien, mais leur carton sort : voir `GiftFlow`. */
+    const giftsByMonth = new Map<string, GiftFlow>();
     for (const o of orders) {
-      if (!o.livemode || !COUNTED.includes(o.status) || offeredOrder(o)) continue;
+      if (!o.livemode || !COUNTED.includes(o.status)) continue;
       const day = dayKey(o.createdAt);
       if ((from && day < from) || day > to) continue;
       const month = day.slice(0, 7);
+      if (offeredOrder(o)) {
+        const g = giftsByMonth.get(month) ?? { ...NO_GIFTS };
+        giftsByMonth.set(month, { parcels: g.parcels + 1, packagingCost: g.packagingCost + (kitPackagingCost || packagingCost) });
+        continue;
+      }
       const f = byMonth.get(month) ?? { ...NO_SALES };
       const total = o.totals.total;
+      const ship = shippingCostFor(o, settings);
       byMonth.set(month, {
         orders: f.orders + 1,
         revenue: f.revenue + total,
         urssaf: f.urssaf + partOf(total, urssafBp),
         stripeFee: f.stripeFee + (total > 0 ? partOf(total, stripeBp) + stripeFixed : 0),
+        shippingCost: f.shippingCost + ship.cents,
+        shippingUnknown: f.shippingUnknown + (ship.known ? 0 : 1),
+        packagingCost: f.packagingCost + packagingCost,
       });
     }
     /*
@@ -95,8 +106,9 @@ export async function GET(request: Request) {
       taxedByMonth.set(month, (taxedByMonth.get(month) ?? 0) + e.amount);
     }
     const pct = (bp: number) => `${(bp / 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} %`;
-    for (const month of new Set([...byMonth.keys(), ...taxedByMonth.keys()])) {
+    for (const month of new Set([...byMonth.keys(), ...taxedByMonth.keys(), ...giftsByMonth.keys()])) {
       const f = byMonth.get(month) ?? { ...NO_SALES };
+      const g = giftsByMonth.get(month) ?? { ...NO_GIFTS };
       const date = `${month}-01`;
       const urssaf = f.urssaf + partOf(taxedByMonth.get(month) ?? 0, urssafBp);
       if (f.revenue > 0) {
@@ -107,6 +119,15 @@ export async function GET(request: Request) {
       }
       if (f.stripeFee > 0) {
         rows.push({ date, cells: [date, "Sortie", CATEGORY_LABELS.fees, `Commission Stripe — ${month}`, "Stripe", signed(f.stripeFee, true), "calculé", "", "Payé", "Ponctuel", "", "", `${pct(stripeBp)} + ${euros(stripeFixed)} € par commande`] });
+      }
+      if (f.shippingCost > 0) {
+        const note = `${f.orders} colis vendu(s), barème fournisseur Boxtal${f.shippingUnknown > 0 ? ` — ${f.shippingUnknown} estimé(s) au port facturé` : ""}`;
+        rows.push({ date, cells: [date, "Sortie", CATEGORY_LABELS.shipping, `Port des ventes — ${month}`, "Boxtal", signed(f.shippingCost, true), "calculé", "", "Payé", "Ponctuel", "", "", note] });
+      }
+      const packaging = f.packagingCost + g.packagingCost;
+      if (packaging > 0) {
+        const note = `${f.orders + g.parcels} colis × ${euros(packagingCost)} €${g.parcels > 0 ? ` — dont ${g.parcels} colis offert(s)` : ""}`;
+        rows.push({ date, cells: [date, "Sortie", CATEGORY_LABELS.packaging, `Emballages — ${month}`, "", signed(packaging, true), "calculé", "", "Payé", "Ponctuel", "", "", note] });
       }
     }
   }

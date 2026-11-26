@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Expense } from "@/lib/domain/types";
-import { NO_SALES, byCategory, byMonth, byProduct, cashTotals, daysBefore, fixedCharges, fixedMonthly, inPeriod, monthlyCost, splitCents, sumExpenses, sumSales, urssafOn } from "./expenses";
+import { NO_GIFTS, NO_SALES, type GiftFlow, type SalesFlow, byCategory, byMonth, byProduct, cashTotals, daysBefore, fixedCharges, fixedMonthly, inPeriod, monthlyCost, splitCents, sumExpenses, sumGifts, sumSales, urssafOn } from "./expenses";
 
 const make = (over: Partial<Expense>): Expense => ({
   id: over.id ?? "exp_1",
@@ -71,6 +71,11 @@ describe("byCategory", () => {
   });
 });
 
+/** Un mois de ventes, dont on n'écrit que ce qui compte pour le test. */
+const sale = (p: Partial<SalesFlow>): SalesFlow => ({ ...NO_SALES, ...p });
+/** Un mois de colis offerts. */
+const gift = (p: Partial<GiftFlow>): GiftFlow => ({ ...NO_GIFTS, ...p });
+
 describe("byMonth", () => {
   it("regroupe par mois, du plus récent au plus ancien", () => {
     const rows = byMonth([make({ id: "a", date: "2026-08-02", amount: 1_000 }), make({ id: "b", date: "2026-09-04", amount: 2_000 }), make({ id: "c", date: "2026-09-28", amount: 3_000 })]);
@@ -81,13 +86,13 @@ describe("byMonth", () => {
   });
 
   it("fait exister un mois qui n'a vu que des ventes", () => {
-    const rows = byMonth([make({ id: "a", date: "2026-08-02", amount: 1_000 })], new Map([["2026-09", { orders: 4, revenue: 100_000, urssaf: 12_300, stripeFee: 0 }]]));
+    const rows = byMonth([make({ id: "a", date: "2026-08-02", amount: 1_000 })], new Map([["2026-09", sale({ orders: 4, revenue: 100_000, urssaf: 12_300 })]]));
     expect(rows.map((r) => r.month)).toEqual(["2026-09", "2026-08"]);
     expect(rows[0]).toMatchObject({ in: 100_000, out: 12_300, net: 87_700 });
   });
 
   it("additionne ventes et frais du même mois", () => {
-    const rows = byMonth([make({ id: "a", date: "2026-09-10", amount: 20_000 })], new Map([["2026-09", { orders: 4, revenue: 100_000, urssaf: 12_300, stripeFee: 0 }]]));
+    const rows = byMonth([make({ id: "a", date: "2026-09-10", amount: 20_000 })], new Map([["2026-09", sale({ orders: 4, revenue: 100_000, urssaf: 12_300 })]]));
     expect(rows[0]).toMatchObject({ in: 100_000, out: 32_300, net: 67_700 });
   });
 });
@@ -95,13 +100,23 @@ describe("byMonth", () => {
 describe("sumSales", () => {
   it("additionne des mois de ventes", () => {
     expect(sumSales([
-      { orders: 3, revenue: 60_000, urssaf: 7_380, stripeFee: 975 },
-      { orders: 2, revenue: 40_000, urssaf: 4_920, stripeFee: 650 },
-    ])).toEqual({ orders: 5, revenue: 100_000, urssaf: 12_300, stripeFee: 1_625 });
+      sale({ orders: 3, revenue: 60_000, urssaf: 7_380, stripeFee: 975, shippingCost: 1_200, packagingCost: 750 }),
+      sale({ orders: 2, revenue: 40_000, urssaf: 4_920, stripeFee: 650, shippingCost: 800, shippingUnknown: 1, packagingCost: 500 }),
+    ])).toEqual(sale({ orders: 5, revenue: 100_000, urssaf: 12_300, stripeFee: 1_625, shippingCost: 2_000, shippingUnknown: 1, packagingCost: 1_250 }));
   });
 
   it("sans vente, tout est à zéro", () => {
     expect(sumSales([])).toEqual(NO_SALES);
+  });
+});
+
+describe("sumGifts", () => {
+  it("additionne des mois de colis offerts", () => {
+    expect(sumGifts([gift({ parcels: 2, packagingCost: 1_000 }), gift({ parcels: 1, packagingCost: 500 })])).toEqual(gift({ parcels: 3, packagingCost: 1_500 }));
+  });
+
+  it("sans colis offert, tout est à zéro", () => {
+    expect(sumGifts([])).toEqual(NO_GIFTS);
   });
 });
 
@@ -123,7 +138,7 @@ describe("urssafOn", () => {
       make({ id: "c", direction: "in", category: "funding", amount: 50_000, taxable: false }),
     ];
     const perRow = list.reduce((s, e) => s + urssafOn(e, 1_230), 0);
-    expect(cashTotals(list, NO_SALES, 1_230).urssaf).toBe(perRow);
+    expect(cashTotals(list, NO_SALES, NO_GIFTS, 1_230).urssaf).toBe(perRow);
   });
 });
 
@@ -131,7 +146,7 @@ describe("cashTotals", () => {
   it("met les ventes en entrée et les cotisations en sortie, avec les lignes saisies", () => {
     const t = cashTotals(
       [make({ id: "a", amount: 30_000 }), make({ id: "b", direction: "in", category: "funding", amount: 50_000 }), make({ id: "c", amount: 9_000, status: "pending" })],
-      { orders: 8, revenue: 200_000, urssaf: 24_600, stripeFee: 0 },
+      sale({ orders: 8, revenue: 200_000, urssaf: 24_600 }),
     );
     expect(t.in).toBe(250_000); // 200 000 de ventes + 50 000 d'apport
     expect(t.out).toBe(54_600); // 24 600 de cotisations + 30 000 de frais payés
@@ -153,7 +168,8 @@ describe("cashTotals", () => {
         make({ id: "a", direction: "in", category: "offline_sales", amount: 222_800, taxable: true }),
         make({ id: "b", direction: "in", category: "offline_sales", amount: 120_100, taxable: true }),
       ],
-      { orders: 1, revenue: 36_248, urssaf: 4_459, stripeFee: 0 },
+      sale({ orders: 1, revenue: 36_248, urssaf: 4_459 }),
+      NO_GIFTS,
       1_230,
     );
     expect(t.in).toBe(379_148);
@@ -163,26 +179,55 @@ describe("cashTotals", () => {
   });
 
   it("laisse passer un don sans rien prélever", () => {
-    const t = cashTotals([make({ direction: "in", category: "funding", amount: 50_000, taxable: false })], NO_SALES, 1_230);
+    const t = cashTotals([make({ direction: "in", category: "funding", amount: 50_000, taxable: false })], NO_SALES, NO_GIFTS, 1_230);
     expect(t.urssaf).toBe(0);
     expect(t.enteredTurnover).toBe(0);
     expect(t.net).toBe(50_000);
   });
 
   it("ne cotise pas une entrée seulement attendue, même marquée", () => {
-    const t = cashTotals([make({ direction: "in", category: "offline_sales", amount: 50_000, taxable: true, status: "pending" })], NO_SALES, 1_230);
+    const t = cashTotals([make({ direction: "in", category: "offline_sales", amount: 50_000, taxable: true, status: "pending" })], NO_SALES, NO_GIFTS, 1_230);
     expect(t.urssaf).toBe(0);
   });
 
   it("sort la commission Stripe avec les cotisations", () => {
-    const t = cashTotals([], { orders: 2, revenue: 100_000, urssaf: 12_300, stripeFee: 1_550 }, 1_230);
+    const t = cashTotals([], sale({ orders: 2, revenue: 100_000, urssaf: 12_300, stripeFee: 1_550 }), NO_GIFTS, 1_230);
     expect(t.stripeFee).toBe(1_550);
     expect(t.out).toBe(13_850);
     expect(t.net).toBe(86_150);
   });
 
+  it("sort le port réellement payé au transporteur", () => {
+    const t = cashTotals([], sale({ orders: 2, revenue: 100_000, urssaf: 12_300, shippingCost: 1_190 }));
+    expect(t.shippingCost).toBe(1_190);
+    expect(t.out).toBe(13_490);
+    expect(t.net).toBe(86_510);
+  });
+
+  it("sort un carton par colis, vendu ou offert", () => {
+    const t = cashTotals([], sale({ orders: 2, revenue: 100_000, packagingCost: 500 }), gift({ parcels: 3, packagingCost: 900 }));
+    expect(t.packagingCost).toBe(1_400);
+    expect(t.out).toBe(1_400);
+    expect(t.net).toBe(98_600);
+  });
+
+  /*
+   * La règle de l'écran : le tirage est saisi le jour de sa facture, et rien ne retient
+   * de fabrication sur une vente. Un colis offert ne coûte donc à la caisse que son
+   * carton — pas ses livres, qui sortent d'un stock déjà payé.
+   */
+  it("ne retient aucune fabrication, pas même sur un colis offert", () => {
+    const t = cashTotals([], NO_SALES, gift({ parcels: 1, packagingCost: 500 }));
+    expect(t.out).toBe(500);
+  });
+
+  it("un mois sans rien d'autre que des colis offerts existe quand même", () => {
+    const rows = byMonth([], new Map(), new Map([["2026-10", gift({ parcels: 2, packagingCost: 1_000 })]]));
+    expect(rows.map((r) => [r.month, r.out, r.net])).toEqual([["2026-10", 1_000, -1_000]]);
+  });
+
   it("garde les lignes saisies lisibles à part des ventes", () => {
-    const t = cashTotals([make({ direction: "in", category: "funding", amount: 50_000 })], { orders: 1, revenue: 10_000, urssaf: 1_230, stripeFee: 0 });
+    const t = cashTotals([make({ direction: "in", category: "funding", amount: 50_000 })], sale({ orders: 1, revenue: 10_000, urssaf: 1_230 }));
     expect(t.entered.in).toBe(50_000);
     expect(t.sales.revenue).toBe(10_000);
   });
